@@ -57,11 +57,12 @@ function detectarVencimientos() {
   var n = 0;
   leerTabla(sh).forEach(function (t) {
     var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
-    if (!term && t.fecha_limite && String(t.fecha_limite) < hoy) {
+    var fl = aFechaISO(t.fecha_limite);
+    if (!term && fl && fl < hoy) {
       crearAviso({
         id_cliente: clienteDeProyecto(t.id_proyecto),
         tipo: 'tarea_vencida',
-        mensaje: 'Tarea vencida (' + t.fecha_limite + '): ' + t.descripcion + ' [' + t.id_tarea + ']'
+        mensaje: 'Tarea vencida (' + fl + '): ' + t.descripcion + ' [' + t.id_tarea + ']'
       });
       n++;
     }
@@ -78,7 +79,8 @@ function detectarTareasEstancadas() {
   leerTabla(sh).forEach(function (t) {
     var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
     var activa = ['en_curso', 'pendiente', 'en curso', ''].indexOf(String(t.estado).toLowerCase()) >= 0;
-    if (!term && activa && t.fecha_creacion && String(t.fecha_creacion).substring(0, 10) < limite) {
+    var fc = aFechaISO(t.fecha_creacion);
+    if (!term && activa && fc && fc < limite) {
       crearAviso({
         id_cliente: clienteDeProyecto(t.id_proyecto),
         tipo: 'tarea_estancada',
@@ -98,7 +100,7 @@ function detectarProyectosSinMovimiento() {
   var n = 0;
   leerTabla(sh).forEach(function (p) {
     var term = ['cerrado', 'entregado', 'cancelado'].indexOf(String(p.estado).toLowerCase()) >= 0;
-    var mov = String(p.fecha_ultimo_movimiento || '').substring(0, 10);
+    var mov = aFechaISO(p.fecha_ultimo_movimiento);
     if (!term && mov && mov < limite) {
       crearAviso({
         id_cliente: p.id_cliente,
@@ -128,7 +130,7 @@ function expirarAprobaciones() {
       if (!sh) return;
       leerTabla(sh).forEach(function (a) {
         if (String(a.estado).toLowerCase() === 'pendiente' &&
-            a.fecha_creacion && String(a.fecha_creacion).substring(0, 10) < limite) {
+            aFechaISO(a.fecha_creacion) && aFechaISO(a.fecha_creacion) < limite) {
           var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
           sh.getRange(a._fila, headers.indexOf('estado') + 1).setValue('expirada');
           sh.getRange(a._fila, headers.indexOf('fecha_decision') + 1).setValue(hoyISO());

@@ -27,6 +27,20 @@ function mesISO() {
 }
 
 /**
+ * Normaliza un valor de fecha leído de Sheets a 'yyyy-MM-dd' para comparar.
+ * Sheets auto-convierte strings tipo fecha a objetos Date al leer con
+ * getValues(); String(Date) NO es ISO y rompe la comparación lexicográfica.
+ * Acepta Date o string; '' si vacío.
+ */
+function aFechaISO(v) {
+  if (v === '' || v === null || v === undefined) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return Utilities.formatDate(v, TZ, 'yyyy-MM-dd');
+  }
+  return String(v).substring(0, 10);
+}
+
+/**
  * Garantiza una pestaña con encabezados. Idempotente: crea si falta,
  * escribe la fila de encabezados solo si está vacía. Devuelve el Sheet.
  */
