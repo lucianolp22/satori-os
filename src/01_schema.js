@@ -1,0 +1,67 @@
+/**
+ * 01_schema.js — Definición única de pestañas y columnas (fuente de verdad del modelo).
+ * Espejo exacto de ETAPA 0.3 (modelo de datos) y ETAPA 0.2 (aprobaciones).
+ * No duplicar estos nombres en otros archivos: importar desde aquí.
+ */
+
+// Clave en Script Properties donde vive el ID del Sheet MAESTRO.
+var PROP_MAESTRO_ID = 'MAESTRO_ID';
+
+var MAESTRO_NOMBRE = 'Satori OS — MAESTRO';
+
+// ── Pestañas del MAESTRO (0.3) ──────────────────────────────────────────────
+var MAESTRO_SHEETS = {
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta'],
+  Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento'],
+  Tareas: ['id_tarea', 'id_proyecto', 'descripcion', 'prioridad', 'estado', 'fecha_limite', 'fecha_creacion'],
+  Avisos: ['id_aviso', 'origen', 'id_cliente', 'tipo', 'mensaje', 'estado', 'fecha'],
+  Bitacora: ['fecha', 'id_cliente', 'observacion', 'etiqueta'],
+  // Espejo de pendientes de cada Sheet cliente (solo lectura agregada — 0.3).
+  Aprobaciones_agregadas: ['id', 'fecha_creacion', 'id_cliente', 'cliente', 'modulo', 'patron', 'tipo_accion', 'descripcion', 'payload', 'monto', 'confianza_%', 'estado', 'url_sheet_cliente', 'sincronizado_en'],
+  Costos_API_consolidado: ['mes', 'id_cliente', 'modulo', 'llamadas', 'tokens', 'USD', 'EUR'],
+  Gobernanza: ['id_cliente', 'que_corre_solo', 'que_se_aprueba', 'backup', 'link_documentacion', 'ultima_revision'],
+  Config: ['clave', 'valor']
+};
+
+// Orden de creación de pestañas en el MAESTRO.
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Config'];
+
+// ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
+var CLIENTE_SHEETS = {
+  Datos_operativos: ['fecha', 'concepto', 'valor', 'fuente', 'notas'],
+  KPIs: ['fecha', 'kpi', 'valor', 'objetivo', 'alerta'],
+  // Esquema completo de 0.2 (append-only).
+  Aprobaciones: ['id', 'fecha_creacion', 'cliente', 'modulo', 'patron', 'tipo_accion', 'descripcion', 'payload', 'monto', 'confianza_%', 'estado', 'decidido_por', 'fecha_decision', 'resultado_ejecucion', 'notas'],
+  Excepciones: ['id', 'fecha', 'modulo', 'contexto', 'payload', 'estado', 'resolucion', 'regla_creada'],
+  // P2: cliente implícito (es el Sheet del cliente). Sin fila → default deny.
+  Umbrales: ['tipo_accion', 'umbral_EUR', 'aprobador'],
+  Costos_API: ['timestamp', 'modulo', 'endpoint', 'tokens_in', 'tokens_out', 'USD'],
+  // Per Auditor 0.2: nacen como "propuesta", se activan vía P1.
+  Reglas: ['id_regla', 'origen', 'condicion', 'accion', 'estado']
+};
+
+var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 'Umbrales', 'Costos_API', 'Reglas'];
+
+// Pestañas sensibles del Sheet cliente: ocultas + protegidas (Auditor 0.3 #1).
+// Si en Etapa 3 el dueño del negocio abre su Sheet, no ve interna de gestión.
+var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones'];
+
+// ── Config por defecto del MAESTRO (clave · valor) ──────────────────────────
+var CONFIG_DEFAULTS = [
+  ['timezone', 'Europe/Madrid'],
+  ['tipo_cambio_usd_eur', '0.92'],
+  ['umbral_confianza_default_%', '80'],
+  ['expiracion_aprobaciones_dias', '7'],
+  ['dias_estancamiento_proyecto', '7'],
+  ['dias_estancamiento_tarea', '7'],
+  ['ultima_sync_ok', ''],
+  ['ultima_sync_intento', ''],
+  ['ultima_sync_estado', ''],
+  ['cursor_sync', '0'],
+  ['ultima_corrida_avisos', ''],
+  ['version_modelo', '0.3']
+];
+
+// Estados válidos (referencia; no se valida duro en Etapa 1).
+var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];
+var ESTADOS_APROBACION = ['pendiente', 'aprobada', 'editada', 'rechazada', 'expirada'];
