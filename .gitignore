@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+*.log
+# Credenciales clasp viven en ~/.clasprc.json (global), nunca en el repo.
+# Secretos de API → Script Properties en GAS, jamás en archivos.

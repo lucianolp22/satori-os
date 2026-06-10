@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(clasp create-script *)",
+      "Bash(clasp pull *)"
+    ]
+  }
+}
