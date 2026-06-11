@@ -14,6 +14,10 @@ function selfTest() {
   function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) throw new Error('FALLO: ' + msg); }
 
   try {
+    // Pre-clean: barre restos de corridas anteriores ANTES de empezar, para que
+    // las aserciones no se contaminen con un cliente/fila __TEST__ huérfano (Verificador).
+    limpiarTodoTest();
+
     // 0) setup idempotente
     var s = setup();
     chk(s.pestanas.length >= 9, 'MAESTRO con 9 pestañas (' + s.pestanas.length + ')');
@@ -43,7 +47,7 @@ function selfTest() {
 
     var sync = syncMaestro();
     var agg = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas'))
-      .filter(function (f) { return f.id === 'APR-TEST-1'; });
+      .filter(function (f) { return f.id === 'APR-TEST-1' && f.cliente === nombrePrueba; });
     chk(agg.length === 1, 'aprobación pendiente del cliente aparece agregada en el maestro');
     chk(String(getConfig('ultima_sync_ok')) !== '', 'ultima_sync_ok seteado');
 

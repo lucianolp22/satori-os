@@ -22,8 +22,9 @@ cliente no llevan código propio (0.4 decisión 3). Sin IMPORTRANGE: sync por GA
 | `05_costos.js` | wrapper de costos (stub Etapa 2) | `llamadaAPI(cli, mod, opts)`, `logCostoCliente()` |
 | `06_avisos.js` | trigger diario + detectores + expiración | `corridaDiaria()`, `instalarTriggers()`, `crearAviso()`, `detectar*()`, `expirarAprobaciones()` |
 | `07_util.js` | helpers (sin estado) | `getMaestro()`, `ensureSheet()`, `leerTabla()`, `appendFila()`, `getConfig/setConfig`, `nextId()`, `protegerSheet()`, `ahoraISO/hoyISO/mesISO` |
-| `08_webapp.js` | entrada Web App (UI gated por DESIGN.md) | `doGet()`, `estadoSistema()` |
-| `09_selftest.js` | verificación end-to-end auto-limpia | `selfTest()` |
+| `08_webapp.js` | Web App: sirve la shell + datos para la UI (vía `google.script.run`) | `doGet()`, `datosHoy()`, `listaClientes()`, `datosCliente(id)`, `estadoSistema()`, `consumoApiCliente()` |
+| `index.html` | UI vanilla (Registro A de DESIGN.md): vista «Hoy» + panel por cliente. Sin templating: datos async, escapado por `textContent` | — |
+| `09_selftest.js` | verificación end-to-end auto-limpia (pre-clean + post-clean) | `selfTest()`, `limpiarTodoTest()` |
 | `10_bootstrap.js` | arranque real en una corrida | `bootstrap()` |
 
 ## Convenciones (de 0.2/0.3)
@@ -38,6 +39,12 @@ cliente no llevan código propio (0.4 decisión 3). Sin IMPORTRANGE: sync por GA
 3. Ejecutar **`selfTest()`** → verificación end-to-end (se autolimpia). Debe terminar en «— TODO OK —».
 Detalle por flujo: `docs/`.
 
+## Web App (paso 8 — hecho)
+- UI = Registro A de `DESIGN.md` (dashboard/ERP operativo), tokens exclusivos del archivo, vanilla GAS.
+- Datos vía `google.script.run` (DESIGN.md §6); el HTML es estático → sin `<?= ?>`/`<?!= ?>` con datos.
+- Deploy «solo yo» (`access: MYSELF`, `executeAs: USER_DEPLOYING`). URL `/exec` del deployment activo.
+- Probar live (cargar `/exec` en desktop y móvil) requiere la autorización OAuth de Luciano en el navegador.
+
 ## Pendiente (no construido)
-- Vista «Hoy» + panel cliente (Web App): **bloqueado hasta leer `DESIGN.md`** (handoff paso 8). Backend no depende de esto.
 - Etapa 2: activar Aprobaciones/Umbrales/Reglas y completar wrapper de costos (tokens/USD reales).
+- Proyectos/Tareas/Bitácora/Gobernanza se llenan a mano por ahora (la UI los muestra; no hay alta aún).
