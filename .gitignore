@@ -1,5 +1,7 @@
 node_modules/
 .DS_Store
 *.log
+# PURGA #8: el scriptId es identificador de despliegue; no se versiona.
+.clasp.json
 # Credenciales clasp viven en ~/.clasprc.json (global), nunca en el repo.
 # Secretos de API → Script Properties en GAS, jamás en archivos.

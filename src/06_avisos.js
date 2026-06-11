@@ -12,23 +12,25 @@ var TRIGGER_AVISOS = 'corridaDiaria';
 /** Crea un Aviso en el MAESTRO si no existe ya uno activo igual (dedupe). */
 function crearAviso(a) {
   var sh = getMaestro().getSheetByName('Avisos');
-  var activos = leerTabla(sh).filter(function (f) { return String(f.estado) === 'activo'; });
-  var dup = activos.filter(function (f) {
-    return f.tipo === a.tipo && f.id_cliente === (a.id_cliente || '') && f.mensaje === a.mensaje;
-  })[0];
-  if (dup) return dup.id_aviso;
+  return conLock(function () { // PURGA #4: dedupe + nextId + append, atómico
+    var activos = leerTabla(sh).filter(function (f) { return String(f.estado) === 'activo'; });
+    var dup = activos.filter(function (f) {
+      return f.tipo === a.tipo && f.id_cliente === (a.id_cliente || '') && f.mensaje === a.mensaje;
+    })[0];
+    if (dup) return dup.id_aviso;
 
-  var id = nextId(sh, 'id_aviso', 'AVI', 4);
-  appendFila(sh, {
-    id_aviso: id,
-    origen: a.origen || 'trigger',
-    id_cliente: a.id_cliente || '',
-    tipo: a.tipo,
-    mensaje: a.mensaje,
-    estado: 'activo',
-    fecha: ahoraISO()
+    var id = nextId(sh, 'id_aviso', 'AVI', 4);
+    appendFila(sh, {
+      id_aviso: id,
+      origen: a.origen || 'trigger',
+      id_cliente: a.id_cliente || '',
+      tipo: a.tipo,
+      mensaje: a.mensaje,
+      estado: 'activo',
+      fecha: ahoraISO()
+    });
+    return id;
   });
-  return id;
 }
 
 /**
@@ -37,10 +39,12 @@ function crearAviso(a) {
  */
 function corridaDiaria() {
   var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0 };
+  // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
+  // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
+  resumen.expiradas = expirarAprobaciones();
   try { resumen.sync = syncMaestro(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Sync falló: ' + e.message }); }
 
-  resumen.expiradas = expirarAprobaciones();
   resumen.avisos_nuevos += detectarVencimientos();
   resumen.avisos_nuevos += detectarTareasEstancadas();
   resumen.avisos_nuevos += detectarProyectosSinMovimiento();
@@ -135,6 +139,10 @@ function expirarAprobaciones() {
           sh.getRange(a._fila, headers.indexOf('estado') + 1).setValue('expirada');
           sh.getRange(a._fila, headers.indexOf('fecha_decision') + 1).setValue(hoyISO());
           sh.getRange(a._fila, headers.indexOf('notas') + 1).setValue('Expirada por silencio > ' + dias + 'd');
+          // PURGA #13: dejar autor de la decisión (no humano) para trazabilidad.
+          if (headers.indexOf('decidido_por') >= 0) {
+            sh.getRange(a._fila, headers.indexOf('decidido_por') + 1).setValue('sistema (expiración)');
+          }
           crearAviso({
             id_cliente: cli.id_cliente,
             tipo: 'aprobacion_expirada',

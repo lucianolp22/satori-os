@@ -74,8 +74,34 @@ function leerTabla(sh) {
 /** Append de una fila respetando el orden de encabezados de la pestaña. */
 function appendFila(sh, objeto) {
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var fila = headers.map(function (h) { return objeto.hasOwnProperty(h) ? objeto[h] : ''; });
+  var fila = headers.map(function (h) { return sanitizarCelda(objeto.hasOwnProperty(h) ? objeto[h] : ''); });
   sh.appendRow(fila);
+}
+
+/**
+ * Mitiga formula/CSV injection (PURGA #1). Una celda string que empieza con
+ * = + - @ la interpreta Sheets como fórmula al escribirla; un `=...` que cruce
+ * de un Sheet cliente al MAESTRO vía sync se evaluaría. Prefijar `'` la deja
+ * como texto literal. Solo afecta strings — números/fechas-Date pasan intactos.
+ */
+function sanitizarCelda(v) {
+  if (typeof v === 'string' && v.length > 0 && '=+-@'.indexOf(v.charAt(0)) >= 0) {
+    return "'" + v;
+  }
+  return v;
+}
+
+/**
+ * Ejecuta fn() bajo ScriptLock (PURGA #4). Serializa secciones lee-max-escribe
+ * (nextId + appendFila) para que trigger y corrida manual solapados no generen
+ * IDs duplicados. No reentrante: lockear en los callers (crearAviso/crearCliente),
+ * nunca anidado dentro de nextId.
+ */
+function conLock(fn) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000); // 20 s; lanza si no lo consigue (mejor que correr sin lock)
+  try { return fn(); }
+  finally { lock.releaseLock(); }
 }
 
 /** Lee un valor de Config por clave (string). '' si no existe. */

@@ -12,10 +12,11 @@
  *   - datosCliente(idCliente) → panel por cliente
  */
 function doGet() {
+  // PURGA #9: sin ALLOWALL — se deja el XFrameOptions por defecto (no embebible
+  // por terceros). App interna de un solo usuario, no necesita iframes externos.
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('Satori OS')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 /** Resumen de cabecera (incluye ultima_sync_ok, visible siempre). */

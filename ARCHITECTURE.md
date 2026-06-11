@@ -7,7 +7,7 @@ Un proyecto GAS (el **MAESTRO**) opera sobre N Sheets cliente vía SpreadsheetAp
 El MAESTRO agrega gestión (proyectos, tareas, avisos, pendientes). Los Sheets
 cliente no llevan código propio (0.4 decisión 3). Sin IMPORTRANGE: sync por GAS.
 
-- scriptId GAS: `1MagyKYQDOhvu7Vkd__OqYGodI8e6tet3Rw1zzjAkIhPRtVL_X7bKxFhe`
+- scriptId GAS: en `.clasp.json` local (gitignored — PURGA #8). No se versiona ni se publica.
 - ID del Sheet MAESTRO: en Script Properties (`MAESTRO_ID`), lo crea `setup()`.
 
 ## Archivos `src/` (orden = prefijo numérico)
@@ -48,3 +48,15 @@ Detalle por flujo: `docs/`.
 ## Pendiente (no construido)
 - Etapa 2: activar Aprobaciones/Umbrales/Reglas y completar wrapper de costos (tokens/USD reales).
 - Proyectos/Tareas/Bitácora/Gobernanza se llenan a mano por ahora (la UI los muestra; no hay alta aún).
+
+## PURGA Etapa 1 — Lote B (pendiente, se hace con Etapa 2)
+Lote A aplicado (#1,#4,#8,#15,#14,#16,#13,#9,#10,#2). Fuente: `../Videos analizados/PURGA ETAPA 1 - Hallazgos y remediación.md`.
+- **#3** sync wipe-then-rebuild no atómico → acumular en memoria + un `setValues` final.
+- **#5** `corridaDiaria` abre cada Sheet cliente 2× + writes celda-a-celda (N+1): a ~20 clientes choca 6 min/ejecución → una pasada por cliente, batch.
+- **#6** `clienteDeProyecto` relee Proyectos por cada tarea → mapa proyecto→cliente una vez por corrida.
+- **#7** protección de pestañas sensibles no excluye editores futuros → `removeEditors` + hidden no es control de acceso (clave al compartir en Etapa 3).
+- **#11/#12** `cursor_sync` decorativo y Config no leída (timezone/tipo_cambio).
+- **#23** prioridades D/E sin soporte · **#24** logs con nombres de clientes · **#25** código muerto.
+- **UI (#17-22)** vs DESIGN.md: proponer tokens de sombra dark en DESIGN.md, monto en `font-mono`, ≤2 pesos tipográficos, targets táctiles ≥40px, `th scope`, contraste AA de warning/subtle.
+- **Eliminar** `src/11_repro.js` (repro temporal de #1) tras validar.
+- Atención manual en validación: cargar fechas SIEMPRE como `yyyy-MM-dd` en Tareas/Proyectos (hipótesis 5).

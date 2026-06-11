@@ -15,6 +15,7 @@ function crearCliente(datos) {
   var ss = getMaestro();
   var shClientes = ss.getSheetByName('Clientes');
 
+  return conLock(function () { // PURGA #4: idempotencia + reserva de ID + alta, atómico
   // ¿Ya registrado? (idempotencia por nombre, case-insensitive)
   var existentes = leerTabla(shClientes);
   var match = existentes.filter(function (f) {
@@ -60,6 +61,7 @@ function crearCliente(datos) {
 
   Logger.log('Cliente ' + idCliente + ' (' + datos.nombre + '): ' + clienteSS.getUrl());
   return { id_cliente: idCliente, url: clienteSS.getUrl(), ya_existia: false };
+  });
 }
 
 /**

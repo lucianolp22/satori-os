@@ -14,12 +14,13 @@ function selfTest() {
   function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) throw new Error('FALLO: ' + msg); }
 
   try {
-    // Pre-clean: barre restos de corridas anteriores ANTES de empezar, para que
-    // las aserciones no se contaminen con un cliente/fila __TEST__ huérfano (Verificador).
-    limpiarTodoTest();
-
     // 0) setup idempotente
     var s = setup();
+
+    // Pre-clean: barre restos de corridas anteriores para que las aserciones no se
+    // contaminen con un cliente/fila __TEST__ huérfano (Verificador). Va DESPUÉS de
+    // setup() — limpiarTodoTest usa getMaestro() y reventaría en proyecto virgen (PURGA #15).
+    limpiarTodoTest();
     chk(s.pestanas.length >= 9, 'MAESTRO con 9 pestañas (' + s.pestanas.length + ')');
     MAESTRO_ORDEN.forEach(function (n) { chk(s.pestanas.indexOf(n) >= 0, 'pestaña maestro: ' + n); });
 
@@ -98,7 +99,12 @@ function limpiarTodoTest() {
   borrarFilasDonde(shClientes, 'nombre', null, function (f) { return String(f.nombre).indexOf('__TEST__') === 0; });
   borrarFilasDonde(ss.getSheetByName('Aprobaciones_agregadas'), 'id', null, function (f) { return String(f.id).indexOf('APR-TEST') === 0; });
   borrarFilasDonde(ss.getSheetByName('Tareas'), 'id_tarea', null, function (f) { return String(f.id_tarea).indexOf('TAR-TEST') === 0; });
-  borrarFilasDonde(ss.getSheetByName('Avisos'), 'mensaje', null, function (f) { return String(f.mensaje).indexOf('TEST') >= 0; });
+  // PURGA #14: acotar a marcadores de prueba (TAR-TEST/APR-TEST), nunca a un
+  // 'TEST' suelto en el mensaje — borraría avisos reales que mencionen "test".
+  borrarFilasDonde(ss.getSheetByName('Avisos'), 'mensaje', null, function (f) {
+    var m = String(f.mensaje);
+    return m.indexOf('TAR-TEST') >= 0 || m.indexOf('APR-TEST') >= 0;
+  });
   return { clientes: testClientes.length };
 }
 
