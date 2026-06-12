@@ -52,16 +52,64 @@ function selfTest() {
     chk(agg.length === 1, 'aprobación pendiente del cliente aparece agregada en el maestro');
     chk(String(getConfig('ultima_sync_ok')) !== '', 'ultima_sync_ok seteado');
 
-    // c) corrida diaria escribe avisos (creamos una tarea vencida)
+    // c) detector de vencidas escribe avisos (creamos una tarea vencida).
+    // NB: se llama el detector directo, NO corridaDiaria() — en Etapa 2 esa encola
+    // Vigía para clientes reales y consolida costos; correrla en el test tocaría producción.
     var shT = getMaestro().getSheetByName('Tareas');
     appendFila(shT, {
       id_tarea: 'TAR-TEST-1', id_proyecto: 'PRY-TEST', descripcion: 'tarea vencida test',
       prioridad: 'A', estado: 'en_curso', fecha_limite: '2020-01-01', fecha_creacion: '2020-01-01'
     });
-    var corrida = corridaDiaria();
+    invalidarMapaPC();
+    detectarVencimientos();
     var avisos = leerTabla(getMaestro().getSheetByName('Avisos'))
       .filter(function (f) { return String(f.mensaje).indexOf('TAR-TEST-1') >= 0; });
-    chk(avisos.length >= 1, 'corridaDiaria generó aviso de tarea vencida');
+    chk(avisos.length >= 1, 'detectarVencimientos generó aviso de tarea vencida');
+
+    // ── ETAPA 2 ───────────────────────────────────────────────────────────────
+    // E2-1) default-deny: crearAprobacion con monto y sin fila en Umbrales → PENDIENTE + P1.
+    var apr1 = crearAprobacion(r.id_cliente, 'test', 'pago', { x: 1 }, { monto: 500, descripcion: 'pago test' });
+    var aprRow = leerTabla(cliSS.getSheetByName('Aprobaciones')).filter(function (f) { return f.id === apr1.id; })[0];
+    chk(!!aprRow && String(aprRow.estado).toLowerCase() === 'pendiente', 'E2-1 aprobación nace PENDIENTE');
+    chk(apr1.patron === 'P1', 'E2-1 default-deny: monto sin umbral → P1 (' + apr1.patron + ')');
+
+    // E2-4) regla desde excepción: nace 'propuesta' + P1; solo se activa al aprobar esa P1.
+    var reg = crearReglaDesdeExcepcion(r.id_cliente, 'si X', 'hacer Y', 'test');
+    var regRow = leerTabla(cliSS.getSheetByName('Reglas')).filter(function (f) { return f.id_regla === reg.id_regla; })[0];
+    chk(!!regRow && String(regRow.estado) === 'propuesta', 'E2-4 regla nace "propuesta"');
+    resolverAprobacion(r.id_cliente, reg.aprobacion.id, 'aprobada');
+    var regRow2 = leerTabla(cliSS.getSheetByName('Reglas')).filter(function (f) { return f.id_regla === reg.id_regla; })[0];
+    chk(String(regRow2.estado) === 'activa', 'E2-4 regla se activa SOLO tras aprobar la P1');
+
+    // E2-2) expiración: pendiente con fecha de hace 8 días → "expirada", nada se ejecuta.
+    appendFila(cliSS.getSheetByName('Aprobaciones'), {
+      id: 'APR-TEST-EXP', fecha_creacion: hace(8), cliente: nombrePrueba, modulo: 'test',
+      patron: 'P1', tipo_accion: 'email', descripcion: 'expira test', payload: '{}', estado: 'pendiente'
+    });
+    expirarAprobaciones(r.id_cliente); // acotado al cliente de prueba: no toca pendientes reales
+    var expRow = leerTabla(cliSS.getSheetByName('Aprobaciones')).filter(function (f) { return f.id === 'APR-TEST-EXP'; })[0];
+    chk(String(expRow.estado) === 'expirada', 'E2-2 pendiente >7d → expirada (el silencio no aprueba)');
+
+    // E2-6) anonimización: email/teléfono salen tokenizados; el mapa revierte.
+    var an = anonimizar('Escribir a ana@correo.com o al +34 600 123 456');
+    chk(an.texto.indexOf('@correo.com') < 0 && /CLIENTA_EMAIL/.test(an.texto), 'E2-6 email anonimizado antes de salir');
+    chk(desanonimizar(an.texto, an.mapa).indexOf('ana@correo.com') >= 0, 'E2-6 desanonimizar revierte');
+
+    // Caso 7) cola durable: encolar + claim + ejecutar → completada (worker de prueba, no toca la cola real).
+    var qid = encolar('__TESTWORKER__', 'noop', {});
+    var tk = tomar_('__TESTWORKER__', 'test');
+    chk(!!tk && tk.id === qid, 'caso7 claim atómico toma la tarea encolada');
+    ejecutarTarea_(tk);
+    var qrow = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) { return f.id === qid; })[0];
+    chk(qrow && String(qrow.estado) === 'completada', 'caso7 noop queda completada (drain-on-startup)');
+
+    // Caso 10) laboratorio: agente no activo → error honesto, nunca corre.
+    var lab = correrAgente_('flux', {}, 'TST', r.id_cliente);
+    chk(lab.status === 'error' && /laboratorio/i.test(lab.detalle), 'caso10 agente de laboratorio no corre');
+
+    // Caso 12) runner contra cliente sin datos → "sin datos aún", jamás inventa (sin llamar API).
+    var sd = correrAgente_('vigia', {}, 'TST', r.id_cliente);
+    chk(sd.status === 'completado' && sd.detalle === 'sin datos aún', 'caso12 sin datos = honesto');
 
     log.push('— TODO OK —');
   } finally {
@@ -88,6 +136,7 @@ function limpiarTodoTest() {
   var testClientes = leerTabla(shClientes).filter(function (f) {
     return String(f.nombre).indexOf('__TEST__') === 0;
   });
+  var idsTest = {}; testClientes.forEach(function (c) { idsTest[String(c.id_cliente)] = true; });
   testClientes.forEach(function (c) {
     try {
       if (c.url_sheet_cliente) {
@@ -96,24 +145,29 @@ function limpiarTodoTest() {
     } catch (e) { Logger.log('No pude mandar a papelera ' + c.id_cliente + ': ' + e.message); }
   });
 
-  borrarFilasDonde(shClientes, 'nombre', null, function (f) { return String(f.nombre).indexOf('__TEST__') === 0; });
-  borrarFilasDonde(ss.getSheetByName('Aprobaciones_agregadas'), 'id', null, function (f) { return String(f.id).indexOf('APR-TEST') === 0; });
-  borrarFilasDonde(ss.getSheetByName('Tareas'), 'id_tarea', null, function (f) { return String(f.id_tarea).indexOf('TAR-TEST') === 0; });
+  borrarFilasDonde(shClientes, function (f) { return String(f.nombre).indexOf('__TEST__') === 0; });
+  borrarFilasDonde(ss.getSheetByName('Aprobaciones_agregadas'), function (f) { return String(f.id).indexOf('APR-TEST') === 0; });
+  borrarFilasDonde(ss.getSheetByName('Tareas'), function (f) { return String(f.id_tarea).indexOf('TAR-TEST') === 0; });
   // PURGA #14: acotar a marcadores de prueba (TAR-TEST/APR-TEST), nunca a un
   // 'TEST' suelto en el mensaje — borraría avisos reales que mencionen "test".
-  borrarFilasDonde(ss.getSheetByName('Avisos'), 'mensaje', null, function (f) {
+  borrarFilasDonde(ss.getSheetByName('Avisos'), function (f) {
     var m = String(f.mensaje);
     return m.indexOf('TAR-TEST') >= 0 || m.indexOf('APR-TEST') >= 0;
   });
+  // ETAPA 2: cola de prueba (noop / worker de test) y feed del cliente de prueba.
+  borrarFilasDonde(ss.getSheetByName('Cola_tareas'), function (f) {
+    return String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__';
+  });
+  borrarFilasDonde(ss.getSheetByName('Actividad'), function (f) { return idsTest[String(f.id_cliente)] === true; });
   return { clientes: testClientes.length };
 }
 
-/** Borra filas de una pestaña por igualdad de columna o por predicado. */
-function borrarFilasDonde(sh, columna, valor, pred) {
+/** Borra filas de una pestaña según un predicado. PURGA #25: era (sh,columna,valor,pred)
+ * con la rama por igualdad muerta — todos los llamadores usaban solo pred. */
+function borrarFilasDonde(sh, pred) {
   var filas = leerTabla(sh);
   // de abajo hacia arriba para no desfasar índices
   for (var i = filas.length - 1; i >= 0; i--) {
-    var hit = pred ? pred(filas[i]) : (filas[i][columna] === valor);
-    if (hit) sh.deleteRow(filas[i]._fila);
+    if (pred(filas[i])) sh.deleteRow(filas[i]._fila);
   }
 }

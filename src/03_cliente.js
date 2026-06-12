@@ -59,7 +59,7 @@ function crearCliente(datos) {
     fecha_alta: hoyISO()
   });
 
-  Logger.log('Cliente ' + idCliente + ' (' + datos.nombre + '): ' + clienteSS.getUrl());
+  Logger.log('Cliente ' + idCliente + ' creado.'); // PURGA #24: sin nombre ni URL en log
   return { id_cliente: idCliente, url: clienteSS.getUrl(), ya_existia: false };
   });
 }
@@ -80,6 +80,6 @@ function cargaInicialClientes() {
     var r = crearCliente(c);
     return { nombre: c.nombre, id_cliente: r.id_cliente, ya_existia: r.ya_existia, url: r.url };
   });
-  Logger.log(JSON.stringify(res, null, 2));
+  Logger.log(res.length + ' clientes procesados: ' + res.map(function (r) { return r.id_cliente; }).join(', ')); // PURGA #24
   return res;
 }

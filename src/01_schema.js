@@ -20,11 +20,18 @@ var MAESTRO_SHEETS = {
   Aprobaciones_agregadas: ['id', 'fecha_creacion', 'id_cliente', 'cliente', 'modulo', 'patron', 'tipo_accion', 'descripcion', 'payload', 'monto', 'confianza_%', 'estado', 'url_sheet_cliente', 'sincronizado_en'],
   Costos_API_consolidado: ['mes', 'id_cliente', 'modulo', 'llamadas', 'tokens', 'USD', 'EUR'],
   Gobernanza: ['id_cliente', 'que_corre_solo', 'que_se_aprueba', 'backup', 'link_documentacion', 'ultima_revision'],
+  // ── Etapa 2 (capa Trillion) ──
+  // Cola de tareas durable (Cola.gs donante adaptado). El contrato es la cola.
+  Cola_tareas: ['id', 'worker', 'tipo', 'payload', 'estado', 'resultado', 'error', 'tomada_por', 'creada_en', 'tomada_en', 'completada_en'],
+  // Feed de actividad de agentes → alimenta el activity feed del Centro de Mando.
+  Actividad: ['ts', 'agente', 'tipo', 'id_cliente', 'texto', 'tarea_id', 'aprobacion_id'],
+  // Cupos diarios por agente + gasto mensual acumulado (presupuesto de agentes).
+  Consumo_agentes: ['mes', 'gasto_usd', 'corridas_json'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
@@ -48,7 +55,6 @@ var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrale
 
 // ── Config por defecto del MAESTRO (clave · valor) ──────────────────────────
 var CONFIG_DEFAULTS = [
-  ['timezone', 'Europe/Madrid'],
   ['tipo_cambio_usd_eur', '0.92'],
   ['umbral_confianza_default_%', '80'],
   ['expiracion_aprobaciones_dias', '7'],
@@ -57,10 +63,16 @@ var CONFIG_DEFAULTS = [
   ['ultima_sync_ok', ''],
   ['ultima_sync_intento', ''],
   ['ultima_sync_estado', ''],
-  ['cursor_sync', '0'],
   ['ultima_corrida_avisos', ''],
-  ['version_modelo', '0.3']
+  ['version_modelo', '0.3'],
+  // Etapa 2 — presupuesto de agentes (Trillion). El tope mensual USD también
+  // puede vivir en Script Properties (API_BUDGET_MENSUAL_USD); Config es el default.
+  ['api_budget_mensual_usd', '25']
 ];
+// PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
+// 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;
+// dejarlo en Config invitaba a creer que se podía cambiar desde la hoja. 'tipo_cambio_usd_eur'
+// SÍ se usa ahora (consolidación de costos USD→EUR en 05_costos.js).
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];

@@ -38,7 +38,8 @@ function crearAviso(a) {
  * Orden: sync primero (refresca pendientes) → luego detectores.
  */
 function corridaDiaria() {
-  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0 };
+  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, costos: null };
+  invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
   resumen.expiradas = expirarAprobaciones();
@@ -49,9 +50,28 @@ function corridaDiaria() {
   resumen.avisos_nuevos += detectarTareasEstancadas();
   resumen.avisos_nuevos += detectarProyectosSinMovimiento();
 
+  // ETAPA 2: encolar Vigía para cada cliente activo (la cola es el contrato; el
+  // worker drenarCola la corre). Los detectores internos se conservan tal cual.
+  try { resumen.vigias_encoladas = encolarVigiaClientesActivos(); }
+  catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Encolar vigías falló: ' + e.message }); }
+
+  // ETAPA 2: consolidar costos del mes al MAESTRO (USD/EUR + alerta de presupuesto).
+  try { resumen.costos = consolidarCostosMes(); }
+  catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Consolidar costos falló: ' + e.message }); }
+
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));
   return resumen;
+}
+
+/** Encola una corrida de Vigía por cada cliente activo. Devuelve cuántas encoló. */
+function encolarVigiaClientesActivos() {
+  var activos = ['activo', 'activo-piloto'];
+  var clientes = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
+    return activos.indexOf(String(c.estado).toLowerCase()) >= 0;
+  });
+  clientes.forEach(function (c) { encolarAgente(c.id_cliente, 'vigia', {}); });
+  return clientes.length;
 }
 
 /** Tareas con fecha_límite pasada y estado no terminal → aviso. */
@@ -122,35 +142,54 @@ function detectarProyectosSinMovimiento() {
  * (el silencio NUNCA aprueba — 0.2) y avisar. Append-only: se EDITA el estado de
  * la fila pendiente, no se borra.
  */
-function expirarAprobaciones() {
+function expirarAprobaciones(soloCliente) {
   var dias = parseInt(getConfig('expiracion_aprobaciones_dias') || '7', 10);
   var limite = hace(dias);
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes'));
   var n = 0;
   clientes.forEach(function (cli) {
     if (!cli.url_sheet_cliente) return;
+    if (soloCliente && cli.id_cliente !== soloCliente) return; // selfTest acota a su cliente
     try {
       var sh = SpreadsheetApp.openByUrl(cli.url_sheet_cliente).getSheetByName('Aprobaciones');
-      if (!sh) return;
-      leerTabla(sh).forEach(function (a) {
-        if (String(a.estado).toLowerCase() === 'pendiente' &&
-            aFechaISO(a.fecha_creacion) && aFechaISO(a.fecha_creacion) < limite) {
-          var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-          sh.getRange(a._fila, headers.indexOf('estado') + 1).setValue('expirada');
-          sh.getRange(a._fila, headers.indexOf('fecha_decision') + 1).setValue(hoyISO());
-          sh.getRange(a._fila, headers.indexOf('notas') + 1).setValue('Expirada por silencio > ' + dias + 'd');
-          // PURGA #13: dejar autor de la decisión (no humano) para trazabilidad.
-          if (headers.indexOf('decidido_por') >= 0) {
-            sh.getRange(a._fila, headers.indexOf('decidido_por') + 1).setValue('sistema (expiración)');
-          }
+      if (!sh || sh.getLastRow() < 2) return;
+      // PURGA #5: una sola lectura + una sola escritura por cliente (antes: 3-4
+      // setValue por fila vencida, N+1). Leemos toda la pestaña, mutamos en memoria
+      // las filas pendientes vencidas y volcamos el bloque de datos de una vez.
+      var matriz = sh.getDataRange().getValues();
+      var headers = matriz[0];
+      var iEstado = headers.indexOf('estado');
+      var iDecision = headers.indexOf('fecha_decision');
+      var iNotas = headers.indexOf('notas');
+      var iAutor = headers.indexOf('decidido_por');
+      var iFc = headers.indexOf('fecha_creacion');
+      var iId = headers.indexOf('id');
+      var iDesc = headers.indexOf('descripcion');
+      var cambiada = false;
+      var avisos = [];
+      for (var r = 1; r < matriz.length; r++) {
+        if (String(matriz[r][iEstado]).toLowerCase() === 'pendiente' &&
+            aFechaISO(matriz[r][iFc]) && aFechaISO(matriz[r][iFc]) < limite) {
+          matriz[r][iEstado] = 'expirada';
+          if (iDecision >= 0) matriz[r][iDecision] = hoyISO();
+          if (iNotas >= 0) matriz[r][iNotas] = 'Expirada por silencio > ' + dias + 'd';
+          // PURGA #13: autor no humano de la decisión, para trazabilidad.
+          if (iAutor >= 0) matriz[r][iAutor] = 'sistema (expiración)';
+          avisos.push({ id: matriz[r][iId], desc: matriz[r][iDesc] });
+          cambiada = true;
+          n++;
+        }
+      }
+      if (cambiada) {
+        sh.getRange(1, 1, matriz.length, headers.length).setValues(matriz);
+        avisos.forEach(function (a) {
           crearAviso({
             id_cliente: cli.id_cliente,
             tipo: 'aprobacion_expirada',
-            mensaje: 'Aprobación expirada sin decisión: ' + a.descripcion + ' [' + a.id + ']'
+            mensaje: 'Aprobación expirada sin decisión: ' + a.desc + ' [' + a.id + ']'
           });
-          n++;
-        }
-      });
+        });
+      }
     } catch (e) {
       crearAviso({ tipo: 'sync_error', mensaje: 'Expirar aprobaciones falló en ' + cli.id_cliente + ': ' + e.message });
     }
@@ -167,12 +206,27 @@ function hace(dias) {
   return Utilities.formatDate(d, TZ, 'yyyy-MM-dd');
 }
 
-/** id_cliente al que pertenece un id_proyecto (vía pestaña Proyectos). */
+/**
+ * PURGA #6: mapa id_proyecto → id_cliente construido UNA vez por ejecución.
+ * Antes clienteDeProyecto releía Proyectos entera por cada tarea (datosHoy hasta
+ * 25×). El cache vive en el runtime de la ejecución (GAS arranca limpio en cada
+ * corrida), así que no hay riesgo de staleness entre ejecuciones. invalidarMapaPC()
+ * por si algún flujo escribe Proyectos y vuelve a leer en la misma corrida.
+ */
+var _mapaPC = null;
+function mapaProyectoCliente() {
+  if (_mapaPC) return _mapaPC;
+  _mapaPC = {};
+  leerTabla(getMaestro().getSheetByName('Proyectos')).forEach(function (p) {
+    _mapaPC[p.id_proyecto] = p.id_cliente;
+  });
+  return _mapaPC;
+}
+function invalidarMapaPC() { _mapaPC = null; }
+
+/** id_cliente al que pertenece un id_proyecto (vía mapa memoizado). */
 function clienteDeProyecto(idProyecto) {
-  var p = leerTabla(getMaestro().getSheetByName('Proyectos')).filter(function (f) {
-    return f.id_proyecto === idProyecto;
-  })[0];
-  return p ? p.id_cliente : '';
+  return mapaProyectoCliente()[idProyecto] || '';
 }
 
 /**
@@ -180,10 +234,12 @@ function clienteDeProyecto(idProyecto) {
  * Cuota consumer: un solo trigger batched, no uno por flujo (0.4).
  */
 function instalarTriggers() {
+  var deseados = [TRIGGER_AVISOS, 'drenarCola']; // Etapa 2: + worker de la cola (cada 5 min)
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === TRIGGER_AVISOS) ScriptApp.deleteTrigger(t);
+    if (deseados.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger(TRIGGER_AVISOS).timeBased().everyDays(1).atHour(7).create();
-  Logger.log('Trigger diario "' + TRIGGER_AVISOS + '" instalado (07:00 Europe/Madrid).');
+  ScriptApp.newTrigger('drenarCola').timeBased().everyMinutes(5).create();
+  Logger.log('Triggers instalados: "' + TRIGGER_AVISOS + '" (07:00) + "drenarCola" (cada 5 min).');
   return true;
 }

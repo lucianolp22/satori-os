@@ -104,6 +104,18 @@ function conLock(fn) {
   finally { lock.releaseLock(); }
 }
 
+/**
+ * Abre el Sheet de un cliente por id. Devuelve { cli (fila de Clientes), ss }.
+ * Punto único para no duplicar el patrón leerTabla+openByUrl en costos/aprobaciones/agentes.
+ */
+function abrirCliente(idCliente) {
+  var cli = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (f) {
+    return f.id_cliente === idCliente;
+  })[0];
+  if (!cli || !cli.url_sheet_cliente) throw new Error('cliente ' + idCliente + ' sin Sheet');
+  return { cli: cli, ss: SpreadsheetApp.openByUrl(cli.url_sheet_cliente) };
+}
+
 /** Lee un valor de Config por clave (string). '' si no existe. */
 function getConfig(clave) {
   var sh = getMaestro().getSheetByName('Config');
@@ -140,11 +152,24 @@ function nextId(sh, columna, prefijo, ancho) {
   return prefijo + '-' + num;
 }
 
-/** Protege una pestaña (warningOnly opcional). Idempotente. */
+/**
+ * Protege una pestaña (warningOnly opcional). Idempotente.
+ * PURGA #7: en protección dura (warningOnly=false) quitamos editores explícitos —
+ * hidden NO es control de acceso. Cuando en Etapa 3 se comparta el Sheet con el
+ * dueño del negocio, un editor podría des-ocultar y editar Aprobaciones/Costos si
+ * no se le retira el permiso de la pestaña. El owner del Sheet sigue pudiendo
+ * gestionarla (no se puede auto-excluir), que es justo lo que queremos.
+ */
 function protegerSheet(sh, warningOnly) {
   var prots = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET);
   var p = prots.length ? prots[0] : sh.protect();
   p.setDescription('Satori OS — estructura gestionada por el MAESTRO');
   p.setWarningOnly(!!warningOnly);
+  if (!warningOnly) {
+    try {
+      p.removeEditors(p.getEditors());
+      if (p.canDomainEdit && p.canDomainEdit()) p.setDomainEdit(false);
+    } catch (e) { /* sin editores que quitar o sin dominio: no-op */ }
+  }
   return p;
 }

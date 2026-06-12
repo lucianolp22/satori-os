@@ -4,8 +4,13 @@
 
 ## Topología
 Un proyecto GAS (el **MAESTRO**) opera sobre N Sheets cliente vía SpreadsheetApp.
-El MAESTRO agrega gestión (proyectos, tareas, avisos, pendientes). Los Sheets
-cliente no llevan código propio (0.4 decisión 3). Sin IMPORTRANGE: sync por GAS.
+El MAESTRO agrega gestión (proyectos, tareas, avisos, pendientes) y, desde Etapa 2,
+hospeda la **cola de tareas** (`Cola_tareas`), el **feed de agentes** (`Actividad`) y el
+**consumo de agentes** (`Consumo_agentes`). Los Sheets cliente no llevan código propio
+(0.4 decisión 3). Sin IMPORTRANGE: sync por GAS.
+
+Triggers: `corridaDiaria` (07:00) + `drenarCola` (cada 5 min). Secretos en Script
+Properties: `CLAUDE_API_KEY`, `API_BUDGET_MENSUAL_USD` (opcional), `WORKER` (opcional).
 
 - scriptId GAS: en `.clasp.json` local (gitignored — PURGA #8). No se versiona ni se publica.
 - ID del Sheet MAESTRO: en Script Properties (`MAESTRO_ID`), lo crea `setup()`.
@@ -19,13 +24,16 @@ cliente no llevan código propio (0.4 decisión 3). Sin IMPORTRANGE: sync por GA
 | `02_setup.js` | crea/repara el Sheet MAESTRO | `setup()`, `urlMaestro()` |
 | `03_cliente.js` | plantilla y alta de clientes | `crearCliente(datos)`, `cargaInicialClientes()` |
 | `04_sync.js` | agregación MAESTRO←clientes | `syncMaestro()` |
-| `05_costos.js` | wrapper de costos (stub Etapa 2) | `llamadaAPI(cli, mod, opts)`, `logCostoCliente()` |
-| `06_avisos.js` | trigger diario + detectores + expiración | `corridaDiaria()`, `instalarTriggers()`, `crearAviso()`, `detectar*()`, `expirarAprobaciones()` |
-| `07_util.js` | helpers (sin estado) | `getMaestro()`, `ensureSheet()`, `leerTabla()`, `appendFila()`, `getConfig/setConfig`, `nextId()`, `protegerSheet()`, `ahoraISO/hoyISO/mesISO` |
-| `08_webapp.js` | Web App: sirve la shell + datos para la UI (vía `google.script.run`) | `doGet()`, `datosHoy()`, `listaClientes()`, `datosCliente(id)`, `estadoSistema()`, `consumoApiCliente()` |
-| `index.html` | UI vanilla (Registro A de DESIGN.md): vista «Hoy» + panel por cliente. Sin templating: datos async, escapado por `textContent` | — |
-| `09_selftest.js` | verificación end-to-end auto-limpia (pre-clean + post-clean) | `selfTest()`, `limpiarTodoTest()` |
+| `05_costos.js` | **wrapper de costos + Bastión** (E2): anonimiza→fetch Claude→log siempre→error tipado; consolidación mensual | `llamadaAPI(cli, mod, opts)`, `anonimizar/desanonimizar`, `consolidarCostosMes()`, `logCostoCliente()` |
+| `06_avisos.js` | trigger diario + detectores + expiración + (E2) encolar Vigía y consolidar costos; instala trigger `drenarCola` | `corridaDiaria()`, `instalarTriggers()`, `crearAviso()`, `detectar*()`, `expirarAprobaciones()`, `clienteDeProyecto/mapaProyectoCliente` |
+| `07_util.js` | helpers (sin estado) | `getMaestro()`, `abrirCliente()`, `ensureSheet()`, `leerTabla()`, `appendFila()`, `getConfig/setConfig`, `nextId()`, `protegerSheet()`, `ahoraISO/hoyISO/mesISO` |
+| `08_webapp.js` | Web App: shell + datos UI (vía `google.script.run`); incluye endpoints del Centro de Mando | `doGet()`, `datosHoy()`, `datosCliente(id)`, `estadoSistema()`, `estadoAgentes()`, `dispararAgenteUI()`, `resolverAprobacionUI()` |
+| `index.html` | UI vanilla (DESIGN.md): vista «Hoy» + panel cliente + overlay **Centro de Mando** (orbe, feed, inbox aprobaciones con teclado, ⌘K). Sin templating: datos async, `textContent` | — |
+| `09_selftest.js` | verificación end-to-end auto-limpia (E1 + casos E2). NO usa `corridaDiaria()` (tocaría producción) | `selfTest()`, `limpiarTodoTest()` |
 | `10_bootstrap.js` | arranque real en una corrida | `bootstrap()` |
+| `11_aprobaciones.js` | **motor de aprobaciones** (E2): único camino a la ejecución | `crearAprobacion()`, `resolverAprobacion()`, `ejecutarAprobada()`, `clasificarAccion()`, `crearReglaDesdeExcepcion()`, `expirarPendientes()` |
+| `12_cola.js` | **cola durable** (E2, hoja `Cola_tareas`): claim atómico + drain | `encolar()`, `drenarCola()`, `tomar_()`, `ejecutarTarea_()` |
+| `13_agentes.js` | **registry 13 agentes** (E2): runners + cupos/presupuesto + feed `Actividad` | `AGENTES`, `correrAgente_()`, `encolarAgente()`, `guardPresupuesto_()`, `RUNNERS` |
 
 ## Convenciones (de 0.2/0.3)
 - IDs: `CLI-001`, `PRY-001-02`, `TAR-…`, `AVI-0001` (prefijo + correlativo, `nextId()`).
@@ -39,24 +47,32 @@ cliente no llevan código propio (0.4 decisión 3). Sin IMPORTRANGE: sync por GA
 3. Ejecutar **`selfTest()`** → verificación end-to-end (se autolimpia). Debe terminar en «— TODO OK —».
 Detalle por flujo: `docs/`.
 
-## Web App (paso 8 — hecho)
-- UI = Registro A de `DESIGN.md` (dashboard/ERP operativo), tokens exclusivos del archivo, vanilla GAS.
-- Datos vía `google.script.run` (DESIGN.md §6); el HTML es estático → sin `<?= ?>`/`<?!= ?>` con datos.
-- Deploy «solo yo» (`access: MYSELF`, `executeAs: USER_DEPLOYING`). URL `/exec` del deployment activo.
-- Probar live (cargar `/exec` en desktop y móvil) requiere la autorización OAuth de Luciano en el navegador.
+## Web App
+- UI = Registro A de `DESIGN.md` (dashboard/ERP) + overlay **Centro de Mando** (B-orbe, §8bis): orbe canvas,
+  órbitas activos/laboratorio, feed `Actividad`, inbox de aprobaciones E2 con teclado (j/k/a/e/r), barra de
+  presupuesto, modo calma, ⌘K command palette, saludo contextual. Vanilla GAS, `textContent` (XSS-safe).
+- Datos vía `google.script.run`; HTML estático → sin `<?= ?>`/`<?!= ?>` con datos.
+- Deploy «solo yo» (`access: MYSELF`, `executeAs: USER_DEPLOYING`). Probar live requiere OAuth de Luciano en el navegador.
 
-## Pendiente (no construido)
-- Etapa 2: activar Aprobaciones/Umbrales/Reglas y completar wrapper de costos (tokens/USD reales).
-- Proyectos/Tareas/Bitácora/Gobernanza se llenan a mano por ahora (la UI los muestra; no hay alta aún).
+## Estado (Etapa 2 construida — pendiente verificación de Luciano)
+- E1 en uso real. E2+ (Trillion) construida: motor de aprobaciones, wrapper de costos + Bastión, cola durable,
+  registry de 13 agentes (5 activos / 8 laboratorio), Centro de Mando. Lote B de la PURGA E1 aplicado.
+- **clasp push BLOQUEADO** hasta que Luciano corra en el editor: `selfTest()` verde + casos manuales (abajo).
+- Manifest sumó scope `script.send_mail` (MailApp) → re-autorización al correr `bootstrap()`.
+- Proyectos/Tareas/Bitácora/Gobernanza/Umbrales se llenan a mano (la UI los muestra; no hay alta aún).
 
-## PURGA Etapa 1 — Lote B (pendiente, se hace con Etapa 2)
-Lote A aplicado (#1,#4,#8,#15,#14,#16,#13,#9,#10,#2). Fuente: `../Videos analizados/PURGA ETAPA 1 - Hallazgos y remediación.md`.
-- **#3** sync wipe-then-rebuild no atómico → acumular en memoria + un `setValues` final.
-- **#5** `corridaDiaria` abre cada Sheet cliente 2× + writes celda-a-celda (N+1): a ~20 clientes choca 6 min/ejecución → una pasada por cliente, batch.
-- **#6** `clienteDeProyecto` relee Proyectos por cada tarea → mapa proyecto→cliente una vez por corrida.
-- **#7** protección de pestañas sensibles no excluye editores futuros → `removeEditors` + hidden no es control de acceso (clave al compartir en Etapa 3).
-- **#11/#12** `cursor_sync` decorativo y Config no leída (timezone/tipo_cambio).
-- **#23** prioridades D/E sin soporte · **#24** logs con nombres de clientes · **#25** código muerto.
-- **UI (#17-22)** vs DESIGN.md: proponer tokens de sombra dark en DESIGN.md, monto en `font-mono`, ≤2 pesos tipográficos, targets táctiles ≥40px, `th scope`, contraste AA de warning/subtle.
-- **Eliminar** `src/11_repro.js` (repro temporal de #1) tras validar.
-- Atención manual en validación: cargar fechas SIEMPRE como `yyyy-MM-dd` en Tareas/Proyectos (hipótesis 5).
+### Casos de aceptación a correr en el editor (no headless)
+- `selfTest()` cubre auto: E2-1 default-deny, E2-2 expiración, E2-4 regla-desde-excepción, E2-6 anonimización,
+  caso 7 cola (claim+drain), caso 10 laboratorio, caso 12 sin-datos.
+- **Manuales** (requieren `CLAUDE_API_KEY` / envío real / UI / concurrencia, fuera de selfTest):
+  E2-3 email draft→editar→aprobar→envío (usar el PROPIO email como destinatario — AREL),
+  E2-5 llamada API fallida igual logueada, caso 8 dos `drenarCola()` concurrentes (sin doble toma),
+  caso 9 Cobrador → PENDIENTE + tarea `completada/esperando_aprobacion`, caso 11 cupo agotado → pausa visible + fallida,
+  caso 13 UI Centro de Mando (13 agentes con estado real; aprobar desde el inbox).
+- Atención manual: cargar fechas SIEMPRE como `yyyy-MM-dd` en Tareas/Proyectos (hipótesis 5).
+
+## Pendiente / deuda
+- **DESIGN.md** (#17): documentar los tokens de sombra dark (ya existen en `index.html`, faltan en la spec).
+- Doble escritura de costos: el wrapper loguea en `Costos_API` del cliente (USD reales) y, en paralelo,
+  `Consumo_agentes` lleva el gasto mensual para cupos. Unificar si conviene en E3.
+- Activar agentes del laboratorio = flag `activo:true` en `13_agentes.js` + decisión humana.

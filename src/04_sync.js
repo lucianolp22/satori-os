@@ -17,10 +17,11 @@ function syncMaestro() {
 
   setConfig('ultima_sync_intento', ahoraISO());
 
-  // Reescribir el espejo completo (solo pendientes). Append-only vive en el
-  // cliente; el agregado del maestro es una vista, se puede regenerar.
+  // PURGA #3: wipe-then-rebuild NO atómico. Acumulamos todas las filas en memoria
+  // y recién al final limpiamos + escribimos de una. Si la lectura de un cliente
+  // muere a mitad, el espejo viejo queda intacto (no aparece "0 pendientes" falso).
   var headers = shAgg.getRange(1, 1, 1, shAgg.getLastColumn()).getValues()[0];
-  if (shAgg.getLastRow() > 1) shAgg.deleteRows(2, shAgg.getLastRow() - 1);
+  var filasAgg = [];
 
   var errores = [];
   var totalPend = 0;
@@ -36,7 +37,7 @@ function syncMaestro() {
         return String(f.estado).toLowerCase() === 'pendiente';
       });
       pendientes.forEach(function (p) {
-        appendFila(shAgg, {
+        var obj = {
           id: p.id,
           fecha_creacion: p.fecha_creacion,
           id_cliente: cli.id_cliente,
@@ -51,16 +52,22 @@ function syncMaestro() {
           estado: p.estado,
           url_sheet_cliente: cli.url_sheet_cliente,
           sincronizado_en: ahora
-        });
+        };
+        filasAgg.push(headers.map(function (h) { return sanitizarCelda(obj.hasOwnProperty(h) ? obj[h] : ''); }));
         totalPend++;
       });
     } catch (e) {
-      errores.push(cli.id_cliente + ' (' + cli.nombre + '): ' + e.message);
+      errores.push(cli.id_cliente + ': ' + e.message); // PURGA #24: sin nombre en log/aviso
     }
   });
 
-  // Avanzar cursor (nº de clientes procesados) y registrar estado.
-  setConfig('cursor_sync', String(clientes.length));
+  // Punto único de escritura: limpiar el espejo y volcar todo de una.
+  if (shAgg.getLastRow() > 1) {
+    shAgg.getRange(2, 1, shAgg.getLastRow() - 1, shAgg.getLastColumn()).clearContent();
+  }
+  if (filasAgg.length) {
+    shAgg.getRange(2, 1, filasAgg.length, headers.length).setValues(filasAgg);
+  }
 
   if (errores.length === 0) {
     setConfig('ultima_sync_ok', ahora);

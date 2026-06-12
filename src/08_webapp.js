@@ -168,15 +168,16 @@ function consumoApiCliente(url) {
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
-var PRIORIDAD_PESO = { A: 0, B: 1, C: 2 };
+// PURGA #23: soporte D/E (antes solo A/B/C; D/E caían al peso por defecto).
+var PRIORIDAD_PESO = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 
 /** Tareas no terminales, ordenadas por prioridad (A>B>C) y luego fecha_límite. */
 function tareasActivasOrdenadas(tareas) {
   return tareas.filter(function (t) {
     return ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) < 0;
   }).sort(function (a, b) {
-    var pa = PRIORIDAD_PESO[String(a.prioridad).toUpperCase()]; if (pa === undefined) pa = 3;
-    var pb = PRIORIDAD_PESO[String(b.prioridad).toUpperCase()]; if (pb === undefined) pb = 3;
+    var pa = PRIORIDAD_PESO[String(a.prioridad).toUpperCase()]; if (pa === undefined) pa = 9;
+    var pb = PRIORIDAD_PESO[String(b.prioridad).toUpperCase()]; if (pb === undefined) pb = 9;
     if (pa !== pb) return pa - pb;
     var fa = aFechaISO(a.fecha_limite) || '9999-12-31';
     var fb = aFechaISO(b.fecha_limite) || '9999-12-31';
@@ -189,4 +190,97 @@ function esVencida(fechaLimite, estado) {
   var term = ['hecha', 'cancelada', 'completada'].indexOf(String(estado).toLowerCase()) >= 0;
   var fl = aFechaISO(fechaLimite);
   return !term && !!fl && fl < hoyISO();
+}
+
+// ── Centro de Mando (ETAPA 2 · capa Trillion) ───────────────────────────────
+
+/**
+ * Estado del Centro de Mando: agentes con estado real de la cola, feed de Actividad,
+ * presupuesto, inbox de aprobaciones y clientes activos para disparar. Solo datos.
+ */
+function estadoAgentes() {
+  var agentes = Object.keys(AGENTES).map(function (k) {
+    var a = AGENTES[k];
+    return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estadoAgenteCola_(k) };
+  });
+  var c = filaConsumoAgentes_();
+  return {
+    agentes: agentes,
+    feed: feedReciente_(30),
+    presupuesto: { gastoUsd: c.gasto, topeUsd: budgetMensualUSD_() },
+    aprobaciones: inboxAprobaciones_(),
+    clientes_activos: listaClientes().filter(function (x) {
+      return ['activo', 'activo-piloto'].indexOf(String(x.estado).toLowerCase()) >= 0;
+    }),
+    ts: aHoraLegible_(ahoraISO())
+  };
+}
+
+/** Estado de un agente derivado de la cola: work si tiene tarea viva; ok/fail según la última. */
+function estadoAgenteCola_(clave) {
+  var sh = getMaestro().getSheetByName('Cola_tareas');
+  if (!sh || sh.getLastRow() < 2) return 'idle';
+  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var iTipo = H.indexOf('tipo'), iPayload = H.indexOf('payload'), iEstado = H.indexOf('estado');
+  var n = sh.getLastRow(), desde = Math.max(2, n - 120);
+  var datos = sh.getRange(desde, 1, n - desde + 1, sh.getLastColumn()).getValues();
+  var ultimo = 'idle';
+  for (var i = 0; i < datos.length; i++) {
+    if (String(datos[i][iTipo]) !== 'agente') continue;
+    var p = parsearPayload_(datos[i][iPayload]);
+    if (p.agente !== clave) continue;
+    var e = String(datos[i][iEstado]);
+    if (e === 'tomada' || e === 'pendiente') ultimo = 'work';
+    else if (e === 'completada') ultimo = 'ok';
+    else if (e === 'fallida') ultimo = 'fail';
+  }
+  return ultimo;
+}
+
+/** Últimos N eventos del feed Actividad (más nuevos primero). XSS lo maneja el front (textContent). */
+function feedReciente_(cuantos) {
+  var sh = getMaestro().getSheetByName('Actividad');
+  if (!sh || sh.getLastRow() < 2) return [];
+  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var ix = {}; H.forEach(function (h, i) { ix[h] = i; });
+  var n = sh.getLastRow(), desde = Math.max(2, n - cuantos + 1);
+  return sh.getRange(desde, 1, n - desde + 1, sh.getLastColumn()).getValues().map(function (f) {
+    return {
+      ts: aHoraLegible_(f[ix.ts]), agente: String(f[ix.agente]), tipo: String(f[ix.tipo]),
+      id_cliente: String(f[ix.id_cliente] || ''), texto: String(f[ix.texto]).replace(/^'/, ''),
+      tarea_id: String(f[ix.tarea_id] || ''), aprobacion_id: String(f[ix.aprobacion_id] || '')
+    };
+  }).reverse();
+}
+
+/** Inbox de aprobaciones pendientes (espejo agregado del MAESTRO). */
+function inboxAprobaciones_() {
+  return leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).map(function (a) {
+    return {
+      id: a.id, id_cliente: a.id_cliente, cliente: a.cliente, modulo: a.modulo, patron: a.patron,
+      tipo_accion: a.tipo_accion, descripcion: a.descripcion, payload: a.payload, monto: a.monto,
+      fecha_creacion: aFechaISO(a.fecha_creacion)
+    };
+  });
+}
+
+/** Dispara un agente para un cliente desde la UI (encola + drena para feedback inmediato). */
+function dispararAgenteUI(idCliente, clave) {
+  var r = encolarAgente(idCliente, clave, {});
+  drenarCola();
+  return r;
+}
+
+/** Resuelve una aprobación desde la UI (único punto de decisión: resolverAprobacion). */
+function resolverAprobacionUI(idCliente, id, decision, ediciones) {
+  return resolverAprobacion(idCliente, id, decision, ediciones || {});
+}
+
+/** 'yyyy-MM-ddTHH:mm:ss' → 'YYYY-MM-DD HH:mm' (legible). Acepta Date o string. */
+function aHoraLegible_(v) {
+  if (!v) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm');
+  }
+  return String(v).replace('T', ' ').substring(0, 16);
 }
