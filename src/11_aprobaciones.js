@@ -78,6 +78,7 @@ function crearAprobacion(idCliente, modulo, tipoAccion, payload, opts) {
       resultado_ejecucion: '',
       notas: ''
     });
+    SpreadsheetApp.flush(); // durabilidad: la pendiente queda escrita antes de soltar el lock / completar la tarea
     return { id: id, patron: patron };
   });
 }
@@ -125,6 +126,7 @@ function resolverAprobacion(idCliente, id, decision, ediciones) {
       if (c.fdec >= 0) matriz[r][c.fdec] = hoyISO();
       if (c.notas >= 0 && ediciones.notas !== undefined) matriz[r][c.notas] = sanitizarCelda(String(ediciones.notas));
       shAp.getRange(1, 1, matriz.length, H.length).setValues(matriz);
+      SpreadsheetApp.flush(); // commit la decisión antes de que ejecutarAprobada la relea (instancia fresca)
 
       if (decision === 'rechazada') return { ok: true, estado: decision };
       var ejec = ejecutarAprobada(idCliente, id); // aprobada | editada → ejecutar
