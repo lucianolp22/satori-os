@@ -133,6 +133,77 @@ function selfTest() {
 }
 
 /**
+ * Diagnóstico aislado de E2-1 (correr a mano en el editor). NO es un fix: instrumenta
+ * cada paso de crearAprobacion y compara contra un appendFila de control en la misma
+ * corrida. Crea un cliente __TEST__ y lo manda a papelera al final.
+ */
+function debugE21() {
+  var out = [];
+  function L(x) { out.push(String(x)); Logger.log(String(x)); }
+  var r = null;
+  try {
+    setup();
+    r = crearCliente({ nombre: '__TEST__ debugE21 ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+    L('cliente=' + r.id_cliente + ' ya_existia=' + r.ya_existia);
+    L('r.url=' + r.url);
+
+    // (c) headers reales de Aprobaciones del cliente (instancia fresca)
+    var shA = SpreadsheetApp.openByUrl(r.url).getSheetByName('Aprobaciones');
+    L('Aprobaciones? ' + !!shA + ' lastRow=' + (shA ? shA.getLastRow() : '-') + ' lastCol=' + (shA ? shA.getLastColumn() : '-') + ' hidden=' + (shA ? shA.isSheetHidden() : '-'));
+    L('headers=' + JSON.stringify(shA.getRange(1, 1, 1, shA.getLastColumn()).getValues()[0]));
+
+    // url registrada en Clientes vs r.url (¿misma hoja?)
+    var cliRow = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (f) { return f.id_cliente === r.id_cliente; })[0];
+    L('url en Clientes=' + (cliRow ? cliRow.url_sheet_cliente : '(no encontrado)'));
+    L('mismaURL=' + (cliRow && cliRow.url_sheet_cliente === r.url));
+
+    // (a) replicar lo que crearAprobacion arma, sin escribir
+    var clasif = clasificarAccion(r.id_cliente, 'pago', 500);
+    L('clasificarAccion=' + JSON.stringify(clasif));
+
+    var antes = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('Aprobaciones')).length;
+    L('filas ANTES de crearAprobacion=' + antes);
+
+    // (b/e) llamada REAL con catch
+    var ret = null;
+    try {
+      ret = crearAprobacion(r.id_cliente, 'test', 'pago', { x: 1 }, { monto: 500, descripcion: 'pago test' });
+      L('crearAprobacion RETURN=' + JSON.stringify(ret));
+    } catch (e) {
+      L('crearAprobacion THREW: ' + e.message + ' :: ' + (e.stack || ''));
+    }
+
+    // (d) leerTabla completo, instancia fresca
+    var filas = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('Aprobaciones'));
+    L('filas DESPUES=' + filas.length + (ret ? ' (esperaba id ' + ret.id + ')' : ''));
+    filas.forEach(function (f) {
+      L('  fila' + f._fila + ' id=' + JSON.stringify(f.id) + ' estado=' + JSON.stringify(f.estado) +
+        ' tipo_accion=' + JSON.stringify(f.tipo_accion) + ' patron=' + JSON.stringify(f.patron) + ' monto=' + JSON.stringify(f.monto));
+    });
+    if (ret) {
+      var hit = filas.filter(function (f) { return f.id === ret.id; })[0];
+      L('match por id exacto? ' + !!hit + (hit ? ' estado=' + JSON.stringify(hit.estado) : ''));
+    }
+
+    // control: appendFila directo (el camino del paso E1 que SÍ persiste)
+    appendFila(SpreadsheetApp.openByUrl(r.url).getSheetByName('Aprobaciones'), {
+      id: 'APR-CTRL', fecha_creacion: hoyISO(), cliente: 'x', modulo: 'test', patron: 'P2',
+      tipo_accion: 'pago', descripcion: 'control', payload: '{}', monto: 1, 'confianza_%': 1, estado: 'pendiente'
+    });
+    var ctrl = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('Aprobaciones')).filter(function (f) { return f.id === 'APR-CTRL'; })[0];
+    L('control APR-CTRL presente? ' + !!ctrl + (ctrl ? ' estado=' + JSON.stringify(ctrl.estado) : ''));
+  } catch (e) {
+    L('ERROR debugE21: ' + e.message + ' :: ' + (e.stack || ''));
+  } finally {
+    try { if (r && r.url) DriveApp.getFileById(SpreadsheetApp.openByUrl(r.url).getId()).setTrashed(true); } catch (x) {}
+    try { if (r) borrarFilasDonde(getMaestro().getSheetByName('Clientes'), function (f) { return f.id_cliente === r.id_cliente; }); } catch (x) {}
+  }
+  var s = out.join('\n');
+  Logger.log('—— debugE21 ——\n' + s);
+  return s;
+}
+
+/**
  * Barre TODOS los artefactos de prueba (idempotente, reversible):
  * - clientes cuyo nombre empieza con '__TEST__' → Sheet a papelera + fila fuera de Clientes;
  * - filas TAR-TEST* / APR-TEST* y avisos con 'TEST' en el mensaje.
