@@ -74,6 +74,12 @@ var CONFIG_DEFAULTS = [
 // dejarlo en Config invitaba a creer que se podía cambiar desde la hoja. 'tipo_cambio_usd_eur'
 // SÍ se usa ahora (consolidación de costos USD→EUR en 05_costos.js).
 
+// Columnas que DEBEN guardarse como texto plano (formato '@'): IDs y claves que
+// Sheets coaccionaría a fecha/número si la celda queda en formato Automatic.
+// Caso real: 'APR-0001' → Sheets lo lee como abril 0001 (Date), el id releído no matchea.
+// NO incluir fechas ni montos: E1 está verificada con su comportamiento (Date/number) actual.
+var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker'];
+
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];
 var ESTADOS_APROBACION = ['pendiente', 'aprobada', 'editada', 'rechazada', 'expirada'];

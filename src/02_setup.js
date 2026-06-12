@@ -48,3 +48,24 @@ function urlMaestro() {
   Logger.log(u);
   return u;
 }
+
+/**
+ * Repara el formato texto de columnas tipo-ID en pestañas YA existentes: MAESTRO + cada
+ * Sheet cliente. Lo llama bootstrap() (las pestañas nuevas ya nacen bien vía ensureSheet).
+ * No reescribe valores: solo aplica formato '@' a las columnas de COLUMNAS_TEXTO.
+ */
+function repararFormatosTexto() {
+  var ss = getMaestro();
+  MAESTRO_ORDEN.forEach(function (n) { var sh = ss.getSheetByName(n); if (sh) aplicarFormatoTexto(sh); });
+  var n = 0;
+  leerTabla(ss.getSheetByName('Clientes')).forEach(function (c) {
+    if (!c.url_sheet_cliente) return;
+    try {
+      var cs = SpreadsheetApp.openByUrl(c.url_sheet_cliente);
+      CLIENTE_ORDEN.forEach(function (p) { var sh = cs.getSheetByName(p); if (sh) aplicarFormatoTexto(sh); });
+      n++;
+    } catch (e) { Logger.log('repararFormatosTexto ' + c.id_cliente + ': ' + e.message); }
+  });
+  Logger.log('repararFormatosTexto: MAESTRO + ' + n + ' cliente(s).');
+  return { clientes: n };
+}

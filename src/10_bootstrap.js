@@ -10,7 +10,8 @@ function bootstrap() {
   var out = {};
   out.setup = setup();                       // paso 2: MAESTRO + pestañas + Config
   out.clientes = cargaInicialClientes();     // paso 4: clientes reales
-  out.trigger = instalarTriggers();          // paso 7: único trigger diario
+  out.formatos = repararFormatosTexto();     // E2: formato texto en IDs (MAESTRO + clientes ya existentes)
+  out.trigger = instalarTriggers();          // paso 7: triggers (avisos + drenarCola)
   out.sync = syncMaestro();                  // paso 5: primera agregación
   out.estado = estadoSistema();
   Logger.log(JSON.stringify(out.estado, null, 2));

@@ -53,7 +53,24 @@ function ensureSheet(ss, nombre, headers) {
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, headers.length);
   }
+  aplicarFormatoTexto(sh); // IDs/claves como texto plano (evita coerción a fecha; ver COLUMNAS_TEXTO)
   return sh;
+}
+
+/**
+ * Fija formato texto ('@') en las columnas tipo-ID de una pestaña (según su fila de
+ * encabezados real y COLUMNAS_TEXTO). Idempotente. Aplica a toda la columna para que
+ * los appendRow futuros hereden el formato y no coaccionen 'APR-0001' a fecha.
+ */
+function aplicarFormatoTexto(sh) {
+  if (sh.getLastColumn() < 1 || sh.getLastRow() < 1) return;
+  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var max = sh.getMaxRows();
+  for (var i = 0; i < hdr.length; i++) {
+    if (COLUMNAS_TEXTO.indexOf(String(hdr[i])) >= 0) {
+      sh.getRange(1, i + 1, max, 1).setNumberFormat('@');
+    }
+  }
 }
 
 /** Lee una pestaña como array de objetos {header: valor}. Excluye la fila 1. */
