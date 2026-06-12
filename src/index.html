@@ -593,14 +593,17 @@ function cmTab(t){
 
 function refrescarCentro(){
   if(!EN_GAS){return;} // sin backend no hay datos reales
+  if(CM.busy)return;   // guard in-flight: estadoAgentes() puede tardar >5s, no apilar llamadas
+  CM.busy=true;
   google.script.run.withSuccessHandler(function(est){
+    CM.busy=false;
     CM.agentes=est.agentes;CM.aprobaciones=est.aprobaciones||[];
     cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();
     var work=est.agentes.filter(function(a){return a.estado==='work';});
     document.getElementById('cmMsg').textContent=work.length
       ? work.map(function(a){return a.nombre;}).join(' y ')+' trabajando para vos ahora.'
       : 'Todo al día. El equipo espera tus órdenes.';
-  }).withFailureHandler(function(){document.getElementById('cmMsg').textContent='Reintentando conexión…';}).estadoAgentes();
+  }).withFailureHandler(function(){CM.busy=false;document.getElementById('cmMsg').textContent='Reintentando conexión…';}).estadoAgentes();
 }
 
 function cmClientes(cs){

@@ -199,9 +199,10 @@ function esVencida(fechaLimite, estado) {
  * presupuesto, inbox de aprobaciones y clientes activos para disparar. Solo datos.
  */
 function estadoAgentes() {
+  var estados = estadosAgentesCola_(); // una sola lectura de la cola para los 13
   var agentes = Object.keys(AGENTES).map(function (k) {
     var a = AGENTES[k];
-    return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estadoAgenteCola_(k) };
+    return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estados[k] || 'idle' };
   });
   var c = filaConsumoAgentes_();
   return {
@@ -216,25 +217,28 @@ function estadoAgentes() {
   };
 }
 
-/** Estado de un agente derivado de la cola: work si tiene tarea viva; ok/fail según la última. */
-function estadoAgenteCola_(clave) {
+/**
+ * Mapa clave_agente → estado derivado de la cola, en UNA sola lectura (antes:
+ * 13 lecturas por refresh, ×cada 5 s). work si tiene tarea viva; ok/fail según la última.
+ */
+function estadosAgentesCola_() {
+  var out = {};
   var sh = getMaestro().getSheetByName('Cola_tareas');
-  if (!sh || sh.getLastRow() < 2) return 'idle';
+  if (!sh || sh.getLastRow() < 2) return out;
   var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
   var iTipo = H.indexOf('tipo'), iPayload = H.indexOf('payload'), iEstado = H.indexOf('estado');
-  var n = sh.getLastRow(), desde = Math.max(2, n - 120);
+  var n = sh.getLastRow(), desde = Math.max(2, n - 200);
   var datos = sh.getRange(desde, 1, n - desde + 1, sh.getLastColumn()).getValues();
-  var ultimo = 'idle';
-  for (var i = 0; i < datos.length; i++) {
+  for (var i = 0; i < datos.length; i++) { // en orden: la última fila de cada agente gana
     if (String(datos[i][iTipo]) !== 'agente') continue;
     var p = parsearPayload_(datos[i][iPayload]);
-    if (p.agente !== clave) continue;
+    if (!p.agente) continue;
     var e = String(datos[i][iEstado]);
-    if (e === 'tomada' || e === 'pendiente') ultimo = 'work';
-    else if (e === 'completada') ultimo = 'ok';
-    else if (e === 'fallida') ultimo = 'fail';
+    out[p.agente] = (e === 'tomada' || e === 'pendiente') ? 'work'
+                  : (e === 'completada') ? 'ok'
+                  : (e === 'fallida') ? 'fail' : (out[p.agente] || 'idle');
   }
-  return ultimo;
+  return out;
 }
 
 /** Últimos N eventos del feed Actividad (más nuevos primero). XSS lo maneja el front (textContent). */
