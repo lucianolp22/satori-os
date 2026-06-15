@@ -54,11 +54,13 @@ Detalle por flujo: `docs/`.
 - Datos vía `google.script.run`; HTML estático → sin `<?= ?>`/`<?!= ?>` con datos.
 - Deploy «solo yo» (`access: MYSELF`, `executeAs: USER_DEPLOYING`). Probar live requiere OAuth de Luciano en el navegador.
 
-## Estado (Etapa 2 construida — pendiente verificación de Luciano)
+## Estado (15-jun — migrado a Workspace · E2-1 resuelto · selfTest verde)
+- En **`luciano@satoriconsultoria.com`** (Workspace, C1). scriptId nuevo en `.clasp.json`; MAESTRO `1DMOR…`.
 - E1 en uso real. E2+ (Trillion) construida: motor de aprobaciones, wrapper de costos + Bastión, cola durable,
   registry de 13 agentes (5 activos / 8 laboratorio), Centro de Mando. Lote B de la PURGA E1 aplicado.
-- **clasp push BLOQUEADO** hasta que Luciano corra en el editor: `selfTest()` verde + casos manuales (abajo).
-- Manifest sumó scope `script.send_mail` (MailApp) → re-autorización al correr `bootstrap()`.
+- **`selfTest()` verde completo.** Gate E2+ pendiente solo de: neutralizar el proyecto viejo (Purga M2) + casos manuales (abajo).
+- **E2-1 (coerción de Sheets):** `appendRow` ignora el formato `'@'` de columna → coacciona ids tipo-fecha (`APR-0001`→Date abril-2001), el id releído no matchea. Fix en `appendFila` (07_util.js): re-escribe las celdas `COLUMNAS_TEXTO` como texto explícito (`setValue` sobre `'@'`). `aplicarFormatoTexto` (nivel columna) NO alcanza para `appendRow` → **no remover el fix per-celda**.
+- Manifest scopes: spreadsheets, drive, scriptapp, external_request, send_mail, userinfo.email (deploy MYSELF).
 - Proyectos/Tareas/Bitácora/Gobernanza/Umbrales se llenan a mano (la UI los muestra; no hay alta aún).
 
 ### Casos de aceptación a correr en el editor (no headless)
