@@ -2,6 +2,7 @@ node_modules/
 .DS_Store
 *.log
 # PURGA #8: el scriptId es identificador de despliegue; no se versiona.
-.clasp.json
+# Purga E2-1 B2: '*' cubre .clasp.json.personal.bak de la migración a Workspace.
+.clasp.json*
 # Credenciales clasp viven en ~/.clasprc.json (global), nunca en el repo.
 # Secretos de API → Script Properties en GAS, jamás en archivos.

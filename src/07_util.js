@@ -93,6 +93,20 @@ function appendFila(sh, objeto) {
   var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
   var fila = headers.map(function (h) { return sanitizarCelda(objeto.hasOwnProperty(h) ? objeto[h] : ''); });
   sh.appendRow(fila);
+  // E2-1 (causa raíz real): appendRow IGNORA el formato '@' de la columna y coacciona los
+  // strings tipo-fecha al colocarlos ('APR-0001' → Date abril-2001), por lo que el id releído
+  // no matchea. Por eso a6e641e (que solo formateaba la columna) NO alcanzó. Re-escribir las
+  // celdas COLUMNAS_TEXTO de la fila recién creada como texto explícito: setValue sobre una
+  // celda '@' SÍ respeta el formato. Solo toca columnas tipo-ID; fechas/montos quedan como
+  // están (E1 está verificada con su comportamiento Date/number).
+  // Purga M1: appendRow+getLastRow+setValue NO es atómico → para columnas tipo-ID
+  // coercibles, llamar appendFila bajo conLock (crearAprobacion/crearCliente ya lo hacen).
+  var fila_n = sh.getLastRow();
+  for (var i = 0; i < headers.length; i++) {
+    if (COLUMNAS_TEXTO.indexOf(String(headers[i])) >= 0) {
+      sh.getRange(fila_n, i + 1).setNumberFormat('@').setValue(fila[i]);
+    }
+  }
 }
 
 /**
