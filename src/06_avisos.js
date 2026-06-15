@@ -38,7 +38,7 @@ function crearAviso(a) {
  * Orden: sync primero (refresca pendientes) → luego detectores.
  */
 function corridaDiaria() {
-  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, costos: null };
+  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, costos: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -54,6 +54,11 @@ function corridaDiaria() {
   // worker drenarCola la corre). Los detectores internos se conservan tal cual.
   try { resumen.vigias_encoladas = encolarVigiaClientesActivos(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Encolar vigías falló: ' + e.message }); }
+
+  // ETAPA 8a: el Director materializa el cerebro de cada tenant y encola la capa
+  // dirigida por objetivos. 0 API (solo decide+encola; los agentes gatean/cupean).
+  try { resumen.director = correrDirector(); }
+  catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Director falló: ' + e.message }); }
 
   // ETAPA 2: consolidar costos del mes al MAESTRO (USD/EUR + alerta de presupuesto).
   try { resumen.costos = consolidarCostosMes(); }

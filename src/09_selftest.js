@@ -137,6 +137,20 @@ function selfTest() {
     var ceIdx = leerTabla(getMaestro().getSheetByName('Cerebro_index')).filter(function (f) { return f.id_cliente === r.id_cliente; })[0];
     chk(!!ceIdx && String(ceIdx.nodos) === '2', 'E8a-1 Cerebro_index agrega conteos en el MAESTRO (sin PII)');
 
+    // ── ETAPA 8a · a2 — Director (orquestación dirigida por objetivos) ─────────
+    appendFila(SpreadsheetApp.openByUrl(r.url).getSheetByName('objetivos'), {
+      id_objetivo: 'OBJ-TEST-1', horizonte: '12m', descripcion: 'Subir margen neto', metrica: 'margen_%',
+      valor_objetivo: 30, estado: 'activo', prioridad: 'A', fecha_objetivo: '2026-12-31'
+    });
+    var dir = correrDirector(r.id_cliente);
+    chk(dir.tenants === 1 && dir.encolados >= 1, 'E8a-2 Director procesa el tenant y encola por objetivo (' + dir.encolados + ')');
+    var ceParte = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('cerebro_log')).filter(function (f) { return String(f.evento) === 'parte_director'; });
+    chk(ceParte.length >= 1, 'E8a-2 Director escribe el "parte" al cerebro');
+    var colaDir = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) {
+      var p = String(f.payload); return p.indexOf('"id_cliente":"' + r.id_cliente + '"') >= 0 && p.indexOf('analista') >= 0;
+    });
+    chk(colaDir.length >= 1, 'E8a-2 el Analista del objetivo quedó encolado en la cola');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de
@@ -253,7 +267,11 @@ function limpiarTodoTest() {
   });
   // ETAPA 2: cola de prueba (noop / worker de test) y feed del cliente de prueba.
   borrarFilasDonde(ss.getSheetByName('Cola_tareas'), function (f) {
-    return String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__';
+    if (String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__') return true;
+    // ETAPA 8a: tareas de agente que el Director encoló para clientes de prueba.
+    var p = String(f.payload || '');
+    for (var id in idsTest) { if (idsTest[id] && p.indexOf('"id_cliente":"' + id + '"') >= 0) return true; }
+    return false;
   });
   borrarFilasDonde(ss.getSheetByName('Actividad'), function (f) { return idsTest[String(f.id_cliente)] === true; });
   // ETAPA 8a: índice agregado del cerebro (el grafo por tenant se va con el Sheet a papelera).
