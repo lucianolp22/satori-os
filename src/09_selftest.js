@@ -119,6 +119,24 @@ function selfTest() {
     var sd = correrAgente_('vigia', {}, 'TST', r.id_cliente);
     chk(sd.status === 'completado' && sd.detalle === 'sin datos aún', 'caso12 sin datos = honesto');
 
+    // ── ETAPA 8a · a1 — Cerebro (grafo de memoria por tenant) ──────────────────
+    // crearCliente ya creó las pestañas del cerebro (CLIENTE_SHEETS). Tenant = r.id_cliente.
+    var ceN1 = upsertNodo(r.id_cliente, { tipo: 'objetivo', etiqueta: 'nodo test' });
+    chk(!!ceN1.id_nodo && ceN1.creado, 'E8a-1 upsertNodo crea nodo (' + ceN1.id_nodo + ')');
+    chk(!upsertNodo(r.id_cliente, { id_nodo: ceN1.id_nodo, estado: 'cerrado' }).creado, 'E8a-1 upsert del mismo id actualiza (no duplica)');
+    var ceN2 = upsertNodo(r.id_cliente, { tipo: 'tarea', etiqueta: 'nodo test 2' });
+    var ceA = upsertArista(r.id_cliente, { origen: ceN1.id_nodo, destino: ceN2.id_nodo, tipo: 'contribuye_a' });
+    chk(!!ceA.id_arista && ceA.creado, 'E8a-1 upsertArista crea arista');
+    logEvento(r.id_cliente, { evento: 'test_evento', origen: 'selftest', detalle: { x: 1 } });
+    var ceLog = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('cerebro_log'));
+    chk(ceLog.length >= 4, 'E8a-1 cerebro_log append-only acumula eventos (' + ceLog.length + ')');
+    var ceMat = materializarEstado(r.id_cliente);
+    chk(ceMat.nodos === 2 && ceMat.aristas === 1, 'E8a-1 materializarEstado cuenta nodos/aristas');
+    var ceEst = leerEstado(r.id_cliente);
+    chk(ceEst.resumen && String(ceEst.resumen.nodos) === '2', 'E8a-1 leerEstado devuelve el snapshot materializado');
+    var ceIdx = leerTabla(getMaestro().getSheetByName('Cerebro_index')).filter(function (f) { return f.id_cliente === r.id_cliente; })[0];
+    chk(!!ceIdx && String(ceIdx.nodos) === '2', 'E8a-1 Cerebro_index agrega conteos en el MAESTRO (sin PII)');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de
@@ -238,6 +256,9 @@ function limpiarTodoTest() {
     return String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__';
   });
   borrarFilasDonde(ss.getSheetByName('Actividad'), function (f) { return idsTest[String(f.id_cliente)] === true; });
+  // ETAPA 8a: índice agregado del cerebro (el grafo por tenant se va con el Sheet a papelera).
+  var shCI = ss.getSheetByName('Cerebro_index');
+  if (shCI) borrarFilasDonde(shCI, function (f) { return idsTest[String(f.id_cliente)] === true; });
   return { clientes: testClientes.length };
 }
 

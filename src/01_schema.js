@@ -27,11 +27,13 @@ var MAESTRO_SHEETS = {
   Actividad: ['ts', 'agente', 'tipo', 'id_cliente', 'texto', 'tarea_id', 'aprobacion_id'],
   // Cupos diarios por agente + gasto mensual acumulado (presupuesto de agentes).
   Consumo_agentes: ['mes', 'gasto_usd', 'corridas_json'],
+  // Etapa 8a — índice AGREGADO del cerebro (sin PII; el grafo vive por tenant). Caso 20.
+  Cerebro_index: ['id_cliente', 'nodos', 'aristas', 'ultimo_evento', 'estado_resumen', 'materializado_en'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
@@ -44,14 +46,20 @@ var CLIENTE_SHEETS = {
   Umbrales: ['tipo_accion', 'umbral_EUR', 'aprobador'],
   Costos_API: ['timestamp', 'modulo', 'endpoint', 'tokens_in', 'tokens_out', 'USD'],
   // Per Auditor 0.2: nacen como "propuesta", se activan vía P1.
-  Reglas: ['id_regla', 'origen', 'condicion', 'accion', 'estado']
+  Reglas: ['id_regla', 'origen', 'condicion', 'accion', 'estado'],
+  // ── Etapa 8a — Cerebro (grafo de memoria) por tenant. Sensibles (ocultas+protegidas). ──
+  nodos: ['id_nodo', 'tipo', 'etiqueta', 'atributos', 'estado', 'actualizado_en'],
+  aristas: ['id_arista', 'origen', 'destino', 'tipo', 'peso', 'atributos', 'actualizado_en'],
+  cerebro_log: ['ts', 'evento', 'id_nodo', 'id_arista', 'origen', 'detalle'],
+  estado_actual: ['seccion', 'clave', 'valor', 'materializado_en'],
+  objetivos: ['id_objetivo', 'horizonte', 'descripcion', 'metrica', 'valor_objetivo', 'estado', 'prioridad', 'fecha_objetivo']
 };
 
-var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 'Umbrales', 'Costos_API', 'Reglas'];
+var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 'Umbrales', 'Costos_API', 'Reglas', 'nodos', 'aristas', 'cerebro_log', 'estado_actual', 'objetivos'];
 
 // Pestañas sensibles del Sheet cliente: ocultas + protegidas (Auditor 0.3 #1).
 // Si en Etapa 3 el dueño del negocio abre su Sheet, no ve interna de gestión.
-var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones'];
+var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'estado_actual', 'objetivos'];
 
 // ── Config por defecto del MAESTRO (clave · valor) ──────────────────────────
 var CONFIG_DEFAULTS = [
@@ -78,7 +86,7 @@ var CONFIG_DEFAULTS = [
 // Sheets coaccionaría a fecha/número si la celda queda en formato Automatic.
 // Caso real: 'APR-0001' → Sheets lo lee como abril 0001 (Date), el id releído no matchea.
 // NO incluir fechas ni montos: E1 está verificada con su comportamiento (Date/number) actual.
-var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker'];
+var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker', 'id_nodo', 'id_arista', 'id_objetivo'];
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];
