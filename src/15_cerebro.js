@@ -214,3 +214,40 @@ function repararCerebro() {
   Logger.log('repararCerebro: cerebro en ' + n + ' cliente(s) + Cerebro_index en MAESTRO.');
   return { clientes: n };
 }
+
+/**
+ * Alta de un objetivo en el cerebro del tenant (lo dirige el Director). Pone formato correcto
+ * (id-texto) y deja la pestaña oculta/protegida intacta. estado='activo' por defecto → el
+ * Director lo toma en la próxima corrida. Requiere descripcion y/o metrica.
+ * @return {{id, creado}}
+ */
+function cargarObjetivo(idCliente, obj) {
+  obj = obj || {};
+  if (!obj.descripcion && !obj.metrica) throw new Error('el objetivo necesita descripcion y/o metrica');
+  var sh = cerebroSheet_(idCliente, 'objetivos');
+  var r = upsertPorClave_(sh, 'id_objetivo', {
+    id_objetivo: obj.id_objetivo || '',
+    horizonte: obj.horizonte || '12m',
+    descripcion: obj.descripcion || '',
+    metrica: obj.metrica || '',
+    valor_objetivo: (obj.valor_objetivo == null ? '' : obj.valor_objetivo),
+    estado: obj.estado || 'activo',
+    prioridad: obj.prioridad || 'B',
+    fecha_objetivo: obj.fecha_objetivo || ''
+  }, 'OBJ', 4);
+  logEvento(idCliente, { evento: r.creado ? 'objetivo_creado' : 'objetivo_actualizado', origen: 'alta', detalle: { id: r.id, metrica: obj.metrica || '' } });
+  Logger.log('cargarObjetivo ' + idCliente + ': ' + r.id + (r.creado ? ' (creado)' : ' (actualizado)'));
+  return r;
+}
+
+/**
+ * Puesta en marcha — EDITAR los valores y correr desde el editor para cargar objetivos reales.
+ * Solo objetivos CON `metrica` disparan el análisis dirigido del Director (el Vigía igual corre
+ * con solo tener datos en Datos_operativos).
+ */
+function cargarObjetivosPiloto() {
+  // ↓↓↓ Cambiá idCliente y los objetivos por los reales del cliente piloto ↓↓↓
+  cargarObjetivo('CLI-001', { descripcion: 'Subir el ticket promedio', metrica: 'ticket_promedio_eur', valor_objetivo: 25, horizonte: '12m', prioridad: 'A' });
+  // cargarObjetivo('CLI-001', { descripcion: 'Bajar la merma de stock', metrica: 'merma_pct', valor_objetivo: 5, prioridad: 'B' });
+  // cargarObjetivo('CLI-001', { descripcion: 'Reducir días de cobro', metrica: 'dias_cobro_promedio', valor_objetivo: 30 });
+}
