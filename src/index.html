@@ -225,9 +225,24 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .hl .dt{font-size:10px;color:#6b7488;flex:1 1 100%;margin-left:17px}
 .hl .pip{width:9px;height:9px;border-radius:50%;background:#6cddba;flex:none}
 .hl.warn .pip{background:#ffd479} .hl.crit .pip{background:#ff8d7a}
+/* ── a4.2 móvil: agentes como chips tappables (en vez de órbita apretada) ── */
+.cm-agents-m{display:none;grid-template-columns:repeat(2,1fr);gap:8px;padding:2px}
+.agm{display:flex;align-items:center;gap:9px;background:rgba(18,22,34,.72);border:1px solid rgba(108,221,186,.14);border-radius:11px;padding:9px 11px;min-height:48px;cursor:pointer}
+.agm-av{position:relative;width:34px;height:34px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#6cddba;background:radial-gradient(circle at 32% 30%,rgba(108,221,186,.28),rgba(10,14,22,.9) 70%);border:1px solid rgba(108,221,186,.5)}
+.agm-st{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;border:2px solid #030307;background:#6b7488}
+.agm.work .agm-st{background:#ffd479} .agm.ok .agm-st{background:#6cddba} .agm.fail .agm-st{background:#ff8d7a}
+.agm-meta{min-width:0}
+.agm-nm{font-size:12.5px;font-weight:600;color:#E8EAF2;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agm-rl{font-size:9.5px;color:#8b93ad;text-transform:uppercase;letter-spacing:.05em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agm.lab{opacity:.5;filter:saturate(.4);cursor:default} .agm.lab .agm-av{border-style:dashed;color:#6b7488}
+.agm-lock{position:absolute;right:-3px;top:-3px;font-size:10px}
 @media (max-width:880px){
-  .cm-hud{grid-template-columns:1fr;grid-template-rows:auto auto 1fr 260px;overflow-y:auto}
-  .cm-orbit.outer{display:none}
+  .cm-hud{grid-template-columns:1fr;grid-template-rows:none;overflow-y:auto}
+  .cm-top,.cm-telem{grid-column:1 / -1}
+  .cm-orbit{display:none}            /* en móvil: agentes como chips, no en órbita */
+  .cm-stage{min-height:360px}
+  .cm-agents-m{display:grid}
+  .cm-aside{min-height:300px}
 }
 @media (max-width:560px){
   .cm-hud{padding:12px;gap:10px}
@@ -292,6 +307,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <div class="cm-orbit outer" id="cmOrbit2"></div>
       <div class="cm-director" id="cmDirector"><div class="lab">Director · capa de mando</div><div class="dir" id="cmDirTxt"></div></div>
     </div>
+    <div class="cm-agents-m" id="cmAgentesM" aria-label="Agentes"></div>
     <aside class="cm-aside">
       <div class="cm-tabs">
         <div class="cm-tab on" id="tabFeed" role="button" tabindex="0">Actividad</div>
@@ -619,6 +635,8 @@ document.getElementById('cmCalma').addEventListener('click',function(){
 document.getElementById('tabFeed').addEventListener('click',function(){cmTab('feed');});
 document.getElementById('tabInbox').addEventListener('click',function(){cmTab('inbox');});
 document.getElementById('tabSalud').addEventListener('click',function(){cmTab('salud');});
+['tabFeed','tabInbox','tabSalud'].forEach(function(id){var tb=document.getElementById(id); // a11y: tabs operables con teclado
+  tb.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();tb.click();}});});
 function cmTab(t){
   CM.tab=t;
   document.getElementById('tabFeed').classList.toggle('on',t==='feed');
@@ -689,7 +707,7 @@ function cmDirectiva(feed){
   var last=d.length?d[0]:null; // feedReciente_ devuelve más-reciente primero
   document.getElementById('cmDirTxt').textContent = last
     ? String(last.texto).replace(/^Directiva:\s*/,'')
-    : 'Esperando la próxima corrida del Director (07:00).';
+    : 'Sin directiva activa todavía — el Director la define en la corrida diaria.';
 }
 
 function cmClientes(cs){
@@ -708,6 +726,27 @@ function cmAgentes(){
   var Rx=Math.min(st.clientWidth,760)*.33,Ry=Math.min(st.clientHeight,560)*.37;
   cmRing(document.getElementById('cmOrbit'),activos,Rx,Ry,false,-90);
   cmRing(document.getElementById('cmOrbit2'),lab,Rx*1.45,Ry*1.42,true,-67);
+  cmChips(); // a4.2 móvil: agentes como chips tappables (el CSS muestra rings o chips según ancho)
+}
+function cmChips(){
+  var box=document.getElementById('cmAgentesM');if(!box)return;clear(box);
+  CM.agentes.slice().sort(function(a,b){return (b.activo?1:0)-(a.activo?1:0);}).forEach(function(a){ // activos primero
+    var lab=!a.activo,estado=lab?'lab':(a.estado||'idle');
+    var chip=el('div','agm '+estado);
+    var av=el('div','agm-av',a.nombre.charAt(0));av.appendChild(el('span','agm-st'));
+    if(lab)av.appendChild(el('span','agm-lock','🔒'));
+    chip.appendChild(av);
+    var meta=el('div','agm-meta');
+    meta.appendChild(el('div','agm-nm',a.nombre));
+    meta.appendChild(el('div','agm-rl',a.rol));
+    chip.appendChild(meta);
+    chip.setAttribute('role','button');
+    chip.setAttribute('aria-label',a.nombre+' · '+a.rol+' · '+(lab?'laboratorio':(EST_TXT[estado]||estado)));
+    chip.setAttribute('tabindex',lab?'-1':'0');
+    if(!lab){chip.addEventListener('click',function(){dispararAgente(a.clave,a.nombre);});
+      chip.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();dispararAgente(a.clave,a.nombre);}});}
+    box.appendChild(chip);
+  });
 }
 function cmRing(cont,list,Rx,Ry,lab,off){
   clear(cont);
@@ -723,7 +762,9 @@ function cmRing(cont,list,Rx,Ry,lab,off){
     if(lab)av.appendChild(el('span','lock','🔒'));
     node.appendChild(av);node.appendChild(el('div','nm',a.nombre));node.appendChild(el('div','rl',a.rol));
     node.appendChild(el('div','est',lab?'laboratorio':(EST_TXT[estado]||'')));
-    if(!lab)node.addEventListener('click',function(){dispararAgente(a.clave,a.nombre);});
+    node.setAttribute('tabindex',lab?'-1':'0');
+    if(!lab){node.addEventListener('click',function(){dispararAgente(a.clave,a.nombre);});
+      node.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();dispararAgente(a.clave,a.nombre);}});}
     cont.appendChild(node);
   });
 }
