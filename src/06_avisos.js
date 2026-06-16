@@ -38,7 +38,7 @@ function crearAviso(a) {
  * Orden: sync primero (refresca pendientes) → luego detectores.
  */
 function corridaDiaria() {
-  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, costos: null };
+  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, salud: null, costos: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -59,6 +59,11 @@ function corridaDiaria() {
   // dirigida por objetivos. 0 API (solo decide+encola; los agentes gatean/cupean).
   try { resumen.director = correrDirector(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Director falló: ' + e.message }); }
+
+  // ETAPA 8a: loop de salud (6 chequeos, 0 API, alerta-no-arregla). Liviano en el pase
+  // diario (schema solo MAESTRO); correrSalud({full:true}) abre clientes on-demand.
+  try { resumen.salud = correrSalud(); }
+  catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Salud falló: ' + e.message }); }
 
   // ETAPA 2: consolidar costos del mes al MAESTRO (USD/EUR + alerta de presupuesto).
   try { resumen.costos = consolidarCostosMes(); }

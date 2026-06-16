@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(clasp create-script *)",
-      "Bash(clasp pull *)"
+      "Bash(clasp pull *)",
+      "Bash(node --check 05_costos.js)",
+      "Bash(clasp push *)",
+      "Bash(clasp --help)",
+      "Bash(clasp create *)",
+      "Bash(clasp login *)",
+      "Bash(clasp show-authorized-user *)",
+      "Bash(clasp logout *)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(cd *)"
     ]
   }
 }

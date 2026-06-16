@@ -26,7 +26,7 @@ Dependencia dura: **E8b requiere E8a viva** (el cerebro materializado + el Direc
 | a1 | `15_cerebro.js` + pestañas `nodos`,`aristas`,`cerebro_log`,`estado_actual`,`objetivos` | `upsertNodo()`,`upsertArista()`,`logEvento()` (append-only),`materializarEstado()`,`leerEstado(tenant)`. Multi-tenant vía Sheets API. **Empezar acá.** |
 | a2 | `14_director.js` | `correrDirector()`: lee `objetivos`+`estado_actual`+cerebro, **encola** vía `encolar(worker,'agente',{agente,id_cliente,args})` o `encolarAgente(idCliente,clave,args)`; gates vía `crearAprobacion()`; escribe "parte" al cerebro. Cadencia híbrida: 1×/día en `corridaDiaria()` 07:00 + chequeo liviano 30 min. |
 | a3 | `16_salud.js` | `correrSalud()`: 6 chequeos del handoff §3, clasifica, escribe hallazgos al cerebro. Auto-heal tras flag `AUTOHEAL_ON=false` (solo-alerta en piloto). 100% reglas, 0 API. |
-| a4 | UI Command Center (sobre B-orbe; no romper «Hoy» Registro A) | Las 4 *must*: Agenda/Salud · Directiva actual · Tira telemetría (INTEGRIDAD% / LLAMADAS / TOKENS-GASTO vs tope / ERRORES) · Parte del Director. Tokens nuevos → DESIGN.md primero. |
+| a4 | UI Command Center (sobre B-orbe; no romper «Hoy» Registro A) | Las 4 *must*: Agenda/Salud · Directiva actual · Tira telemetría (INTEGRIDAD% / LLAMADAS / TOKENS-GASTO vs tope / ERRORES) · Parte del Director. **Diseño: skill `satori-design`** (reemplaza DESIGN.md) + brief **`E8a4-UI-BRIEF.md`** (integración Sureflow + brain/Z.E.R.O + constelación/móvil de Luciano; **mobile-first**; "orbe vivo" en fase a4.2). |
 | a5 | Casos 14-21 + `selfTest()` tras cada cambio backend | Aceptación (handoff §6). |
 
 ## 3. E8b — Entrenamiento de agentes (orden de la spec §7)

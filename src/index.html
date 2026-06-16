@@ -137,7 +137,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   font-family:var(--font-sans);overflow:hidden}
 #centro.open{display:block}
 #cmSpace{position:fixed;inset:0;z-index:0}
-.cm-hud{position:relative;z-index:2;display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto 1fr;height:100vh;padding:16px 20px;gap:14px}
+.cm-hud{position:relative;z-index:2;display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto auto 1fr;height:100vh;padding:16px 20px;gap:14px}
 .cm-top{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .cm-brand{display:flex;align-items:center;gap:10px}
 .cm-brand .logo{width:34px;height:34px;border-radius:50%;border:1px solid rgba(108,221,186,.5);display:flex;align-items:center;justify-content:center;color:#6cddba;font-weight:600;background:radial-gradient(circle at 35% 35%,rgba(108,221,186,.25),transparent 70%)}
@@ -208,9 +208,33 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .pal-item.sel,.pal-item:hover{background:var(--color-primary-weak);color:var(--color-primary)}
 .pal-item .k{font-size:11px;color:var(--color-text-subtle)}
 @media (prefers-reduced-motion:reduce){.cm-orbit,.ag,.ag .st{animation:none!important}}
+/* ── E8a4: tira de telemetría ── */
+.cm-telem{grid-column:1/3;display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+.cm-telem .tm{flex:1 1 120px;min-width:92px;background:rgba(18,22,34,.72);border:1px solid rgba(108,221,186,.14);border-radius:10px;padding:7px 12px;display:flex;flex-direction:column;gap:1px}
+.cm-telem .tm .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:15px;font-weight:600;color:#E8EAF2;line-height:1.15}
+.cm-telem .tm .l{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:#8b93ad}
+.cm-telem .tm.ok .v{color:#6cddba} .cm-telem .tm.warn .v{color:#ffd479} .cm-telem .tm.crit .v{color:#ff8d7a}
+/* ── E8a4: etiqueta Director (capa de mando) ── */
+.cm-director{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);text-align:center;pointer-events:none;width:min(540px,88%)}
+.cm-director .lab{font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:#6cddba;opacity:.85}
+.cm-director .dir{font-size:12.5px;color:#aeb6cc;margin-top:3px;line-height:1.4}
+/* ── E8a4: panel de Salud ── */
+#cmSalud{display:none;overflow-y:auto;flex:1;flex-direction:column;gap:7px}
+.hl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(10,14,22,.55);border:1px solid rgba(108,221,186,.08);border-radius:8px;padding:8px 10px;font-size:12px}
+.hl .nm{flex:1;color:#aeb6cc;text-transform:capitalize}
+.hl .dt{font-size:10px;color:#6b7488;flex:1 1 100%;margin-left:17px}
+.hl .pip{width:9px;height:9px;border-radius:50%;background:#6cddba;flex:none}
+.hl.warn .pip{background:#ffd479} .hl.crit .pip{background:#ff8d7a}
 @media (max-width:880px){
-  .cm-hud{grid-template-columns:1fr;grid-template-rows:auto 1fr 240px;overflow-y:auto}
+  .cm-hud{grid-template-columns:1fr;grid-template-rows:auto auto 1fr 260px;overflow-y:auto}
   .cm-orbit.outer{display:none}
+}
+@media (max-width:560px){
+  .cm-hud{padding:12px;gap:10px}
+  .cm-telem .tm{flex:1 1 calc(50% - 6px)}
+  .cm-brand h2{font-size:13px}
+  .cm-right{gap:6px;width:100%} .cm-sel,.cm-budget{flex:1}
+  .cm-msg .txt{font-size:14px}
 }
 </style>
 </head>
@@ -253,19 +277,30 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <button class="iconbtn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando">✕</button>
       </div>
     </div>
+    <div class="cm-telem" id="cmTelem" aria-label="Telemetría del sistema">
+      <div class="tm"><span class="v" id="tmInteg">—</span><span class="l">integridad</span></div>
+      <div class="tm"><span class="v" id="tmLlam">—</span><span class="l">llamadas mes</span></div>
+      <div class="tm"><span class="v" id="tmTok">—</span><span class="l">tokens mes</span></div>
+      <div class="tm"><span class="v" id="tmGasto">—</span><span class="l">gasto / tope</span></div>
+      <div class="tm"><span class="v" id="tmErr">—</span><span class="l">errores</span></div>
+      <div class="tm"><span class="v" id="tmSaludG">—</span><span class="l">salud</span></div>
+    </div>
     <div class="cm-stage">
       <canvas id="cmOrb"></canvas>
       <div class="cm-msg"><div class="who">· Satori ·</div><div class="txt" id="cmMsg">Conectando con tu negocio…</div></div>
       <div class="cm-orbit" id="cmOrbit"></div>
       <div class="cm-orbit outer" id="cmOrbit2"></div>
+      <div class="cm-director" id="cmDirector"><div class="lab">Director · capa de mando</div><div class="dir" id="cmDirTxt"></div></div>
     </div>
     <aside class="cm-aside">
       <div class="cm-tabs">
         <div class="cm-tab on" id="tabFeed" role="button" tabindex="0">Actividad</div>
         <div class="cm-tab" id="tabInbox" role="button" tabindex="0">Aprobaciones <span id="inboxCount"></span></div>
+        <div class="cm-tab" id="tabSalud" role="button" tabindex="0">Salud</div>
       </div>
       <div id="cmFeed" aria-live="polite"></div>
       <div id="cmInbox" aria-live="polite"></div>
+      <div id="cmSalud" aria-live="polite"></div>
       <div class="cm-hint" id="cmHint">Click en un agente activo para dispararlo</div>
     </aside>
   </div>
@@ -559,15 +594,18 @@ function centroAbrir(){
   CM.open=true;
   var c=document.getElementById('centro');c.classList.add('open');c.setAttribute('aria-hidden','false');
   setActiveNav('centro');
-  cmSize();refrescarCentro();
+  cmSize();refrescarCentro();refrescarSalud();
   if(CM.timer)clearInterval(CM.timer);
   CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
+  if(CM.timerS)clearInterval(CM.timerS);
+  CM.timerS=setInterval(function(){if(CM.open&&!document.hidden)refrescarSalud();},20000);
   requestAnimationFrame(cmLoop);
 }
 function centroCerrar(){
   CM.open=false;
   var c=document.getElementById('centro');c.classList.remove('open');c.setAttribute('aria-hidden','true');
   if(CM.timer){clearInterval(CM.timer);CM.timer=null;}
+  if(CM.timerS){clearInterval(CM.timerS);CM.timerS=null;}
 }
 document.getElementById('cmdBtn').addEventListener('click',centroAbrir);
 document.getElementById('navCentro').addEventListener('click',function(){centroAbrir();toggleSide(false);});
@@ -577,18 +615,22 @@ document.getElementById('cmCalma').addEventListener('click',function(){
   this.classList.toggle('on',CM.calma);this.setAttribute('aria-pressed',String(CM.calma));
 });
 
-// Tabs feed / inbox
+// Tabs feed / inbox / salud
 document.getElementById('tabFeed').addEventListener('click',function(){cmTab('feed');});
 document.getElementById('tabInbox').addEventListener('click',function(){cmTab('inbox');});
+document.getElementById('tabSalud').addEventListener('click',function(){cmTab('salud');});
 function cmTab(t){
   CM.tab=t;
   document.getElementById('tabFeed').classList.toggle('on',t==='feed');
   document.getElementById('tabInbox').classList.toggle('on',t==='inbox');
+  document.getElementById('tabSalud').classList.toggle('on',t==='salud');
   document.getElementById('cmFeed').style.display=t==='feed'?'flex':'none';
   document.getElementById('cmInbox').style.display=t==='inbox'?'flex':'none';
+  document.getElementById('cmSalud').style.display=t==='salud'?'flex':'none';
   document.getElementById('cmHint').textContent = t==='inbox'
     ? 'j/k mover · a aprobar · e editar · r rechazar'
-    : 'Click en un agente activo para dispararlo';
+    : (t==='salud' ? 'Loop de salud · 6 chequeos · 0 API' : 'Click en un agente activo para dispararlo');
+  if(t==='salud')refrescarSalud();
 }
 
 function refrescarCentro(){
@@ -599,11 +641,50 @@ function refrescarCentro(){
     CM.busy=false;
     CM.agentes=est.agentes;CM.aprobaciones=est.aprobaciones||[];
     cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();
+    cmTelem(est.telemetria);cmDirectiva(est.feed);
     var work=est.agentes.filter(function(a){return a.estado==='work';});
     document.getElementById('cmMsg').textContent=work.length
       ? work.map(function(a){return a.nombre;}).join(' y ')+' trabajando para vos ahora.'
       : 'Todo al día. El equipo espera tus órdenes.';
   }).withFailureHandler(function(){CM.busy=false;document.getElementById('cmMsg').textContent='Reintentando conexión…';}).estadoAgentes();
+}
+
+/* ── E8a4: telemetría · salud · directiva ── */
+function setTm(id,val,kind){var n=document.getElementById(id);if(!n)return;n.textContent=val;
+  var tm=n.parentNode;tm.classList.remove('ok','warn','crit');if(kind)tm.classList.add(kind);}
+function cmTelem(t){
+  if(!t)return;
+  setTm('tmLlam',fmtNum(t.llamadas));
+  setTm('tmTok',fmtNum(t.tokens));
+  var pct=t.tope_usd>0?(t.gasto_usd/t.tope_usd*100):0;
+  setTm('tmGasto','$'+(Number(t.gasto_usd)||0).toFixed(2)+' / $'+t.tope_usd, pct>=100?'crit':(pct>=80?'warn':null));
+  setTm('tmErr',fmtNum(t.errores), t.errores>0?'warn':'ok');
+}
+function refrescarSalud(){
+  if(!EN_GAS)return;
+  google.script.run.withSuccessHandler(cmSalud).withFailureHandler(function(){}).estadoSalud();
+}
+function cmSalud(s){
+  if(!s)return;
+  var kind=s.global==='crit'?'crit':(s.global==='warn'?'warn':'ok');
+  setTm('tmInteg',s.integridad+'%',kind);
+  setTm('tmSaludG',String(s.global).toUpperCase(),kind);
+  var box=document.getElementById('cmSalud');clear(box);
+  (s.hallazgos||[]).forEach(function(h){
+    var row=el('div','hl '+(h.estado==='ok'?'':h.estado));
+    row.appendChild(el('span','pip'));
+    row.appendChild(el('span','nm',h.nombre));
+    row.appendChild(chip(h.estado,h.estado==='ok'?'success':(h.estado==='warn'?'warning':'danger')));
+    if(h.detalle)row.appendChild(el('span','dt',h.detalle));
+    box.appendChild(row);
+  });
+}
+function cmDirectiva(feed){
+  var d=(feed||[]).filter(function(e){return String(e.agente)==='Director';});
+  var last=d.length?d[0]:null; // feedReciente_ devuelve más-reciente primero
+  document.getElementById('cmDirTxt').textContent = last
+    ? String(last.texto).replace(/^Directiva:\s*/,'')
+    : 'Esperando la próxima corrida del Director (07:00).';
 }
 
 function cmClientes(cs){

@@ -213,6 +213,42 @@ function estadoAgentes() {
     clientes_activos: listaClientes().filter(function (x) {
       return ['activo', 'activo-piloto'].indexOf(String(x.estado).toLowerCase()) >= 0;
     }),
+    telemetria: telemetriaMaestro_(),
+    ts: aHoraLegible_(ahoraISO())
+  };
+}
+
+/**
+ * Telemetría del MAESTRO para la tira del Command Center (E8a4): llamadas/tokens/gasto del
+ * mes (Costos_API_consolidado) + errores (cola fallida). Solo lecturas baratas del MAESTRO.
+ */
+function telemetriaMaestro_() {
+  var ss = getMaestro();
+  var mes = mesISO();
+  // Gasto LIVE: mismo origen que el budget bar (Consumo_agentes, actualizado por cada llamada).
+  var gasto = filaConsumoAgentes_().gasto;
+  // Llamadas/tokens del mes desde el consolidado MAESTRO — el crudo Costos_API es por-cliente,
+  // no vive en el MAESTRO; el consolidado se refresca en consolidarCostosMes() (corrida diaria).
+  var llamadas = 0, tokens = 0;
+  leerTabla(ss.getSheetByName('Costos_API_consolidado')).forEach(function (f) {
+    if (String(f.mes) !== mes) return;
+    llamadas += Number(f.llamadas) || 0; tokens += Number(f.tokens) || 0;
+  });
+  var errores = leerTabla(ss.getSheetByName('Cola_tareas')).filter(function (f) { return String(f.estado) === 'fallida'; }).length;
+  return { llamadas: llamadas, tokens: tokens, gasto_usd: gasto, tope_usd: budgetMensualUSD_(), errores: errores };
+}
+
+/**
+ * Estado de Salud para el panel del Command Center (E8a4): los 6 chequeos + integridad%.
+ * dryRun → NO escribe a producción (no ensucia feed/avisos en cada refresh de la UI).
+ */
+function estadoSalud() {
+  var s = correrSalud({ dryRun: true });
+  var ok = s.hallazgos.filter(function (h) { return h.estado === 'ok'; }).length;
+  return {
+    global: s.global,
+    integridad: s.hallazgos.length ? Math.round(ok / s.hallazgos.length * 100) : 100,
+    hallazgos: s.hallazgos,
     ts: aHoraLegible_(ahoraISO())
   };
 }

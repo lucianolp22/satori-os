@@ -151,6 +151,12 @@ function selfTest() {
     });
     chk(colaDir.length >= 1, 'E8a-2 el Analista del objetivo quedó encolado en la cola');
 
+    // ── ETAPA 8a · a3 — Salud (6 chequeos, dryRun: no escribe a producción) ────
+    var sal = correrSalud({ dryRun: true });
+    chk(sal.hallazgos.length === 6, 'E8a-3 Salud corre los 6 chequeos (' + sal.hallazgos.length + ')');
+    chk(['ok', 'warn', 'crit'].indexOf(sal.global) >= 0, 'E8a-3 Salud clasifica el estado global (' + sal.global + ')');
+    chk(sal.autoheal === false, 'E8a-3 auto-heal apagado en piloto (alerta, no arregla)');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de

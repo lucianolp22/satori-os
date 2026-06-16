@@ -56,6 +56,12 @@ function correrDirector(tenant) {
         evento: 'parte_director', origen: 'director',
         detalle: { objetivos_activos: objetivos.length, analistas_encolados: encolados }
       });
+      // E8a4: surfacear la directiva al feed del MAESTRO (Actividad) para que el Command
+      // Center la muestre sin abrir el Sheet del cliente.
+      try {
+        feed_('Director', 'info', c.id_cliente, 'Directiva: ' +
+          (encolados ? (encolados + ' análisis dirigido(s) por objetivo') : 'sin objetivos medibles — monitoreo base') + '.', '', '');
+      } catch (e) {}
       partes.push({ tenant: c.id_cliente, objetivos_activos: objetivos.length, encolados: encolados });
     } catch (e) {
       partes.push({ tenant: c.id_cliente, error: e.message });
