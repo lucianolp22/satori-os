@@ -1,0 +1,19 @@
+fecha,concepto,valor,fuente,notas
+2026-06-01,Ventas del día,1840.50,TPV,68 cubiertos
+2026-06-02,Ventas del día,1620.00,TPV,59 cubiertos
+2026-06-03,Ventas del día,1755.25,TPV,64 cubiertos
+2026-06-03,Compra carnes,-420.00,Proveedor Solà,factura 1021
+2026-06-05,Compra verduras,-180.40,Mercabarna,
+2026-06-06,Ventas del día,2310.00,TPV,fin de semana · 81 cubiertos
+2026-06-07,Ventas del día,2580.75,TPV,fin de semana · 92 cubiertos
+2026-06-08,Alquiler local,-2200.00,Inmobiliaria,junio
+2026-06-09,Sueldos quincena,-3100.00,Nómina,5 empleados
+2026-06-10,Ventas del día,1490.00,TPV,54 cubiertos
+2026-06-10,Compra bebidas,-640.00,Distribuidora Vega,factura 0098 · vence 2026-06-25
+2026-06-12,Ventas del día,1705.50,TPV,61 cubiertos
+2026-06-13,Ventas del día,2420.00,TPV,fin de semana · 86 cubiertos
+2026-06-14,Evento privado,1200.00,Reserva,seña parcial · resta 600 · vence 2026-06-28
+2026-06-15,Ventas del día,1980.00,TPV,70 cubiertos
+2026-06-15,Compra carnes,-510.00,Proveedor Solà,factura 1044 · vence 2026-06-30
+2026-06-16,Ventas del día,1610.00,TPV,58 cubiertos
+2026-06-16,Servicios luz/gas,-380.00,Endesa,

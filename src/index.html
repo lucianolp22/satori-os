@@ -157,13 +157,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cm-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(440px,70%);pointer-events:none}
 .cm-msg .who{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#6cddba;opacity:.8;margin-bottom:10px}
 .cm-msg .txt{font-size:16px;line-height:1.55;color:#fff;text-shadow:0 2px 24px rgba(3,3,7,.9)}
-.cm-orbit{position:absolute;left:50%;top:50%;width:0;height:0;animation:cmspin 90s linear infinite}
-.cm-orbit.outer{animation-duration:140s;animation-direction:reverse}
-@keyframes cmspin{to{transform:rotate(360deg)}}
-#centro.calma .cm-orbit,#centro.calma .cm-orbit .ag{animation-play-state:paused}
-.ag{position:absolute;left:0;top:0;transform:translate(-50%,-50%);animation:cmcounter 90s linear infinite;width:78px;text-align:center;cursor:pointer}
-.cm-orbit.outer .ag{animation-duration:140s;animation-direction:reverse}
-@keyframes cmcounter{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
+.cm-orbit{position:absolute;left:50%;top:50%;width:0;height:0} /* la órbita la mueve cmLoop (JS); el texto queda derecho */
+.ag{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:78px;text-align:center;cursor:pointer}
 .ag .av{width:46px;height:46px;margin:0 auto 5px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#6cddba;background:radial-gradient(circle at 32% 30%,rgba(108,221,186,.28),rgba(10,14,22,.9) 70%);border:1px solid rgba(108,221,186,.5);position:relative;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
 .ag:hover .av{transform:scale(1.15)}
 .ag .nm{font-size:11px;font-weight:600} .ag .rl{font-size:9px;color:#8b93ad;text-transform:uppercase;letter-spacing:.06em} .ag .est{font-size:9px;color:#6b7488}
@@ -885,8 +880,19 @@ function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),
     cmOx.beginPath();cmOx.arc(pt.x,pt.y,rad,0,7);cmOx.fill();}}
 function cmLoop(t){
   if(!CM.open)return; // se corta al cerrar
-  if(!document.hidden&&!CM.calma&&!REDUCED){cmDrawSpace(t);cmDrawOrb(t);}
+  if(!document.hidden&&!CM.calma&&!REDUCED){cmDrawSpace(t);cmDrawOrb(t);cmOrbitar(t);}
   requestAnimationFrame(cmLoop);
+}
+// Órbita por JS: mueve el contenedor y contra-rota cada nodo el mismo ángulo → labels SIEMPRE derechos.
+function cmOrbitar(t){
+  cmGirar(document.getElementById('cmOrbit'), (t*0.004)%360);    // activos (~90s/vuelta)
+  cmGirar(document.getElementById('cmOrbit2'), (-t*0.0026)%360); // laboratorio (más lento, reverso)
+}
+function cmGirar(orbit,ang){
+  if(!orbit)return;
+  orbit.style.transform='rotate('+ang+'deg)';
+  var inv='translate(-50%,-50%) rotate('+(-ang)+'deg)',k=orbit.children;
+  for(var i=0;i<k.length;i++)k[i].style.transform=inv;
 }
 
 /* ── teclado: inbox (j/k/a/e/r) + Escape ── */

@@ -251,3 +251,37 @@ function cargarObjetivosPiloto() {
   // cargarObjetivo('CLI-001', { descripcion: 'Bajar la merma de stock', metrica: 'merma_pct', valor_objetivo: 5, prioridad: 'B' });
   // cargarObjetivo('CLI-001', { descripcion: 'Reducir días de cobro', metrica: 'dias_cobro_promedio', valor_objetivo: 30 });
 }
+
+/**
+ * Siembra datos operativos de EJEMPLO en Datos_operativos de un cliente (default CLI-001) para
+ * ver el loop produciendo sin pelear con pegados de CSV. Correr desde el editor. Borrá las filas
+ * cuando cargues las reales. Resto de Barcelona, 2 semanas.
+ */
+function sembrarDatosEjemplo(idCliente) {
+  idCliente = idCliente || 'CLI-001';
+  var sh = abrirCliente(idCliente).ss.getSheetByName('Datos_operativos');
+  if (!sh) throw new Error(idCliente + ' sin Datos_operativos');
+  var datos = [
+    { fecha: '2026-06-01', concepto: 'Ventas del día', valor: 1840.50, fuente: 'TPV', notas: '68 cubiertos' },
+    { fecha: '2026-06-02', concepto: 'Ventas del día', valor: 1620.00, fuente: 'TPV', notas: '59 cubiertos' },
+    { fecha: '2026-06-03', concepto: 'Ventas del día', valor: 1755.25, fuente: 'TPV', notas: '64 cubiertos' },
+    { fecha: '2026-06-03', concepto: 'Compra carnes', valor: -420.00, fuente: 'Proveedor Solà', notas: 'factura 1021' },
+    { fecha: '2026-06-05', concepto: 'Compra verduras', valor: -180.40, fuente: 'Mercabarna', notas: '' },
+    { fecha: '2026-06-06', concepto: 'Ventas del día', valor: 2310.00, fuente: 'TPV', notas: 'fin de semana · 81 cubiertos' },
+    { fecha: '2026-06-07', concepto: 'Ventas del día', valor: 2580.75, fuente: 'TPV', notas: 'fin de semana · 92 cubiertos' },
+    { fecha: '2026-06-08', concepto: 'Alquiler local', valor: -2200.00, fuente: 'Inmobiliaria', notas: 'junio' },
+    { fecha: '2026-06-09', concepto: 'Sueldos quincena', valor: -3100.00, fuente: 'Nómina', notas: '5 empleados' },
+    { fecha: '2026-06-10', concepto: 'Ventas del día', valor: 1490.00, fuente: 'TPV', notas: '54 cubiertos' },
+    { fecha: '2026-06-10', concepto: 'Compra bebidas', valor: -640.00, fuente: 'Distribuidora Vega', notas: 'factura 0098 · vence 2026-06-25' },
+    { fecha: '2026-06-12', concepto: 'Ventas del día', valor: 1705.50, fuente: 'TPV', notas: '61 cubiertos' },
+    { fecha: '2026-06-13', concepto: 'Ventas del día', valor: 2420.00, fuente: 'TPV', notas: 'fin de semana · 86 cubiertos' },
+    { fecha: '2026-06-14', concepto: 'Evento privado', valor: 1200.00, fuente: 'Reserva', notas: 'seña parcial · resta 600 · vence 2026-06-28' },
+    { fecha: '2026-06-15', concepto: 'Ventas del día', valor: 1980.00, fuente: 'TPV', notas: '70 cubiertos' },
+    { fecha: '2026-06-15', concepto: 'Compra carnes', valor: -510.00, fuente: 'Proveedor Solà', notas: 'factura 1044 · vence 2026-06-30' },
+    { fecha: '2026-06-16', concepto: 'Ventas del día', valor: 1610.00, fuente: 'TPV', notas: '58 cubiertos' },
+    { fecha: '2026-06-16', concepto: 'Servicios luz/gas', valor: -380.00, fuente: 'Endesa', notas: '' }
+  ];
+  datos.forEach(function (d) { appendFila(sh, d); });
+  Logger.log('sembrarDatosEjemplo ' + idCliente + ': ' + datos.length + ' filas en Datos_operativos.');
+  return { cliente: idCliente, filas: datos.length };
+}
