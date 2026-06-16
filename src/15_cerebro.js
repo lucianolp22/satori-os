@@ -141,16 +141,19 @@ function materializarEstado(tenant) {
     filas.push({ seccion: 'nodos_por_tipo', clave: t, valor: porTipo[t] });
   });
 
-  // Reescribir estado_actual completo (snapshot, NO append-only).
+  // Reescribir estado_actual completo (snapshot, NO append-only). PURGA #5: clear+write bajo
+  // conLock para que sea atómico (si setValues fallara entre medio, no queda la hoja vacía).
   var sh = ssCli.getSheetByName('estado_actual');
-  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
-  var now = ahoraISO();
-  var matriz = filas.map(function (f) {
-    f.materializado_en = now;
-    return H.map(function (h) { return sanitizarCelda(f.hasOwnProperty(h) ? f[h] : ''); });
+  conLock(function () {
+    var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    var now = ahoraISO();
+    var matriz = filas.map(function (f) {
+      f.materializado_en = now;
+      return H.map(function (h) { return sanitizarCelda(f.hasOwnProperty(h) ? f[h] : ''); });
+    });
+    if (matriz.length) sh.getRange(2, 1, matriz.length, H.length).setValues(matriz);
   });
-  if (matriz.length) sh.getRange(2, 1, matriz.length, H.length).setValues(matriz);
 
   // Índice agregado en el MAESTRO: SOLO conteos + resumen, nunca PII (caso 20).
   actualizarCerebroIndex_(tenant, {

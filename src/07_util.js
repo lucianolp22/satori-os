@@ -127,6 +127,8 @@ function sanitizarCelda(v) {
  * (nextId + appendFila) para que trigger y corrida manual solapados no generen
  * IDs duplicados. No reentrante: lockear en los callers (crearAviso/crearCliente),
  * nunca anidado dentro de nextId.
+ * PURGA #7 (E8a): es lock GLOBAL de script → upserts de cerebro de tenants distintos
+ * serializan en un único lock. Aceptado en piloto (es seguro); revisar si se paraleliza.
  */
 function conLock(fn) {
   var lock = LockService.getScriptLock();
@@ -139,12 +141,17 @@ function conLock(fn) {
  * Abre el Sheet de un cliente por id. Devuelve { cli (fila de Clientes), ss }.
  * Punto único para no duplicar el patrón leerTabla+openByUrl en costos/aprobaciones/agentes.
  */
+// PURGA #1: cache de handles openByUrl por ejecución. El handle relee el Sheet en cada
+// llamada (no cachea celdas) → seguro aun en instancias V8 "warm"; solo evita reabrir.
+var _ssClienteCache_ = {};
 function abrirCliente(idCliente) {
   var cli = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (f) {
     return f.id_cliente === idCliente;
   })[0];
   if (!cli || !cli.url_sheet_cliente) throw new Error('cliente ' + idCliente + ' sin Sheet');
-  return { cli: cli, ss: SpreadsheetApp.openByUrl(cli.url_sheet_cliente) };
+  var url = cli.url_sheet_cliente;
+  if (!_ssClienteCache_[url]) _ssClienteCache_[url] = SpreadsheetApp.openByUrl(url);
+  return { cli: cli, ss: _ssClienteCache_[url] };
 }
 
 /** Lee un valor de Config por clave (string). '' si no existe. */

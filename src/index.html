@@ -278,12 +278,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
     </div>
     <div class="cm-telem" id="cmTelem" aria-label="Telemetría del sistema">
-      <div class="tm"><span class="v" id="tmInteg">—</span><span class="l">integridad</span></div>
-      <div class="tm"><span class="v" id="tmLlam">—</span><span class="l">llamadas mes</span></div>
-      <div class="tm"><span class="v" id="tmTok">—</span><span class="l">tokens mes</span></div>
-      <div class="tm"><span class="v" id="tmGasto">—</span><span class="l">gasto / tope</span></div>
-      <div class="tm"><span class="v" id="tmErr">—</span><span class="l">errores</span></div>
-      <div class="tm"><span class="v" id="tmSaludG">—</span><span class="l">salud</span></div>
+      <div class="tm" title="Chequeos de Salud OK sobre el total"><span class="v" id="tmInteg">—</span><span class="l">integridad</span></div>
+      <div class="tm" title="Llamadas API del mes — del consolidado (se refresca en la corrida diaria)"><span class="v" id="tmLlam">—</span><span class="l">llamadas (cons.)</span></div>
+      <div class="tm" title="Tokens del mes — del consolidado (se refresca en la corrida diaria)"><span class="v" id="tmTok">—</span><span class="l">tokens (cons.)</span></div>
+      <div class="tm" title="Gasto del mes vs tope — live (Consumo_agentes)"><span class="v" id="tmGasto">—</span><span class="l">gasto / tope</span></div>
+      <div class="tm" title="Tareas fallidas en la cola"><span class="v" id="tmErr">—</span><span class="l">errores</span></div>
+      <div class="tm" title="Estado global del loop de Salud"><span class="v" id="tmSaludG">—</span><span class="l">salud</span></div>
     </div>
     <div class="cm-stage">
       <canvas id="cmOrb"></canvas>
@@ -598,7 +598,7 @@ function centroAbrir(){
   if(CM.timer)clearInterval(CM.timer);
   CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
   if(CM.timerS)clearInterval(CM.timerS);
-  CM.timerS=setInterval(function(){if(CM.open&&!document.hidden)refrescarSalud();},20000);
+  CM.timerS=setInterval(function(){if(CM.open&&!document.hidden)refrescarSalud();},60000); // PURGA #4: 60s (el schema-check no cambia en sesión)
   requestAnimationFrame(cmLoop);
 }
 function centroCerrar(){
@@ -643,6 +643,7 @@ function refrescarCentro(){
     cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();
     cmTelem(est.telemetria);cmDirectiva(est.feed);
     var work=est.agentes.filter(function(a){return a.estado==='work';});
+    CM.work=work.length; // a4.2: alimenta la vivacidad del orbe
     document.getElementById('cmMsg').textContent=work.length
       ? work.map(function(a){return a.nombre;}).join(' y ')+' trabajando para vos ahora.'
       : 'Todo al día. El equipo espera tus órdenes.';
@@ -662,7 +663,11 @@ function cmTelem(t){
 }
 function refrescarSalud(){
   if(!EN_GAS)return;
-  google.script.run.withSuccessHandler(cmSalud).withFailureHandler(function(){}).estadoSalud();
+  google.script.run.withSuccessHandler(cmSalud)
+    .withFailureHandler(function(){ // PURGA #6: no fallar en silencio
+      setTm('tmSaludG','?','warn');setTm('tmInteg','—','warn');
+      var t=document.getElementById('tmSaludG');if(t&&t.parentNode)t.parentNode.title='No se pudo leer Salud — reintentando';
+    }).estadoSalud();
 }
 function cmSalud(s){
   if(!s)return;
@@ -812,16 +817,31 @@ function cmDrawSpace(t){cmSx.clearRect(0,0,cmSc.width,cmSc.height);
   for(var i=0;i<cmStars.length;i++){var s=cmStars[i];var a=.15+.45*Math.abs(Math.sin(t*.0006*s.v+s.p));
     cmSx.fillStyle='rgba(140,200,180,'+a+')';cmSx.beginPath();cmSx.arc(s.x*cmSc.width,s.y*cmSc.height,s.r,0,7);cmSx.fill();}}
 function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),rot=t*.00018,tilt=.35;
-  cmOx.clearRect(0,0,w,w);var proj=[];
+  // a4.2 orbe vivo: la energía sube con los agentes trabajando (0=calmo, 3+=pleno).
+  var energy=Math.min(1,(CM.work||0)/3),cx=w/2;
+  cmOx.clearRect(0,0,w,w);
+  // resplandor central, más intenso con actividad
+  var g=cmOx.createRadialGradient(cx,cx,R*0.12,cx,cx,R*1.18);
+  g.addColorStop(0,'rgba(108,221,186,'+(0.05+0.12*energy)+')');g.addColorStop(1,'rgba(108,221,186,0)');
+  cmOx.fillStyle=g;cmOx.beginPath();cmOx.arc(cx,cx,R*1.18,0,7);cmOx.fill();
+  var proj=[];
   for(var i=0;i<cmPts.length;i++){var p=cmPts[i];
     var x=Math.cos(p.la)*Math.cos(p.lo+rot),y=Math.sin(p.la),z=Math.cos(p.la)*Math.sin(p.lo+rot);
     var y2=y*Math.cos(tilt)-z*Math.sin(tilt),z2=y*Math.sin(tilt)+z*Math.cos(tilt);
     proj.push({x:w/2+x*R,y:w/2+y2*R,z:z2});}
-  var cols=24,rows=11;
+  var sweep=(t*0.0007)%(Math.PI*2),cols=24,rows=11; // banda de energía recorriendo el orbe
   for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){var a=proj[r*cols+c],b=proj[r*cols+((c+1)%cols)],d=(r<rows-1)?proj[(r+1)*cols+c]:null;
-    if(a.z>-0.15){cmOx.strokeStyle='rgba(108,221,186,'+(.04+.14*Math.max(0,a.z))+')';cmOx.lineWidth=1;
+    if(a.z>-0.15){
+      var near=Math.max(0,Math.cos(cmPts[r*cols+c].lo+rot-sweep)),boost=energy*0.45*near;
+      cmOx.strokeStyle='rgba(108,221,186,'+Math.min(.72,.04+.14*Math.max(0,a.z)+boost)+')';cmOx.lineWidth=1;
       cmOx.beginPath();cmOx.moveTo(a.x,a.y);cmOx.lineTo(b.x,b.y);cmOx.stroke();
-      if(d){cmOx.beginPath();cmOx.moveTo(a.x,a.y);cmOx.lineTo(d.x,d.y);cmOx.stroke();}}}}
+      if(d){cmOx.beginPath();cmOx.moveTo(a.x,a.y);cmOx.lineTo(d.x,d.y);cmOx.stroke();}}}
+  // neuronas: vértices frontales que titilan (más vivos con actividad)
+  for(var j=0;j<proj.length;j+=2){var pt=proj[j];if(pt.z<=0.12)continue;
+    var tw=0.5+0.5*Math.sin(t*(0.002+0.004*energy)+j*1.7);
+    var al=Math.min(.9,(0.08+0.45*pt.z)*(0.35+0.65*tw)*(0.45+0.55*energy)),rad=1+1.7*pt.z*tw;
+    cmOx.fillStyle='rgba('+(150+Math.round(70*energy))+',232,202,'+al+')';
+    cmOx.beginPath();cmOx.arc(pt.x,pt.y,rad,0,7);cmOx.fill();}}
 function cmLoop(t){
   if(!CM.open)return; // se corta al cerrar
   if(!document.hidden&&!CM.calma&&!REDUCED){cmDrawSpace(t);cmDrawOrb(t);}

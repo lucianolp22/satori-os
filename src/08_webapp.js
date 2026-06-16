@@ -199,21 +199,25 @@ function esVencida(fechaLimite, estado) {
  * presupuesto, inbox de aprobaciones y clientes activos para disparar. Solo datos.
  */
 function estadoAgentes() {
-  var estados = estadosAgentesCola_(); // una sola lectura de la cola para los 13
+  // PURGA #2: una sola lectura de la cola, reusada por estados de agentes + telemetría (errores).
+  var colaSh = getMaestro().getSheetByName('Cola_tareas');
+  var cola = colaSh ? leerTabla(colaSh) : [];
+  var estados = estadosAgentesCola_(cola);
   var agentes = Object.keys(AGENTES).map(function (k) {
     var a = AGENTES[k];
     return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estados[k] || 'idle' };
   });
-  var c = filaConsumoAgentes_();
+  var c = filaConsumoAgentes_();   // PURGA #2: Consumo una sola vez (gasto)
+  var tope = budgetMensualUSD_();  // PURGA #2: tope una sola vez
   return {
     agentes: agentes,
     feed: feedReciente_(30),
-    presupuesto: { gastoUsd: c.gasto, topeUsd: budgetMensualUSD_() },
+    presupuesto: { gastoUsd: c.gasto, topeUsd: tope },
     aprobaciones: inboxAprobaciones_(),
     clientes_activos: listaClientes().filter(function (x) {
       return ['activo', 'activo-piloto'].indexOf(String(x.estado).toLowerCase()) >= 0;
     }),
-    telemetria: telemetriaMaestro_(),
+    telemetria: telemetriaMaestro_(c, cola, tope),
     ts: aHoraLegible_(ahoraISO())
   };
 }
@@ -222,20 +226,22 @@ function estadoAgentes() {
  * Telemetría del MAESTRO para la tira del Command Center (E8a4): llamadas/tokens/gasto del
  * mes (Costos_API_consolidado) + errores (cola fallida). Solo lecturas baratas del MAESTRO.
  */
-function telemetriaMaestro_() {
+function telemetriaMaestro_(c, cola, tope) {
   var ss = getMaestro();
   var mes = mesISO();
-  // Gasto LIVE: mismo origen que el budget bar (Consumo_agentes, actualizado por cada llamada).
-  var gasto = filaConsumoAgentes_().gasto;
-  // Llamadas/tokens del mes desde el consolidado MAESTRO — el crudo Costos_API es por-cliente,
-  // no vive en el MAESTRO; el consolidado se refresca en consolidarCostosMes() (corrida diaria).
+  // PURGA #2: reusa lo ya leído por estadoAgentes; fallback a lectura propia si se llama suelta.
+  if (!c) c = filaConsumoAgentes_();
+  if (!cola) { var csh = ss.getSheetByName('Cola_tareas'); cola = csh ? leerTabla(csh) : []; }
+  if (tope === undefined || tope === null) tope = budgetMensualUSD_();
+  // Gasto LIVE (Consumo_agentes, igual que el budget bar). Llamadas/tokens del consolidado
+  // MAESTRO — el crudo Costos_API es por-cliente; el consolidado lo refresca la corrida diaria.
   var llamadas = 0, tokens = 0;
   leerTabla(ss.getSheetByName('Costos_API_consolidado')).forEach(function (f) {
     if (String(f.mes) !== mes) return;
     llamadas += Number(f.llamadas) || 0; tokens += Number(f.tokens) || 0;
   });
-  var errores = leerTabla(ss.getSheetByName('Cola_tareas')).filter(function (f) { return String(f.estado) === 'fallida'; }).length;
-  return { llamadas: llamadas, tokens: tokens, gasto_usd: gasto, tope_usd: budgetMensualUSD_(), errores: errores };
+  var errores = cola.filter(function (f) { return String(f.estado) === 'fallida'; }).length;
+  return { llamadas: llamadas, tokens: tokens, gasto_usd: c.gasto, tope_usd: tope, errores: errores };
 }
 
 /**
@@ -257,23 +263,19 @@ function estadoSalud() {
  * Mapa clave_agente → estado derivado de la cola, en UNA sola lectura (antes:
  * 13 lecturas por refresh, ×cada 5 s). work si tiene tarea viva; ok/fail según la última.
  */
-function estadosAgentesCola_() {
+function estadosAgentesCola_(rows) {
   var out = {};
-  var sh = getMaestro().getSheetByName('Cola_tareas');
-  if (!sh || sh.getLastRow() < 2) return out;
-  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  var iTipo = H.indexOf('tipo'), iPayload = H.indexOf('payload'), iEstado = H.indexOf('estado');
-  var n = sh.getLastRow(), desde = Math.max(2, n - 200);
-  var datos = sh.getRange(desde, 1, n - desde + 1, sh.getLastColumn()).getValues();
-  for (var i = 0; i < datos.length; i++) { // en orden: la última fila de cada agente gana
-    if (String(datos[i][iTipo]) !== 'agente') continue;
-    var p = parsearPayload_(datos[i][iPayload]);
-    if (!p.agente) continue;
-    var e = String(datos[i][iEstado]);
+  // PURGA #2: recibe las filas ya leídas por estadoAgentes; fallback a leer si se llama suelta.
+  if (!rows) { var sh = getMaestro().getSheetByName('Cola_tareas'); rows = sh ? leerTabla(sh) : []; }
+  rows.forEach(function (r) { // en orden de Sheet: la última fila de cada agente gana
+    if (String(r.tipo) !== 'agente') return;
+    var p = parsearPayload_(r.payload);
+    if (!p.agente) return;
+    var e = String(r.estado);
     out[p.agente] = (e === 'tomada' || e === 'pendiente') ? 'work'
                   : (e === 'completada') ? 'ok'
                   : (e === 'fallida') ? 'fail' : (out[p.agente] || 'idle');
-  }
+  });
   return out;
 }
 

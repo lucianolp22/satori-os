@@ -31,7 +31,7 @@ function correrDirector(tenant) {
   clientes.forEach(function (c) {
     if (!c.url_sheet_cliente) return;
     try {
-      var ssCli = SpreadsheetApp.openByUrl(c.url_sheet_cliente);
+      var ssCli = abrirCliente(c.id_cliente).ss; // PURGA #1: cache de handle (lo reusa materializarEstado)
       if (!ssCli.getSheetByName('estado_actual')) { // cerebro no inicializado en este tenant
         partes.push({ tenant: c.id_cliente, omitido: 'sin cerebro (corré repararCerebro)' });
         return;
