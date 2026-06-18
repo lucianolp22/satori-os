@@ -38,6 +38,7 @@ Properties: `CLAUDE_API_KEY`, `API_BUDGET_MENSUAL_USD` (opcional), `WORKER` (opc
 | `14_director.js` | **Director / orquestación** (E8a): por tenant activo materializa el cerebro + encola Analista por objetivo con métrica + escribe "parte" y surface la directiva al feed; 0 API; en `corridaDiaria` | `correrDirector(tenant?)`, `chequeoLivianoDirector()`, `instalarTriggerDirector()` |
 | `15_cerebro.js` | **Cerebro / grafo de memoria multi-tenant** (E8a): nodos/aristas/log/estado por tenant + índice agregado sin PII en MAESTRO | `upsertNodo()`, `upsertArista()`, `logEvento()` (append-only), `materializarEstado()`, `leerEstado()`, `repararCerebro()` |
 | `16_salud.js` | **Loop de salud** (E8a): 6 chequeos (schema/sync/cola/presupuesto/aprobaciones/cerebro), clasifica, alerta-no-arregla (`AUTOHEAL_ON` off); 0 API; en `corridaDiaria` | `correrSalud(opts)` |
+| `17_bandeja.js` | **Bandeja + clasificador Haiku** (Fase 1 · Jarvis): captura personal única (`Bandeja` en MAESTRO) + triaje barato con confianza + escalate→aviso. Sin cliente (no anonimiza); costo a `Consumo_agentes` como 'clasificador'; trigger opt-in 30 min | `capturar()`, `clasificarBandeja()`, `promptClasificador_()`, `parseClasificacion_()`, `instalarTriggerBandeja()` |
 
 ## Convenciones (de 0.2/0.3)
 - IDs: `CLI-001`, `PRY-001-02`, `TAR-…`, `AVI-0001` (prefijo + correlativo, `nextId()`).

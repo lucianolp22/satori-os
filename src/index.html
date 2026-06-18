@@ -283,6 +283,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <div class="cm-budget" id="cmBudget" title="Consumo API del mes vs tope (Script Properties / Config)">
           <div class="t"><span>API del mes</span><span class="mono" id="cmBudgetTxt">—</span></div>
           <div class="bar"><i id="cmBudgetBar"></i></div></div>
+        <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
         <button class="cm-btn" id="cmCalma" aria-pressed="false">Modo calma</button>
         <button class="iconbtn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando">✕</button>
       </div>
@@ -621,6 +622,14 @@ function centroCerrar(){
 document.getElementById('cmdBtn').addEventListener('click',centroAbrir);
 document.getElementById('navCentro').addEventListener('click',function(){centroAbrir();toggleSide(false);});
 document.getElementById('cmClose').addEventListener('click',function(){centroCerrar();loadHoy();});
+document.getElementById('cmCapturar').addEventListener('click',function(){ // Fase 1: captura única a la Bandeja
+  var t=window.prompt('Capturá a la bandeja (idea, tarea, link, lead — lo que sea):');
+  if(!t||!t.trim())return;
+  if(!EN_GAS){cmToast('Captura simulada (sin backend)');return;}
+  cmToast('Capturando…');
+  google.script.run.withSuccessHandler(function(r){cmToast('Capturado '+(r&&r.id||'')+' — el clasificador lo procesa');})
+    .withFailureHandler(function(e){cmToast('No se pudo capturar: '+(e&&e.message||''));}).capturar(t.trim(),'command-center');
+});
 document.getElementById('cmCalma').addEventListener('click',function(){
   CM.calma=!CM.calma;document.getElementById('centro').classList.toggle('calma',CM.calma);
   this.classList.toggle('on',CM.calma);this.setAttribute('aria-pressed',String(CM.calma));

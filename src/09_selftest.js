@@ -157,6 +157,18 @@ function selfTest() {
     chk(['ok', 'warn', 'crit'].indexOf(sal.global) >= 0, 'E8a-3 Salud clasifica el estado global (' + sal.global + ')');
     chk(sal.autoheal === false, 'E8a-3 auto-heal apagado en piloto (alerta, no arregla)');
 
+    // ── Fase 1 — Bandeja + clasificador (plumbing, sin gastar API) ──────────────
+    ensureSheet(getMaestro(), 'Bandeja', MAESTRO_SHEETS.Bandeja);
+    var cap = capturar('__TEST__ idea de prueba para clasificar', '__TEST__');
+    chk(/^BAN-\d+$/.test(cap.id), 'F1 capturar genera id de bandeja (' + cap.id + ')');
+    var enBandeja = leerTabla(getMaestro().getSheetByName('Bandeja')).filter(function (f) { return f.id === cap.id && String(f.estado) === 'pendiente'; });
+    chk(enBandeja.length === 1, 'F1 la captura nace pendiente en la Bandeja');
+    var pc = parseClasificacion_('{"bin":"idea","confianza":8,"slug":"x","tags":"a,b","resumen":"r","id_cliente":""}');
+    chk(!!pc && pc.bin === 'idea' && pc.confianza === 8, 'F1 parseClasificacion_ parsea el JSON del Haiku');
+    var pcBad = parseClasificacion_('{"bin":"inventado","confianza":99}');
+    chk(!!pcBad && pcBad.bin === 'escalate' && pcBad.confianza === 10, 'F1 parse: bin inválido→escalate + confianza clamp');
+    chk(typeof bandejaUmbral_() === 'number', 'F1 umbral de confianza es numérico (' + bandejaUmbral_() + ')');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de
@@ -283,6 +295,9 @@ function limpiarTodoTest() {
   // ETAPA 8a: índice agregado del cerebro (el grafo por tenant se va con el Sheet a papelera).
   var shCI = ss.getSheetByName('Cerebro_index');
   if (shCI) borrarFilasDonde(shCI, function (f) { return idsTest[String(f.id_cliente)] === true; });
+  // Fase 1: filas de prueba de la Bandeja.
+  var shBan = ss.getSheetByName('Bandeja');
+  if (shBan) borrarFilasDonde(shBan, function (f) { return String(f.fuente) === '__TEST__' || String(f.texto).indexOf('__TEST__') === 0; });
   return { clientes: testClientes.length };
 }
 

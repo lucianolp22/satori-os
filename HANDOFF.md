@@ -1,90 +1,85 @@
-# HANDOFF — Satori OS — 2026-06-15 (v3)
+# HANDOFF — Satori OS — 2026-06-16 (v4)
 
-PRÓXIMO PASO: **cerrar E8a** — falta solo (1) `clasp push -f` + commit de los **7 parches de Purga + a4.2** (working tree: `07_util`/`08_webapp`/`14_director`/`15_cerebro`/`index.html`), y (2) correr los **casos 14-21** de aceptación en el editor. a1/a2/a3 + a4.1 **verificados** (Luciano vio el Command Center andando 16-jun); **Purga de cierre HECHA** (0 críticos/0 altos; 7 hallazgos → 7 parches, `node --check` 17/17 verde); **a4.2 orbe-vivo** construido (energía + neuronas ligadas a agentes en `work`, respeta calma/reduced-motion). El gate E2+ está **cerrado** (migración a Workspace + E2-1 resuelto + 6 casos manuales, todo verde). El **backend de 8a está construido y verificado en producción**: **a1** cerebro (`15_cerebro.js`), **a2** Director (`14_director.js`), **a3** Salud (`16_salud.js`) — los tres enganchados en `corridaDiaria` y verdes en `selfTest` (bloques E8a-1/2/3, corridos por Chrome). Falta **a4** (frontend en `index.html`: 4 *must* — Agenda/Salud · Directiva · telemetría · Parte del Director; diseño según la skill **`satori-design`** (reemplaza a `DESIGN.md`) + brief **`E8a4-UI-BRIEF.md`** con la visión de Luciano (integración Sureflow + brain/Z.E.R.O + constelación; **mobile-first**, control desde el teléfono; "orbe vivo" en fase a4.2); **no auto-verificable** por el iframe cross-origin de GAS, lo prueba Luciano) y **a5**. **Pendiente de commit:** a2+a3 (a1 = `8ed875b`). Demo 15-jun: el sistema corrió end-to-end con análisis **real** de Claude (Analista calculó margen 69,4% sobre datos sembrados; Vigía detectó la factura vencida). Diseño v1 propio del cerebro/salud — el doc canónico **CEREBRO** sigue faltando (refina a1; 6 chequeos de a3 inferidos).
-
-**16-jun — a4.1 Command Center VERIFICADO + Purga de cierre E8a + 7 parches + a4.2 orbe-vivo:**
-- UI sobre el orbe existente (no rompe «Hoy» Registro A): **tira de telemetría** (integridad% · llamadas · tokens · gasto/tope · errores · salud), **tab Salud** (los 6 chequeos + integridad, vía `estadoSalud()` dryRun), **directiva del Director** (etiqueta "capa de mando" + última directiva del feed), **mobile-first** (breakpoints 880/560 → control desde el teléfono).
-- Backend: `08_webapp.js` → `estadoAgentes().telemetria` + `estadoSalud()`; `14_director.js` → la directiva se surface al feed MAESTRO (sin abrir Sheets cliente). Verificado vs schema real (`Costos_API_consolidado`, cola `'fallida'`) + `node --check` verde (índice `<script>` + 17 `.js`).
-- **Gate satori-design:** registro **operativo** + orbe como elemento-firma (acento verde `#6cddba`); tokens del overlay existente, ninguno inventado inline. Confianza 8/10.
-- **Purga de cierre E8a:** 0 críticos / 0 altos; 7 hallazgos (perf/quota/UX) → **7 parches aplicados**: cache de handles en `abrirCliente`, dedupe de la lectura de cola en `estadoAgentes`, rótulo "consolidado" vs gasto live en la tira, poll de Salud 60s, `conLock` en el rewrite de `materializarEstado`, fail visible de Salud en la UI, comentario del lock global. `node --check` 17/17 + `<script>` verde.
-- **a4.2 orbe-vivo (`cmDrawOrb`):** resplandor central + banda de energía + neuronas que titilan, todo ligado a `CM.work` (agentes en `work`); en `modo calma` / `prefers-reduced-motion` el loop pausa (sin movimiento).
-- **AREL — pendiente de Luciano:** `clasp push -f` + commit de los 5 archivos del working tree, y correr **casos 14-21** en el editor → con eso **E8a queda cerrada**. (a4.1 ya verificado en pantalla; el iframe cross-origin no es auto-verificable por Chrome.)
+PRÓXIMO PASO: **pushear y probar la Bandeja (Fase 1 · Jarvis)** — en Terminal: `clasp push -f` + `git add -A && git commit -m "Fase 0/1 Jarvis"`; luego en el editor GAS: `setup()` (crea la pestaña `Bandeja` + Config nuevo) → `selfTest()` (debe cerrar en "— TODO OK —", ahora incluye el bloque F1) → `instalarTriggerBandeja()` (clasificador c/30 min) → en el Command Center tocar **＋ Capturar**, tirar 3-4 inputs variados, correr `clasificarBandeja()` y verificar ruteo + escalado por confianza.
 
 ## Estado vigente
-Satori OS = gestión multi-tenant sobre **GAS + Google Sheets** (un proyecto MAESTRO opera N Sheets cliente). **E1** en uso real. **E2+** (capa Trillion: aprobaciones, costos+Bastión, cola durable, registry 13 agentes —5 activos/8 lab—, Centro de Mando) construida y auditada.
-
-**15-jun — migración a Workspace HECHA + E2-1 RESUELTO:**
-- El OS migró de `llopriore@gmail.com` (personal, bloqueada por Advanced Protection) a **`luciano@satoriconsultoria.com`** (Workspace, C1 reusando la cuenta admin/principal). Vía clasp. `bootstrap()` autorizó directo como dueño → **Fase 3 (trust Admin) no fue necesaria** (diferible a multi-usuario).
-- **E2-1 (causa raíz real):** `appendRow` ignora el formato `'@'` de la columna y coacciona los strings tipo-fecha (`'APR-0001'` → Date abril-2001) → el id releído no matchea. El fix previo `a6e641e` (solo formateaba la columna) no alcanzaba. **Fix:** `appendFila` (07_util.js) re-escribe las celdas `COLUMNAS_TEXTO` de la fila como texto explícito (`setValue` sobre celda `'@'`). Diagnosticado con `debugE21` (instrumentación, no teoría).
-- **`selfTest()` cierra en "— TODO OK —"** (E2-1 + todos los casos E2 automáticos verdes).
-
-**Gate E2+: aún NO cerrado.** Falta: manuales (E2-3/5/8/9/11/13) + neutralizar el sistema viejo (corre triggers en paralelo).
-
-Modo de trabajo activo: Círculo + Equipo Agentes Pro + Bastión de fondo; ejecución-supervisada (AREL) y diseño Satori constantes; purga-de-errores en cada cierre de etapa.
+Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO opera N Sheets cliente), **en producción** bajo `luciano@satoriconsultoria.com`. **E1 + E2+** (capa Trillion: aprobaciones, costos+Bastión, cola durable, 13 agentes —5 con runner / 8 lab—, Command Center) y **E8a** (cerebro / Director / Salud + Command Center a4.1 telemetría/Salud/directiva + a4.2 orbe-vivo + mobile-first) **CERRADAS**. El sistema **ya produce análisis real**. Dos casos de IG analizados e integrados/planeados: **@_no_hype_ai** (Fase 0+1: Bandeja+clasificador) y **@kevinfremon** (aprobada la "Capa de Dirección" + extras). Modo de trabajo: Círculo/Equipo/Bastión de fondo + AREL + satori-design + purga al cierre (en `userPreferences`/skills, no repetir acá).
 
 ### Verificado
-- [15-jun] `clasp login` OK como `luciano@satoriconsultoria.com` (cliente google-provided default → el org NO bloquea clasp).
-- [15-jun] Proyecto nuevo creado + `clasp push -f` (16 files); manifest correcto (Code restauró `appsscript.json` que `clasp create` había pisado con el default).
-- [15-jun] `bootstrap()` OK: MAESTRO nuevo + 5 clientes + triggers + 1ª sync (0 pendientes/errores).
-- [15-jun] `debugE21` confirmó la coerción: `id="2001-03-31T22:00:00.000Z"` en vez de `"APR-0001"`; `APR-CTRL` (no parece fecha) sobrevive → prueba que `appendRow` ignora el `'@'`.
-- [15-jun] Fix `appendFila` aplicado → `node --check` OK → `selfTest()` **verde completo**.
+- [16-jun] **Sistema corriendo con datos reales**: `sembrarDatosEjemplo('CLI-001')` → `corridaDiaria()` → Analista sacó margen op **58,5%** y alertó margen neto **−3,8%**; Vigía detectó factura por vencer + cobro pendiente. Evidencia: screenshots del feed Actividad + log de `corridaDiaria` (`correrDirector` encoló 1 por objetivo; `correrSalud` 6/6 ok).
+- [16-jun] **Command Center** (a4.1 + a4.2 orbe-vivo + mobile + labels derechos) verificado por Luciano en **desktop e iPhone**.
+- [16-jun] `selfTest()` cerró "— TODO OK —" (bloques E8a-1/2/3) corrido en el editor por Luciano.
+- [16-jun] **E2+ y E8a cerradas**; Purga E8a (0 críticos → 7 parches) pusheada; proyecto viejo neutralizado.
+- [16-jun] API real **status 200** (Haiku), tope USD 25/mes, key rotada en Script Properties.
 
 ### No verificado
-- Casos manuales E2-3/5/8/9/11/13 (email real, API fallida, concurrencia, Cobrador, cupo, UI Centro de Mando) — **pendientes**.
-- Que los triggers del proyecto viejo se hayan apagado (Purga M2 — pendiente de acción).
-- Toda Etapa 8 (8a y 8b): nada construido.
-- Si los otros 4 proyectos GAS (clientes) necesitan migrar también (mismo patrón APP/Workspace).
+- **Fase 0/1 Jarvis (Bandeja)**: `17_bandeja.js` + schema `Bandeja` + botón ＋Capturar + bloque selfTest F1 → solo `node --check` 18/18. **NO pusheado, NO corrido, NO testeado.** La pestaña `Bandeja` **no existe** hasta correr `setup()`.
+- Todo lo de la sección Pendiente (Capa de Dirección, voz, etc.): no construido.
 
 ## Pendiente
-**Must (ruta crítica — cerrar gate E2+):**
-1. **Purga M2 — neutralizar el viejo:** en `llopriore@gmail.com`, proyecto `1Magy…`: borrar triggers (`corridaDiaria` + `drenarCola`) + revocar `CLAUDE_API_KEY` vieja (solo tras confirmar key nueva en el proyecto nuevo). Sheets viejos = backup hasta gate verde.
-2. **Casos manuales E2-3/5/8/9/11/13** en el proyecto nuevo (editor/UI).
-3. **Declarar gate E2+ cerrado** → trashear proyecto + 6 Sheets viejos.
+**Must (ruta crítica de la próxima sesión):**
+1. **Push + test de la Bandeja** (ver PRÓXIMO PASO).
+2. **Capa de Dirección** (los 3 *must* de kevinfremon, juntos = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`):
+   - `estado-vigente.md`: función GAS que exporta snapshot markdown (KPIs+pendientes+números) del MAESTRO/cliente. **Arrancar dogfooded en Satori** (decisión Luciano pendiente: Satori vs cliente directo).
+   - **North Star por cliente**: plantilla sobre `objetivos` + rutina "3 cosas hoy" (= tesis Satori hecha operativa).
+   - **Brief diario**: lee estado-vigente + North Star → BLUF → Doc/aviso/email.
+3. **Ruteo de modelo por costo** (quick win): fijar `modelo` por RUNNER (Haiku triaje, Sonnet/Opus veredicto) — la infra ya acepta `opts.modelo`.
 
-**Should:**
-- **Etapa 8a** (cerebro → director → salud → UI Command Center → casos 14-21), `ETAPA-8-PLAN.md`. Purga al cierre.
-- Definir si los otros 4 proyectos GAS migran a Workspace.
-- Deuda Purga: M1 (atomicidad appendFila bajo lock — documentado), M3 (batch del re-write para perf en sync grande), B3 (cross-ref del manejo de coerción en ARCHITECTURE).
+**Should (aprobado por Luciano 16-jun; secuenciar tras los must — con FIT-CHECK GAS):**
+- **Voz** ⚠️ fit-check: GAS Web App **no hace voz real-time** (sin proceso persistente/WebSocket/STT-TTS nativo). Fork a decidir: (a) **voz liviana** client-side con Web Speech API + `speechSynthesis` dentro del Command Center (gratis, GAS-compatible, limitada); (b) **full Trillion** (Deepgram+ElevenLabs+wake word) = **stack aparte** always-on (Node/Python), su propio proyecto + costo (~$99+/mo ElevenLabs). No construir sin elegir fork.
+- **Neural-map del cerebro** ⚠️ fit-check: 3D (Three.js) en el iframe cross-origin de GAS pesa; el **orbe-vivo (a4.2) ya da el "cerebro vivo"**. Alternativa liviana: force-graph 2D de `nodos`/`aristas`. Decidir 2D-liviano vs 3D.
+- **Forge / agentes que crean agentes** ⚠️ reframe: en GAS el código es estático (clasp), **no hay code-gen runtime**. Traducción real: **agentes DEFINIDOS por datos** (registry con prompt/fuente/modelo configurable) → activar los 8 lab por etapas, cada uno con su fuente de datos. Es el camino para "activar todos los agentes" bien.
+- **Prompt caching** — honesto: la arquitectura de Satori arma cada prompt con los datos (no reusa un system-prompt grande), así que el ahorro es **marginal**; se hace si Luciano insiste, bajo esa expectativa.
+- **Jarvis Fase 2**: separar ideas/ejecución + **índice raíz jerárquico** (= el `_index.md` de Kevin; **no duplicar** — es lo mismo, construir una vez; matiz: jerarquía por importancia, token-optimizado).
+- **Jarvis Fase 3**: PM persistente que mantiene (sobre Director/Equipo/Salud).
 
-**Nice:**
-- **Etapa 8b** (entrenamiento agentes), `INTEGRACION-ENTRENAMIENTO-AGENTES.md`.
-- Subir el usuario-OS a un `os@satoriconsultoria.com` dedicado antes de escalar (mínimo privilegio; hoy corre como admin = concesión de piloto).
+**Nice / negocio / bloqueado:**
+- **Motor build-in-public (KAIROS, track de negocio — NO código del OS):** contenido diario + lead magnet + waitlist + responder DMs → ataca la **cartera** (cuello declarado). Empalmar con **Bloque 6 KAIROS** (análisis/priorización de los 11 candidatos). Aprobado 16-jun; abrir como iniciativa aparte.
+- **E8b (entrenamiento de agentes)** — BLOQUEADO: falta el doc canónico **CEREBRO** + montar el **snapshot del Equipo** (`agentes-satori-os.md`).
+- Residuales: trashear proyecto + 6 Sheets viejos (cuando Luciano confirme); deuda Purga M1 (atomicidad)/M3 (perf batch)/B3 (cross-ref); ¿migrar los otros 4 proyectos GAS de clientes?; subir a `os@` dedicado antes de escalar.
+- Otros diferidos kevinfremon: routine-manager UI, pantalla de notificaciones móvil, `CAPABILITIES.md` auto, loop de feedback de cliente (roadmap+upvoting) como feature de servicio.
 
 ## Artefactos
 | Tipo | Nombre | Ruta / ID / URL |
 |---|---|---|
 | Repo | SatoriOS | `~/Documents/Claude/Projects/SatoriOS` |
-| Handoff (este) | HANDOFF.md | repo root |
-| Índice repo | ARCHITECTURE.md | repo root |
-| Runbook migración (resuelto) | MIGRACION-WORKSPACE.md | repo root |
-| Plan Etapa 8 | ETAPA-8-PLAN.md | repo root |
-| Fix E2-1 | `appendFila` re-write texto | `src/07_util.js` |
-| Diagnóstico | `debugE21()` | `src/09_selftest.js` |
-| **Proyecto GAS NUEVO** | "Satori OS — MAESTRO" | `luciano@satoriconsultoria.com`; scriptId `1M-LYF0GO_Zgh2quGNlCzl4Okcx-DFqQxUhA_jqFqtbJNXYqnIu-2GVnO` (en `.clasp.json`, gitignored) |
-| MAESTRO nuevo (Sheet) | Satori OS — MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` |
-| Proyecto GAS VIEJO (a neutralizar) | "Satori OS - MAESTRO" | `llopriore@gmail.com`; script `1Magy…`; scriptId en `.clasp.json.personal.bak` |
-| Secretos | `MAESTRO_ID`, `CLAUDE_API_KEY` | Script Properties del proyecto nuevo (key rotada) |
+| Índice repo | ARCHITECTURE.md | repo root (al día con Fase 1) |
+| Proyecto GAS (vivo) | "Satori OS — MAESTRO" | `luciano@satoriconsultoria.com`; scriptId `1M-LYF0GO_Zgh2quGNlCzl4Okcx-DFqQxUhA_jqFqtbJNXYqnIu-2GVnO` (en `.clasp.json`, gitignored) |
+| MAESTRO (Sheet) | Satori OS — MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` |
+| Web App (dev, solo dueño) | Command Center | deployment `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` (`…/dev`) |
+| Bandeja (Fase 1) | `17_bandeja.js` | `capturar`, `clasificarBandeja`, `instalarTriggerBandeja` |
+| Helpers alta | `15_cerebro.js` | `cargarObjetivo`, `cargarObjetivosPiloto`, `sembrarDatosEjemplo` |
+| Planes integración | `PLAN-INTEGRACION-jarvis-os.md` · `PLAN-INTEGRACION-kevinfremon.md` | repo root |
+| Prácticas + activación | `PRACTICAS-jarvis.md` · `ACTIVACION.md` · `ejemplo_Datos_operativos.csv` | repo root |
+| Informes IG (fuente) | informe/transcripciones `_no_hype_ai` y `kevinfremon` | adjuntos de la sesión (no en repo) |
+| Secretos | `MAESTRO_ID`, `CLAUDE_API_KEY` | Script Properties (key rotada) |
 
 ## Desvíos del plan original
-- **APP** (no previsto) forzó la migración a Workspace; resuelto con C1 reusando la cuenta admin.
-- **E2-1** no era coerción-de-id-pura sino que `appendRow` ignora el `'@'`; el fix `a6e641e` fue insuficiente → fix real en `appendFila`.
-- `clasp create` **pisa `appsscript.json`** con el default (pierde scopes) → restaurar con `git checkout` antes de `push` (aplica a los otros 4 proyectos si migran).
-- **Fase 3 (trust Admin) resultó innecesaria** para operación owner-only.
+- El plan paró tras E8a para **integrar 2 casos externos** (@_no_hype_ai, @kevinfremon): sumaron la Bandeja (hecha) + la Capa de Dirección + extras (voz/neural-map/Forge/caching) + el track de negocio build-in-public. Backlog ampliado a pedido de Luciano (16-jun).
+- El roster lab (Flux/Prism/Scout/Relay/Atlas/Forge/Lift/Spark) = el de Trillion (@kevinfremon): nomenclatura ya absorbida; "activar" = darles runner data-defined, no flipear flag (ver Should/Forge).
+- "Activar los 8 agentes" se decidió **mantener en lab** (16-jun): sin runner ni fuente de datos; se reabre vía el reframe Forge (agentes data-defined).
 
 ---
 
 ## Apéndice histórico
+{Se lee solo si un problema reaparece o se cuestiona una decisión.}
 
-### Decisiones (no rediscutir)
-- **Opción C / C1** reusando `luciano@satoriconsultoria.com` (admin) como identidad de servicio del piloto. Mitigación: deploy MYSELF, trust solo ese client ID, no sumar scopes, mover a `os@` dedicado antes de escalar.
-- **Rotar** la `CLAUDE_API_KEY` en la migración (no copiar la vieja).
-- Fase 1 = no-op: cero data hand-loaded (roster + Config se regeneran del código; Sheets cliente vacíos). Cowork lo verificó leyendo los 6 Sheets vía conector Drive sobre `llopriore@gmail.com`.
-- Roster 13 agentes (5 activos + 8 lab); tope API USD 25/mes; ejecutor = Claude Code, Cowork audita.
+### Decisiones y descartes
+- **Decidido:** Workspace **C1** reusando `luciano@satoriconsultoria.com` (admin) como identidad de servicio del piloto (mitigación: deploy MYSELF, trust solo ese client ID, mover a `os@` antes de escalar). **Rotar** la API key.
+- **Decidido (16-jun):** los 8 agentes lab **quedan en lab** (no tienen runner ni fuente de datos; activarlos a lo bruto = romperlos). Reabrir bien vía Forge data-defined.
+- **Decidido (16-jun):** Bandeja = **fork A** (capa personal de Luciano); sin anonimizar (texto propio, necesita ver nombres); costo a `Consumo_agentes` como 'clasificador'.
+- **Descartado:** daemon always-on (Hermes/OpenClaw del caso Jarvis) — riesgo de seguridad ("get hacked"); en stand-by.
+- **Descartado:** darle email propio al agente (kevinfremon) — el modelo de **aprobación** es más seguro.
+- **NO reimportar (ya en Satori ≥ o mejor):** orquestación (Director+cola), handoff (skill), cost-tracking (telemetría+Consumo), seguridad (Bastión/Purga), infra 24/7 (triggers GAS), requirements-doc, feedback brutal (Purga/Consejo).
 
 ### Imprevistos y resolución
-- [15-jun] El "fix raíz" `a6e641e` no resolvió E2-1 → **lección: instrumentar (`debugE21`) antes de teorizar.** Confirmado: `appendRow` coacciona pese al `'@'` de columna → fix per-celda en `appendFila`.
-- [15-jun] Purga de cierre E2-1 (panel código+datos): 0 críticos. Altos/Medios → M2 (viejo corriendo en paralelo), A1 (manuales pendientes), M1 (atomicidad), M3 (perf), B1/B2 (commit+gitignore, resueltos).
+- [15-jun] `a6e641e` no resolvió E2-1 → **lección: instrumentar (`debugE21`) antes de teorizar.** `appendRow` coacciona pese al `'@'` → fix per-celda en `appendFila` (NO remover).
+- [16-jun] Mobile del Command Center colapsaba (orbe en stage `1fr` aplastado) → `grid-rows:none` + `cm-stage{min-height:360px}` + agentes a chips 2-col. Lección: el iframe GAS no es auto-verificable; lo prueba Luciano en device.
+- [16-jun] Labels de agentes giraban (animación CSS desincronizada al reconstruir nodos c/5s) → órbita manejada por JS (`cmGirar`/`cmOrbitar`), contra-rotación sincronizada.
+- [16-jun] `clasp push` repetido tiró `invalid_rapt` (token de sesión Google vencido) → `clasp login` y reintentar. No es bloqueo.
+- [16-jun] CSV no entró por pegado → `sembrarDatosEjemplo()` (alta por función) evita la fricción.
 
 ### Changelog del handoff
-- [15-jun] **v2:** migración a Workspace cerrada + E2-1 resuelto (fix `appendFila`) + `selfTest` verde + Purga de cierre. Gate E2+ pendiente solo de manuales + neutralizar el viejo.
+- [16-jun] **v4:** E2+ y E8a CERRADAS + sistema corriendo con datos reales + a4.2 orbe-vivo + mobile + Fase 0/1 Jarvis (Bandeja) construida (pend. push/test). Aprobada la Capa de Dirección (kevinfremon) + extras + build-in-public. Backlog reorganizado.
+- [15-jun] v2/v3: migración a Workspace + E2-1 resuelto + selfTest verde + Purga; build de E8a.
 - [15-jun] v1: descubierto bloqueo APP, decidida migración; E2-1 sin diagnosticar.

@@ -29,11 +29,13 @@ var MAESTRO_SHEETS = {
   Consumo_agentes: ['mes', 'gasto_usd', 'corridas_json'],
   // Etapa 8a — índice AGREGADO del cerebro (sin PII; el grafo vive por tenant). Caso 20.
   Cerebro_index: ['id_cliente', 'nodos', 'aristas', 'ultimo_evento', 'estado_resumen', 'materializado_en'],
+  // Fase 1 (Jarvis) — bandeja de captura personal + clasificación Haiku con confianza.
+  Bandeja: ['id', 'ts', 'texto', 'fuente', 'bin', 'confianza', 'slug', 'tags', 'resumen', 'id_cliente', 'estado', 'procesado_en'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
@@ -75,7 +77,9 @@ var CONFIG_DEFAULTS = [
   ['version_modelo', '0.3'],
   // Etapa 2 — presupuesto de agentes (Trillion). El tope mensual USD también
   // puede vivir en Script Properties (API_BUDGET_MENSUAL_USD); Config es el default.
-  ['api_budget_mensual_usd', '25']
+  ['api_budget_mensual_usd', '25'],
+  // Fase 1 (Jarvis) — confianza < umbral en la Bandeja → escala como aviso.
+  ['bandeja_umbral_confianza', '6']
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;
