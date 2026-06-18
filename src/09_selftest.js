@@ -169,6 +169,20 @@ function selfTest() {
     chk(!!pcBad && pcBad.bin === 'escalate' && pcBad.confianza === 10, 'F1 parse: bin inválido→escalate + confianza clamp');
     chk(typeof bandejaUmbral_() === 'number', 'F1 umbral de confianza es numérico (' + bandejaUmbral_() + ')');
 
+    // ── Fase D — Capa de Dirección · estadoVigente (snapshot MD, sin API) ──────
+    var mdSys = estadoVigente();
+    chk(typeof mdSys === 'string' && mdSys.indexOf('# Estado vigente — Satori OS') === 0, 'D1 estadoVigente() devuelve el snapshot de sistema en markdown');
+    chk(/## Cartera/.test(mdSys) && /## Salud/.test(mdSys), 'D1 el snapshot de sistema trae Cartera + Salud');
+    var mdCli = estadoVigente(r.id_cliente);
+    chk(mdCli.indexOf(r.id_cliente) >= 0 && /## Objetivo \(North Star\)/.test(mdCli), 'D1 estadoVigente(cliente) trae el id + sección North Star (' + r.id_cliente + ')');
+
+    // ── Fase D · MUST #2 — briefDiario (BLUF + 3 cosas, sin API) ───────────────
+    var brSys = briefDiario();
+    chk(typeof brSys === 'string' && brSys.indexOf('# Brief — Satori') === 0, 'D2 briefDiario() devuelve el brief de sistema');
+    chk(/## Las 3 cosas de hoy/.test(brSys) && /\*\*/.test(brSys), 'D2 el brief trae BLUF + "Las 3 cosas de hoy"');
+    var brCli = briefDiario(r.id_cliente);
+    chk(brCli.indexOf(r.id_cliente) >= 0, 'D2 briefDiario(cliente) trae el id del cliente (' + r.id_cliente + ')');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de

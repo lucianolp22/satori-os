@@ -39,6 +39,7 @@ Properties: `CLAUDE_API_KEY`, `API_BUDGET_MENSUAL_USD` (opcional), `WORKER` (opc
 | `15_cerebro.js` | **Cerebro / grafo de memoria multi-tenant** (E8a): nodos/aristas/log/estado por tenant + índice agregado sin PII en MAESTRO | `upsertNodo()`, `upsertArista()`, `logEvento()` (append-only), `materializarEstado()`, `leerEstado()`, `repararCerebro()` |
 | `16_salud.js` | **Loop de salud** (E8a): 6 chequeos (schema/sync/cola/presupuesto/aprobaciones/cerebro), clasifica, alerta-no-arregla (`AUTOHEAL_ON` off); 0 API; en `corridaDiaria` | `correrSalud(opts)` |
 | `17_bandeja.js` | **Bandeja + clasificador Haiku** (Fase 1 · Jarvis): captura personal única (`Bandeja` en MAESTRO) + triaje barato con confianza + escalate→aviso. Sin cliente (no anonimiza); costo a `Consumo_agentes` como 'clasificador'; trigger opt-in 30 min | `capturar()`, `clasificarBandeja()`, `promptClasificador_()`, `parseClasificacion_()`, `instalarTriggerBandeja()` |
+| `18_direccion.js` | **Capa de Dirección** (Fase D · kevinfremon, MUST #1): `estadoVigente([id])` exporta un snapshot markdown ("packet of truth") del MAESTRO (Satori) o de un cliente (incl. North Star); composición pura sobre el data-layer, 0 API, sin escrituras propias | `estadoVigente()`, `estadoVigenteSistema_()`, `estadoVigenteCliente_()` |
 
 ## Convenciones (de 0.2/0.3)
 - IDs: `CLI-001`, `PRY-001-02`, `TAR-…`, `AVI-0001` (prefijo + correlativo, `nextId()`).

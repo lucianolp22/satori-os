@@ -1,11 +1,12 @@
 # HANDOFF — Satori OS — 2026-06-18 (v5)
 
-PRÓXIMO PASO: **arrancar la Capa de Dirección** (must #1, los 3 de kevinfremon = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`). Primer sub-paso: `estadoVigente()` — función GAS que exporta un snapshot markdown (KPIs + pendientes + números) del MAESTRO/cliente. **Decisión previa pendiente:** dogfood en Satori (CLI propio) vs. un cliente real directo. La **Bandeja (Fase 0/1) quedó CERRADA y en producción** el 18-jun (ver Verificado).
+PRÓXIMO PASO: **push + test del Brief diario (must #2)** — Terminal `clasp push -f` (22 files, suma `briefDiario` en `18_direccion.js`); editor `selfTest()` (debe cerrar "— TODO OK —" con los 2 checks **D2**) → `briefDiario()` y `briefDiario('CLI-002')` (mirar el log). Luego **must #3 North Star**: definir el objetivo de Satori y de 1 cliente (1 objetivo + métrica + horizonte) sobre la pestaña `objetivos`. **Estado:** must #1 `estadoVigente()` **CERRADO/producción**; dogfood resuelto = **Satori a nivel sistema**. La Bandeja (Fase 0/1) quedó CERRADA el 18-jun.
 
 ## Estado vigente
 Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO opera N Sheets cliente), **en producción** bajo `luciano@satoriconsultoria.com`. **E1 + E2+** (capa Trillion: aprobaciones, costos+Bastión, cola durable, 13 agentes —5 con runner / 8 lab—, Command Center) y **E8a** (cerebro / Director / Salud + Command Center a4.1 telemetría/Salud/directiva + a4.2 orbe-vivo + mobile-first) **CERRADAS**. El sistema **ya produce análisis real**. Dos casos de IG analizados e integrados/planeados: **@_no_hype_ai** (Fase 0+1: Bandeja+clasificador) y **@kevinfremon** (aprobada la "Capa de Dirección" + extras). Modo de trabajo: Círculo/Equipo/Bastión de fondo + AREL + satori-design + purga al cierre (en `userPreferences`/skills, no repetir acá).
 
 ### Verificado
+- [18-jun] **Capa de Dirección · must #1 `estadoVigente()` CERRADO / en producción**: pusheado (21 files), `selfTest()` verde con los 3 checks **D1**, y `estadoVigente()` devolvió el snapshot real de sistema (5 clientes, $0.0177/$25, Salud OK 100%) + el de cliente con North Star (CLI-006). Composición pura sobre el data-layer, **0 API**. **must #2 `briefDiario()` construido** (rule-based, 0 API, AREL-safe — no envía) — `node --check` verde + D2 en selfTest; **pend. push/test**.
 - [18-jun] **Fase 0/1 Jarvis (Bandeja) CERRADA / en producción**: push 20 files OK; `setup()` creó la pestaña `Bandeja` (14 pestañas); `selfTest()` cerró "— TODO OK —" con los 5 checks **F1**; `instalarTriggerBandeja()` instalado (30 min); prueba real `clasificarBandeja()` = `{procesados:4, escalados:1}` con ruteo correcto (idea / tarea+CLI-002 / referencia / escalate conf1) y costo **$0.02 / $25**. **Purga F1–F6 aplicada pre-push** (conLock en `capturar`, claim atómico anti-doble-gasto en `clasificarBandeja`, cap 25/corrida, guard Clientes, doc, conteo). Commit `89ec85e`.
 - [16-jun] **Sistema corriendo con datos reales**: `sembrarDatosEjemplo('CLI-001')` → `corridaDiaria()` → Analista sacó margen op **58,5%** y alertó margen neto **−3,8%**; Vigía detectó factura por vencer + cobro pendiente. Evidencia: screenshots del feed Actividad + log de `corridaDiaria` (`correrDirector` encoló 1 por objetivo; `correrSalud` 6/6 ok).
 - [16-jun] **Command Center** (a4.1 + a4.2 orbe-vivo + mobile + labels derechos) verificado por Luciano en **desktop e iPhone**.
@@ -19,9 +20,9 @@ Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO o
 ## Pendiente
 **Must (ruta crítica de la próxima sesión):**
 1. **Capa de Dirección** (los 3 *must* de kevinfremon, juntos = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`):
-   - `estado-vigente.md`: función GAS que exporta snapshot markdown (KPIs+pendientes+números) del MAESTRO/cliente. **Arrancar dogfooded en Satori** (decisión Luciano pendiente: Satori vs cliente directo).
-   - **North Star por cliente**: plantilla sobre `objetivos` + rutina "3 cosas hoy" (= tesis Satori hecha operativa).
-   - **Brief diario**: lee estado-vigente + North Star → BLUF → Doc/aviso/email.
+   - ✅ **`estadoVigente()`** (`18_direccion.js`) — snapshot markdown del MAESTRO (Satori) o cliente. **CERRADO/producción** 18-jun. Dogfood resuelto = **Satori a nivel sistema** (el MAESTRO = la consultora; el CLI-Satori literal se crea al definir el North Star).
+   - 🔨 **`briefDiario()`** (`18_direccion.js`) — BLUF + "3 cosas hoy" + números + movimiento, rule-based **0 API**. **Construido, pend. push/test** (D2 en selfTest). La lógica del BLUF la afina Luciano; entrega por email/Doc = paso opt-in aparte (AREL).
+   - ⏳ **North Star por cliente**: plantilla sobre `objetivos` + rutina "3 cosas hoy" (= tesis Satori hecha operativa). **Próximo** — necesita que Luciano defina el objetivo de Satori + 1 cliente (1 objetivo + métrica + horizonte).
 2. **Ruteo de modelo por costo** (quick win): fijar `modelo` por RUNNER (Haiku triaje, Sonnet/Opus veredicto) — la infra ya acepta `opts.modelo`.
 
 **Should (aprobado por Luciano 16-jun; secuenciar tras los must — con FIT-CHECK GAS):**
