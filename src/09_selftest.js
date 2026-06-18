@@ -191,6 +191,18 @@ function selfTest() {
     chk(/## North Star/.test(estadoVigente()), 'D3 el snapshot de sistema muestra el North Star de Satori');
     setConfig('ns_satori_desc', nsB.d); setConfig('ns_satori_metrica', nsB.m); setConfig('ns_satori_valor', nsB.v);
 
+    // ── Conectores · D4 — agregación de ventas por mes×canal (puro, sin I/O) ─────
+    var aggT = agregarVentasPorMes_([
+      { ts: '2026-05-10T12:00:00', channel: 'online', total_ars: 100000, subtotal_ars: 90000, envio_ars: 10000, status: 'paid' },
+      { ts: '2026-05-20', channel: 'online', total_ars: 200000, subtotal_ars: 180000, envio_ars: 20000, status: 'Recibido' },
+      { ts: '2026-05-15', channel: 'pos', total_ars: 50000, subtotal_ars: 50000, envio_ars: 0, status: 'open' },
+      { ts: '2026-05-31', channel: 'online', total_ars: 999999, subtotal_ars: 0, envio_ars: 0, status: 'Cancelada' }
+    ]);
+    var onlineMayo = aggT.filter(function (a) { return a.concepto.indexOf('online') >= 0 && a.fecha === '2026-05-01'; })[0];
+    chk(!!onlineMayo && onlineMayo.valor === 300000, 'D4 agrega online de mayo, excluye cancelada (' + (onlineMayo ? onlineMayo.valor : 'null') + ')');
+    chk(!!onlineMayo && /2 órdenes · AOV \$150000/.test(onlineMayo.notas), 'D4 calcula AOV por mes (2 órdenes, AOV 150000)');
+    chk(aggT.filter(function (a) { return a.concepto.indexOf('local') >= 0; }).length === 1, 'D4 separa canal local (pos→local)');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de

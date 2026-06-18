@@ -38,13 +38,17 @@ function crearAviso(a) {
  * Orden: sync primero (refresca pendientes) → luego detectores.
  */
 function corridaDiaria() {
-  var resumen = { sync: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, salud: null, costos: null };
+  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, salud: null, costos: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
   resumen.expiradas = expirarAprobaciones();
   try { resumen.sync = syncMaestro(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Sync falló: ' + e.message }); }
+
+  // Conectores: traen la operación real de cada cliente a su Datos_operativos ANTES del análisis.
+  try { resumen.conectores = sincronizarConectores(); }
+  catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Conectores fallaron: ' + e.message }); }
 
   resumen.avisos_nuevos += detectarVencimientos();
   resumen.avisos_nuevos += detectarTareasEstancadas();

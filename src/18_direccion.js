@@ -284,7 +284,9 @@ function cargarNorthStarSatori() {
  * Reusa cargarObjetivo (15_cerebro) → escribe en la pestaña `objetivos` del Sheet de Vehemence.
  */
 function cargarNorthStarVehemence() {
-  return cargarObjetivo('CLI-002', { descripcion: 'Subir el ticket promedio', metrica: 'ticket_promedio_eur', valor_objetivo: 22, horizonte: '12m', prioridad: 'A' });
+  // Vehemence opera en ARS. AOV real ≈ $104k/orden (may/jun 2026) → target propuesto $120.000 (+~15%); ajustar.
+  // id_objetivo:'OBJ-0001' → actualiza el objetivo existente en lugar (no duplica).
+  return cargarObjetivo('CLI-002', { id_objetivo: 'OBJ-0001', descripcion: 'Subir el ticket promedio (AOV)', metrica: 'ticket_promedio_ars', valor_objetivo: 120000, horizonte: '12m', prioridad: 'A' });
 }
 
 /** Ver Vehemence (CLI-002) desde el editor: loguea su estado vigente + su brief. No-arg. */
