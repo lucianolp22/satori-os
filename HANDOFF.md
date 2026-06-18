@@ -1,11 +1,12 @@
-# HANDOFF — Satori OS — 2026-06-16 (v4)
+# HANDOFF — Satori OS — 2026-06-18 (v5)
 
-PRÓXIMO PASO: **pushear y probar la Bandeja (Fase 1 · Jarvis)** — en Terminal: `clasp push -f` + `git add -A && git commit -m "Fase 0/1 Jarvis"`; luego en el editor GAS: `setup()` (crea la pestaña `Bandeja` + Config nuevo) → `selfTest()` (debe cerrar en "— TODO OK —", ahora incluye el bloque F1) → `instalarTriggerBandeja()` (clasificador c/30 min) → en el Command Center tocar **＋ Capturar**, tirar 3-4 inputs variados, correr `clasificarBandeja()` y verificar ruteo + escalado por confianza.
+PRÓXIMO PASO: **arrancar la Capa de Dirección** (must #1, los 3 de kevinfremon = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`). Primer sub-paso: `estadoVigente()` — función GAS que exporta un snapshot markdown (KPIs + pendientes + números) del MAESTRO/cliente. **Decisión previa pendiente:** dogfood en Satori (CLI propio) vs. un cliente real directo. La **Bandeja (Fase 0/1) quedó CERRADA y en producción** el 18-jun (ver Verificado).
 
 ## Estado vigente
 Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO opera N Sheets cliente), **en producción** bajo `luciano@satoriconsultoria.com`. **E1 + E2+** (capa Trillion: aprobaciones, costos+Bastión, cola durable, 13 agentes —5 con runner / 8 lab—, Command Center) y **E8a** (cerebro / Director / Salud + Command Center a4.1 telemetría/Salud/directiva + a4.2 orbe-vivo + mobile-first) **CERRADAS**. El sistema **ya produce análisis real**. Dos casos de IG analizados e integrados/planeados: **@_no_hype_ai** (Fase 0+1: Bandeja+clasificador) y **@kevinfremon** (aprobada la "Capa de Dirección" + extras). Modo de trabajo: Círculo/Equipo/Bastión de fondo + AREL + satori-design + purga al cierre (en `userPreferences`/skills, no repetir acá).
 
 ### Verificado
+- [18-jun] **Fase 0/1 Jarvis (Bandeja) CERRADA / en producción**: push 20 files OK; `setup()` creó la pestaña `Bandeja` (14 pestañas); `selfTest()` cerró "— TODO OK —" con los 5 checks **F1**; `instalarTriggerBandeja()` instalado (30 min); prueba real `clasificarBandeja()` = `{procesados:4, escalados:1}` con ruteo correcto (idea / tarea+CLI-002 / referencia / escalate conf1) y costo **$0.02 / $25**. **Purga F1–F6 aplicada pre-push** (conLock en `capturar`, claim atómico anti-doble-gasto en `clasificarBandeja`, cap 25/corrida, guard Clientes, doc, conteo). Commit `89ec85e`.
 - [16-jun] **Sistema corriendo con datos reales**: `sembrarDatosEjemplo('CLI-001')` → `corridaDiaria()` → Analista sacó margen op **58,5%** y alertó margen neto **−3,8%**; Vigía detectó factura por vencer + cobro pendiente. Evidencia: screenshots del feed Actividad + log de `corridaDiaria` (`correrDirector` encoló 1 por objetivo; `correrSalud` 6/6 ok).
 - [16-jun] **Command Center** (a4.1 + a4.2 orbe-vivo + mobile + labels derechos) verificado por Luciano en **desktop e iPhone**.
 - [16-jun] `selfTest()` cerró "— TODO OK —" (bloques E8a-1/2/3) corrido en el editor por Luciano.
@@ -13,17 +14,15 @@ Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO o
 - [16-jun] API real **status 200** (Haiku), tope USD 25/mes, key rotada en Script Properties.
 
 ### No verificado
-- **Fase 0/1 Jarvis (Bandeja)**: `17_bandeja.js` + schema `Bandeja` + botón ＋Capturar + bloque selfTest F1 → solo `node --check` 18/18. **NO pusheado, NO corrido, NO testeado.** La pestaña `Bandeja` **no existe** hasta correr `setup()`.
-- Todo lo de la sección Pendiente (Capa de Dirección, voz, etc.): no construido.
+- Todo lo de la sección Pendiente (Capa de Dirección, voz, neural-map, Forge, etc.): no construido.
 
 ## Pendiente
 **Must (ruta crítica de la próxima sesión):**
-1. **Push + test de la Bandeja** (ver PRÓXIMO PASO).
-2. **Capa de Dirección** (los 3 *must* de kevinfremon, juntos = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`):
+1. **Capa de Dirección** (los 3 *must* de kevinfremon, juntos = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`):
    - `estado-vigente.md`: función GAS que exporta snapshot markdown (KPIs+pendientes+números) del MAESTRO/cliente. **Arrancar dogfooded en Satori** (decisión Luciano pendiente: Satori vs cliente directo).
    - **North Star por cliente**: plantilla sobre `objetivos` + rutina "3 cosas hoy" (= tesis Satori hecha operativa).
    - **Brief diario**: lee estado-vigente + North Star → BLUF → Doc/aviso/email.
-3. **Ruteo de modelo por costo** (quick win): fijar `modelo` por RUNNER (Haiku triaje, Sonnet/Opus veredicto) — la infra ya acepta `opts.modelo`.
+2. **Ruteo de modelo por costo** (quick win): fijar `modelo` por RUNNER (Haiku triaje, Sonnet/Opus veredicto) — la infra ya acepta `opts.modelo`.
 
 **Should (aprobado por Luciano 16-jun; secuenciar tras los must — con FIT-CHECK GAS):**
 - **Voz** ⚠️ fit-check: GAS Web App **no hace voz real-time** (sin proceso persistente/WebSocket/STT-TTS nativo). Fork a decidir: (a) **voz liviana** client-side con Web Speech API + `speechSynthesis` dentro del Command Center (gratis, GAS-compatible, limitada); (b) **full Trillion** (Deepgram+ElevenLabs+wake word) = **stack aparte** always-on (Node/Python), su propio proyecto + costo (~$99+/mo ElevenLabs). No construir sin elegir fork.
@@ -80,6 +79,7 @@ Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO o
 - [16-jun] CSV no entró por pegado → `sembrarDatosEjemplo()` (alta por función) evita la fricción.
 
 ### Changelog del handoff
+- [18-jun] **v5:** Fase 0/1 Jarvis (Bandeja) **CERRADA y en producción** — pusheada (20 files), `setup()`/`selfTest()` F1 verde, trigger instalado, prueba real `{procesados:4, escalados:1}` con ruteo correcto + costo $0.02. **Purga F1–F6 aplicada pre-push** (atomicidad `capturar`, claim anti-doble-gasto, cap/corrida, guards). Imprevisto del push (`invalid_rapt`) resuelto con `clasp logout && clasp login`. Próximo must: Capa de Dirección.
 - [16-jun] **v4:** E2+ y E8a CERRADAS + sistema corriendo con datos reales + a4.2 orbe-vivo + mobile + Fase 0/1 Jarvis (Bandeja) construida (pend. push/test). Aprobada la Capa de Dirección (kevinfremon) + extras + build-in-public. Backlog reorganizado.
 - [15-jun] v2/v3: migración a Workspace + E2-1 resuelto + selfTest verde + Purga; build de E8a.
 - [15-jun] v1: descubierto bloqueo APP, decidida migración; E2-1 sin diagnosticar.
