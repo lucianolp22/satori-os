@@ -183,6 +183,14 @@ function selfTest() {
     var brCli = briefDiario(r.id_cliente);
     chk(brCli.indexOf(r.id_cliente) >= 0, 'D2 briefDiario(cliente) trae el id del cliente (' + r.id_cliente + ')');
 
+    // ── Fase D · MUST #3 — North Star de Satori (Config + progreso; restaura prod) ──
+    var nsB = { d: getConfig('ns_satori_desc'), m: getConfig('ns_satori_metrica'), v: getConfig('ns_satori_valor') };
+    setConfig('ns_satori_desc', '__TEST__ NS'); setConfig('ns_satori_metrica', 'clientes_pagos'); setConfig('ns_satori_valor', '6');
+    var nsT = northStarSatori_();
+    chk(!!nsT && nsT.meta === 6 && typeof nsT.actual === 'number', 'D3 northStarSatori_ lee meta + calcula progreso (' + (nsT ? nsT.actual + '/' + nsT.meta : 'null') + ')');
+    chk(/## North Star/.test(estadoVigente()), 'D3 el snapshot de sistema muestra el North Star de Satori');
+    setConfig('ns_satori_desc', nsB.d); setConfig('ns_satori_metrica', nsB.m); setConfig('ns_satori_valor', nsB.v);
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de

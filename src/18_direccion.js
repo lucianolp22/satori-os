@@ -29,6 +29,14 @@ function estadoVigenteSistema_() {
   L.push('# Estado vigente — Satori OS — ' + aHoraLegible_(ahoraISO()));
   L.push('');
 
+  var ns = northStarSatori_();
+  if (ns) {
+    L.push('## North Star');
+    L.push('- ' + ns.desc + (ns.horizonte ? ' (horizonte ' + ns.horizonte + ')' : ''));
+    L.push('- Progreso: ' + ns.actual + (ns.meta != null ? '/' + ns.meta : '') + ' clientes activos/piloto (proxy de "pagos")');
+    L.push('');
+  }
+
   // Conteo directo (datosHoy capa proximos_pasos a 25; el snapshot no debe subcontar).
   var tareas = leerTabla(getMaestro().getSheetByName('Tareas'));
   var abiertas = tareas.filter(function (t) { return ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) < 0; });
@@ -163,6 +171,12 @@ function briefDiarioSistema_() {
   L.push('');
   L.push('**' + bluf + '**');
   L.push('');
+  var ns = northStarSatori_();
+  if (ns) {
+    L.push('## North Star');
+    L.push('- ' + ns.desc + (ns.meta != null ? ' · ' + ns.actual + '/' + ns.meta : '') + (ns.horizonte ? ' · ' + ns.horizonte : ''));
+    L.push('');
+  }
   L.push('## Las 3 cosas de hoy');
   var tres = abiertas.slice(0, 3);
   if (tres.length) tres.forEach(function (t, i) {
@@ -179,7 +193,7 @@ function briefDiarioSistema_() {
   L.push('');
   L.push('## Movimiento reciente');
   var feed = feedReciente_(5);
-  if (feed.length) feed.forEach(function (f) { L.push('- ' + f.ts + ' · ' + f.agente + ': ' + f.texto); });
+  if (feed.length) feed.forEach(function (f) { L.push('- ' + f.ts + ' · ' + f.agente + ': ' + truncar_(f.texto, 120)); });
   else L.push('- (sin actividad reciente)');
   L.push('');
   L.push('— generado por briefDiario()');
@@ -229,4 +243,59 @@ function briefDiarioCliente_(id) {
   L.push('');
   L.push('— generado por briefDiario(\'' + id + '\')');
   return L.join('\n');
+}
+
+// ── MUST #3 — North Star de Satori (nivel sistema, en Config) ─────────────────
+
+/**
+ * North Star de Satori a nivel sistema (la consultora). Vive en Config (no es un tenant).
+ * Progreso = proxy "clientes pagos en paralelo" = clientes en estado activo/activo-piloto
+ * (no hay flag 'pago' explícito en Clientes; supuesto a refinar). null si no está definido.
+ */
+function northStarSatori_() {
+  var desc = getConfig('ns_satori_desc');
+  if (!desc) return null;
+  var clientes = leerTabla(getMaestro().getSheetByName('Clientes'));
+  var pagos = clientes.filter(function (c) { return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0; }).length;
+  var meta = parseInt(getConfig('ns_satori_valor'), 10);
+  return { desc: desc, metrica: getConfig('ns_satori_metrica'), valor: getConfig('ns_satori_valor'), horizonte: _hzLimpio_(getConfig('ns_satori_horizonte')), actual: pagos, meta: isNaN(meta) ? null : meta };
+}
+
+/** Normaliza una fecha que Config pudo coaccionar a Date-string ("Thu Dec 31 2026 …") → YYYY-MM-DD. */
+function _hzLimpio_(v) {
+  v = String(v == null ? '' : v);
+  if (v.indexOf('GMT') >= 0) { var d = new Date(v); if (!isNaN(d.getTime())) return Utilities.formatDate(d, TZ, 'yyyy-MM-dd'); }
+  return v;
+}
+
+/** Puesta en marcha — EDITAR y correr desde el editor para fijar/cambiar el North Star de Satori. */
+function cargarNorthStarSatori() {
+  setConfig('ns_satori_desc', 'Gestionar 6 clientes pagos en paralelo, cada mes, entre servicios (resto de 2026)');
+  setConfig('ns_satori_metrica', 'clientes_pagos_paralelo');
+  setConfig('ns_satori_valor', '6');
+  setConfig('ns_satori_horizonte', '2026-12-31');
+  Logger.log('North Star Satori seteado.');
+  return northStarSatori_();
+}
+
+/**
+ * Puesta en marcha — North Star de Vehemence (CLI-002). Wrapper SIN argumentos para correr
+ * desde el dropdown del editor (que no pasa parámetros). EDITAR el target real y re-correr.
+ * Reusa cargarObjetivo (15_cerebro) → escribe en la pestaña `objetivos` del Sheet de Vehemence.
+ */
+function cargarNorthStarVehemence() {
+  return cargarObjetivo('CLI-002', { descripcion: 'Subir el ticket promedio', metrica: 'ticket_promedio_eur', valor_objetivo: 22, horizonte: '12m', prioridad: 'A' });
+}
+
+/** Ver Vehemence (CLI-002) desde el editor: loguea su estado vigente + su brief. No-arg. */
+function verVehemence() {
+  estadoVigente('CLI-002');
+  briefDiario('CLI-002');
+  return 'estado vigente + brief de Vehemence (CLI-002) — ver el log';
+}
+
+/** Colapsa espacios/saltos y trunca a n chars con … (para que el feed largo no ensucie el brief). */
+function truncar_(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, n - 1) + '…' : s;
 }
