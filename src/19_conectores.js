@@ -121,9 +121,11 @@ function agregarVentasPorMes_(ventas) {
     if (/cancel|pend|anul|borrador|draft/.test(st)) return;   // solo ventas válidas
     var mes = aFechaISO(v.ts).slice(0, 7);                     // robusto a Date/string
     if (!/^\d{4}-\d{2}$/.test(mes)) return;
-    // Purga #5: mapeo explícito. 'pos'→local; cualquier otro/vacío → 'otro' (no se mete en 'local').
+    // Purga #5: mapeo explícito. 'pos' Y 'local' → local (Vehemence DB_VENTAS usa 'pos' por
+    // convención, pero la serie local de Castelar viene con channel='local'); cualquier otro/
+    // vacío → 'otro' (no se mete en 'local').
     var ch = String(v.channel || '').toLowerCase();
-    var canal = ch === 'online' ? 'online' : ch === 'pos' ? 'local' : 'otro';
+    var canal = ch === 'online' ? 'online' : (ch === 'pos' || ch === 'local') ? 'local' : 'otro';
     if (canal === 'otro') desconocidosSet[ch || 'vacio'] = true;
     canalesSet[canal] = true;
     var k = mes + '|' + canal;
