@@ -353,7 +353,8 @@ function init(){
   google.script.run.withSuccessHandler(function(cs){
     state.clientes=cs; renderClientNav(cs);
   }).withFailureHandler(showError).listaClientes();
-  loadHoy();
+  loadHoy();              // base view cargada debajo del overlay (la ✕ / nav "Hoy" la revelan)
+  centroAbrir();          // al ingresar, abrir directo el Centro de Mando
   document.getElementById('themeBtn').onclick=toggleTheme;
   document.getElementById('menuBtn').onclick=function(){toggleSide(true);};
   document.getElementById('scrim').onclick=function(){toggleSide(false);};
