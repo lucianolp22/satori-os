@@ -197,11 +197,17 @@ function selfTest() {
       { ts: '2026-05-20', channel: 'online', total_ars: 200000, subtotal_ars: 180000, envio_ars: 20000, status: 'Recibido' },
       { ts: '2026-05-15', channel: 'pos', total_ars: 50000, subtotal_ars: 50000, envio_ars: 0, status: 'open' },
       { ts: '2026-05-31', channel: 'online', total_ars: 999999, subtotal_ars: 0, envio_ars: 0, status: 'Cancelada' }
-    ]);
+    ]).filas;
     var onlineMayo = aggT.filter(function (a) { return a.concepto.indexOf('online') >= 0 && a.fecha === '2026-05-01'; })[0];
     chk(!!onlineMayo && onlineMayo.valor === 300000, 'D4 agrega online de mayo, excluye cancelada (' + (onlineMayo ? onlineMayo.valor : 'null') + ')');
     chk(!!onlineMayo && /2 órdenes · AOV \$150000/.test(onlineMayo.notas), 'D4 calcula AOV por mes (2 órdenes, AOV 150000)');
     chk(aggT.filter(function (a) { return a.concepto.indexOf('local') >= 0; }).length === 1, 'D4 separa canal local (pos→local)');
+    // Purga conector (19-jun): #2 cobertura parcial, #5 canal desconocido → 'otro'
+    var aggCob = agregarVentasPorMes_([{ ts: '2026-05-10', channel: 'online', total_ars: 100000, status: 'paid' }]);
+    chk(/cobertura: solo canal online/.test(aggCob.filas[0].notas), 'D4 marca cobertura parcial si la fuente trae 1 solo canal');
+    chk(aggCob.canales.length === 1 && aggCob.canales[0] === 'online', 'D4 reporta canales presentes');
+    var aggOtro = agregarVentasPorMes_([{ ts: '2026-05-10', channel: 'mayorista', total_ars: 100000, status: 'paid' }]);
+    chk(aggOtro.desconocidos.indexOf('mayorista') >= 0, 'D4 rutea canal desconocido a otro (no ensucia local)');
 
     log.push('— TODO OK —');
   } finally {
