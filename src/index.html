@@ -907,14 +907,15 @@ function cmInit3D(){
   var cv=document.getElementById('cmOrb3D');if(!cv)return;
   try{
     var r=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});r.setClearColor(0x000000,0);
-    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.2;
+    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=2.9;
     var grp=new THREE.Group();sc.add(grp);
     var N=cmCalidadBaja_()?520:1200,pos=new Float32Array(N*3);
     for(var i=0;i<N;i++){var y=1-(i/(N-1))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229;
       pos[i*3]=Math.cos(th)*rad;pos[i*3+1]=y;pos[i*3+2]=Math.sin(th)*rad;}
     var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    var pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0x6cddba,size:0.028,transparent:true,opacity:0.85,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(pts);
-    var wire=new THREE.Mesh(new THREE.IcosahedronGeometry(0.82,cmCalidadBaja_()?1:2),new THREE.MeshBasicMaterial({color:0x6cddba,wireframe:true,transparent:true,opacity:0.16}));grp.add(wire);
+    var pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0x9af0d2,size:3.0,sizeAttenuation:false,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(pts);
+    var wire=new THREE.Mesh(new THREE.IcosahedronGeometry(0.86,cmCalidadBaja_()?1:2),new THREE.MeshBasicMaterial({color:0x6cddba,wireframe:true,transparent:true,opacity:0.34}));grp.add(wire);
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.62,20,20),new THREE.MeshBasicMaterial({color:0x6cddba,transparent:true,opacity:0.06,depthWrite:false,blending:THREE.AdditiveBlending}))); // glow del núcleo
     cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.pts=pts;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
     cm3DResize();
   }catch(e){cm3D.on=false;cm3D.ready=false;} // cualquier fallo WebGL → fallback 2D
@@ -932,7 +933,7 @@ function cmRender3D(t){
   var energy=Math.min(1,(CM.work||0)/3);
   cm3D.grp.rotation.x=0.34;cm3D.grp.rotation.y=t*0.00018;
   cm3D.grp.scale.setScalar(1+0.04*Math.sin(t*0.0012)+0.05*energy);
-  cm3D.pts.material.opacity=0.5+0.42*energy;cm3D.wire.material.opacity=0.10+0.14*energy;
+  cm3D.pts.material.opacity=0.75+0.22*energy;cm3D.wire.material.opacity=0.26+0.18*energy;
   cm3D.renderer.render(cm3D.scene,cm3D.cam);
 }
 function cmSetCalidad(q){
