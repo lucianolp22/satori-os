@@ -729,7 +729,10 @@ function cmDirectiva(feed){
 function cmClientes(cs){
   var sel=document.getElementById('cmCliente');if(sel.dataset.filled)return;
   clear(sel);(cs||[]).forEach(function(c){var o=el('option',null,c.nombre+' ('+c.id_cliente+')');o.value=c.id_cliente;sel.appendChild(o);});
-  if((cs||[]).length)sel.dataset.filled='1';
+  if((cs||[]).length){sel.dataset.filled='1';
+    sel.addEventListener('change',function(){cmCargarCerebro(this.value);}); // CEREBRO→ORBE al cambiar cliente
+    cmCargarCerebro(sel.value); // carga inicial del grafo del cerebro en el orbe
+  }
 }
 function clienteObjetivo(){var s=document.getElementById('cmCliente');return s&&s.value?s.value:'';}
 
@@ -899,9 +902,51 @@ function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),
     var al=Math.min(.9,(0.08+0.45*pt.z)*(0.35+0.65*tw)*(0.45+0.55*energy)),rad=1+1.7*pt.z*tw;
     cmOx.fillStyle='rgba('+(150+Math.round(70*energy))+',232,202,'+al+')';
     cmOx.beginPath();cmOx.arc(pt.x,pt.y,rad,0,7);cmOx.fill();}}
-/* ── orbe 3D (Three.js r128, CDN+SRI; degrada a 2D si Three.js no cargó) ── */
-var cm3D={on:false,ready:false,renderer:null,scene:null,cam:null,grp:null,pts:null,wire:null,calidad:'alto',last:0};
+/* ── orbe 3D (Three.js r128, CDN+SRI; degrada a 2D si Three.js no cargó) — estilo Trillion + cerebro ── */
+var cm3D={on:false,ready:false,renderer:null,scene:null,cam:null,grp:null,pts:null,wire:null,core:null,lines:null,tex:null,graph:null,lastCli:null,calidad:'alto',last:0};
 function cmCalidadBaja_(){return cm3D.calidad==='bajo';}
+// Paleta por dimensión del CEREBRO (líder/negocio/sistema) + alerta. Incluye naranja y rojo.
+var CM_DIMCOL={negocio:0x4ff0c8,sistema:0x9a6cff,lider:0xff9a3c,alerta:0xff4d4d};
+function cmNodeColor_(n){return (n&&n.alert)?CM_DIMCOL.alerta:((n&&CM_DIMCOL[n.dim])||CM_DIMCOL.negocio);}
+function cmDecoNode_(i){var r=(i*53)%100;return {dim:r<60?'negocio':(r<80?'sistema':'lider'),alert:r>=96};}
+function cmGlowTex_(){
+  if(cm3D.tex)return cm3D.tex;
+  var c=document.createElement('canvas');c.width=c.height=64;var x=c.getContext('2d');
+  var g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(0.2,'rgba(255,255,255,0.85)');
+  g.addColorStop(0.5,'rgba(255,255,255,0.3)');g.addColorStop(1,'rgba(255,255,255,0)');
+  x.fillStyle=g;x.beginPath();x.arc(32,32,32,0,7);x.fill();
+  cm3D.tex=new THREE.CanvasTexture(c);return cm3D.tex;
+}
+// Rehace nodos+aristas del orbe desde un grafo (cerebro real) o decorativo. Puntos = glow suave.
+function cmBuildOrb(graph){
+  if(!cm3D.ready)return;
+  var BAJA=cmCalidadBaja_();
+  var nodos=(graph&&graph.nodos&&graph.nodos.length)?graph.nodos:null;
+  var N=nodos?Math.min(nodos.length,2200):(BAJA?700:1600);
+  var pos=new Float32Array(N*3),col=new Float32Array(N*3),tmp=new THREE.Color();
+  for(var i=0;i<N;i++){
+    var y=1-(i/(Math.max(1,N-1)))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229,rr=1.0+((i*0.37)%1)*0.08;
+    pos[i*3]=Math.cos(th)*rad*rr;pos[i*3+1]=y*rr;pos[i*3+2]=Math.sin(th)*rad*rr;
+    tmp.setHex(cmNodeColor_(nodos?nodos[i]:cmDecoNode_(i)));col[i*3]=tmp.r;col[i*3+1]=tmp.g;col[i*3+2]=tmp.b;
+  }
+  var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+  var pm=new THREE.PointsMaterial({map:cmGlowTex_(),size:BAJA?0.085:0.11,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:0.92,depthWrite:false,blending:THREE.AdditiveBlending});
+  if(cm3D.pts){cm3D.grp.remove(cm3D.pts);cm3D.pts.geometry.dispose();cm3D.pts.material.dispose();}
+  cm3D.pts=new THREE.Points(pg,pm);cm3D.grp.add(cm3D.pts);
+  var lp=[];
+  if(nodos&&graph.aristas&&graph.aristas.length){
+    for(var e=0;e<graph.aristas.length&&e<1500;e++){var a=graph.aristas[e][0],b=graph.aristas[e][1];
+      if(a>=0&&b>=0&&a<N&&b<N)lp.push(pos[a*3],pos[a*3+1],pos[a*3+2],pos[b*3],pos[b*3+1],pos[b*3+2]);}
+  }else if(!BAJA){
+    for(var a2=0;a2<N;a2+=6)for(var b2=a2+1;b2<Math.min(a2+36,N);b2+=9){
+      var dx=pos[a2*3]-pos[b2*3],dy=pos[a2*3+1]-pos[b2*3+1],dz=pos[a2*3+2]-pos[b2*3+2];
+      if(dx*dx+dy*dy+dz*dz<0.16)lp.push(pos[a2*3],pos[a2*3+1],pos[a2*3+2],pos[b2*3],pos[b2*3+1],pos[b2*3+2]);}
+  }
+  if(cm3D.lines){cm3D.grp.remove(cm3D.lines);cm3D.lines.geometry.dispose();cm3D.lines.material.dispose();cm3D.lines=null;}
+  if(lp.length){var lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
+    cm3D.lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x4ff0c8,transparent:true,opacity:0.12,depthWrite:false,blending:THREE.AdditiveBlending}));cm3D.grp.add(cm3D.lines);}
+}
 function cmInit3D(){
   if(cm3D.ready||typeof THREE==='undefined')return; // sin Three.js → queda el 2D
   var cv=document.getElementById('cmOrb3D');if(!cv)return;
@@ -910,32 +955,18 @@ function cmInit3D(){
     var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.0;
     var grp=new THREE.Group();sc.add(grp);
     var BAJA=cmCalidadBaja_();
-    var TEAL=0x4ff0c8, PURPLE=0x9a6cff, ORANGE=0xff9a3c; // paleta Trillion + naranja (pedido de Luciano)
-    // 1) glow nebuloso = capas aditivas (bloom falso, sin postproceso)
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.35,24,24),new THREE.MeshBasicMaterial({color:TEAL,transparent:true,opacity:0.035,depthWrite:false,blending:THREE.AdditiveBlending})));
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.78,24,24),new THREE.MeshBasicMaterial({color:TEAL,transparent:true,opacity:0.09,depthWrite:false,blending:THREE.AdditiveBlending})));
-    // 2) wireframe ORGÁNICO (esfera deformada por ruido) = la firma visual de Trillion
-    var ico=new THREE.IcosahedronGeometry(1.0,BAJA?2:3),ip=ico.attributes.position;
+    var gm=function(op){return new THREE.MeshBasicMaterial({color:0x33e6b8,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,24,24),gm(0.03)));    // halo nebuloso externo
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,24,24),gm(0.06)));
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.72,28,28),gm(0.12)));
+    var core=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,28),gm(0.2));grp.add(core);cm3D.core=core; // núcleo lleno y brillante (no hueco)
+    var ico=new THREE.IcosahedronGeometry(1.0,BAJA?2:3),ip=ico.attributes.position; // wireframe orgánico (firma Trillion)
     for(var k=0;k<ip.count;k++){var vx=ip.getX(k),vy=ip.getY(k),vz=ip.getZ(k);
-      var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.22*nz;
+      var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.2*nz;
       ip.setXYZ(k,vx*s,vy*s,vz*s);}
-    ico.computeVertexNormals();
-    var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:TEAL,wireframe:true,transparent:true,opacity:0.42,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
-    // 3) nodos (neuronas/agentes): teal mayoría + acentos púrpura y NARANJA
-    var N=BAJA?700:1500,pos=new Float32Array(N*3),col=new Float32Array(N*3);
-    var cT=new THREE.Color(TEAL),cP=new THREE.Color(PURPLE),cO=new THREE.Color(ORANGE);
-    for(var i=0;i<N;i++){var y=1-(i/(N-1))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229,rr=1.02+Math.random()*0.07;
-      pos[i*3]=Math.cos(th)*rad*rr;pos[i*3+1]=y*rr;pos[i*3+2]=Math.sin(th)*rad*rr;
-      var c=(i%13===0)?cO:((i%5===0)?cP:cT);col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;}
-    var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));
-    var pts=new THREE.Points(pg,new THREE.PointsMaterial({size:3.2,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(pts);
-    // 4) líneas de conexión (red neuronal): une nodos cercanos
-    if(!BAJA){var lp=[];for(var a=0;a<N;a+=7){for(var b=a+1;b<Math.min(a+40,N);b+=11){
-      var dx=pos[a*3]-pos[b*3],dy=pos[a*3+1]-pos[b*3+1],dz=pos[a*3+2]-pos[b*3+2];
-      if(dx*dx+dy*dy+dz*dz<0.2)lp.push(pos[a*3],pos[a*3+1],pos[a*3+2],pos[b*3],pos[b*3+1],pos[b*3+2]);}}
-      var lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
-      grp.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:TEAL,transparent:true,opacity:0.13,depthWrite:false,blending:THREE.AdditiveBlending})));}
-    cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.pts=pts;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
+    var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0x4ff0c8,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
+    cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
+    cmBuildOrb(cm3D.graph); // nodos reales si ya llegaron del cerebro; si no, decorativos
     cm3DResize();
   }catch(e){cm3D.on=false;cm3D.ready=false;} // cualquier fallo WebGL → fallback 2D
 }
@@ -945,6 +976,13 @@ function cm3DResize(){
   cm3D.renderer.setSize(cmOc.width,cmOc.height,true);
   cm3D.cam.aspect=1;cm3D.cam.updateProjectionMatrix();
 }
+// CEREBRO → ORBE: pide el grafo del cliente y rehace el orbe con datos reales (nodos por dimensión, aristas = líneas).
+function cmCargarCerebro(idCliente){
+  if(!idCliente||idCliente===cm3D.lastCli)return;cm3D.lastCli=idCliente;
+  if(!((typeof google!=='undefined')&&google.script&&google.script.run))return;
+  google.script.run.withSuccessHandler(function(g){cm3D.graph=(g&&g.nodos&&g.nodos.length)?g:null;cmBuildOrb(cm3D.graph);})
+    .withFailureHandler(function(){}).cerebroGrafo(idCliente);
+}
 function cmRender3D(t){
   if(!cm3D.ready)return;
   if(cmCalidadBaja_()&&(t-cm3D.last)<33)return; // FPS cap ~30 en calidad baja
@@ -952,13 +990,15 @@ function cmRender3D(t){
   var energy=Math.min(1,(CM.work||0)/3);
   cm3D.grp.rotation.x=0.32;cm3D.grp.rotation.y=t*0.00016;
   cm3D.grp.scale.setScalar(1+0.03*Math.sin(t*0.0011)+0.05*energy);
-  cm3D.pts.material.opacity=0.8+0.18*energy;
-  cm3D.wire.material.opacity=0.34+0.2*energy+0.06*Math.sin(t*0.0016);
+  if(cm3D.pts)cm3D.pts.material.opacity=0.82+0.16*energy;
+  if(cm3D.wire)cm3D.wire.material.opacity=0.32+0.2*energy+0.06*Math.sin(t*0.0016);
+  if(cm3D.core)cm3D.core.material.opacity=0.16+0.12*energy+0.04*Math.sin(t*0.0015);
   cm3D.renderer.render(cm3D.scene,cm3D.cam);
 }
 function cmSetCalidad(q){
   cm3D.calidad=(q==='bajo')?'bajo':'alto';
   var b=document.getElementById('cmCalidad');if(b){b.textContent='Calidad: '+cm3D.calidad;b.setAttribute('aria-pressed',String(cm3D.calidad==='bajo'));}
+  if(cm3D.ready)cmBuildOrb(cm3D.graph); // reconstruye con la densidad del nuevo nivel
   cm3DResize();
 }
 function cmLoop(t){

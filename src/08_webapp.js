@@ -36,6 +36,31 @@ function prefsUI() {
   return { orbe_calidad: getConfig('orbe_calidad') || 'alto' };
 }
 
+/**
+ * CEREBRO → ORBE: grafo del cerebro de un cliente para visualizarlo en el orbe 3D.
+ * Estructura SIN PII: por nodo solo dimensión (líder/negocio/sistema) + flag de alerta
+ * (cobertura < 40 = punto ciego); aristas como pares de índices. Nunca etiquetas/atributos.
+ */
+function cerebroGrafo(idCliente) {
+  try {
+    var ss = abrirCliente(idCliente).ss;
+    var nodos = leerTabla(ss.getSheetByName('nodos')) || [];
+    var aristas = leerTabla(ss.getSheetByName('aristas')) || [];
+    var idx = {}, outN = [];
+    for (var i = 0; i < nodos.length; i++) {
+      var n = nodos[i]; idx[String(n.id_nodo)] = i;
+      var cob = parseFloat(n.cobertura);
+      outN.push({ dim: String(n.dimension || 'negocio'), alert: (!isNaN(cob) && cob < 40) });
+    }
+    var outA = [];
+    for (var j = 0; j < aristas.length; j++) {
+      var o = idx[String(aristas[j].origen)], d = idx[String(aristas[j].destino)];
+      if (o != null && d != null) outA.push([o, d]);
+    }
+    return { nodos: outN, aristas: outA };
+  } catch (e) { return { nodos: [], aristas: [] }; } // sin cerebro → orbe decorativo
+}
+
 /** Resumen de cabecera (incluye ultima_sync_ok, visible siempre). */
 function estadoSistema() {
   var ss = getMaestro();
