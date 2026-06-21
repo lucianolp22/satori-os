@@ -13,9 +13,29 @@
  */
 
 var CLAUDE_ENDPOINT = 'https://api.anthropic.com/v1/messages';
-var MODELO_DEFAULT = 'claude-haiku-4-5-20251001';
-// Tarifa por defecto (USD por 1M tokens) si Config no define tarifa_in/out_<modelo>.
-var TARIFA_DEFAULT = { in: 1, out: 5 };
+var MODELO_DEFAULT = 'claude-haiku-4-5-20251001';   // triaje / alta frecuencia (barato)
+var MODELO_SONNET  = 'claude-sonnet-4-6';            // veredicto / análisis con números
+var MODELO_OPUS    = 'claude-opus-4-8';              // escalable vía Config; no ruteado por defecto
+
+// Ruteo de modelo por costo (quick win): cada agente/flujo usa el modelo adecuado a su tarea.
+// Triaje y alta frecuencia → Haiku; veredicto/razonamiento financiero → Sonnet. Override operativo
+// sin deploy vía Config 'modelo_<modulo>' (p.ej. modelo_analista=claude-opus-4-8). Default = Haiku.
+var MODELOS_POR_MODULO = { analista: MODELO_SONNET, conciliador: MODELO_SONNET };
+function modeloDeModulo_(modulo) {
+  var cfg = getConfig('modelo_' + modulo);
+  if (cfg) return cfg;                                // Config pisa el código
+  return MODELOS_POR_MODULO[modulo] || MODELO_DEFAULT;
+}
+
+// Tarifas USD por 1M tokens por modelo (verificadas docs.anthropic.com, jun-2026). Config
+// 'tarifa_in/out_<modelo>' pisa. Default = Haiku para un modelo no listado (conservador).
+var TARIFA_DEFAULT = { in: 1, out: 5 };               // Haiku 4.5
+var TARIFAS = {
+  'claude-haiku-4-5-20251001': { in: 1, out: 5 },
+  'claude-haiku-4-5':          { in: 1, out: 5 },
+  'claude-sonnet-4-6':         { in: 3, out: 15 },
+  'claude-opus-4-8':           { in: 5, out: 25 }
+};
 
 /**
  * Llama a Claude para un cliente, con anonimización + log + costeo.
@@ -28,7 +48,7 @@ function llamadaAPI(idCliente, modulo, opts) {
   opts = opts || {};
   var ts = ahoraISO();
   var proveedor = opts.proveedor || 'anthropic';
-  var modelo = opts.modelo || MODELO_DEFAULT;
+  var modelo = opts.modelo || modeloDeModulo_(modulo);   // ruteo por agente/flujo (Config pisa)
   var prompt = String(opts.prompt || '');
 
   // 1) Anonimizar ANTES de salir (Bastión). El mapa de reversión es local, nunca se envía.
@@ -91,8 +111,9 @@ function llamadaAPI(idCliente, modulo, opts) {
 
 /** USD de una llamada según tarifa de Config (tarifa_in_<modelo>/tarifa_out_<modelo>) o default. */
 function costearUSD_(modelo, tin, tout) {
-  var ci = parseFloat(getConfig('tarifa_in_' + modelo)) || TARIFA_DEFAULT.in;
-  var co = parseFloat(getConfig('tarifa_out_' + modelo)) || TARIFA_DEFAULT.out;
+  var base = TARIFAS[modelo] || TARIFA_DEFAULT;        // tarifa real por modelo (no siempre Haiku)
+  var ci = parseFloat(getConfig('tarifa_in_' + modelo)) || base.in;
+  var co = parseFloat(getConfig('tarifa_out_' + modelo)) || base.out;
   return Math.round((tin / 1e6 * ci + tout / 1e6 * co) * 1e6) / 1e6;
 }
 

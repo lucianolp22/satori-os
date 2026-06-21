@@ -1,93 +1,84 @@
-# HANDOFF — Satori OS — 2026-06-19 (v8)
+# HANDOFF — Satori OS — 2026-06-21 (v10)
 
-PRÓXIMO PASO: **(Luciano/Terminal)** `clasp push -f` para desplegar el cambio de UX (entrar directo al Centro de Mando, `index.html` `init()`), después decidir si se carga el **resto de la serie local** (hoy solo mayo) del lado Vehemence. **VERIFICADO EN PROD (19-jun ~10:30, por Chrome):** arco local end-to-end OK — `sincronizarVehemence` y `corridaDiaria` loguean `Canales: local,online` (16 filas); Director encoló análisis CLI-002; `verVehemence` muestra **`2026-05-01 · Ventas local (mes, ARS) = 4.908.141`** junto a online $15.674.182 → **mayo completo $20.582.323**. Nota: la conversación Vehemence cargó **solo mayo** del local (Mar/Abr/Jun siguen solo-online); cargar el resto de la serie es scope SGIC pendiente. **UX (19-jun, pend. push):** `init()` ahora abre el Centro de Mando al ingresar (Hoy queda debajo; ✕ / nav "Hoy" llevan a la otra pantalla). — Histórico fork (a): Purga del conector **CERRADA y verificada en prod** (commit `9342569`, push OK, selfTest **D4 6/6** 19-jun 08:43). Fork elegido: **(a) cargar canal local**. Hallazgo clave: el local NO es marginal — Vehemence tiene **local físico en Castelar** ($4.908.141 solo mayo) con serie diaria ene–jun ya preparada (`serie-local-Castelar-…csv`). **Reparto por frontera (Satori lee / SGIC nutre):** (1) **lado Satori — CERRADO/prod:** conector acepta `channel='local'` además de `'pos'` + assert D4; **commit `f49b69e`, push OK, selfTest D4 7/7 verde** (19-jun 09:23). (2) **lado Vehemence SGIC — DERIVADO a su propia conversación (su handoff 17-jun, próximo paso a):** cargar la serie local a `DB_VENTAS` (Code+Luciano, proyecto Vehemence) + rehacer asiento mayo en DB_LIBRO (143→150). Al entrar el local a DB_VENTAS, el conector lo levanta solo en `corridaDiaria` y la nota de cobertura se apaga. **Alerta cruzada para esa conversación:** el EERR de Vehemence filtra por `channel` (DOC L170 dice `pos`→local) pero la serie trae `local` → alinear el valor del lado Vehemence o el EERR no levanta el local (Satori ya tolera ambos). **Caveat contable (regla 0):** el local es agregado DIARIO (1 fila/día) vs online por orden → el total entra bien (EERR), pero "N órdenes·AOV" en local = N días; decidir si se reetiqueta. **ETAPA CONECTOR CERRADA (18-jun):** arco end-to-end probado sobre Vehemence — conectar (sin credenciales, mismo Workspace) → cargar (15 filas, validadas vs ERP) → dirigir (Director por objetivo) → **Analista + Vigía analizaron datos reales** (Analista: AOV $104.495, target $110-115k; Vigía: declive online −83% desde may-2025, colapso dic-2025). Sync en `corridaDiaria` (diario auto). **Caveat de datos:** `DB_VENTAS` ~100% online (canal local pendiente en la fuente) → el declive es de online, no del negocio total.
-
-PRÓXIMO PASO (HISTÓRICO, cumplido): push (NS-fix ARS + wiring diario) → `corridaDiaria` → 1er análisis real del Analista sobre Vehemence. El conector `sincronizarVehemence()` (`19_conectores.js`) **CORRIÓ y VALIDÓ** (18-jun 21:02): cargó 15 filas mes×canal a `Datos_operativos` de CLI-002; **mayo $15.674.182 y junio $12.522.887 = idénticos al ERP de Vehemence ✓**. Lee `DB_VENTAS` del SGIC (`openById('1ac1ccVMdFgO_VyOzsGwvdtEhCil41A6GnrJIAoNAwNk')`, **mismo Workspace → sin credenciales, solo lectura**), agrega por mes×canal (excluye canceladas/pend, ARS), full-refresh de sus filas bajo `conLock`. selfTest **D4** verde. **Construido + node --check, pend. push:** (a) North Star de Vehemence corregido → **`ticket_promedio_ars=120000`** (era eur=22; AOV real ≈$104k; `id_objetivo:'OBJ-0001'` actualiza en lugar; target a ajustar); (b) `sincronizarConectores()` enganchado en `corridaDiaria` (sync diario auto). **Falta (Luciano, Terminal):** `clasp push -f` → `cargarNorthStarVehemence()` (corrige NS) → `corridaDiaria()` + `drenarCola()` → `verVehemence()` (1er análisis real); Cowork puede manejar ese run por Chrome post-push. **Decisión arquitectura:** conector pull-and-sync por contrato; 1 contrato + 1 adaptador por cliente. Capa de Dirección **3/3** (`7df3acd`). SGIC fuente en `~/Documents/Claude/Projects/Vehemence/` (contrato DB_VENTAS: Code.gs:244).
+PRÓXIMO PASO (v10 · 21-jun): **(1) Un solo push de Code cierra varias cosas:** `git add -A && git commit && clasp push -f` sube `src/` con el **ruteo de modelo** (audit-verde) + el **retrofit CEREBRO** (`01_schema`/`15_cerebro`/`09_selftest`, node-check OK). En el editor: `selfTest()` → confirmar **C** (ruteo, 4 asserts), **D4** y **E8a-1** (retrofit) verdes + correr **`migrarCerebroSchema()` UNA vez** (agrega columnas canónicas a los clientes existentes). **(2) Orbe 3D** (Three.js) — Luciano lo pidió 3D; portar de `Videos analizados/satori-os-demo-b-orbe.html` COMO VISTA ADICIONAL (la vista «Hoy» nunca paga el 3D) con el presupuesto de performance (`HANDOFF E2+ §7`): render solo con CM abierto+visible, Page Visibility API, dPR≤1.5, persistir calidad **por backend** (localStorage no sobrevive el iframe). **(3) Voz** — tool-backend GAS (`doPost`); arquitectura ya en **`voz/BLUEPRINT.md`** (plataforma gestionada LiveKit Cloud free-tier + GAS tool-backend HTTPS + subdominio `voz.satoriconsultoria.com`, sin host propio, sin fijo, alcance personal); falta el **fork de marca**: pipeline Deepgram+ElevenLabs (voz de marca) vs voz-a-voz OpenAI Realtime/Gemini Live (simple/barato). **Orden de trabajo (21-jun, Luciano): retrofit CEREBRO → orbe 3D → Voz → Vehemence (encargo de tratamiento RGPD, ÚLTIMO).**
 
 ## Estado vigente
-Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO opera N Sheets cliente), **en producción** bajo `luciano@satoriconsultoria.com`. **E1 + E2+** (capa Trillion: aprobaciones, costos+Bastión, cola durable, 13 agentes —5 con runner / 8 lab—, Command Center) y **E8a** (cerebro / Director / Salud + Command Center a4.1 telemetría/Salud/directiva + a4.2 orbe-vivo + mobile-first) **CERRADAS**. El sistema **ya produce análisis real**. Dos casos de IG analizados e integrados/planeados: **@_no_hype_ai** (Fase 0+1: Bandeja+clasificador) y **@kevinfremon** (aprobada la "Capa de Dirección" + extras). Modo de trabajo: Círculo/Equipo/Bastión de fondo + AREL + satori-design + purga al cierre (en `userPreferences`/skills, no repetir acá).
+Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO opera N Sheets cliente), **en producción** bajo `luciano@satoriconsultoria.com`. Núcleo cerrado y produciendo análisis real: **E1, E2+, E8a, Bandeja (Jarvis F0/1), Capa de Dirección 3/3, Capa de Conectores**. **Los dos Must del backlog quedaron cerrados** (Capa de Dirección + ruteo de modelo por costo) → no hay nada en ruta crítica; lo que sigue son mejoras Should (con fit-check GAS), el track de negocio (build-in-public/cartera) y E8b (bloqueada). Primer cliente con datos reales = **Vehemence (CLI-002)** vía conector a su SGIC. Modo de trabajo: Círculo/Equipo/Bastión de fondo + AREL + satori-design + purga al cierre (en `userPreferences`/skills, no repetir acá).
 
 ### Verificado
-- [19-jun] **PURGA DE LA CAPA DE CONECTORES — 6 parches aplicados, verificados offline (pend. push + selfTest en prod)**: panel (correctitud/datos/perf/seguridad/mantenibilidad) sobre `19_conectores.js` + helpers + wiring. Hallazgos: **#1 Crítico** full-refresh destructivo sin piso (lectura vacía borraba lo sincronizado) → **guard anti-wipe** (throw si `agregados=0`); **#2 Alto** conclusión engañosa por data parcial (DB_VENTAS ~100% online) → **nota de cobertura de canal** en `Datos_operativos` cuando hay 1 solo canal; **#3 Alto** adaptador no-genérico (hardcodeaba `DB_VENTAS`/fuente) → **parametrizado** `sincronizarConectorVentas_(id,src,sheetName,fuente)` (habilita conectar la cartera); **#4 Medio** lectura full sin techo → **aviso temprano** `CONECTOR_AVISO_FILAS=50000` (sin recortar, no se asume orden); **#5 Medio** canal desconocido caía a 'local' → **mapeo explícito** `pos→local`, otro→`'otro'`; **#6 Bajo** delete fila-por-fila → **`borrarFilasBatch_`** (rangos contiguos). Seguridad (Bastión): **limpio** (read-only confirmado, sin vector de inyección). selfTest **D4 + 3 asserts nuevos** (cobertura/canales/desconocido). Hipótesis abiertas (sin enum de `status`): estados refund/reembolso no filtrados; parsing numérico de `total_ars`.
-- [18-jun] **Capa de Dirección 3/3 — must #3 North Star CERRADO / en producción**: `cargarNorthStarSatori()` fija el North Star de Satori en Config; `estadoVigente()`/`briefDiario()` lo muestran con **progreso auto 4/6 clientes** (proxy activo/piloto); selfTest **D3** verde; feed truncado (`truncar_`). Fix horizonte (`_hzLimpio_`, Config coacciona la fecha) aplicado — **pend. push + commit**. North Star por-cliente = `cargarObjetivo(id, …)` (reusa 15_cerebro).
-- [18-jun] **Capa de Dirección · must #1 `estadoVigente()` + must #2 `briefDiario()` CERRADOS / en producción** (commit `fe6655d`): `selfTest()` verde con **D1+D2**, salida real verificada — snapshot de sistema (5 clientes, $0.0177/$25, Salud OK 100%) + brief con BLUF que rutea por urgencia y "Movimiento reciente" enganchando Bandeja/Analista reales. Composición pura sobre el data-layer, **0 API**, AREL-safe. **Hallazgo auto-purga:** textos largos del feed ensucian "Movimiento reciente" → truncar (pend., junto al #3).
-- [18-jun] **Fase 0/1 Jarvis (Bandeja) CERRADA / en producción**: push 20 files OK; `setup()` creó la pestaña `Bandeja` (14 pestañas); `selfTest()` cerró "— TODO OK —" con los 5 checks **F1**; `instalarTriggerBandeja()` instalado (30 min); prueba real `clasificarBandeja()` = `{procesados:4, escalados:1}` con ruteo correcto (idea / tarea+CLI-002 / referencia / escalate conf1) y costo **$0.02 / $25**. **Purga F1–F6 aplicada pre-push** (conLock en `capturar`, claim atómico anti-doble-gasto en `clasificarBandeja`, cap 25/corrida, guard Clientes, doc, conteo). Commit `89ec85e`.
-- [16-jun] **Sistema corriendo con datos reales**: `sembrarDatosEjemplo('CLI-001')` → `corridaDiaria()` → Analista sacó margen op **58,5%** y alertó margen neto **−3,8%**; Vigía detectó factura por vencer + cobro pendiente. Evidencia: screenshots del feed Actividad + log de `corridaDiaria` (`correrDirector` encoló 1 por objetivo; `correrSalud` 6/6 ok).
-- [16-jun] **Command Center** (a4.1 + a4.2 orbe-vivo + mobile + labels derechos) verificado por Luciano en **desktop e iPhone**.
-- [16-jun] `selfTest()` cerró "— TODO OK —" (bloques E8a-1/2/3) corrido en el editor por Luciano.
-- [16-jun] **E2+ y E8a cerradas**; Purga E8a (0 críticos → 7 parches) pusheada; proyecto viejo neutralizado.
-- [16-jun] API real **status 200** (Haiku), tope USD 25/mes, key rotada en Script Properties.
+- [19-jun] **Capa de Conectores purgada (6 parches) + canal local en prod** — `sincronizarVehemence`/`corridaDiaria` loguean `Canales: local,online` (16 filas); `verVehemence` muestra `2026-05-01 Ventas local $4.908.141` + online $15.674.182 = **mayo $20.582.323**. Commits `9342569` (purga: guard anti-wipe, cobertura, adaptador parametrizado, batch-delete) + `f49b69e` (acepta `channel='local'`); **selfTest D4 7/7** verde (corrido por Chrome). Solo MAYO del local cargado.
+- [18-jun] **Capa de Dirección 3/3** (`estadoVigente`/`briefDiario`/North Star) CERRADA/prod — selfTest D1+D2+D3; commits `fe6655d`/`7df3acd`.
+- [18-jun] **Bandeja (Jarvis F0/1)** CERRADA/prod — selfTest F1; `clasificarBandeja` `{procesados:4,escalados:1}`; commit `89ec85e`.
+- [16-jun] **E2+ y E8a** cerradas; Command Center verificado en desktop+iPhone; API real status 200 (Haiku), tope $25/mes, key rotada.
+- [21-jun] **CEREBRO reconciliado:** el doc canónico `CEREBRO - Arquitectura única de memoria…md` (Videos analizados, 14-jun) **EXISTE** → la premisa v9 «E8b bloqueada por falta de doc CEREBRO» era **ERRÓNEA** (queda solo el bloqueo #2: snapshot del Equipo `agentes-satori-os.md`, no encontrado). E8a **divergía** del canónico → **retrofit aplicado** (`01_schema`/`15_cerebro`/`09_selftest`): nodos +`dimension`(líder/negocio/sistema)/`relevancia`/`cobertura`, aristas +`relacion`, `materializarEstado` agrega `nodos_por_dimension`+`cobertura`/`puntos_ciegos`, +`migrarCerebroSchema()`. node-check OK + purga-lite; **pend. push + correr `migrarCerebroSchema()`**. Deuda: el upsert reescribe fila completa → cuando el Director popule nodos, pasar `dimension` explícito.
 
 ### No verificado
-- Todo lo de la sección Pendiente (Capa de Dirección, voz, neural-map, Forge, etc.): no construido.
+- **Ruteo de modelo por costo** y **UX Centro de Mando**: construidos + node-check + harness offline OK, **NO corridos en prod** (pend. push + selfTest C en el editor). UX no es auto-verificable (iframe GAS) → la prueba Luciano post-push.
+- Todo el Pendiente Should/Nice (Voz, neural-map, Forge, Jarvis F2/F3, caching, build-in-public, E8b): **no construido**.
 
 ## Pendiente
-**Must (ruta crítica de la próxima sesión):**
-1. **Capa de Dirección** (los 3 *must* de kevinfremon, juntos = producto S2 "co-piloto operativo"; detalle en `PLAN-INTEGRACION-kevinfremon.md`):
-   - ✅ **`estadoVigente()`** (`18_direccion.js`) — snapshot markdown del MAESTRO (Satori) o cliente. **CERRADO/producción** 18-jun. Dogfood resuelto = **Satori a nivel sistema** (el MAESTRO = la consultora; el CLI-Satori literal se crea al definir el North Star).
-   - ✅ **`briefDiario()`** (`18_direccion.js`) — BLUF + "3 cosas hoy" + números + movimiento, rule-based **0 API**. **CERRADO/producción** 18-jun (D2 verde, salida real OK). Pend.: truncar textos largos del feed; la lógica del BLUF la afina Luciano; entrega email/Doc = opt-in aparte (AREL).
-   - ✅ **North Star** — de Satori a nivel sistema (Config + **progreso auto 4/6 clientes**) en `estadoVigente`/`briefDiario`; por cliente vía `cargarObjetivo(id, …)` (reusa 15_cerebro). **CERRADO/producción** 18-jun (D3 verde). Pend.: push del fix horizonte + North Star de Vehemence (objetivo: subir ticket promedio).
-2. **Ruteo de modelo por costo** (quick win): fijar `modelo` por RUNNER (Haiku triaje, Sonnet/Opus veredicto) — la infra ya acepta `opts.modelo`.
+**Must:** ninguno — los dos cerrados (Capa de Dirección + ruteo de modelo).
 
-**Should (aprobado por Luciano 16-jun; secuenciar tras los must — con FIT-CHECK GAS):**
-- **Voz** ⚠️ fit-check: GAS Web App **no hace voz real-time** (sin proceso persistente/WebSocket/STT-TTS nativo). Fork a decidir: (a) **voz liviana** client-side con Web Speech API + `speechSynthesis` dentro del Command Center (gratis, GAS-compatible, limitada); (b) **full Trillion** (Deepgram+ElevenLabs+wake word) = **stack aparte** always-on (Node/Python), su propio proyecto + costo (~$99+/mo ElevenLabs). No construir sin elegir fork.
-- **Neural-map del cerebro** ⚠️ fit-check: 3D (Three.js) en el iframe cross-origin de GAS pesa; el **orbe-vivo (a4.2) ya da el "cerebro vivo"**. Alternativa liviana: force-graph 2D de `nodos`/`aristas`. Decidir 2D-liviano vs 3D.
-- **Forge / agentes que crean agentes** ⚠️ reframe: en GAS el código es estático (clasp), **no hay code-gen runtime**. Traducción real: **agentes DEFINIDOS por datos** (registry con prompt/fuente/modelo configurable) → activar los 8 lab por etapas, cada uno con su fuente de datos. Es el camino para "activar todos los agentes" bien.
-- **Prompt caching** — honesto: la arquitectura de Satori arma cada prompt con los datos (no reusa un system-prompt grande), así que el ahorro es **marginal**; se hace si Luciano insiste, bajo esa expectativa.
-- **Jarvis Fase 2**: separar ideas/ejecución + **índice raíz jerárquico** (= el `_index.md` de Kevin; **no duplicar** — es lo mismo, construir una vez; matiz: jerarquía por importancia, token-optimizado).
-- **Jarvis Fase 3**: PM persistente que mantiene (sobre Director/Equipo/Salud).
+**Should (orden de trabajo acordado 19-jun; cada uno con FIT-CHECK GAS):**
+1. **Voz** ⚠️ fork sin decidir: (a) liviana Web Speech API client-side vs (b) full Trillion (stack aparte ~$99+/mo). No construir sin elegir.
+2. **Neural-map del cerebro** ⚠️: 2D force-graph liviano (`nodos`/`aristas`) vs 3D Three.js. El orbe-vivo (a4.2) ya da "cerebro vivo" → puede ser innecesario.
+3. **Forge / agentes data-defined**: registry con prompt/fuente/modelo configurable → activar los 8 lab por etapas. Palanca real dentro del OS (hoy 5/13 con runner). El ruteo de modelo (`modeloDeModulo_`) ya deja media-pista hecha.
+4. **Jarvis F2**: separar ideas/ejecución + índice raíz jerárquico (= `_index.md` de Kevin; construir una vez).
+5. **Jarvis F3**: PM persistente sobre Director/Equipo/Salud.
+6. **Prompt caching** — ahorro **marginal** (cada prompt arma datos frescos); solo si Luciano insiste.
 
 **Nice / negocio / bloqueado:**
-- **Motor build-in-public (KAIROS, track de negocio — NO código del OS):** contenido diario + lead magnet + waitlist + responder DMs → ataca la **cartera** (cuello declarado). Empalmar con **Bloque 6 KAIROS** (análisis/priorización de los 11 candidatos). Aprobado 16-jun; abrir como iniciativa aparte.
-- **E8b (entrenamiento de agentes)** — BLOQUEADO: falta el doc canónico **CEREBRO** + montar el **snapshot del Equipo** (`agentes-satori-os.md`).
-- Residuales: trashear proyecto + 6 Sheets viejos (cuando Luciano confirme); deuda Purga M1 (atomicidad)/M3 (perf batch)/B3 (cross-ref); ¿migrar los otros 4 proyectos GAS de clientes?; subir a `os@` dedicado antes de escalar.
-- Otros diferidos kevinfremon: routine-manager UI, pantalla de notificaciones móvil, `CAPABILITIES.md` auto, loop de feedback de cliente (roadmap+upvoting) como feature de servicio.
+- **build-in-public (KAIROS)** — track de negocio, NO código del OS; ataca la **cartera** (cuello). Empalma con Bloque 6 KAIROS (11 candidatos).
+- **E8b (entrenar agentes)** — BLOQUEADO: falta doc canónico **CEREBRO** + snapshot del Equipo (`agentes-satori-os.md`).
+- Residuales: trashear proyecto + 6 Sheets viejos; deuda Purga M1 (atomicidad)/M3 (perf batch)/B3 (cross-ref); hipótesis abiertas del conector (estados refund no filtrados, parsing `total_ars`); reetiquetar AOV-local (agregado diario ≠ por orden); subir a `os@` dedicado antes de escalar; ¿migrar otros 4 GAS de clientes?
 
 ## Artefactos
 | Tipo | Nombre | Ruta / ID / URL |
 |---|---|---|
-| Repo | SatoriOS | `~/Documents/Claude/Projects/SatoriOS` |
-| Índice repo | ARCHITECTURE.md | repo root (al día con Fase 1) |
+| Repo | SatoriOS | `~/Documents/Claude/Projects/SatoriOS` (HEAD `6018ea8` = UX ya commiteada; **sin commitear: `05_costos.js`, `09_selftest.js`** = ruteo de modelo, + `HANDOFF.md`). Push a GAS de `6018ea8` sin confirmar. |
+| Índice repo | ARCHITECTURE.md | repo root |
 | Proyecto GAS (vivo) | "Satori OS — MAESTRO" | `luciano@satoriconsultoria.com`; scriptId `1M-LYF0GO_Zgh2quGNlCzl4Okcx-DFqQxUhA_jqFqtbJNXYqnIu-2GVnO` (en `.clasp.json`, gitignored) |
+| Editor GAS (correr funciones) | script.google.com | `…/u/1/home/projects/{scriptId}/edit` (cuenta L = Luciano) |
 | MAESTRO (Sheet) | Satori OS — MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` |
-| Web App (dev, solo dueño) | Command Center | deployment `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` (`…/dev`) |
-| Bandeja (Fase 1) | `17_bandeja.js` | `capturar`, `clasificarBandeja`, `instalarTriggerBandeja` |
+| Web App (dev, solo dueño) | Command Center | deployment `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` (`…/dev` dio 404 por Chrome — confirmar URL viva) |
+| Ruteo de modelo | `05_costos.js` | `modeloDeModulo_`, `MODELOS_POR_MODULO`, `TARIFAS`, `MODELO_SONNET/OPUS` |
+| Conector | `19_conectores.js` | `sincronizarVehemence`, `sincronizarConectorVentas_(id,src,sheet,fuente)`, `verVehemence` (18_direccion) |
 | Helpers alta | `15_cerebro.js` | `cargarObjetivo`, `cargarObjetivosPiloto`, `sembrarDatosEjemplo` |
-| Planes integración | `PLAN-INTEGRACION-jarvis-os.md` · `PLAN-INTEGRACION-kevinfremon.md` | repo root |
-| Prácticas + activación | `PRACTICAS-jarvis.md` · `ACTIVACION.md` · `ejemplo_Datos_operativos.csv` | repo root |
-| Informes IG (fuente) | informe/transcripciones `_no_hype_ai` y `kevinfremon` | adjuntos de la sesión (no en repo) |
+| Fuente Vehemence | SGIC `DB_VENTAS` | `openById('1ac1ccVMdFgO_VyOzsGwvdtEhCil41A6GnrJIAoNAwNk')`; repo `~/Documents/Claude/Projects/Vehemence/` |
+| Planes | `PLAN-INTEGRACION-kevinfremon.md` · `PLAN-INTEGRACION-jarvis-os.md` | repo root |
 | Secretos | `MAESTRO_ID`, `CLAUDE_API_KEY` | Script Properties (key rotada) |
 
 ## Desvíos del plan original
-- El plan paró tras E8a para **integrar 2 casos externos** (@_no_hype_ai, @kevinfremon): sumaron la Bandeja (hecha) + la Capa de Dirección + extras (voz/neural-map/Forge/caching) + el track de negocio build-in-public. Backlog ampliado a pedido de Luciano (16-jun).
-- El roster lab (Flux/Prism/Scout/Relay/Atlas/Forge/Lift/Spark) = el de Trillion (@kevinfremon): nomenclatura ya absorbida; "activar" = darles runner data-defined, no flipear flag (ver Should/Forge).
-- "Activar los 8 agentes" se decidió **mantener en lab** (16-jun): sin runner ni fuente de datos; se reabre vía el reframe Forge (agentes data-defined).
+- El plan paró tras E8a para **integrar 2 casos externos** (@_no_hype_ai, @kevinfremon): sumaron Bandeja (hecha) + Capa de Dirección (hecha) + extras (voz/neural-map/Forge/caching) + track build-in-public. Backlog ampliado (16-jun).
+- El roster lab (Flux/Prism/Scout/Relay/Atlas/Forge/Lift/Spark) = el de Trillion: "activar" = darles runner data-defined, no flipear flag (ver Should/Forge).
+- "Activar los 8 agentes" se mantiene en lab (16-jun) hasta el reframe Forge.
+- [19-jun] **Orden de trabajo del backlog Should fijado por Luciano** = orden de la tabla "Lo que queda" (Voz primero).
 
 ---
 
 ## Apéndice histórico
-{Se lee solo si un problema reaparece o se cuestiona una decisión.}
+{Se lee solo si un problema reaparece o se cuestiona una decisión. No releer por defecto.}
 
 ### Decisiones y descartes
-- **Decidido:** Workspace **C1** reusando `luciano@satoriconsultoria.com` (admin) como identidad de servicio del piloto (mitigación: deploy MYSELF, trust solo ese client ID, mover a `os@` antes de escalar). **Rotar** la API key.
-- **Decidido (16-jun):** los 8 agentes lab **quedan en lab** (no tienen runner ni fuente de datos; activarlos a lo bruto = romperlos). Reabrir bien vía Forge data-defined.
-- **Decidido (16-jun):** Bandeja = **fork A** (capa personal de Luciano); sin anonimizar (texto propio, necesita ver nombres); costo a `Consumo_agentes` como 'clasificador'.
-- **Descartado:** daemon always-on (Hermes/OpenClaw del caso Jarvis) — riesgo de seguridad ("get hacked"); en stand-by.
-- **Descartado:** darle email propio al agente (kevinfremon) — el modelo de **aprobación** es más seguro.
-- **NO reimportar (ya en Satori ≥ o mejor):** orquestación (Director+cola), handoff (skill), cost-tracking (telemetría+Consumo), seguridad (Bastión/Purga), infra 24/7 (triggers GAS), requirements-doc, feedback brutal (Purga/Consejo).
+- **Decidido (19-jun):** orden del backlog Should = Voz → Neural-map → Forge → Jarvis F2 → Jarvis F3 → caching → build-in-public → E8b → residuales (orden de la tabla "Lo que queda").
+- **Decidido (19-jun):** ruteo de modelo centralizado en `llamadaAPI(modulo)` (no por runner) → cero cambios en runners; override por Config `modelo_<modulo>`; analista/conciliador→Sonnet, resto→Haiku; Opus disponible sin rutear.
+- **Decidido (19-jun):** canal local de Vehemence = tarea del SGIC (Satori lee / SGIC nutre); Satori solo robusteció el conector para aceptar `channel='local'`.
+- **Decidido:** Workspace **C1** reusando `luciano@satoriconsultoria.com` (admin) como identidad de servicio del piloto (deploy MYSELF; mover a `os@` antes de escalar). API key rotada.
+- **Decidido (16-jun):** los 8 agentes lab quedan en lab hasta Forge data-defined; Bandeja = fork A (capa personal, sin anonimizar).
+- **Descartado:** daemon always-on (Hermes/OpenClaw) — riesgo de seguridad; email propio al agente — el modelo de aprobación es más seguro.
+- **NO reimportar (ya en Satori ≥ o mejor):** orquestación, handoff, cost-tracking, seguridad (Bastión/Purga), infra 24/7, requirements-doc, feedback brutal.
 
 ### Imprevistos y resolución
-- [15-jun] `a6e641e` no resolvió E2-1 → **lección: instrumentar (`debugE21`) antes de teorizar.** `appendRow` coacciona pese al `'@'` → fix per-celda en `appendFila` (NO remover).
-- [16-jun] Mobile del Command Center colapsaba (orbe en stage `1fr` aplastado) → `grid-rows:none` + `cm-stage{min-height:360px}` + agentes a chips 2-col. Lección: el iframe GAS no es auto-verificable; lo prueba Luciano en device.
-- [16-jun] Labels de agentes giraban (animación CSS desincronizada al reconstruir nodos c/5s) → órbita manejada por JS (`cmGirar`/`cmOrbitar`), contra-rotación sincronizada.
-- [16-jun] `clasp push` repetido tiró `invalid_rapt` (token de sesión Google vencido) → `clasp login` y reintentar. No es bloqueo.
-- [16-jun] CSV no entró por pegado → `sembrarDatosEjemplo()` (alta por función) evita la fricción.
+- [19-jun] Correr funciones GAS por Chrome: el clic por **ref** en el selector de función NO commitea; hay que **clic por coordenada** en el dropdown + confirmar toolbar+dropdown cerrado antes de Ejecutar. `get_page_text` devuelve el código, no el log → leer el Registro por screenshot. Lección: editar+leer offline; correr por Chrome solo cuando hace falta prod.
+- [19-jun] `/dev` del web app dio 404 por Chrome (deployment viejo / cuenta) → confirmar la URL viva del Command Center antes de auto-verificar UI.
+- [15-jun] `a6e641e` no resolvió E2-1 → lección: instrumentar (`debugE21`) antes de teorizar. `appendRow` coacciona pese al `'@'` → fix per-celda en `appendFila` (NO remover).
+- [16-jun] Mobile del Command Center colapsaba → `grid-rows:none` + `cm-stage{min-height:360px}` + agentes a chips 2-col. El iframe GAS no es auto-verificable; lo prueba Luciano en device.
+- [16-jun] `clasp push` repetido tiró `invalid_rapt` (token vencido) → `clasp login` y reintentar.
 
 ### Changelog del handoff
-- [19-jun] **v8:** **Purga de la Capa de Conectores** (cierre 18-jun no había pasado por Purga). 1 Crítico (full-refresh sin guard → wipe ante lectura vacía) + 2 Altos (data parcial sin marcar / adaptador no-genérico) + 3 menores → **6 parches** en `19_conectores.js` (+ D4 actualizado y 3 asserts en `09_selftest.js`). Verificado offline con node harness (D4 verde, batch-delete, guard). Bastión: limpio. **Pend.: commit + `clasp push` + `selfTest()` en prod, después fork del backlog (canal local vs conectar cartera).**
-- [18-jun] **v7:** **Capa de Conectores** — `sincronizarVehemence()` (`19_conectores.js`) lee `DB_VENTAS` del SGIC de Vehemence (mismo Workspace → sin credenciales, solo lectura), agrega mes×canal, full-refresh bajo `conLock`, enganchado en `corridaDiaria`. Validado vs ERP (may $15,67M / jun $12,52M). **Arco end-to-end cerrado:** 1er análisis real de Analista (AOV $104k, target $110-115k) + Vigía (declive online −83%) sobre Vehemence. NS Vehemence → ARS $120k. Pend.: `git commit`.
-- [18-jun] **v6:** **Capa de Dirección CERRADA (3/3) y en producción** — `estadoVigente()` + `briefDiario()` (commit `fe6655d`) + North Star de Satori (Config, progreso auto 4/6) + fix feed + fix horizonte (`_hzLimpio_`, pend. push). selfTest D1+D2+D3 verde. Próximo: cargar operación real de Vehemence (el 80/20).
-- [18-jun] **v5:** Fase 0/1 Jarvis (Bandeja) **CERRADA y en producción** — pusheada (20 files), `setup()`/`selfTest()` F1 verde, trigger instalado, prueba real `{procesados:4, escalados:1}` con ruteo correcto + costo $0.02. **Purga F1–F6 aplicada pre-push** (atomicidad `capturar`, claim anti-doble-gasto, cap/corrida, guards). Imprevisto del push (`invalid_rapt`) resuelto con `clasp logout && clasp login`. Próximo must: Capa de Dirección.
-- [16-jun] **v4:** E2+ y E8a CERRADAS + sistema corriendo con datos reales + a4.2 orbe-vivo + mobile + Fase 0/1 Jarvis (Bandeja) construida (pend. push/test). Aprobada la Capa de Dirección (kevinfremon) + extras + build-in-public. Backlog reorganizado.
-- [15-jun] v2/v3: migración a Workspace + E2-1 resuelto + selfTest verde + Purga; build de E8a.
-- [15-jun] v1: descubierto bloqueo APP, decidida migración; E2-1 sin diagnosticar.
+- [19-jun] **v9:** Cerrados **2 cambios Satori OS** (UX entrar al Centro de Mando + ruteo de modelo por costo, ambos verificados offline, pend. push) + **canal local de Vehemence verificado en prod** (mayo completo $20,58M) + **Purga del conector** corrida y desplegada (`9342569`/`f49b69e`, D4 7/7). Fijado el orden del backlog Should. HANDOFF reescrito limpio.
+- [18-jun] **v7/v8:** Capa de Conectores (`sincronizarVehemence`, validado vs ERP) + Purga del conector (6 parches). Arco end-to-end Vehemence cerrado.
+- [18-jun] **v6:** Capa de Dirección CERRADA 3/3 (`fe6655d` + North Star + fixes). selfTest D1+D2+D3.
+- [18-jun] **v5:** Bandeja (Jarvis F0/1) CERRADA y en producción (`89ec85e`); Purga F1–F6.
+- [16-jun] **v4:** E2+ y E8a CERRADAS + sistema con datos reales + orbe-vivo + mobile. Aprobada Capa de Dirección + extras + build-in-public.
+- [15-jun] v1-v3: bloqueo APP → migración a Workspace + E2-1 resuelto + selfTest verde + Purga; build de E8a.

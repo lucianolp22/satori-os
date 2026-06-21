@@ -127,6 +127,10 @@ function selfTest() {
     var ceN2 = upsertNodo(r.id_cliente, { tipo: 'tarea', etiqueta: 'nodo test 2' });
     var ceA = upsertArista(r.id_cliente, { origen: ceN1.id_nodo, destino: ceN2.id_nodo, tipo: 'contribuye_a' });
     chk(!!ceA.id_arista && ceA.creado, 'E8a-1 upsertArista crea arista');
+    // Retrofit CEREBRO (doc canónico §3-4): ejes líder/negocio/sistema + cobertura + relacion
+    chk(CLIENTE_SHEETS.nodos.indexOf('dimension') >= 0 && CLIENTE_SHEETS.nodos.indexOf('cobertura') >= 0, 'E8a-1 schema nodos canónico (dimension+cobertura)');
+    chk(CLIENTE_SHEETS.aristas.indexOf('relacion') >= 0, 'E8a-1 schema aristas canónico (relacion)');
+    chk(dimensionDeTipo_('tarea') === 'sistema' && dimensionDeTipo_('factura') === 'negocio' && dimensionDeTipo_('zzz') === 'negocio', 'E8a-1 dimensión por tipo (sistema/negocio + default)');
     logEvento(r.id_cliente, { evento: 'test_evento', origen: 'selftest', detalle: { x: 1 } });
     var ceLog = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('cerebro_log'));
     chk(ceLog.length >= 4, 'E8a-1 cerebro_log append-only acumula eventos (' + ceLog.length + ')');
@@ -134,6 +138,7 @@ function selfTest() {
     chk(ceMat.nodos === 2 && ceMat.aristas === 1, 'E8a-1 materializarEstado cuenta nodos/aristas');
     var ceEst = leerEstado(r.id_cliente);
     chk(ceEst.resumen && String(ceEst.resumen.nodos) === '2', 'E8a-1 leerEstado devuelve el snapshot materializado');
+    chk(ceEst.nodos_por_dimension && String(ceEst.nodos_por_dimension.sistema) === '1' && String(ceEst.nodos_por_dimension.negocio) === '1', 'E8a-1 snapshot agrupa por eje (tarea→sistema, objetivo→negocio · tesis Satori)');
     var ceIdx = leerTabla(getMaestro().getSheetByName('Cerebro_index')).filter(function (f) { return f.id_cliente === r.id_cliente; })[0];
     chk(!!ceIdx && String(ceIdx.nodos) === '2', 'E8a-1 Cerebro_index agrega conteos en el MAESTRO (sin PII)');
 
@@ -210,6 +215,12 @@ function selfTest() {
     chk(aggOtro.desconocidos.indexOf('mayorista') >= 0, 'D4 rutea canal desconocido a otro (no ensucia local)');
     var aggLoc = agregarVentasPorMes_([{ ts: '2026-05-10', channel: 'local', total_ars: 100000, status: 'paid' }]);
     chk(aggLoc.filas[0].concepto.indexOf('local') >= 0, 'D4 acepta channel=local como local (serie Castelar)');
+
+    // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
+    chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');
+    chk(modeloDeModulo_('triajeX') === MODELO_DEFAULT, 'C módulo sin mapear cae a Haiku (default seguro)');
+    chk(TARIFAS[MODELO_SONNET].in === 3 && TARIFAS[MODELO_SONNET].out === 15, 'C tarifa Sonnet $3/$15 por MTok (no Haiku)');
+    chk(costearUSD_(MODELO_SONNET, 1e6, 1e6) === 18, 'C costearUSD usa la tarifa por modelo (Sonnet 1M+1M = $18)');
 
     log.push('— TODO OK —');
   } finally {

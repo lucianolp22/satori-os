@@ -47,6 +47,18 @@ function upsertPorClave_(sh, claveCol, obj, prefijo, ancho) {
   });
 }
 
+// ── Retrofit CEREBRO (doc canónico §4): eje del nodo por tipo ────────────────
+// LÍDER (plano interior) · NEGOCIO (estructura) · SISTEMA (auto-conocimiento del OS).
+var DIMENSION_POR_TIPO = {
+  agente: 'sistema', herramienta: 'sistema', tarea: 'sistema', config: 'sistema', chequeo: 'sistema', chequeo_salud: 'sistema',
+  objetivo_personal: 'lider', preferencia: 'lider', limite: 'lider', estilo: 'lider', senal: 'lider',
+  cliente: 'negocio', proveedor: 'negocio', factura: 'negocio', producto: 'negocio', proceso: 'negocio',
+  objetivo: 'negocio', metrica: 'negocio', evento: 'negocio', decision: 'negocio', riesgo: 'negocio',
+  persona: 'negocio', hallazgo: 'negocio', proyecto: 'negocio'
+};
+/** Eje (dimensión) de un nodo según su tipo. Default conservador: negocio. */
+function dimensionDeTipo_(tipo) { return DIMENSION_POR_TIPO[String(tipo)] || 'negocio'; }
+
 /**
  * Upsert de un nodo del cerebro del tenant.
  * @param {string} tenant  id_cliente
@@ -56,12 +68,17 @@ function upsertPorClave_(sh, claveCol, obj, prefijo, ancho) {
 function upsertNodo(tenant, nodo) {
   nodo = nodo || {};
   var sh = cerebroSheet_(tenant, 'nodos');
+  var tipo = nodo.tipo || 'generico';
   var fila = {
     id_nodo: nodo.id_nodo || '',
-    tipo: nodo.tipo || 'generico',
+    dimension: nodo.dimension || dimensionDeTipo_(tipo),   // eje líder/negocio/sistema (tesis Satori)
+    tipo: tipo,
     etiqueta: nodo.etiqueta || '',
     atributos: (typeof nodo.atributos === 'string') ? nodo.atributos : JSON.stringify(nodo.atributos || {}),
+    relevancia: (nodo.relevancia == null ? 3 : nodo.relevancia),   // 1-5
+    cobertura: (nodo.cobertura == null ? 0 : nodo.cobertura),       // 0-100 (puntos ciegos, §5)
     estado: nodo.estado || 'activo',
+    fuente: nodo.fuente || nodo.actor || 'sistema',
     actualizado_en: ahoraISO()
   };
   var r = upsertPorClave_(sh, 'id_nodo', fila, 'NOD', 4);
@@ -79,11 +96,13 @@ function upsertArista(tenant, arista) {
   arista = arista || {};
   if (!arista.origen || !arista.destino) throw new Error('arista sin origen/destino');
   var sh = cerebroSheet_(tenant, 'aristas');
+  var relacion = arista.relacion || arista.tipo || 'relacion';   // vocabulario canónico (doc CEREBRO §3)
   var fila = {
     id_arista: arista.id_arista || '',
     origen: arista.origen,
     destino: arista.destino,
-    tipo: arista.tipo || 'relacion',
+    relacion: relacion,
+    tipo: arista.tipo || relacion,                                 // back-compat con el campo previo
     peso: (arista.peso === undefined || arista.peso === null) ? 1 : arista.peso,
     atributos: (typeof arista.atributos === 'string') ? arista.atributos : JSON.stringify(arista.atributos || {}),
     actualizado_en: ahoraISO()
@@ -124,7 +143,13 @@ function materializarEstado(tenant) {
   var objetivos = leerTabla(ssCli.getSheetByName('objetivos'));
 
   var porTipo = {};
-  nodos.forEach(function (n) { var t = String(n.tipo || '—'); porTipo[t] = (porTipo[t] || 0) + 1; });
+  var porDim = { lider: 0, negocio: 0, sistema: 0 };
+  var covSum = 0, covN = 0, ciegos = 0;
+  nodos.forEach(function (n) {
+    var t = String(n.tipo || '—'); porTipo[t] = (porTipo[t] || 0) + 1;
+    var d = String(n.dimension || dimensionDeTipo_(n.tipo)); porDim[d] = (porDim[d] || 0) + 1;
+    var c = Number(n.cobertura); if (n.cobertura !== '' && n.cobertura != null && !isNaN(c)) { covSum += c; covN++; if (c < 40) ciegos++; }
+  });
   var ultimoEvento = log.length ? String(log[log.length - 1].ts) : '';
   var objActivos = objetivos.filter(function (o) {
     return ['activo', 'en_curso', 'abierto'].indexOf(String(o.estado).toLowerCase()) >= 0;
@@ -140,6 +165,12 @@ function materializarEstado(tenant) {
   Object.keys(porTipo).forEach(function (t) {
     filas.push({ seccion: 'nodos_por_tipo', clave: t, valor: porTipo[t] });
   });
+  // Retrofit CEREBRO: los 3 ejes (tesis Satori) + diagnóstico de cobertura (puntos ciegos, §5).
+  ['lider', 'negocio', 'sistema'].forEach(function (d) {
+    filas.push({ seccion: 'nodos_por_dimension', clave: d, valor: porDim[d] || 0 });
+  });
+  filas.push({ seccion: 'cobertura', clave: 'promedio', valor: covN ? Math.round(covSum / covN) : 0 });
+  filas.push({ seccion: 'cobertura', clave: 'puntos_ciegos', valor: ciegos });
 
   // Reescribir estado_actual completo (snapshot, NO append-only). PURGA #5: clear+write bajo
   // conLock para que sea atómico (si setValues fallara entre medio, no queda la hoja vacía).
@@ -213,6 +244,48 @@ function repararCerebro() {
   });
   Logger.log('repararCerebro: cerebro en ' + n + ' cliente(s) + Cerebro_index en MAESTRO.');
   return { clientes: n };
+}
+
+/**
+ * Retrofit CEREBRO al doc canónico: agrega a las pestañas nodos/aristas YA existentes de cada
+ * cliente las columnas canónicas que falten (dimension/relevancia/cobertura/fuente en nodos;
+ * relacion en aristas), al final y sin tocar datos. Backfilla filas existentes con defaults.
+ * Idempotente. Correr a mano UNA vez tras desplegar el retrofit. @return {{nodos, aristas}}
+ */
+function migrarCerebroSchema() {
+  var add = { nodos: 0, aristas: 0 };
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    if (!c.url_sheet_cliente) return;
+    try {
+      var cs = SpreadsheetApp.openByUrl(c.url_sheet_cliente);
+      add.nodos += agregarColumnasFaltantes_(cs.getSheetByName('nodos'), CLIENTE_SHEETS.nodos, { dimension: 'negocio', relevancia: 3, cobertura: 0, fuente: 'sistema' });
+      add.aristas += agregarColumnasFaltantes_(cs.getSheetByName('aristas'), CLIENTE_SHEETS.aristas, { relacion: 'relacion' });
+    } catch (e) { Logger.log('migrarCerebroSchema ' + c.id_cliente + ': ' + e.message); } // PURGA #24: id, sin nombre
+  });
+  Logger.log('migrarCerebroSchema: +' + add.nodos + ' col nodos, +' + add.aristas + ' col aristas (acumulado).');
+  return add;
+}
+
+/**
+ * Agrega al FINAL de `sh` las columnas de `headersCanon` ausentes en la fila 1; backfilla las
+ * filas existentes con `defaults`. Bajo conLock (atómico). No reordena ni borra. @return n agregadas.
+ */
+function agregarColumnasFaltantes_(sh, headersCanon, defaults) {
+  if (!sh) return 0;
+  var hdr = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(String);
+  var nuevas = headersCanon.filter(function (h) { return hdr.indexOf(h) < 0; });
+  if (!nuevas.length) return 0;
+  return conLock(function () {
+    var startCol = sh.getLastColumn() + 1;
+    sh.getRange(1, startCol, 1, nuevas.length).setValues([nuevas]).setFontWeight('bold').setBackground('#f0f0f0');
+    var filas = sh.getLastRow() - 1;
+    if (filas > 0) {
+      var matriz = [];
+      for (var r = 0; r < filas; r++) matriz.push(nuevas.map(function (h) { return (defaults && defaults.hasOwnProperty(h)) ? defaults[h] : ''; }));
+      sh.getRange(2, startCol, filas, nuevas.length).setValues(matriz);
+    }
+    return nuevas.length;
+  });
 }
 
 /**

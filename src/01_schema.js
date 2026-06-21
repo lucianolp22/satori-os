@@ -50,8 +50,8 @@ var CLIENTE_SHEETS = {
   // Per Auditor 0.2: nacen como "propuesta", se activan vía P1.
   Reglas: ['id_regla', 'origen', 'condicion', 'accion', 'estado'],
   // ── Etapa 8a — Cerebro (grafo de memoria) por tenant. Sensibles (ocultas+protegidas). ──
-  nodos: ['id_nodo', 'tipo', 'etiqueta', 'atributos', 'estado', 'actualizado_en'],
-  aristas: ['id_arista', 'origen', 'destino', 'tipo', 'peso', 'atributos', 'actualizado_en'],
+  nodos: ['id_nodo', 'dimension', 'tipo', 'etiqueta', 'atributos', 'relevancia', 'cobertura', 'estado', 'fuente', 'actualizado_en'],
+  aristas: ['id_arista', 'origen', 'destino', 'relacion', 'tipo', 'peso', 'atributos', 'actualizado_en'],
   cerebro_log: ['ts', 'evento', 'id_nodo', 'id_arista', 'origen', 'detalle'],
   estado_actual: ['seccion', 'clave', 'valor', 'materializado_en'],
   objetivos: ['id_objetivo', 'horizonte', 'descripcion', 'metrica', 'valor_objetivo', 'estado', 'prioridad', 'fecha_objetivo']
