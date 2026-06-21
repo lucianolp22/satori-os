@@ -249,13 +249,6 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 </style>
 <!-- Three.js r128 — orbe 3D. CDN + SRI (integrity) + versión pin: el browser NO ejecuta el archivo si el hash no coincide; si falla/no carga, el orbe degrada solo a 2D. -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<!-- Bloom real (UnrealBloomPass): módulos de ejemplo de Three.js r128, version-pin en jsDelivr (npm@0.128.0, inmutable); defer = orden garantizado tras three.min.js. Si no cargan → render directo sin bloom. -->
-<script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 </head>
 <body>
 <header>
@@ -963,24 +956,16 @@ function cmInit3D(){
     var grp=new THREE.Group();sc.add(grp);
     var BAJA=cmCalidadBaja_();
     var gm=function(op){return new THREE.MeshBasicMaterial({color:0x33e6b8,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,24,24),gm(0.03)));    // halo nebuloso externo
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,24,24),gm(0.06)));
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.72,28,28),gm(0.12)));
-    var core=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,28),gm(0.2));grp.add(core);cm3D.core=core; // núcleo lleno y brillante (no hueco)
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,24,24),gm(0.015)));   // halo nebuloso externo (glow -50%)
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,24,24),gm(0.03)));
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.72,28,28),gm(0.06)));
+    var core=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,28),gm(0.1));grp.add(core);cm3D.core=core; // núcleo (glow -50%)
     var ico=new THREE.IcosahedronGeometry(1.0,BAJA?2:3),ip=ico.attributes.position; // wireframe orgánico (firma Trillion)
     for(var k=0;k<ip.count;k++){var vx=ip.getX(k),vy=ip.getY(k),vz=ip.getZ(k);
       var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.2*nz;
       ip.setXYZ(k,vx*s,vy*s,vz*s);}
     var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0x4ff0c8,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
     cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
-    try{ // BLOOM real (post-proceso) si los módulos de ejemplo cargaron; si no/calidad baja → render directo
-      if(typeof THREE.EffectComposer!=='undefined'&&typeof THREE.UnrealBloomPass!=='undefined'&&typeof THREE.RenderPass!=='undefined'&&!BAJA){
-        var comp=new THREE.EffectComposer(r);
-        comp.addPass(new THREE.RenderPass(sc,cam,null,new THREE.Color(0x000000),0)); // clearAlpha 0 → preserva transparencia
-        var bloom=new THREE.UnrealBloomPass(new THREE.Vector2(cmOc.width||400,cmOc.height||400),1.15,0.6,0.0);
-        comp.addPass(bloom);cm3D.composer=comp;cm3D.bloom=bloom;
-      }
-    }catch(e2){cm3D.composer=null;cm3D.bloom=null;}
     cmBuildOrb(cm3D.graph); // nodos reales si ya llegaron del cerebro; si no, decorativos
     cm3DResize();
   }catch(e){cm3D.on=false;cm3D.ready=false;} // cualquier fallo WebGL → fallback 2D
@@ -989,8 +974,6 @@ function cm3DResize(){
   if(!cm3D.ready||!cm3D.renderer||!cmOc)return;
   cm3D.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,cmCalidadBaja_()?1:1.5)); // cap dPR (presupuesto perf)
   cm3D.renderer.setSize(cmOc.width,cmOc.height,true);
-  if(cm3D.composer)cm3D.composer.setSize(cmOc.width,cmOc.height);
-  if(cm3D.bloom)cm3D.bloom.setSize(cmOc.width,cmOc.height);
   cm3D.cam.aspect=1;cm3D.cam.updateProjectionMatrix();
 }
 // CEREBRO → ORBE: pide el grafo del cliente y rehace el orbe con datos reales (nodos por dimensión, aristas = líneas).
@@ -1009,8 +992,8 @@ function cmRender3D(t){
   cm3D.grp.scale.setScalar(1+0.03*Math.sin(t*0.0011)+0.05*energy);
   if(cm3D.pts)cm3D.pts.material.opacity=0.82+0.16*energy;
   if(cm3D.wire)cm3D.wire.material.opacity=0.32+0.2*energy+0.06*Math.sin(t*0.0016);
-  if(cm3D.core)cm3D.core.material.opacity=0.16+0.12*energy+0.04*Math.sin(t*0.0015);
-  if(cm3D.composer&&!cmCalidadBaja_())cm3D.composer.render();else cm3D.renderer.render(cm3D.scene,cm3D.cam);
+  if(cm3D.core)cm3D.core.material.opacity=0.08+0.06*energy+0.02*Math.sin(t*0.0015);
+  cm3D.renderer.render(cm3D.scene,cm3D.cam);
 }
 function cmSetCalidad(q){
   cm3D.calidad=(q==='bajo')?'bajo':'alto';
