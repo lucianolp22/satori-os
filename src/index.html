@@ -907,15 +907,34 @@ function cmInit3D(){
   var cv=document.getElementById('cmOrb3D');if(!cv)return;
   try{
     var r=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});r.setClearColor(0x000000,0);
-    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=2.9;
+    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.0;
     var grp=new THREE.Group();sc.add(grp);
-    var N=cmCalidadBaja_()?520:1200,pos=new Float32Array(N*3);
-    for(var i=0;i<N;i++){var y=1-(i/(N-1))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229;
-      pos[i*3]=Math.cos(th)*rad;pos[i*3+1]=y;pos[i*3+2]=Math.sin(th)*rad;}
-    var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    var pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0x9af0d2,size:3.0,sizeAttenuation:false,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(pts);
-    var wire=new THREE.Mesh(new THREE.IcosahedronGeometry(0.86,cmCalidadBaja_()?1:2),new THREE.MeshBasicMaterial({color:0x6cddba,wireframe:true,transparent:true,opacity:0.34}));grp.add(wire);
-    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.62,20,20),new THREE.MeshBasicMaterial({color:0x6cddba,transparent:true,opacity:0.06,depthWrite:false,blending:THREE.AdditiveBlending}))); // glow del núcleo
+    var BAJA=cmCalidadBaja_();
+    var TEAL=0x4ff0c8, PURPLE=0x9a6cff, ORANGE=0xff9a3c; // paleta Trillion + naranja (pedido de Luciano)
+    // 1) glow nebuloso = capas aditivas (bloom falso, sin postproceso)
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.35,24,24),new THREE.MeshBasicMaterial({color:TEAL,transparent:true,opacity:0.035,depthWrite:false,blending:THREE.AdditiveBlending})));
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.78,24,24),new THREE.MeshBasicMaterial({color:TEAL,transparent:true,opacity:0.09,depthWrite:false,blending:THREE.AdditiveBlending})));
+    // 2) wireframe ORGÁNICO (esfera deformada por ruido) = la firma visual de Trillion
+    var ico=new THREE.IcosahedronGeometry(1.0,BAJA?2:3),ip=ico.attributes.position;
+    for(var k=0;k<ip.count;k++){var vx=ip.getX(k),vy=ip.getY(k),vz=ip.getZ(k);
+      var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.22*nz;
+      ip.setXYZ(k,vx*s,vy*s,vz*s);}
+    ico.computeVertexNormals();
+    var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:TEAL,wireframe:true,transparent:true,opacity:0.42,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
+    // 3) nodos (neuronas/agentes): teal mayoría + acentos púrpura y NARANJA
+    var N=BAJA?700:1500,pos=new Float32Array(N*3),col=new Float32Array(N*3);
+    var cT=new THREE.Color(TEAL),cP=new THREE.Color(PURPLE),cO=new THREE.Color(ORANGE);
+    for(var i=0;i<N;i++){var y=1-(i/(N-1))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229,rr=1.02+Math.random()*0.07;
+      pos[i*3]=Math.cos(th)*rad*rr;pos[i*3+1]=y*rr;pos[i*3+2]=Math.sin(th)*rad*rr;
+      var c=(i%13===0)?cO:((i%5===0)?cP:cT);col[i*3]=c.r;col[i*3+1]=c.g;col[i*3+2]=c.b;}
+    var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+    var pts=new THREE.Points(pg,new THREE.PointsMaterial({size:3.2,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(pts);
+    // 4) líneas de conexión (red neuronal): une nodos cercanos
+    if(!BAJA){var lp=[];for(var a=0;a<N;a+=7){for(var b=a+1;b<Math.min(a+40,N);b+=11){
+      var dx=pos[a*3]-pos[b*3],dy=pos[a*3+1]-pos[b*3+1],dz=pos[a*3+2]-pos[b*3+2];
+      if(dx*dx+dy*dy+dz*dz<0.2)lp.push(pos[a*3],pos[a*3+1],pos[a*3+2],pos[b*3],pos[b*3+1],pos[b*3+2]);}}
+      var lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
+      grp.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:TEAL,transparent:true,opacity:0.13,depthWrite:false,blending:THREE.AdditiveBlending})));}
     cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.pts=pts;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
     cm3DResize();
   }catch(e){cm3D.on=false;cm3D.ready=false;} // cualquier fallo WebGL → fallback 2D
@@ -931,9 +950,10 @@ function cmRender3D(t){
   if(cmCalidadBaja_()&&(t-cm3D.last)<33)return; // FPS cap ~30 en calidad baja
   cm3D.last=t;
   var energy=Math.min(1,(CM.work||0)/3);
-  cm3D.grp.rotation.x=0.34;cm3D.grp.rotation.y=t*0.00018;
-  cm3D.grp.scale.setScalar(1+0.04*Math.sin(t*0.0012)+0.05*energy);
-  cm3D.pts.material.opacity=0.75+0.22*energy;cm3D.wire.material.opacity=0.26+0.18*energy;
+  cm3D.grp.rotation.x=0.32;cm3D.grp.rotation.y=t*0.00016;
+  cm3D.grp.scale.setScalar(1+0.03*Math.sin(t*0.0011)+0.05*energy);
+  cm3D.pts.material.opacity=0.8+0.18*energy;
+  cm3D.wire.material.opacity=0.34+0.2*energy+0.06*Math.sin(t*0.0016);
   cm3D.renderer.render(cm3D.scene,cm3D.cam);
 }
 function cmSetCalidad(q){
