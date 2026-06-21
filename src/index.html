@@ -153,7 +153,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cm-btn{background:transparent;border:1px solid rgba(108,221,186,.3);color:#8b93ad;border-radius:9999px;padding:0 16px;min-height:40px;font-size:12px;cursor:pointer}
 .cm-btn.on{border-color:rgba(108,221,186,.6);color:#6cddba}
 .cm-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
-#cmOrb{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+#cmOrb,#cmOrb3D{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .cm-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(440px,70%);pointer-events:none}
 .cm-msg .who{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#6cddba;opacity:.8;margin-bottom:10px}
 .cm-msg .txt{font-size:16px;line-height:1.55;color:#fff;text-shadow:0 2px 24px rgba(3,3,7,.9)}
@@ -247,6 +247,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   .cm-msg .txt{font-size:14px}
 }
 </style>
+<!-- Three.js r128 — orbe 3D. CDN + SRI (integrity) + versión pin: el browser NO ejecuta el archivo si el hash no coincide; si falla/no carga, el orbe degrada solo a 2D. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
 <header>
@@ -285,6 +287,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
           <div class="bar"><i id="cmBudgetBar"></i></div></div>
         <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
         <button class="cm-btn" id="cmCalma" aria-pressed="false">Modo calma</button>
+        <button class="cm-btn" id="cmCalidad" aria-pressed="false" title="Calidad del orbe 3D (alto/bajo)">Calidad: alto</button>
         <button class="iconbtn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando">✕</button>
       </div>
     </div>
@@ -298,6 +301,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     </div>
     <div class="cm-stage">
       <canvas id="cmOrb"></canvas>
+      <canvas id="cmOrb3D" aria-hidden="true"></canvas>
       <div class="cm-msg"><div class="who">· Satori ·</div><div class="txt" id="cmMsg">Conectando con tu negocio…</div></div>
       <div class="cm-orbit" id="cmOrbit"></div>
       <div class="cm-orbit outer" id="cmOrbit2"></div>
@@ -612,6 +616,7 @@ function centroAbrir(){
   CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
   if(CM.timerS)clearInterval(CM.timerS);
   CM.timerS=setInterval(function(){if(CM.open&&!document.hidden)refrescarSalud();},60000); // PURGA #4: 60s (el schema-check no cambia en sesión)
+  cmInit3D();              // orbe 3D lazy (una vez); si Three.js no cargó, sigue el 2D
   requestAnimationFrame(cmLoop);
 }
 function centroCerrar(){
@@ -635,6 +640,12 @@ document.getElementById('cmCalma').addEventListener('click',function(){
   CM.calma=!CM.calma;document.getElementById('centro').classList.toggle('calma',CM.calma);
   this.classList.toggle('on',CM.calma);this.setAttribute('aria-pressed',String(CM.calma));
 });
+(function(){var b=document.getElementById('cmCalidad');if(!b)return; // toggle calidad orbe 3D + persistencia backend
+  var g=(typeof google!=='undefined')&&google.script&&google.script.run;
+  b.addEventListener('click',function(){var q=cmCalidadBaja_()?'alto':'bajo';cmSetCalidad(q);b.classList.toggle('on',q==='bajo');
+    if(g)google.script.run.setPrefUI('orbe_calidad',q);});
+  if(g)google.script.run.withSuccessHandler(function(p){if(p&&p.orbe_calidad){cmSetCalidad(p.orbe_calidad);b.classList.toggle('on',p.orbe_calidad==='bajo');}}).prefsUI();
+})();
 
 // Tabs feed / inbox / salud
 document.getElementById('tabFeed').addEventListener('click',function(){cmTab('feed');});
@@ -858,7 +869,7 @@ for(var si=0;si<140;si++)cmStars.push({x:Math.random(),y:Math.random(),r:Math.ra
 var cmOc=document.getElementById('cmOrb'),cmOx=cmOc.getContext('2d'),cmPts=[];
 for(var laa=-75;laa<=75;laa+=15)for(var loo=0;loo<360;loo+=15)cmPts.push({la:laa*Math.PI/180,lo:loo*Math.PI/180});
 function cmSize(){cmSc.width=innerWidth;cmSc.height=innerHeight;
-  var st=document.querySelector('.cm-stage');if(!st)return;var m=Math.min(st.clientWidth,st.clientHeight);cmOc.width=cmOc.height=Math.max(260,m*.7);}
+  var st=document.querySelector('.cm-stage');if(!st)return;var m=Math.min(st.clientWidth,st.clientHeight);cmOc.width=cmOc.height=Math.max(260,m*.7);cm3DResize();}
 function cmDrawSpace(t){cmSx.clearRect(0,0,cmSc.width,cmSc.height);
   for(var i=0;i<cmStars.length;i++){var s=cmStars[i];var a=.15+.45*Math.abs(Math.sin(t*.0006*s.v+s.p));
     cmSx.fillStyle='rgba(140,200,180,'+a+')';cmSx.beginPath();cmSx.arc(s.x*cmSc.width,s.y*cmSc.height,s.r,0,7);cmSx.fill();}}
@@ -888,9 +899,50 @@ function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),
     var al=Math.min(.9,(0.08+0.45*pt.z)*(0.35+0.65*tw)*(0.45+0.55*energy)),rad=1+1.7*pt.z*tw;
     cmOx.fillStyle='rgba('+(150+Math.round(70*energy))+',232,202,'+al+')';
     cmOx.beginPath();cmOx.arc(pt.x,pt.y,rad,0,7);cmOx.fill();}}
+/* ── orbe 3D (Three.js r128, CDN+SRI; degrada a 2D si Three.js no cargó) ── */
+var cm3D={on:false,ready:false,renderer:null,scene:null,cam:null,grp:null,pts:null,wire:null,calidad:'alto',last:0};
+function cmCalidadBaja_(){return cm3D.calidad==='bajo';}
+function cmInit3D(){
+  if(cm3D.ready||typeof THREE==='undefined')return; // sin Three.js → queda el 2D
+  var cv=document.getElementById('cmOrb3D');if(!cv)return;
+  try{
+    var r=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});r.setClearColor(0x000000,0);
+    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.2;
+    var grp=new THREE.Group();sc.add(grp);
+    var N=cmCalidadBaja_()?520:1200,pos=new Float32Array(N*3);
+    for(var i=0;i<N;i++){var y=1-(i/(N-1))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229;
+      pos[i*3]=Math.cos(th)*rad;pos[i*3+1]=y;pos[i*3+2]=Math.sin(th)*rad;}
+    var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    var pts=new THREE.Points(pg,new THREE.PointsMaterial({color:0x6cddba,size:0.028,transparent:true,opacity:0.85,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(pts);
+    var wire=new THREE.Mesh(new THREE.IcosahedronGeometry(0.82,cmCalidadBaja_()?1:2),new THREE.MeshBasicMaterial({color:0x6cddba,wireframe:true,transparent:true,opacity:0.16}));grp.add(wire);
+    cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.pts=pts;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
+    cm3DResize();
+  }catch(e){cm3D.on=false;cm3D.ready=false;} // cualquier fallo WebGL → fallback 2D
+}
+function cm3DResize(){
+  if(!cm3D.ready||!cm3D.renderer||!cmOc)return;
+  cm3D.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,cmCalidadBaja_()?1:1.5)); // cap dPR (presupuesto perf)
+  cm3D.renderer.setSize(cmOc.width,cmOc.height,true);
+  cm3D.cam.aspect=1;cm3D.cam.updateProjectionMatrix();
+}
+function cmRender3D(t){
+  if(!cm3D.ready)return;
+  if(cmCalidadBaja_()&&(t-cm3D.last)<33)return; // FPS cap ~30 en calidad baja
+  cm3D.last=t;
+  var energy=Math.min(1,(CM.work||0)/3);
+  cm3D.grp.rotation.x=0.34;cm3D.grp.rotation.y=t*0.00018;
+  cm3D.grp.scale.setScalar(1+0.04*Math.sin(t*0.0012)+0.05*energy);
+  cm3D.pts.material.opacity=0.5+0.42*energy;cm3D.wire.material.opacity=0.10+0.14*energy;
+  cm3D.renderer.render(cm3D.scene,cm3D.cam);
+}
+function cmSetCalidad(q){
+  cm3D.calidad=(q==='bajo')?'bajo':'alto';
+  var b=document.getElementById('cmCalidad');if(b){b.textContent='Calidad: '+cm3D.calidad;b.setAttribute('aria-pressed',String(cm3D.calidad==='bajo'));}
+  cm3DResize();
+}
 function cmLoop(t){
   if(!CM.open)return; // se corta al cerrar
-  if(!document.hidden&&!CM.calma&&!REDUCED){cmDrawSpace(t);cmDrawOrb(t);cmOrbitar(t);}
+  if(!document.hidden&&!CM.calma&&!REDUCED){cmDrawSpace(t);if(cm3D.on){cmRender3D(t);}else{cmDrawOrb(t);}cmOrbitar(t);}
   requestAnimationFrame(cmLoop);
 }
 // Órbita por JS: mueve el contenedor y contra-rota cada nodo el mismo ángulo → labels SIEMPRE derechos.

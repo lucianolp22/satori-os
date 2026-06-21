@@ -222,6 +222,11 @@ function selfTest() {
     chk(TARIFAS[MODELO_SONNET].in === 3 && TARIFAS[MODELO_SONNET].out === 15, 'C tarifa Sonnet $3/$15 por MTok (no Haiku)');
     chk(costearUSD_(MODELO_SONNET, 1e6, 1e6) === 18, 'C costearUSD usa la tarifa por modelo (Sonnet 1M+1M = $18)');
 
+    // ── Pref UI (orbe 3D) — whitelist Bastión ────────────────────────────────────
+    var prefRej = false; try { setPrefUI('clave_no_permitida', 'x'); } catch (e) { prefRej = true; }
+    chk(prefRej, 'PrefUI rechaza claves fuera de whitelist (Bastión)');
+    chk(!!prefsUI().orbe_calidad, 'prefsUI devuelve orbe_calidad con default seguro');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de

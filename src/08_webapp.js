@@ -19,6 +19,23 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+/**
+ * Preferencias de presentación de la UI (cliente → backend). Whitelist ESTRICTA: solo claves
+ * cosméticas, nunca config sensible. Bastión: todo input del cliente es hostil (validar+tipar).
+ */
+var PREFS_UI_OK = ['orbe_calidad'];
+function setPrefUI(clave, valor) {
+  clave = String(clave || '');
+  valor = String(valor || '').slice(0, 40);
+  if (PREFS_UI_OK.indexOf(clave) < 0) throw new Error('preferencia no permitida');
+  setConfig(clave, valor);
+  return { ok: true };
+}
+/** Lee las preferencias de UI (default seguro si faltan). */
+function prefsUI() {
+  return { orbe_calidad: getConfig('orbe_calidad') || 'alto' };
+}
+
 /** Resumen de cabecera (incluye ultima_sync_ok, visible siempre). */
 function estadoSistema() {
   var ss = getMaestro();
