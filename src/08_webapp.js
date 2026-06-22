@@ -51,14 +51,14 @@ function doPost(e) {
   try {
     var raw = (e && e.postData && e.postData.contents) || '';
     var body;
-    try { body = JSON.parse(raw || '{}'); } catch (_p) { return vozOut_({ ok: false, error: 'bad_json' }); }
-    if (!vozAuth_(body.secret)) return vozOut_({ ok: false, error: 'unauthorized' });   // secreto en body, fail-closed
-    if (!vozRate_()) return vozOut_({ ok: false, error: 'rate_limit' });                 // PURGA #3: tope 30/min (anti-flood/replay)
+    try { body = JSON.parse(raw || '{}'); } catch (_p) { vozRechazo_('bad_json'); return vozOut_({ ok: false, error: 'bad_json' }); }
+    if (!vozAuth_(body.secret)) { vozRechazo_('unauthorized'); return vozOut_({ ok: false, error: 'unauthorized' }); } // fail-closed + alerta
+    if (!vozRate_()) return vozOut_({ ok: false, error: 'rate_limit' });                 // PURGA #3: 30/min (el agente legítimo PUEDE gatillarlo → NO alerta)
     tool = String(body.tool || '');
-    if (!VOZ_TOOLS[tool]) return vozOut_({ ok: false, error: 'unknown_tool' });          // whitelist (sin eval/dispatch dinámico)
+    if (!VOZ_TOOLS[tool]) { vozRechazo_('unknown_tool'); return vozOut_({ ok: false, error: 'unknown_tool' }); }       // post-auth anómalo (tiene el secreto) → alerta
     var args = (body.args && typeof body.args === 'object') ? body.args : {};
     var id = vozStr_(args.idCliente, 24);
-    if (id && !clienteExiste_(id)) return vozOut_({ ok: false, error: 'cliente_desconocido' }); // PURGA #5: id contra roster
+    if (id && !clienteExiste_(id)) return vozOut_({ ok: false, error: 'cliente_desconocido' }); // PURGA #5: roster (el agente puede errar el id → NO alerta)
     var data;
     switch (tool) {
       case 'estado':    data = estadoVigente(id || undefined); break;
@@ -126,6 +126,25 @@ function clienteExiste_(id) {
   try {
     return leerTabla(getMaestro().getSheetByName('Clientes')).some(function (c) { return String(c.id_cliente) === id; });
   } catch (_c) { return false; }
+}
+
+/**
+ * PURGA #8 (Centinela): registra un rechazo de seguridad y AVISA al primero del día.
+ * Umbral mínimo (≥1 intento) + 1 aviso/día (dedupe por `voz_alerta_fecha`) para no floodear.
+ * Solo lo llaman los rechazos que el agente legítimo NUNCA produce (no tiene/no manda el secreto,
+ * o tool fuera de whitelist). Forense completo en Ejecuciones (Logger); 1 fila/día en Voz_log.
+ */
+function vozRechazo_(motivo) {
+  try {
+    Logger.log('voz RECHAZO ' + motivo);                         // forense (Ejecuciones), siempre, sin escribir hoja
+    var props = PropertiesService.getScriptProperties();
+    var hoy = hoyISO();
+    if (props.getProperty('voz_alerta_fecha') === hoy) return;   // ya avisé hoy → corto (anti-flood)
+    props.setProperty('voz_alerta_fecha', hoy);
+    vozLog_('RECHAZO:' + motivo, false, 'primer rechazo del día');
+    crearAviso({ origen: 'voz', tipo: 'voz_acceso_no_autorizado',
+      mensaje: 'Voz: rechazo de seguridad en el tool-backend hoy (' + motivo + '). Revisá Voz_log; si no fuiste vos, rotá VOZ_TOOL_SECRET.' });
+  } catch (_x) {}
 }
 
 /**

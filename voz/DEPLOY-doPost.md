@@ -12,7 +12,8 @@ tools: `estado`(idCliente?) · `brief`(idCliente?) · `vehemence` · `cliente`(i
 respuesta: `{ ok:true, tool, data }` | `{ ok:false, error }`
 
 ## Parches Purga aplicados (verificados offline 9/9 — node --check + harness vm)
-#1 log de diagnóstico de lockout en `doGet` · #2 voz `coral` · #3 rate-limit 30/min (`vozRate_`) · #4 `doGet` **fail-closed** (exige `OWNER_EMAIL`) · #5 `idCliente` validado contra roster (`cliente_desconocido`) · #6 `ctEq_` por digest SHA-256 (no filtra largo) · #7 log a hoja `Voz_log` (autocreada).
+#1 log de diagnóstico de lockout en `doGet` · #2 voz `coral` · #3 rate-limit 30/min (`vozRate_`) · #4 `doGet` **fail-closed** (exige `OWNER_EMAIL`) · #5 `idCliente` validado contra roster (`cliente_desconocido`) · #6 `ctEq_` por digest SHA-256 (no filtra largo) · #7 log a hoja `Voz_log` (autocreada) · #8 **detección:** aviso al 1er rechazo de seguridad del día (`unauthorized`/`bad_json`/`unknown_tool`), 1 aviso/día (`crearAviso`); `rate_limit`/`cliente_desconocido` se loguean sin alertar.
+⚠ El curl de prueba con secreto inválido (Tests live) **va a generar ese aviso** — es esperado (sos vos probando); borralo/ignoralo.
 ⚠ **Por #4: `OWNER_EMAIL` es OBLIGATORIO y va ANTES del push** — si no, `/dev` queda en "No autorizado" para todos (incluido vos) hasta setearlo.
 
 ## Runbook (orden ESTRICTO; cada paso marcado)

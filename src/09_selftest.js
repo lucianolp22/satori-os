@@ -230,20 +230,24 @@ function selfTest() {
     chk(prefRej, 'PrefUI rechaza claves fuera de whitelist (Bastión)');
     chk(!!prefsUI().orbe_calidad, 'prefsUI devuelve orbe_calidad con default seguro');
 
-    // ── Voz · tool-backend doPost (auth + router whitelist; sin deploy, read-only) ──
+    // ── Voz · tool-backend doPost (auth + whitelist + detección; sin deploy, read-only) ──
     function vozCall_(obj) { return JSON.parse(doPost({ postData: { contents: JSON.stringify(obj) } }).getContent()); }
-    chk(ctEq_('abc', 'abc') && !ctEq_('abc', 'abd') && !ctEq_('abc', 'abcd'), 'Voz ctEq_ compara largo+contenido');
-    chk(vozCall_({ secret: '__no_matchea__', tool: 'estado' }).error === 'unauthorized', 'Voz secreto inválido/sin secreto → unauthorized (fail-closed)');
-    chk(JSON.parse(doPost({ postData: { contents: '{no json' } }).getContent()).error === 'bad_json', 'Voz body no-JSON → bad_json');
     var vSecB = PropertiesService.getScriptProperties().getProperty('VOZ_TOOL_SECRET');
+    var vAlertB = PropertiesService.getScriptProperties().getProperty('voz_alerta_fecha');
+    PropertiesService.getScriptProperties().setProperty('voz_alerta_fecha', hoyISO());   // PURGA #8: suprime el aviso real durante los tests de rechazo
     PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', '__TESTSECRET__');
     try {
-      chk(vozCall_({ secret: '__TESTSECRET__', tool: 'no_existe' }).error === 'unknown_tool', 'Voz router rechaza tool fuera de whitelist');
+      chk(ctEq_('abc', 'abc') && !ctEq_('abc', 'abd'), 'Voz ctEq_ por digest (igual vs distinto)');
+      chk(vozCall_({ secret: '__no_matchea__', tool: 'estado' }).error === 'unauthorized', 'Voz secreto inválido → unauthorized (fail-closed)');
+      chk(JSON.parse(doPost({ postData: { contents: '{no json' } }).getContent()).error === 'bad_json', 'Voz body no-JSON → bad_json');
+      chk(vozCall_({ secret: '__TESTSECRET__', tool: 'no_existe' }).error === 'unknown_tool', 'Voz tool fuera de whitelist → unknown_tool');
       var vEstado = vozCall_({ secret: '__TESTSECRET__', tool: 'estado' });
       chk(vEstado.ok === true && typeof vEstado.data === 'string' && vEstado.data.indexOf('# Estado vigente') === 0, 'Voz tool "estado" devuelve el snapshot');
     } finally {
       if (vSecB == null) PropertiesService.getScriptProperties().deleteProperty('VOZ_TOOL_SECRET');
       else PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', vSecB);
+      if (vAlertB == null) PropertiesService.getScriptProperties().deleteProperty('voz_alerta_fecha');
+      else PropertiesService.getScriptProperties().setProperty('voz_alerta_fecha', vAlertB);
     }
 
     log.push('— TODO OK —');
