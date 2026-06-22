@@ -149,6 +149,9 @@ function selfTest() {
     });
     var dir = correrDirector(r.id_cliente);
     chk(dir.tenants === 1 && dir.encolados >= 1, 'E8a-2 Director procesa el tenant y encola por objetivo (' + dir.encolados + ')');
+    var ceNodosD = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('nodos'));
+    chk(ceNodosD.filter(function (n) { return String(n.dimension) === 'sistema'; }).length >= 5, 'E8a-2 Director pobla el cerebro: agentes SISTEMA (' + ceNodosD.filter(function (n) { return String(n.dimension) === 'sistema'; }).length + ')');
+    chk(ceNodosD.filter(function (n) { return String(n.dimension) === 'negocio' && String(n.tipo) === 'objetivo'; }).length >= 1, 'E8a-2 Director pobla objetivos NEGOCIO');
     var ceParte = leerTabla(SpreadsheetApp.openByUrl(r.url).getSheetByName('cerebro_log')).filter(function (f) { return String(f.evento) === 'parte_director'; });
     chk(ceParte.length >= 1, 'E8a-2 Director escribe el "parte" al cerebro');
     var colaDir = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) {

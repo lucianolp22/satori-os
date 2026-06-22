@@ -980,7 +980,7 @@ function cm3DResize(){
 function cmCargarCerebro(idCliente){
   if(!idCliente||idCliente===cm3D.lastCli)return;cm3D.lastCli=idCliente;
   if(!((typeof google!=='undefined')&&google.script&&google.script.run))return;
-  google.script.run.withSuccessHandler(function(g){cm3D.graph=(g&&g.nodos&&g.nodos.length)?g:null;cmBuildOrb(cm3D.graph);})
+  google.script.run.withSuccessHandler(function(g){cm3D.graph=(g&&g.nodos&&g.nodos.length>=250)?g:null;cmBuildOrb(cm3D.graph);}) // grafo real solo si es denso; si no, nebulosa decorativa (no se ve ralo)
     .withFailureHandler(function(){}).cerebroGrafo(idCliente);
 }
 function cmRender3D(t){

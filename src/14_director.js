@@ -37,11 +37,11 @@ function correrDirector(tenant) {
         return;
       }
 
-      materializarEstado(c.id_cliente); // refresca estado_actual + Cerebro_index (sin PII)
-
       var objetivos = leerTabla(ssCli.getSheetByName('objetivos')).filter(function (o) {
         return ['activo', 'en_curso', 'abierto'].indexOf(String(o.estado).toLowerCase()) >= 0;
       });
+      poblarCerebro_(c.id_cliente, objetivos); // MUST #2: pobla el grafo SISTEMA(agentes)+NEGOCIO(objetivos/métricas)
+      materializarEstado(c.id_cliente); // refresca estado_actual + Cerebro_index (ya con los nodos poblados)
 
       var encolados = 0;
       objetivos.forEach(function (o) {
@@ -71,6 +71,44 @@ function correrDirector(tenant) {
 
   Logger.log('correrDirector: ' + JSON.stringify({ tenants: clientes.length, encolados: totalEncolados }));
   return { tenants: clientes.length, encolados: totalEncolados, partes: partes };
+}
+
+/**
+ * MUST #2 — Pobla el cerebro del tenant con el grafo vivo (doc canónico CEREBRO §4):
+ *   SISTEMA  = el Director + los agentes (auto-conocimiento del OS).
+ *   NEGOCIO  = cada objetivo + su métrica (lo que el negocio persigue).
+ * Aristas: director orquesta agente · analista responsable_de objetivo · objetivo debe métrica.
+ * Cobertura (0-100): rica si el objetivo es medible; baja (<40) = punto ciego → ROJO en el orbe.
+ * Idempotente (upsert por id estable) y pasa `dimension` explícito (no dispara la deuda del upsert).
+ * @param {string} idCliente
+ * @param {Array} objetivos  objetivos activos del tenant
+ */
+function poblarCerebro_(idCliente, objetivos) {
+  var AGENTES = ['vigia', 'analista', 'conciliador', 'cobrador', 'abastecedor'];
+  var sanitId_ = function (s) { return 'X' + String(s).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 22); };
+  // SISTEMA: Director + agentes
+  upsertNodo(idCliente, { id_nodo: 'NOD-SIS-director', dimension: 'sistema', tipo: 'agente', etiqueta: 'Director', relevancia: 5, cobertura: 85, fuente: 'director' });
+  AGENTES.forEach(function (a) {
+    upsertNodo(idCliente, { id_nodo: 'NOD-SIS-' + a, dimension: 'sistema', tipo: 'agente', etiqueta: a, relevancia: 3, cobertura: 70, fuente: 'director' });
+    upsertArista(idCliente, { id_arista: 'ARI-orq-' + a, origen: 'NOD-SIS-director', destino: 'NOD-SIS-' + a, relacion: 'orquesta', actor: 'director' });
+  });
+  // NEGOCIO: objetivos + métricas
+  (objetivos || []).forEach(function (o) {
+    var oid = 'NOD-OBJ-' + sanitId_(o.id_objetivo || o.metrica || o.descripcion || 'obj');
+    var medible = !!o.metrica;
+    upsertNodo(idCliente, {
+      id_nodo: oid, dimension: 'negocio', tipo: 'objetivo',
+      etiqueta: String(o.descripcion || o.metrica || 'objetivo').slice(0, 40),
+      relevancia: (String(o.prioridad).toUpperCase() === 'A' ? 5 : 3),
+      cobertura: (medible ? 60 : 20), fuente: 'director' // sin métrica → punto ciego (rojo)
+    });
+    upsertArista(idCliente, { id_arista: 'ARI-resp-' + oid, origen: 'NOD-SIS-analista', destino: oid, relacion: 'responsable_de', actor: 'director' });
+    if (medible) {
+      var mid = 'NOD-MET-' + sanitId_(o.metrica);
+      upsertNodo(idCliente, { id_nodo: mid, dimension: 'negocio', tipo: 'metrica', etiqueta: String(o.metrica).slice(0, 40), relevancia: 3, cobertura: 50, fuente: 'director' });
+      upsertArista(idCliente, { id_arista: 'ARI-mide-' + oid, origen: oid, destino: mid, relacion: 'debe', actor: 'director' });
+    }
+  });
 }
 
 /**
