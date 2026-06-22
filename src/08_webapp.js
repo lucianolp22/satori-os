@@ -23,7 +23,9 @@ function doGet(e) {
   var who = '';
   try { who = Session.getActiveUser().getEmail() || ''; } catch (_e) { who = ''; }
   var owner = PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || '';
-  if (!who || (owner && who !== owner)) {
+  if (!owner || who !== owner) {   // PURGA #4: fail-closed — exige OWNER_EMAIL (sin él, nadie entra)
+    // PURGA #1: diagnóstico de lockout (efímero, no spamea la hoja) — qué email se detectó vs owner
+    try { Logger.log('doGet bloqueado: who=' + (who || '(vacío)') + ' owner=' + (owner || '(no seteado)')); } catch (_lg) {}
     return HtmlService.createHtmlOutput(
       '<!doctype html><meta charset="utf-8"><title>Satori OS</title>' +
       '<p style="font:16px system-ui;padding:2rem">No autorizado.</p>');
@@ -51,10 +53,12 @@ function doPost(e) {
     var body;
     try { body = JSON.parse(raw || '{}'); } catch (_p) { return vozOut_({ ok: false, error: 'bad_json' }); }
     if (!vozAuth_(body.secret)) return vozOut_({ ok: false, error: 'unauthorized' });   // secreto en body, fail-closed
+    if (!vozRate_()) return vozOut_({ ok: false, error: 'rate_limit' });                 // PURGA #3: tope 30/min (anti-flood/replay)
     tool = String(body.tool || '');
     if (!VOZ_TOOLS[tool]) return vozOut_({ ok: false, error: 'unknown_tool' });          // whitelist (sin eval/dispatch dinámico)
     var args = (body.args && typeof body.args === 'object') ? body.args : {};
     var id = vozStr_(args.idCliente, 24);
+    if (id && !clienteExiste_(id)) return vozOut_({ ok: false, error: 'cliente_desconocido' }); // PURGA #5: id contra roster
     var data;
     switch (tool) {
       case 'estado':    data = estadoVigente(id || undefined); break;
@@ -84,20 +88,44 @@ function vozAuth_(secret) {
   return ctEq_(String(secret == null ? '' : secret), String(k));
 }
 
-/** Comparación de strings en tiempo ~constante (mitiga timing-attack sobre el secreto). */
+/** Comparación en tiempo constante vía digests de largo fijo (PURGA #6: no filtra el largo del secreto). */
 function ctEq_(a, b) {
-  if (a.length !== b.length) return false;
+  var ha = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(a), Utilities.Charset.UTF_8);
+  var hb = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(b), Utilities.Charset.UTF_8);
   var diff = 0;
-  for (var i = 0; i < a.length; i++) diff |= (a.charCodeAt(i) ^ b.charCodeAt(i));
+  for (var i = 0; i < ha.length; i++) diff |= (ha[i] ^ hb[i]);
   return diff === 0;
 }
 
 /** Sanea/trunca texto del agente (todo input externo es hostil). */
 function vozStr_(v, max) { return String(v == null ? '' : v).slice(0, max || 200); }
 
-/** Log liviano de cada llamada (Centinela). Va al transcript de Ejecuciones; sin PII pesada. */
+/** PURGA #7: log de cada llamada a la hoja Voz_log (detección persistente, no efímera). */
 function vozLog_(tool, ok, err) {
-  try { Logger.log('voz doPost tool=' + tool + ' ok=' + ok + (err ? ' err=' + err : '')); } catch (_l) {}
+  try {
+    var ss = getMaestro();
+    var sh = ss.getSheetByName('Voz_log');
+    if (!sh) { sh = ss.insertSheet('Voz_log'); sh.appendRow(['ts', 'tool', 'ok', 'err']); }
+    sh.appendRow([ahoraISO(), String(tool), ok, String(err || '').slice(0, 300)]);
+  } catch (_l) { try { Logger.log('voz ' + tool + ' ok=' + ok + ' ' + (err || '')); } catch (_e) {} }
+}
+
+/** PURGA #3: rate-limit por ventana de 1 min (CacheService). Si Cache falla, no bloquea. */
+function vozRate_() {
+  try {
+    var c = CacheService.getScriptCache();
+    var k = 'voz_rate_' + Math.floor(Date.now() / 60000);
+    var n = (parseInt(c.get(k), 10) || 0) + 1;
+    c.put(k, String(n), 120);
+    return n <= 30;
+  } catch (_r) { return true; }
+}
+
+/** PURGA #5: ¿el idCliente existe en el roster Clientes? Valida el input del agente. */
+function clienteExiste_(id) {
+  try {
+    return leerTabla(getMaestro().getSheetByName('Clientes')).some(function (c) { return String(c.id_cliente) === id; });
+  } catch (_c) { return false; }
 }
 
 /**

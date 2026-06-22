@@ -1,0 +1,5 @@
+# Satori Voz — agente LiveKit (OpenAI Realtime). Versiones pineadas (Bastión: cadena de suministro).
+# livekit-agents[openai] trae el plugin openai.realtime. Revisar changelog antes de subir mayor.
+livekit-agents[openai]>=1.5,<2
+python-dotenv>=1.0,<2
+aiohttp>=3.9,<4
