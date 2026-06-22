@@ -11,12 +11,93 @@
  *   - listaClientes()         → navegación lateral
  *   - datosCliente(idCliente) → panel por cliente
  */
-function doGet() {
-  // PURGA #9: sin ALLOWALL — se deja el XFrameOptions por defecto (no embebible
-  // por terceros). App interna de un solo usuario, no necesita iframes externos.
+function doGet(e) {
+  // PURGA #9: sin ALLOWALL — XFrameOptions por defecto (no embebible por terceros).
+  // VOZ/Bastión: este código corre TAMBIÉN en el deployment "cualquiera" del tool-backend
+  // (doPost). En ese deployment público un GET anónimo NO debe servir la shell del cerebro.
+  // Gate por identidad: sirve la UI solo a un email del dominio; el visitante anónimo del
+  // deploy público trae getActiveUser().getEmail() vacío → corte.
+  // ⚠ RIESGO DE LOCKOUT: si getEmail() viniera vacío para Luciano en su propio deployment,
+  // lo dejaría afuera. PROBAR en el deployment de la UI ANTES de confiar; revertir con git si corta.
+  // OWNER_EMAIL (Script Properties) afina el match exacto; si falta, basta con email no vacío.
+  var who = '';
+  try { who = Session.getActiveUser().getEmail() || ''; } catch (_e) { who = ''; }
+  var owner = PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || '';
+  if (!who || (owner && who !== owner)) {
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><meta charset="utf-8"><title>Satori OS</title>' +
+      '<p style="font:16px system-ui;padding:2rem">No autorizado.</p>');
+  }
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('Satori OS')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// ── VOZ — tool-backend (doPost) · BLUEPRINT voz/§3 ───────────────────────────
+/**
+ * doPost(e) — tool-backend HTTPS del agente de Voz (LiveKit). Va en un deployment
+ * DEDICADO "cualquiera", SEPARADO del de la UI (no tocar el de la UI: riesgo lockout).
+ * Auth: secreto compartido en el BODY (GAS no entrega headers de forma fiable en deploy
+ * público) validado en tiempo ~constante; fail-closed si no hay secreto seteado.
+ * Router whitelist a funciones existentes (cero reinvención). Least-privilege: solo lectura
+ * + capturar — nada de aprobaciones / email / borrados por este canal. Responde JSON.
+ */
+var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1 };
+
+function doPost(e) {
+  var tool = '';
+  try {
+    var raw = (e && e.postData && e.postData.contents) || '';
+    var body;
+    try { body = JSON.parse(raw || '{}'); } catch (_p) { return vozOut_({ ok: false, error: 'bad_json' }); }
+    if (!vozAuth_(body.secret)) return vozOut_({ ok: false, error: 'unauthorized' });   // secreto en body, fail-closed
+    tool = String(body.tool || '');
+    if (!VOZ_TOOLS[tool]) return vozOut_({ ok: false, error: 'unknown_tool' });          // whitelist (sin eval/dispatch dinámico)
+    var args = (body.args && typeof body.args === 'object') ? body.args : {};
+    var id = vozStr_(args.idCliente, 24);
+    var data;
+    switch (tool) {
+      case 'estado':    data = estadoVigente(id || undefined); break;
+      case 'brief':     data = briefDiario(id || undefined); break;
+      case 'vehemence': data = estadoVigente('CLI-002'); break;   // verVehemence() solo loguea → acá devolvemos el dato
+      case 'cliente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = datosCliente(id); break;
+      case 'cerebro':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = leerEstado(id); break;
+      case 'capturar':  data = capturar(vozStr_(args.texto, 4000), 'voz'); break;
+    }
+    vozLog_(tool, true, '');
+    return vozOut_({ ok: true, tool: tool, data: data });
+  } catch (err) {
+    vozLog_(tool, false, String((err && err.message) || err));    // detección; afuera error genérico (no filtra stack/PII)
+    return vozOut_({ ok: false, error: 'error_interno' });
+  }
+}
+
+/** Salida JSON estándar del tool-backend. */
+function vozOut_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/** Valida el secreto compartido (Script Properties: VOZ_TOOL_SECRET). Fail-closed si no está seteado. */
+function vozAuth_(secret) {
+  var k = PropertiesService.getScriptProperties().getProperty('VOZ_TOOL_SECRET');
+  if (!k) return false;
+  return ctEq_(String(secret == null ? '' : secret), String(k));
+}
+
+/** Comparación de strings en tiempo ~constante (mitiga timing-attack sobre el secreto). */
+function ctEq_(a, b) {
+  if (a.length !== b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= (a.charCodeAt(i) ^ b.charCodeAt(i));
+  return diff === 0;
+}
+
+/** Sanea/trunca texto del agente (todo input externo es hostil). */
+function vozStr_(v, max) { return String(v == null ? '' : v).slice(0, max || 200); }
+
+/** Log liviano de cada llamada (Centinela). Va al transcript de Ejecuciones; sin PII pesada. */
+function vozLog_(tool, ok, err) {
+  try { Logger.log('voz doPost tool=' + tool + ' ok=' + ok + (err ? ' err=' + err : '')); } catch (_l) {}
 }
 
 /**

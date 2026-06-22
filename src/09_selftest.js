@@ -230,6 +230,22 @@ function selfTest() {
     chk(prefRej, 'PrefUI rechaza claves fuera de whitelist (Bastión)');
     chk(!!prefsUI().orbe_calidad, 'prefsUI devuelve orbe_calidad con default seguro');
 
+    // ── Voz · tool-backend doPost (auth + router whitelist; sin deploy, read-only) ──
+    function vozCall_(obj) { return JSON.parse(doPost({ postData: { contents: JSON.stringify(obj) } }).getContent()); }
+    chk(ctEq_('abc', 'abc') && !ctEq_('abc', 'abd') && !ctEq_('abc', 'abcd'), 'Voz ctEq_ compara largo+contenido');
+    chk(vozCall_({ secret: '__no_matchea__', tool: 'estado' }).error === 'unauthorized', 'Voz secreto inválido/sin secreto → unauthorized (fail-closed)');
+    chk(JSON.parse(doPost({ postData: { contents: '{no json' } }).getContent()).error === 'bad_json', 'Voz body no-JSON → bad_json');
+    var vSecB = PropertiesService.getScriptProperties().getProperty('VOZ_TOOL_SECRET');
+    PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', '__TESTSECRET__');
+    try {
+      chk(vozCall_({ secret: '__TESTSECRET__', tool: 'no_existe' }).error === 'unknown_tool', 'Voz router rechaza tool fuera de whitelist');
+      var vEstado = vozCall_({ secret: '__TESTSECRET__', tool: 'estado' });
+      chk(vEstado.ok === true && typeof vEstado.data === 'string' && vEstado.data.indexOf('# Estado vigente') === 0, 'Voz tool "estado" devuelve el snapshot');
+    } finally {
+      if (vSecB == null) PropertiesService.getScriptProperties().deleteProperty('VOZ_TOOL_SECRET');
+      else PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', vSecB);
+    }
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de
