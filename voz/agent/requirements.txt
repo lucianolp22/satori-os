@@ -3,3 +3,7 @@
 livekit-agents[openai]>=1.5,<2
 python-dotenv>=1.0,<2
 aiohttp>=3.9,<4
+# gas_voz_client.py (Opción A): mint del access token desde el refresh de luciano@ + HTTP Bearer.
+google-auth>=2,<3
+requests>=2.31,<3
+# get_refresh_token.py es helper de uso ÚNICO (consent ya hecho); su google-auth-oauthlib NO va al runtime.

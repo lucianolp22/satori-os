@@ -117,6 +117,7 @@ function poblarCerebro_(idCliente, objetivos) {
  * 0 API, lectura barata del MAESTRO. Trigger opcional vía instalarTriggerDirector().
  */
 function chequeoLivianoDirector() {
+  if (_sistemaPausado_()) return { pausado: true };
   var pend = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).length;
   var cola = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) {
     return ['pendiente', 'tomada'].indexOf(String(f.estado)) >= 0;

@@ -36,6 +36,7 @@ function bandejaUmbral_() { var n = parseInt(getConfig('bandeja_umbral_confianza
  * @return {{procesados, escalados}}
  */
 function clasificarBandeja() {
+  if (_sistemaPausado_()) return { procesados: 0, escalados: 0, pausado: true };
   var ss = getMaestro();
   var sh = ss.getSheetByName('Bandeja');
   if (!sh) return { procesados: 0, escalados: 0, error: 'sin Bandeja' };

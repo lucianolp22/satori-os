@@ -6,3 +6,8 @@ node_modules/
 .clasp.json*
 # Credenciales clasp viven en ~/.clasprc.json (global), nunca en el repo.
 # Secretos de API → Script Properties en GAS, jamás en archivos.
+.env.local
+client_secret*.json
+__pycache__/
+*.pyc
+.venv/

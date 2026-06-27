@@ -113,6 +113,7 @@ function reclamarColgadas_() {
  * Lo instala instalarTriggers() (cada 5 min); también corre a mano.
  */
 function drenarCola() {
+  if (_sistemaPausado_()) { Logger.log('PAUSA: drenarCola omitida'); return { pausado: true }; }
   reclamarColgadas_();
   var worker = workerActual_();
   var t0 = Date.now();

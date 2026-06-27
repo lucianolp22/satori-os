@@ -1,8 +1,11 @@
-# HANDOFF — Satori OS — 2026-06-22 (v12)
+# HANDOFF — Satori OS — 2026-06-22 (v13)
 
-PRÓXIMO PASO (v12 · 22-jun): retomar en **MODO EJECUTOR**. **Reordenamiento de Luciano (22-jun): los DATOS de clientes (Vehemence + otros) y el RGPD van AL FINAL; primero terminar de armar el sistema + los NICE.** El keystone (cerebro poblado) ya está cerrado/verde, así que el orbe-cerebro está vivo. Programa en orden:
+PRÓXIMO PASO (v13 · 22-jun): retomar en **MODO EJECUTOR**. **Reordenamiento de Luciano (22-jun): los DATOS de clientes (Vehemence + otros) y el RGPD van AL FINAL; primero terminar de armar el sistema + los NICE.** El keystone (cerebro poblado) ya está cerrado/verde, así que el orbe-cerebro está vivo. Programa en orden:
 
-1. **Voz** — **doPost ESCRITO + verificado offline (node --check + harness vm 14/14) + COMMITEADO (`6cb9112`, NO desplegado)** + **agente LiveKit construido** (`voz/agent/`, py_compile OK). Fork decidido: **(b) OpenAI Realtime**. **Purga corrida** (0 crít · 1 alto[lockout, con test] · 3 medios). **7 parches Purga aplicados + verificados (9/9 offline).** **Próximo (supervisado · runbook `voz/DEPLOY-doPost.md`):** `OWNER_EMAIL`(obligatorio, #4 fail-closed)+`VOZ_TOOL_SECRET` en Script Properties **ANTES** → `clasp push -f` → **test de lockout (paso 4)** → deployment dedicado «Cualquiera» → curl → completar `voz/agent/.env.local` (cuentas LiveKit free + OpenAI las crea Luciano) → `python agent.py console`. ⚠ el próximo `clasp push -f` lleva el `doGet` endurecido.
+1. **Voz** — **doPost + agente DESPLEGADOS y verificados en prod** (8 parches Purga #1-#8; selfTest live verde con asserts Voz; lockout PASA; deployment dedicado **«Cualquiera»** con versión nueva = tiene el doPost). Fork (b) OpenAI Realtime; agente en `voz/agent/`. **PRÓXIMO PASO CONCRETO (cierra la etapa Voz):**
+   a. **Confirmar la Clave:** `curl -sSL -X POST '<URL /exec del deployment nuevo>' -H 'Content-Type: application/json' -d '{"secret":"<VOZ_TOOL_SECRET real>","tool":"brief"}'` → esperar `{"ok":true,...}`. Si `unauthorized` con el secreto correcto = espacio/newline al pegarlo en Script Properties.
+   b. **Completar `voz/agent/.env.local`:** `GAS_VOZ_URL`=esa /exec · `VOZ_TOOL_SECRET`=idéntico al de Script Properties · `LIVEKIT_URL/API_KEY/API_SECRET` · `OPENAI_API_KEY` (cuentas YA creadas con luciano@satoriconsultoria.com).
+   c. `cd voz/agent && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && python agent.py console` → hablarle ("¿cómo venimos?") → si trae datos reales, **etapa Voz cerrada** (correr Purga + actualizar handoff).
 2. **Pulido del orbe** — avatares de agentes en la esfera + **labels por dimensión** (estilo «DATA LAYER» del video Trillion) + **overlay del cerebro real prominente** (mostrar los pocos nodos reales destacados sobre la nebulosa, sin esperar a 250) + **estados idle/escucha/habla** (con Voz). Frontend, sin riesgo de prod.
 3. **Alertas de Salud + tope de costo te llegan** (feed del Command Center + email vía aprobación, no solo log).
 4. **Onboarding de cliente repetible** (SOP + helpers: Sheet, schema, conector, objetivos/umbrales).
@@ -26,9 +29,14 @@ Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO o
 
 - [22-jun PM] **Voz: doPost + agente + recuperación del glow.** `doPost` tool-backend (secreto-en-body fail-closed + `ctEq_` constante + whitelist 6 tools + least-privilege solo lectura+capturar + `doGet` endurecido) en `08_webapp.js` + bloque selfTest Voz en `09_selftest.js`; **verificado offline** (node --check + harness vm **14/14**) + **commit `6cb9112`** (sin desplegar). Agente LiveKit (OpenAI Realtime, 6 function_tools→doPost vía aiohttp/ToolError, secretos por env) en `voz/agent/` (py_compile OK). **Incidente glow `/dev`:** causa real = **GAS HEAD desincronizado del repo** (NO render WebGL); repo intacto (`87cf0d5`, index.html 13 markers); fix = `clasp push -f` del HEAD (doPost stasheado). Reauth clasp = `clasp logout && clasp login` (invalid_rapt). `/exec` sigue viejo (versión congelada = normal). **Lección:** tras commitear UI hay que `clasp push` o GAS HEAD queda atrás; `/dev`=HEAD, `/exec`=versión congelada.
 
+- [22-jun PM-2] **Voz DESPLEGADO en prod.** Code pusheó los 8 parches (`clasp push -f`) → **selfTest live VERDE** con los 5 asserts «Voz …» + `voz RECHAZO unauthorized/bad_json/unknown_tool` en el log (sin aviso-flood). **Script Properties** `OWNER_EMAIL=luciano@satoriconsultoria.com` + `VOZ_TOOL_SECRET` seteadas. **Test de lockout PASA** (Cowork por Chrome: `/dev` carga el Command Center, NO «No autorizado» → `doGet` fail-closed + `OWNER_EMAIL` OK). **Deployment dedicado creado con acceso «Cualquiera» (anyone) + versión nueva** (tiene el doPost). Commit de los 8 parches: lo corrió Code (hash no capturado → verificar `git log`).
+
 ### No verificado / pendiente
+- **La Clave (VOZ_TOOL_SECRET):** mecanismo confirmado vivo (selfTest), pero el **valor** Script Properties ↔ agente NO se probó con el secreto real (curl `{ok:true}` pendiente; Cowork no tiene el secreto, a propósito).
+- **Loop end-to-end de Voz:** agente en `console` trayendo datos reales — NO corrido (faltaba `.env.local` + cuentas). El curl del `/exec` (ok/unauthorized/anón) tampoco.
+- **Watch-items (vistos hoy, no bloquean; Salud OK):** `errores:1` en telemetría = 1 tarea `fallida` en `Cola_tareas` (rastrear). Orbe se vio ralo/oscuro en `/dev` (index.html sin cambios → render/WebGL intermitente; hard reload).
 - **Render del orbe-cerebro con datos reales:** el orbe muestra el grafo real solo con ≥250 nodos; hoy los clientes reales tienen ~8 nodos de cerebro → se ve la nebulosa decorativa (hermosa). El overlay prominente de pocos nodos reales = ítem de pulido (#2 del programa).
-- **Voz:** doPost + `doGet` endurecido + agente LiveKit **construidos y commiteados (`6cb9112`), NO desplegados** (deploy supervisado pendiente; falta el test de lockout en prod + cuentas LiveKit/OpenAI). **Pulido del orbe, alertas, onboarding, backup, purga del sistema, deploy estable, build-in-public:** no construidos (programa del PRÓXIMO PASO).
+- **Voz:** doPost + agente **DESPLEGADOS** (ver Verificado [22-jun PM-2]); falta solo confirmar la Clave + correr el loop (PRÓXIMO PASO). **Pulido del orbe, alertas, onboarding, backup, purga del sistema, deploy estable, build-in-public:** no construidos (programa del PRÓXIMO PASO).
 - **Datos reales de clientes (Vehemence + otros) + RGPD + puesta en marcha:** diferidos por Luciano al final.
 
 ## Pendiente
@@ -91,6 +99,8 @@ Satori OS = ERP multi-tenant sobre **GAS + Google Sheets** (1 proyecto MAESTRO o
 - [16-jun] `clasp push` repetido tiró `invalid_rapt` (token vencido) → `clasp login` y reintentar.
 
 ### Changelog del handoff
+- [22-jun] **v13:** Voz DESPLEGADO en prod (8 parches, selfTest live verde, lockout PASA, deployment «Cualquiera» + versión nueva). Pend: confirmar Clave (curl secreto real→ok) + correr agente `console`.
+- [22-jun] **v12:** doPost + agente Voz construidos/commiteados (`6cb9112`) + 8 parches Purga (incl. #8 detección de rechazos); recuperación del glow (`/dev` = GAS HEAD desync, no render WebGL).
 - [19-jun] **v9:** Cerrados **2 cambios Satori OS** (UX entrar al Centro de Mando + ruteo de modelo por costo, ambos verificados offline, pend. push) + **canal local de Vehemence verificado en prod** (mayo completo $20,58M) + **Purga del conector** corrida y desplegada (`9342569`/`f49b69e`, D4 7/7). Fijado el orden del backlog Should. HANDOFF reescrito limpio.
 - [18-jun] **v7/v8:** Capa de Conectores (`sincronizarVehemence`, validado vs ERP) + Purga del conector (6 parches). Arco end-to-end Vehemence cerrado.
 - [18-jun] **v6:** Capa de Dirección CERRADA 3/3 (`fe6655d` + North Star + fixes). selfTest D1+D2+D3.

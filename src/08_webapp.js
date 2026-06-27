@@ -59,6 +59,7 @@ function doPost(e) {
     var args = (body.args && typeof body.args === 'object') ? body.args : {};
     var id = vozStr_(args.idCliente, 24);
     if (id && !clienteExiste_(id)) return vozOut_({ ok: false, error: 'cliente_desconocido' }); // PURGA #5: roster (el agente puede errar el id → NO alerta)
+    if (_sistemaPausado_() && tool === 'capturar') return vozOut_({ ok: false, error: 'sistema_en_pausa' });
     var data;
     switch (tool) {
       case 'estado':    data = estadoVigente(id || undefined); break;

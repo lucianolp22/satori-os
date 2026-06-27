@@ -63,15 +63,19 @@ function llamadaAPI(idCliente, modulo, opts) {
       out.error = 'CLAUDE_API_KEY no configurada en Script Properties';
       out.simulado = true;
     } else {
+      var cuerpo = {
+        model: modelo,
+        max_tokens: opts.maxTokens || 800,
+        messages: [{ role: 'user', content: anon.texto }]
+      };
+      // Blindaje prompt-injection: system es OPCIONAL y aditivo (5 callers viejos no lo mandan → payload idéntico).
+      // El system NO se anonimiza: es una guardia estática sin PII ni datos del tenant.
+      if (opts.system) cuerpo.system = String(opts.system);
       var resp = UrlFetchApp.fetch(CLAUDE_ENDPOINT, {
         method: 'post',
         contentType: 'application/json',
         headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        payload: JSON.stringify({
-          model: modelo,
-          max_tokens: opts.maxTokens || 800,
-          messages: [{ role: 'user', content: anon.texto }]
-        }),
+        payload: JSON.stringify(cuerpo),
         muteHttpExceptions: true
       });
       out.status = resp.getResponseCode();
