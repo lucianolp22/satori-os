@@ -110,6 +110,12 @@ function correrSalud(opts) {
     crit.forEach(function (h) {
       crearAviso({ origen: 'salud', tipo: 'salud_' + h.nombre, mensaje: 'Salud CRÍTICO — ' + h.nombre + ': ' + h.detalle });
     });
+    if (crit.length) {
+      alertaEmail_('Salud CRITICA (' + crit.length + ')',
+        'El sistema detecto ' + crit.length + ' chequeo(s) en estado CRITICO:\n\n' +
+        crit.map(function (h) { return '- ' + h.nombre + ': ' + h.detalle; }).join('\n') +
+        '\n\nRevisa el Centro de Mando.', 'salud_crit');
+    }
     setConfig('ultima_corrida_salud', ahoraISO());
 
     // Auto-heal SOLO si AUTOHEAL_ON=true (piloto: false → no entra). Conservador: solo schema.

@@ -78,6 +78,8 @@ function guardPresupuesto_(clave) {
     if (!PropertiesService.getScriptProperties().getProperty(flag)) { // avisar una vez por mes
       PropertiesService.getScriptProperties().setProperty(flag, '1');
       feed_('Sistema', 'aprobacion', '', 'Consumo API al ' + Math.round(c.gasto / tope * 100) + '% del tope mensual.', '', '');
+      crearAviso({ origen: 'sistema', tipo: 'costo_80', mensaje: 'Consumo API al 80%+ del tope mensual (USD ' + tope + ').' });
+      alertaEmail_('Costo al 80% del tope', 'El consumo de API del mes supero el 80% del tope (USD ' + tope + '). Revisa el Centro de Mando.', 'costo_80');
     }
   }
   return { ok: true };

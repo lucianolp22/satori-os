@@ -10,6 +10,30 @@
 var TRIGGER_AVISOS = 'corridaDiaria';
 
 /** Crea un Aviso en el MAESTRO si no existe ya uno activo igual (dedupe). */
+/** Alerta por email (opt-in). Manda a OWNER_EMAIL solo si alertas_email_on=true (Property o Config).
+ *  No rompe la corrida si falla. dedupKey: si se pasa, no repite el mismo email el mismo dia. */
+function alertaEmail_(asunto, cuerpo, dedupKey) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var on = String(props.getProperty('alertas_email_on') || getConfig('alertas_email_on') || 'false') === 'true';
+    if (!on) return false;
+    var to = props.getProperty('OWNER_EMAIL') || getConfig('owner_email') || '';
+    if (!to) return false;
+    if (dedupKey) {
+      var k = 'ALERTAMAIL_' + dedupKey;
+      if (props.getProperty(k) === hoyISO()) return false;
+      props.setProperty(k, hoyISO());
+    }
+    MailApp.sendEmail(to, '[Satori OS] ' + asunto, cuerpo);
+    return true;
+  } catch (e) { try { Logger.log('alertaEmail_ fallo: ' + e.message); } catch (_e) {} return false; }
+}
+/** Verificacion manual (editor): manda un email de prueba si alertas_email_on=true. */
+function probarAlertaEmail() {
+  var sent = alertaEmail_('Prueba de alerta', 'Si recibis esto, las alertas por email de Satori OS funcionan.', null);
+  return { enviado: sent, nota: sent ? 'email enviado a OWNER_EMAIL' : 'alertas_email_on=false o falta OWNER_EMAIL' };
+}
+
 function crearAviso(a) {
   var sh = getMaestro().getSheetByName('Avisos');
   return conLock(function () { // PURGA #4: dedupe + nextId + append, atómico
