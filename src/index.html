@@ -120,6 +120,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .btn.primary{background:var(--color-primary);color:var(--color-on-primary);border-color:var(--color-primary)}
 .btn.primary:hover{background:var(--color-primary-hover)}
 :focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+#centro :focus-visible{outline:2px solid #6cddba;outline-offset:2px}
 .row-actions{display:flex;gap:var(--space-3);align-items:center;margin-top:var(--space-4);flex-wrap:wrap}
 
 /* ── Responsive (mobile-first fallback) ──────────────────────────────────── */
@@ -213,6 +214,24 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cm-director{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);text-align:center;pointer-events:none;width:min(540px,88%)}
 .cm-director .lab{font-size:9px;letter-spacing:.26em;text-transform:uppercase;color:#6cddba;opacity:.85}
 .cm-director .dir{font-size:12.5px;color:#aeb6cc;margin-top:3px;line-height:1.4}
+.cm-legend{position:absolute;left:10px;top:10px;z-index:3;background:rgba(18,22,34,.72);border:1px solid rgba(108,221,186,.14);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;max-width:210px;pointer-events:none}
+.cm-legend:empty{display:none}
+.cm-legend .lt{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#8b93ad;display:flex;justify-content:space-between;gap:10px}
+.cm-legend .src{font-size:9px;color:#6b7488;letter-spacing:.04em;text-transform:none}
+.cm-legend .lr{display:flex;align-items:center;gap:7px;font-size:11px;color:#aeb6cc}
+.cm-legend .sw{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:0 0 6px currentColor}
+.cm-nodetip{position:absolute;z-index:5;transform:translate(-50%,-145%);background:rgba(12,18,28,.96);border:1px solid rgba(108,221,186,.4);border-radius:8px;padding:5px 9px;font-size:11px;color:#E8EAF2;pointer-events:none;opacity:0;transition:opacity .12s ease;white-space:nowrap}
+.cm-nodetip.show{opacity:1}
+.cm-nodetip b{color:#6cddba;font-weight:600}
+.cm-nodetip .al{color:#ff8d7a}
+.ag.work .av{border-color:rgba(255,212,121,.65)}
+.ag.ok .av{border-color:rgba(108,221,186,.75)}
+.ag.fail .av{border-color:rgba(255,141,122,.65)}
+.agm.work .agm-av{border-color:rgba(255,212,121,.65)}
+.agm.ok .agm-av{border-color:rgba(108,221,186,.75)}
+.agm.fail .agm-av{border-color:rgba(255,141,122,.65)}
+@media (max-width:560px){.cm-legend{display:none}}
+@media (prefers-reduced-motion:reduce){.cm-nodetip{transition:none}}
 /* ── E8a4: panel de Salud ── */
 #cmSalud{display:none;overflow-y:auto;flex:1;flex-direction:column;gap:7px}
 .hl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(10,14,22,.55);border:1px solid rgba(108,221,186,.08);border-radius:8px;padding:8px 10px;font-size:12px}
@@ -306,6 +325,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <div class="cm-orbit" id="cmOrbit"></div>
       <div class="cm-orbit outer" id="cmOrbit2"></div>
       <div class="cm-director" id="cmDirector"><div class="lab">Director · capa de mando</div><div class="dir" id="cmDirTxt"></div></div>
+      <div class="cm-legend" id="cmLegend" aria-hidden="true"></div>
     </div>
     <div class="cm-agents-m" id="cmAgentesM" aria-label="Agentes"></div>
     <aside class="cm-aside">
@@ -924,6 +944,7 @@ function cmBuildOrb(graph){
   var BAJA=cmCalidadBaja_();
   var nodos=(graph&&graph.nodos&&graph.nodos.length)?graph.nodos:null;
   var N=nodos?Math.min(nodos.length,2200):(BAJA?700:1600);
+  cm3D.realGraph=!!nodos;cm3D.meta=nodos;if(typeof cmRenderLegend==='function')cmRenderLegend(!!nodos);
   var pos=new Float32Array(N*3),col=new Float32Array(N*3),tmp=new THREE.Color();
   for(var i=0;i<N;i++){
     var y=1-(i/(Math.max(1,N-1)))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229,rr=1.0+((i*0.37)%1)*0.08;
@@ -947,6 +968,47 @@ function cmBuildOrb(graph){
   if(lp.length){var lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
     cm3D.lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x4ff0c8,transparent:true,opacity:0.12,depthWrite:false,blending:THREE.AdditiveBlending}));cm3D.grp.add(cm3D.lines);}
 }
+/* -- Pulido orbe (27-jun): leyenda + overlay de nodos por dimension -- */
+var CM_DIMLABEL={negocio:'Negocio',sistema:'Sistema',lider:'Lider',alerta:'Punto ciego'};
+function cmHex_(n){return '#'+('000000'+Number(n).toString(16)).slice(-6);}
+function cmRenderLegend(real){
+  var box=document.getElementById('cmLegend');if(!box)return;
+  var rows=[['negocio','Negocio'],['sistema','Sistema'],['lider','Lider'],['alerta','Punto ciego']];
+  var h='<div class="lt"><span>Cerebro</span><span class="src">'+(real?'datos reales':'vista ilustrativa')+'</span></div>';
+  for(var i=0;i<rows.length;i++){var c=cmHex_(CM_DIMCOL[rows[i][0]]);
+    h+='<div class="lr"><span class="sw" style="background:'+c+';color:'+c+'"></span>'+rows[i][1]+'</div>';}
+  box.innerHTML=h;
+}
+function cmInitNodeHover(){
+  if(cm3D.hoverInit||typeof THREE==='undefined')return;
+  var cv=document.getElementById('cmOrb3D');if(!cv)return;cm3D.hoverInit=true;
+  var ray=new THREE.Raycaster();ray.params.Points.threshold=0.06;
+  var stg=document.querySelector('.cm-stage');
+  var tip=document.getElementById('cmNodeTip');
+  if(!tip&&stg){tip=el('div','cm-nodetip');tip.id='cmNodeTip';stg.appendChild(tip);}
+  var lastT=0;
+  cv.style.pointerEvents='auto';
+  cv.addEventListener('pointermove',function(ev){
+    if(!tip)return;
+    if(!cm3D.ready||!cm3D.on||!cm3D.pts){tip.classList.remove('show');return;}
+    var now=Date.now();if(now-lastT<40)return;lastT=now;
+    var r=cv.getBoundingClientRect();
+    var nx=((ev.clientX-r.left)/r.width)*2-1,ny=-((ev.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera({x:nx,y:ny},cm3D.cam);
+    var hit=ray.intersectObject(cm3D.pts,false);
+    if(hit.length){
+      var idx=hit[0].index,txt;
+      if(cm3D.realGraph&&cm3D.meta&&cm3D.meta[idx]){
+        var nd=cm3D.meta[idx];
+        txt='<b>'+(CM_DIMLABEL[nd.dim]||'Negocio')+'</b>'+(nd.alert?' - <span class="al">punto ciego</span>':' - ok');
+      }else{txt='Vista ilustrativa - el cerebro aun no tiene nodos suficientes (>=250).';}
+      tip.innerHTML=txt;
+      tip.style.left=(ev.clientX-r.left)+'px';tip.style.top=(ev.clientY-r.top)+'px';
+      tip.classList.add('show');
+    }else{tip.classList.remove('show');}
+  });
+  cv.addEventListener('pointerleave',function(){if(tip)tip.classList.remove('show');});
+}
 function cmInit3D(){
   if(cm3D.ready||typeof THREE==='undefined')return; // sin Three.js → queda el 2D
   var cv=document.getElementById('cmOrb3D');if(!cv)return;
@@ -966,6 +1028,7 @@ function cmInit3D(){
       ip.setXYZ(k,vx*s,vy*s,vz*s);}
     var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0x4ff0c8,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
     cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
+    cmInitNodeHover();
     cmBuildOrb(cm3D.graph); // nodos reales si ya llegaron del cerebro; si no, decorativos
     cm3DResize();
   }catch(e){cm3D.on=false;cm3D.ready=false;} // cualquier fallo WebGL → fallback 2D
