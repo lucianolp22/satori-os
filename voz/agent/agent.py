@@ -140,7 +140,7 @@ class SatoriVoz(Agent):
 server = AgentServer()
 
 
-@server.rtc_session(agent_name="satori-voz")
+@server.rtc_session()
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         # voz-a-voz: el modelo realtime hace VAD/turn-detection/STT/TTS; no hace falta pipeline aparte.
