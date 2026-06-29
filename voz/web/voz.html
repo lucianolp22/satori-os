@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satori · Voz</title>
+<!-- Orbe portado del Centro de Mando (#centro). Tokens replicados (doc standalone en localhost). -->
+<style>
+:root{
+  --bg:#030307; --surface:rgba(18,22,34,.72); --surface-2:rgba(10,14,22,.55);
+  --text:#E8EAF2; --muted:#8b93ad; --subtle:#6b7488;
+  --teal:#6cddba; --teal-line:rgba(108,221,186,.3); --teal-strong:rgba(108,221,186,.6);
+  --warn:#ffd479; --danger:#ff8d7a; --on-teal:#0B1A15;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
+#space{position:fixed;inset:0;z-index:0}
+.hud{position:relative;z-index:2;height:100vh;display:grid;grid-template-columns:1fr 360px;
+  grid-template-rows:auto 1fr auto;gap:14px;padding:16px 20px}
+
+/* Botón estilo Centro de Mando (cm-btn.voz) — unificado con la pantalla principal */
+.cmbtn{appearance:none;font-family:inherit;background:transparent;border:1px solid var(--teal-strong);
+  color:var(--teal);border-radius:9999px;padding:0 18px;min-height:44px;font-size:13px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;
+  transition:background .15s ease,border-color .15s ease}
+.cmbtn:hover{background:rgba(108,221,186,.10)}
+.cmbtn.danger{border-color:rgba(255,141,122,.6);color:var(--danger)}
+.cmbtn.danger:hover{background:rgba(255,141,122,.10)}
+.cmbtn.ghost{border-color:var(--teal-line);color:var(--muted);min-height:38px;font-weight:400;padding:0 14px;font-size:12px}
+.cmbtn.ghost:hover{color:var(--teal);border-color:var(--teal-strong)}
+.cmbtn[disabled]{opacity:.5;cursor:not-allowed}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+.top{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .logo{width:34px;height:34px;border-radius:50%;border:1px solid var(--teal-strong);display:flex;align-items:center;justify-content:center;color:var(--teal);font-weight:600;background:radial-gradient(circle at 35% 35%,rgba(108,221,186,.25),transparent 70%)}
+.brand h1{font-size:15px;font-weight:600;letter-spacing:.04em;margin:0}
+.brand .sub{font-size:10px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
+
+.stage{grid-column:1;grid-row:2;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
+#orb2d,#orb3d{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(440px,84%);pointer-events:none}
+.msg .who{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--teal);opacity:.8;margin-bottom:10px}
+.msg .txt{font-size:16px;line-height:1.55;color:#fff;text-shadow:0 2px 24px rgba(3,3,7,.9)}
+
+.bottom{grid-column:1;grid-row:3;display:flex;flex-direction:column;align-items:center;gap:10px}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+.microw{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.microw select{background:var(--surface);border:1px solid var(--teal-line);color:var(--text);border-radius:8px;padding:7px 9px;font-size:12px;max-width:240px;min-height:36px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--subtle);flex:none}
+.dot.on{background:var(--teal)} .dot.err{background:var(--danger)}
+.banner{display:none;background:var(--surface);border:1px solid var(--teal-line);border-radius:10px;padding:9px 13px;font-size:13px;color:var(--text);max-width:520px;text-align:center}
+.banner.show{display:block}
+
+/* Chatlog (aside derecho, estilo cm-aside) */
+.chat{grid-column:2;grid-row:2/4;background:var(--surface);border:1px solid rgba(108,221,186,.14);
+  border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.chat h3{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:0;padding:13px 14px 10px}
+.chat-log{flex:1;overflow-y:auto;padding:4px 14px 12px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin}
+.chat-empty{color:var(--subtle);font-size:12px;text-align:center;padding:20px 8px}
+.mrow{display:flex;flex-direction:column;gap:2px}
+.mrow .who{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase}
+.mrow.sato .who{color:var(--teal)} .mrow.vos .who{color:var(--muted)}
+.mrow .tx{font-size:13px;line-height:1.45;background:var(--surface-2);border:1px solid rgba(108,221,186,.08);
+  border-radius:8px;padding:8px 10px;white-space:pre-wrap;word-break:break-word}
+.mrow.sato .tx{border-left:2px solid var(--teal)}
+.mrow.interim .tx{opacity:.6;font-style:italic}
+.chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(108,221,186,.12)}
+.chat-input input{flex:1;background:var(--surface-2);border:1px solid var(--teal-line);color:var(--text);
+  border-radius:8px;padding:9px 11px;font-size:13px;min-height:40px;font-family:inherit}
+.chat-input input::placeholder{color:var(--subtle)}
+.chat-send{appearance:none;font-family:inherit;background:var(--teal);color:var(--on-teal);border:0;border-radius:8px;
+  padding:0 14px;min-height:40px;font-size:13px;font-weight:600;cursor:pointer}
+.chat-send[disabled]{opacity:.5;cursor:not-allowed}
+
+@media (max-width:880px){
+  .hud{grid-template-columns:1fr;grid-template-rows:auto 320px auto 240px;overflow-y:auto}
+  .top{grid-column:1} .stage{grid-column:1;grid-row:2} .bottom{grid-column:1;grid-row:3}
+  .chat{grid-column:1;grid-row:4}
+}
+</style>
+<!-- Three.js r128 (CDN + SRI, igual que el Centro de Mando). Si no carga, el orbe degrada a 2D. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+<canvas id="space"></canvas>
+<div class="hud">
+  <div class="top">
+    <div class="brand"><div class="logo">S</div>
+      <div><h1>SATORI <span style="color:var(--teal)">OS</span></h1><div class="sub">◦ voz · centro de mando</div></div>
+    </div>
+    <button class="cmbtn ghost" id="back">← Volver al panel</button>
+  </div>
+
+  <div class="stage">
+    <canvas id="orb2d"></canvas>
+    <canvas id="orb3d" aria-hidden="true"></canvas>
+    <div class="msg"><div class="who">· Satori ·</div><div class="txt" id="status">Tocá Hablar con Sato y arrancá.</div></div>
+  </div>
+
+  <div class="bottom">
+    <div class="banner" id="banner" role="alert"></div>
+    <div class="controls">
+      <button class="cmbtn" id="btnTalk">🎙 Hablar con Sato</button>
+      <button class="cmbtn danger" id="btnHang" hidden>Cortar</button>
+      <button class="cmbtn ghost" id="btnAudio" hidden>Activar audio</button>
+    </div>
+    <div class="microw">
+      <span class="dot" id="micDot"></span>
+      <label for="micSel">Micrófono:</label>
+      <select id="micSel" aria-label="Elegir micrófono"><option value="">(por defecto)</option></select>
+    </div>
+  </div>
+
+  <aside class="chat">
+    <h3>Conversación</h3>
+    <div class="chat-log" id="chatLog" aria-live="polite"><div class="chat-empty" id="chatEmpty">Lo que hablen vos y Sato aparece acá. También podés escribirle abajo.</div></div>
+    <div class="chat-input">
+      <input id="chatTxt" type="text" placeholder="Escribile a Sato…" autocomplete="off" aria-label="Mensaje para Sato" disabled>
+      <button class="chat-send" id="chatSend" disabled>Enviar</button>
+    </div>
+  </aside>
+</div>
+
+<audio id="agentAudio" autoplay></audio>
+
+<script src="/vendor/livekit-client.umd.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var VOICE = {energy:0, target:0, connected:false, sampling:false};
+
+  var statusEl=document.getElementById('status'), banner=document.getElementById('banner');
+  var btnTalk=document.getElementById('btnTalk'), btnHang=document.getElementById('btnHang'), btnAudio=document.getElementById('btnAudio');
+  var micDot=document.getElementById('micDot'), micSel=document.getElementById('micSel');
+  var agentAudio=document.getElementById('agentAudio');
+  var chatLog=document.getElementById('chatLog'), chatEmpty=document.getElementById('chatEmpty');
+  var chatTxt=document.getElementById('chatTxt'), chatSend=document.getElementById('chatSend');
+  function setStatus(t){ statusEl.textContent=t; }
+  function showBanner(t){ banner.textContent=t; banner.classList.add('show'); }
+  function hideBanner(){ banner.classList.remove('show'); }
+  function setMic(s){ micDot.className='dot'+(s==='on'?' on':s==='err'?' err':''); }
+
+  /* ════════ ORBE (portado del Centro de Mando) ════════ */
+  var spaceC=document.getElementById('space'), spaceX=spaceC.getContext('2d'), stars=[];
+  for(var si=0;si<140;si++)stars.push({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.3,p:Math.random()*6.28,v:.3+Math.random()*.7});
+  var o2=document.getElementById('orb2d'), o2x=o2.getContext('2d'), pts=[];
+  for(var la=-75;la<=75;la+=15)for(var lo=0;lo<360;lo+=15)pts.push({la:la*Math.PI/180,lo:lo*Math.PI/180});
+
+  function sizeAll(){
+    spaceC.width=innerWidth; spaceC.height=innerHeight;
+    var st=document.querySelector('.stage'); if(!st)return;
+    var m=Math.min(st.clientWidth,st.clientHeight); o2.width=o2.height=Math.max(240,m*.82); resize3D();
+  }
+  function drawSpace(t){
+    spaceX.clearRect(0,0,spaceC.width,spaceC.height);
+    for(var i=0;i<stars.length;i++){var s=stars[i];var a=.15+.45*Math.abs(Math.sin(t*.0006*s.v+s.p));
+      spaceX.fillStyle='rgba(140,200,180,'+a+')';spaceX.beginPath();spaceX.arc(s.x*spaceC.width,s.y*spaceC.height,s.r,0,7);spaceX.fill();}
+  }
+  function drawOrb2D(t){
+    var w=o2.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),rot=t*.00018,tilt=.35,energy=VOICE.energy,cx=w/2;
+    o2x.clearRect(0,0,w,w);
+    var g=o2x.createRadialGradient(cx,cx,R*0.12,cx,cx,R*1.18);
+    g.addColorStop(0,'rgba(108,221,186,'+(0.05+0.16*energy)+')');g.addColorStop(1,'rgba(108,221,186,0)');
+    o2x.fillStyle=g;o2x.beginPath();o2x.arc(cx,cx,R*1.18,0,7);o2x.fill();
+    var proj=[];
+    for(var i=0;i<pts.length;i++){var p=pts[i];
+      var x=Math.cos(p.la)*Math.cos(p.lo+rot),y=Math.sin(p.la),z=Math.cos(p.la)*Math.sin(p.lo+rot);
+      var y2=y*Math.cos(tilt)-z*Math.sin(tilt),z2=y*Math.sin(tilt)+z*Math.cos(tilt);
+      proj.push({x:w/2+x*R,y:w/2+y2*R,z:z2});}
+    var sweep=(t*0.0007)%(Math.PI*2),cols=24,rows=11;
+    for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){var a=proj[r*cols+c],b=proj[r*cols+((c+1)%cols)],d=(r<rows-1)?proj[(r+1)*cols+c]:null;
+      if(a.z>-0.15){
+        var near=Math.max(0,Math.cos(pts[r*cols+c].lo+rot-sweep)),boost=energy*0.5*near;
+        o2x.strokeStyle='rgba(108,221,186,'+Math.min(.78,.04+.14*Math.max(0,a.z)+boost)+')';o2x.lineWidth=1;
+        o2x.beginPath();o2x.moveTo(a.x,a.y);o2x.lineTo(b.x,b.y);o2x.stroke();
+        if(d){o2x.beginPath();o2x.moveTo(a.x,a.y);o2x.lineTo(d.x,d.y);o2x.stroke();}}}
+    for(var j=0;j<proj.length;j+=2){var pt=proj[j];if(pt.z<=0.12)continue;
+      var tw=0.5+0.5*Math.sin(t*(0.002+0.005*energy)+j*1.7);
+      var al=Math.min(.95,(0.08+0.45*pt.z)*(0.35+0.65*tw)*(0.4+0.6*energy)),rad=1+1.9*pt.z*tw;
+      o2x.fillStyle='rgba('+(150+Math.round(80*energy))+',232,202,'+al+')';
+      o2x.beginPath();o2x.arc(pt.x,pt.y,rad,0,7);o2x.fill();}
+  }
+  var O3={ready:false,on:false,renderer:null,scene:null,cam:null,grp:null,pts:null,wire:null,core:null,lines:null,tex:null};
+  var DIMCOL={negocio:0x4ff0c8,sistema:0x9a6cff,lider:0xff9a3c};
+  function deco(i){var r=(i*53)%100;return r<60?DIMCOL.negocio:(r<80?DIMCOL.sistema:DIMCOL.lider);}
+  function glowTex(){
+    if(O3.tex)return O3.tex;
+    var c=document.createElement('canvas');c.width=c.height=64;var x=c.getContext('2d');
+    var g=x.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(0.2,'rgba(255,255,255,0.85)');
+    g.addColorStop(0.5,'rgba(255,255,255,0.3)');g.addColorStop(1,'rgba(255,255,255,0)');
+    x.fillStyle=g;x.beginPath();x.arc(32,32,32,0,7);x.fill();
+    O3.tex=new THREE.CanvasTexture(c);return O3.tex;
+  }
+  function buildOrb(){
+    if(!O3.ready)return;
+    var N=1500,pos=new Float32Array(N*3),col=new Float32Array(N*3),tmp=new THREE.Color();
+    for(var i=0;i<N;i++){
+      var y=1-(i/(Math.max(1,N-1)))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229,rr=1.0+((i*0.37)%1)*0.08;
+      pos[i*3]=Math.cos(th)*rad*rr;pos[i*3+1]=y*rr;pos[i*3+2]=Math.sin(th)*rad*rr;
+      tmp.setHex(deco(i));col[i*3]=tmp.r;col[i*3+1]=tmp.g;col[i*3+2]=tmp.b;
+    }
+    var pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+    var pm=new THREE.PointsMaterial({map:glowTex(),size:0.11,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:0.92,depthWrite:false,blending:THREE.AdditiveBlending});
+    if(O3.pts){O3.grp.remove(O3.pts);O3.pts.geometry.dispose();O3.pts.material.dispose();}
+    O3.pts=new THREE.Points(pg,pm);O3.grp.add(O3.pts);
+    var lp=[];
+    for(var a2=0;a2<N;a2+=6)for(var b2=a2+1;b2<Math.min(a2+36,N);b2+=9){
+      var dx=pos[a2*3]-pos[b2*3],dy=pos[a2*3+1]-pos[b2*3+1],dz=pos[a2*3+2]-pos[b2*3+2];
+      if(dx*dx+dy*dy+dz*dz<0.16)lp.push(pos[a2*3],pos[a2*3+1],pos[a2*3+2],pos[b2*3],pos[b2*3+1],pos[b2*3+2]);}
+    if(O3.lines){O3.grp.remove(O3.lines);O3.lines.geometry.dispose();O3.lines.material.dispose();O3.lines=null;}
+    if(lp.length){var lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
+      O3.lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x4ff0c8,transparent:true,opacity:0.12,depthWrite:false,blending:THREE.AdditiveBlending}));O3.grp.add(O3.lines);}
+  }
+  function init3D(){
+    if(O3.ready||typeof THREE==='undefined')return;
+    var cv=document.getElementById('orb3d');if(!cv)return;
+    try{
+      var r=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});r.setClearColor(0x000000,0);
+      var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.0;
+      var grp=new THREE.Group();sc.add(grp);
+      var gm=function(op){return new THREE.MeshBasicMaterial({color:0x33e6b8,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
+      grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,24,24),gm(0.015)));
+      grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,24,24),gm(0.03)));
+      grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.72,28,28),gm(0.06)));
+      var core=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,28),gm(0.1));grp.add(core);O3.core=core;
+      var ico=new THREE.IcosahedronGeometry(1.0,3),ip=ico.attributes.position;
+      for(var k=0;k<ip.count;k++){var vx=ip.getX(k),vy=ip.getY(k),vz=ip.getZ(k);
+        var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.2*nz;
+        ip.setXYZ(k,vx*s,vy*s,vz*s);}
+      var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0x4ff0c8,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
+      O3.renderer=r;O3.scene=sc;O3.cam=cam;O3.grp=grp;O3.wire=wire;O3.ready=true;O3.on=true;
+      buildOrb();resize3D();
+    }catch(e){O3.on=false;O3.ready=false;}
+  }
+  function resize3D(){
+    if(!O3.ready||!O3.renderer||!o2)return;
+    O3.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
+    O3.renderer.setSize(o2.width,o2.height,true);
+    O3.cam.aspect=1;O3.cam.updateProjectionMatrix();
+  }
+  function render3D(t){
+    if(!O3.ready)return;
+    var energy=VOICE.energy;
+    O3.grp.rotation.x=0.32;O3.grp.rotation.y=t*0.00016;
+    O3.grp.scale.setScalar(1+0.03*Math.sin(t*0.0011)+0.10*energy);
+    if(O3.pts)O3.pts.material.opacity=0.80+0.18*energy;
+    if(O3.wire)O3.wire.material.opacity=0.30+0.30*energy+0.06*Math.sin(t*0.0016);
+    if(O3.core)O3.core.material.opacity=0.08+0.10*energy+0.02*Math.sin(t*0.0015);
+    O3.renderer.render(O3.scene,O3.cam);
+  }
+  function loop(t){
+    VOICE.energy += (VOICE.target - VOICE.energy) * 0.18;
+    if(!document.hidden){
+      var tt = REDUCED ? 0 : t;          // PURGA #1: con reduced-motion el orbe queda estático pero SE DIBUJA (no invisible)
+      drawSpace(tt); if(O3.on){render3D(tt);}else{drawOrb2D(tt);}
+    }
+    requestAnimationFrame(loop);
+  }
+  window.addEventListener('resize',sizeAll);
+
+  /* ════════ VOZ (LiveKit) ════════ */
+  var LK=window.LivekitClient, RoomEvent=LK&&LK.RoomEvent;
+  var room=null, connecting=false, audioCtx=null, analyser=null, vData=null, transcriptReg=false;
+
+  function startOrb(){ sizeAll(); init3D(); requestAnimationFrame(loop); }
+
+  if(!LK){ showBanner('No cargó el SDK de voz (/vendor). Verificá el server local.'); btnTalk.disabled=true; }
+
+  function attachAnalyser(mediaTrack){
+    try{
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      if(audioCtx.state==='suspended'){ try{ audioCtx.resume(); }catch(_){} }
+      var src = audioCtx.createMediaStreamSource(new MediaStream([mediaTrack]));
+      analyser = audioCtx.createAnalyser(); analyser.fftSize=256;
+      vData = new Uint8Array(analyser.fftSize);
+      src.connect(analyser);
+    }catch(e){}
+  }
+  function sampleLoop(){
+    if(VOICE.sampling) return;            // PURGA #2: un solo loop de muestreo
+    VOICE.sampling=true;
+    (function tick(){
+      if(!VOICE.connected){ VOICE.sampling=false; return; }
+      if(analyser){
+        analyser.getByteTimeDomainData(vData);
+        var sum=0; for(var i=0;i<vData.length;i++){var v=(vData[i]-128)/128; sum+=v*v;}
+        var rms=Math.sqrt(sum/vData.length);
+        VOICE.target = Math.max(0.12, Math.min(1, rms*4.2));   // Sato hablando → orbe vivo; silencio → pulso "escuchando"
+      } else { VOICE.target = 0.12; }
+      requestAnimationFrame(tick);
+    })();
+  }
+
+  /* ── Chatlog ── */
+  var segEls={};
+  function clearEmpty(){ if(chatEmpty){ chatEmpty.remove(); chatEmpty=null; } }
+  function rowFor(key, role){
+    if(segEls[key]) return segEls[key];
+    clearEmpty();
+    var row=document.createElement('div'); row.className='mrow '+role;
+    var who=document.createElement('div'); who.className='who'; who.textContent=(role==='sato'?'Sato':'Vos');
+    var tx=document.createElement('div'); tx.className='tx';
+    row.appendChild(who); row.appendChild(tx); chatLog.appendChild(row);
+    segEls[key]={row:row,tx:tx};
+    return segEls[key];
+  }
+  function upsert(key, role, text, final){
+    var e=rowFor(key, role); e.tx.textContent=text;
+    e.row.classList.toggle('interim', !final);
+    chatLog.scrollTop=chatLog.scrollHeight;
+  }
+  function onTranscription(reader, info){
+    var attrs=(reader.info&&reader.info.attributes)||{};
+    var sid=attrs['lk.segment_id'] || (reader.info&&reader.info.id) || ('s'+Date.now());
+    var final=attrs['lk.transcription_final']==='true';
+    var meId=room&&room.localParticipant&&room.localParticipant.identity;
+    var role=(info&&info.identity===meId)?'vos':'sato';
+    reader.readAll().then(function(text){ if(text) upsert(sid, role, text, final); }).catch(function(){});
+  }
+  function registerTranscript(rm){
+    if(transcriptReg) return;
+    try{ rm.registerTextStreamHandler('lk.transcription', onTranscription); transcriptReg=true; }catch(e){}
+  }
+  function sendChat(){
+    var t=chatTxt.value.trim(); if(!t||!room) return;
+    chatTxt.value='';
+    upsert('local-'+Date.now(), 'vos', t, true);   // mostrar mi mensaje ya
+    try{ room.localParticipant.sendText(t, {topic:'lk.chat'}).catch(function(){ showBanner('No se pudo enviar el texto.'); }); }
+    catch(e){ showBanner('No se pudo enviar el texto.'); }
+  }
+  chatSend.addEventListener('click', sendChat);
+  chatTxt.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); sendChat(); } });
+
+  async function preferMic(){
+    try{
+      var devs=await navigator.mediaDevices.enumerateDevices();
+      var mics=devs.filter(function(d){return d.kind==='audioinput';});
+      micSel.innerHTML=''; var prefId='';
+      mics.forEach(function(d){
+        var o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||('Micrófono '+(micSel.length+1));micSel.appendChild(o);
+        var L=(d.label||'').toLowerCase();
+        if(!prefId && /built-?in|macbook|interno|imac|mac mini|micrófono del mac/.test(L) && !/iphone|continu|teléfono|phone/.test(L)) prefId=d.deviceId;
+      });
+      if(!prefId){ for(var i=0;i<mics.length;i++){var L=(mics[i].label||'').toLowerCase(); if(!/iphone|continu|phone/.test(L)){prefId=mics[i].deviceId;break;}} }
+      if(prefId){ micSel.value=prefId; await switchMic(prefId); }
+    }catch(e){}
+  }
+  async function switchMic(id){ if(!room||!id)return; try{ await room.switchActiveDevice('audioinput', id); }catch(e){} }
+  micSel.addEventListener('change',function(){ switchMic(this.value); });
+
+  function wire(rm){
+    rm.on(RoomEvent.Connected,function(){ setStatus('Conectado. Esperando a Sato…'); });
+    rm.on(RoomEvent.Disconnected,function(){ teardown('Conversación terminada.'); });
+    rm.on(RoomEvent.ParticipantConnected,function(){ setStatus('Sato está acá. Hablá o escribile.'); });
+    rm.on(RoomEvent.TrackSubscribed,function(track){
+      if(track.kind==='audio'){
+        try{ track.attach(agentAudio); }catch(e){ try{ document.body.appendChild(track.attach()); }catch(_){} }
+        var mt = track.mediaStreamTrack || (track.mediaStream && track.mediaStream.getAudioTracks()[0]);
+        if(mt) attachAnalyser(mt);
+      }
+    });
+    rm.on(RoomEvent.AudioPlaybackStatusChanged,function(){
+      if(!rm.canPlaybackAudio){ btnAudio.hidden=false; showBanner('El navegador bloqueó el audio. Tocá "Activar audio".'); }
+      else { btnAudio.hidden=true; hideBanner(); }
+    });
+  }
+  function fail(msg,detail){
+    setStatus(msg); if(detail) showBanner(detail);
+    btnTalk.hidden=false; btnTalk.disabled=false; btnHang.hidden=true; connecting=false; VOICE.connected=false; VOICE.target=0;
+  }
+  async function getToken(){
+    var r=await fetch('/token',{cache:'no-store'});
+    var j=await r.json().catch(function(){return null;});
+    if(!r.ok||!j||!j.token||!j.url) throw new Error((j&&j.error)||('HTTP '+r.status));
+    return j;
+  }
+  async function start(){
+    if(connecting||room||!LK) return;
+    connecting=true; hideBanner(); btnTalk.disabled=true; setStatus('Conectando…'); setMic('off');
+    try{ var tmp=await navigator.mediaDevices.getUserMedia({audio:true}); tmp.getTracks().forEach(function(t){t.stop();}); }
+    catch(e){ return fail('No tengo acceso al micrófono.', 'Permitilo para este sitio (candado en la barra) y reintentá. ('+(e&&e.name||e)+')'); }
+    var info;
+    try{ info=await getToken(); } catch(e){ return fail('No pude obtener acceso a la sala.', 'Token: '+e.message+'. ¿Está corriendo el server local?'); }
+    try{ room=new LK.Room(); wire(room); registerTranscript(room); await room.connect(info.url, info.token); }
+    catch(e){ try{room&&room.disconnect();}catch(_){} room=null; return fail('No me pude conectar a la sala.', 'Conexión: '+(e&&e.message||e)); }
+    try{ await room.localParticipant.setMicrophoneEnabled(true); setMic('on'); }
+    catch(e){ setMic('err'); return fail('No pude activar el micrófono.', String(e&&e.name||e)); }
+    VOICE.connected=true; connecting=false;
+    btnTalk.hidden=true; btnHang.hidden=false; btnHang.disabled=false;
+    chatTxt.disabled=false; chatSend.disabled=false;
+    setStatus('Escuchando… hablá o escribile abajo.');
+    sampleLoop(); preferMic();
+  }
+  function teardown(msg){
+    try{ room&&room.disconnect(); }catch(_){}
+    room=null; connecting=false; VOICE.connected=false; VOICE.target=0; transcriptReg=false;
+    btnHang.hidden=true; btnAudio.hidden=true; btnTalk.hidden=false; btnTalk.disabled=false; setMic('off');
+    chatTxt.disabled=true; chatSend.disabled=true;
+    setStatus(msg||'Listo. Tocá Hablar con Sato para volver a empezar.');
+  }
+
+  btnTalk.addEventListener('click',start);
+  btnHang.addEventListener('click',function(){ teardown('Cortaste la conversación.'); });
+  btnAudio.addEventListener('click',function(){ if(room){ room.startAudio().then(function(){btnAudio.hidden=true;hideBanner();}).catch(function(){}); } });
+  window.addEventListener('beforeunload',function(){ try{ room&&room.disconnect(); }catch(_){} });
+  // PURGA #4: volver con fallback (history → referrer → cerrar)
+  document.getElementById('back').addEventListener('click',function(){
+    try{room&&room.disconnect();}catch(_){}
+    if(history.length>1) history.back();
+    else if(document.referrer) location.href=document.referrer;
+    else window.close();
+  });
+
+  if(document.readyState!=='loading') startOrb();
+  else window.addEventListener('DOMContentLoaded', startOrb);
+})();
+</script>
+</body>
+</html>

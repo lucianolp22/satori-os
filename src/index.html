@@ -153,6 +153,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cm-budget.warn .bar i{background:#ffd479}
 .cm-btn{background:transparent;border:1px solid rgba(108,221,186,.3);color:#8b93ad;border-radius:9999px;padding:0 16px;min-height:40px;font-size:12px;cursor:pointer}
 .cm-btn.on{border-color:rgba(108,221,186,.6);color:#6cddba}
+.cm-btn.voz{display:inline-flex;align-items:center;gap:6px;text-decoration:none;border-color:rgba(108,221,186,.6);color:#6cddba}
+.cm-btn.voz:hover{background:rgba(108,221,186,.10)}
 .cm-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
 #cmOrb,#cmOrb3D{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .cm-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(440px,70%);pointer-events:none}
@@ -304,6 +306,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <div class="cm-budget" id="cmBudget" title="Consumo API del mes vs tope (Script Properties / Config)">
           <div class="t"><span>API del mes</span><span class="mono" id="cmBudgetTxt">—</span></div>
           <div class="bar"><i id="cmBudgetBar"></i></div></div>
+        <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_top" rel="noopener" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
         <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
         <button class="cm-btn" id="cmCalma" aria-pressed="false">Modo calma</button>
         <button class="cm-btn" id="cmCalidad" aria-pressed="false" title="Calidad del orbe 3D (alto/bajo)">Calidad: alto</button>
