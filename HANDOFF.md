@@ -21,8 +21,12 @@ Satori OS = ERP multi-tenant **GAS + Sheets** en prod (`luciano@satoriconsultori
 ## Pendiente
 **Must (programa cierre dev), en orden:** onboarding repetible → backup/snapshot → purga sistema completo → build-in-public/cartera (11 candidatos) → datos+RGPD+puesta en marcha (FINAL).
 **Must seguridad:** ENCARGO `appsscript.json` `drive`→`drive.file` (procedimiento en `ENCARGO-Code-scope-drive-2026-06-29.md`).
-**Should (alta prioridad, diferido):**
-- **Voz 24/7 en la nube + PWA** (sin Mac prendida) — decisión A (LiveKit Cloud + token readonly + mitigaciones) vs C (backend fuera de GAS). Nivel Consejo/Bastión.
+**Próxima etapa de VOZ — A' (planificada 29-jun PM; brief de Luciano + research; NO arrancada):**
+Quedarse con **LiveKit** (WebRTC/PWA/eco/turnos + TODO lo ya armado: orbe, chat, autostart, BackgroundAudioPlayer/thinking-sounds, filler) PERO cambiar la voz de OpenAI Realtime → **pipeline Deepgram STT + LLM + ElevenLabs TTS** (timbre grave de "Sato"). Faseo: (i) desktop-CM **[CERRADO]** → (ii) PWA móvil HTTPS + 9 trucos iOS → (iii) VPS 24/7 (opción D, DigitalOcean) **DIFERIDO** (confirmar con Luciano: token readonly en la nube). A' aplica a (i) y (ii).
+  1. **Swap de voz en `agent.py`:** reemplazar `openai.realtime.RealtimeModel(...)` por pipeline LiveKit (STT=Deepgram, LLM, TTS=ElevenLabs voz grave). **PRESERVAR `BackgroundAudioPlayer`/thinking-sounds + el filler** (funcionan igual con el pipeline; no perderlos en el swap). Backup `agent.py.bak` + auto-revert. Deps: `livekit-plugins-deepgram` + `livekit-plugins-elevenlabs`. Env nuevas en `.env.local` (Bastión: gitignored, nunca al browser/repo): `DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY`, voice ID. Probar por "Test in Console" de LiveKit. **Trade-off (Luciano):** timbre grave vs +1-2s de latencia de voz (el cuello real siguen siendo los ~13s de GAS, que A' NO cambia; los thinking-sounds enmascaran). Fallback si se siente lento: prompt "natural-convo" (hellotrillion.ai/p/natural-convo).
+  2. **9 trucos iOS en `voz.html`** (recién importan al servir a un teléfono por HTTPS; hoy es desktop/127.0.0.1): MP3-no-PCM · audio doble-vía (`<audio>` audible + AudioBuffer para el orbe reactivo, bug iOS MediaElementSource→Analyser) · silent-switch (audible por `<audio>`) · `play()` primeado en el gesto · TTS endpoint non-evicting (iOS hace 2 GET) · tokens por query-param · `Cache-Control: no-store` · `100dvh`+`viewport-fit=cover` · `AudioContext.resume()` por gesto. Fuente: `PROMPT-Kevin-voice-PWA.md`.
+
+**Should (diferido, aparte de A'):**
 - **Latencia de raíz = opción C** (tool-backend fuera de GAS: serverless + Sheets API con service account scopeada) → baja el piso de 13s a <1s. Proyecto.
 - **Cache en GAS (45s)** para re-consultas de estado/brief — más liviano que C; toca el deployment del doPost (verificar si sirve HEAD o versión fija).
 **Nice:** `PYTHONUNBUFFERED=1` en los plist · **commit a git de la voz** · borrar `.bak`/`_*dump.txt` temporales · thinking-sound (volumen/clip) ajustable · orbe de voz con grafo real del cerebro (hoy decorativo).
@@ -52,6 +56,7 @@ Satori OS = ERP multi-tenant **GAS + Sheets** en prod (`luciano@satoriconsultori
 {Se lee solo si un problema reaparece o se cuestiona una decisión.}
 
 ### Decisiones y descartes
+- **[29-jun research] Voz A' = LiveKit + ElevenLabs/Deepgram** (NO adoptar el stack WS-custom de Kevin ni perder LiveKit; NO seguir con OpenAI Realtime). Motivo: reusar todo lo que ya anda + ganar el timbre grave de Sato. El brain (GAS, ~13s) NO cambia con A'. Los 9 trucos iOS de Kevin aplican a cualquier cliente browser (incluido LiveKit) = el oro a minar. Detalle en `PROMPT-Kevin-voice-PWA.md`. Pendiente de arranque (keys + go de Luciano).
 - **[29-jun PM] Micrófono embebido en el iframe de GAS: DESCARTADO** (getUserMedia bloqueado por permissions policy; doc oficial Apps Script). La voz vive en página local.
 - **[29-jun PM] Acceso a la voz = botón `target="_top"`** (misma ventana, no popup). Requiere server vivo → lo garantiza el auto-arranque.
 - **[29-jun PM] Token = mint LOCAL (server)** sobre GAS-mint: el secreto ya está en `.env.local`; GAS-mint lo duplicaría sin reducir exposición.
