@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from livekit import agents
 from livekit.agents import Agent, AgentServer, AgentSession, RunContext, function_tool
 from livekit.agents.llm import ToolError
-from livekit.plugins import openai
+from livekit.plugins import openai, deepgram, elevenlabs, silero
 from livekit.agents import BackgroundAudioPlayer, AudioConfig, BuiltinAudioClip
 
 import gas_voz_client  # cliente autenticado: Bearer (refresh de luciano@) + secreto-en-body + redirect 302
@@ -27,6 +27,8 @@ import logging
 logger = logging.getLogger("satori-voz")
 
 load_dotenv(".env.local")
+# A': el plugin elevenlabs lee ELEVEN_API_KEY; lo mapeamos desde ELEVENLABS_API_KEY sin renombrar el .env.
+os.environ.setdefault("ELEVEN_API_KEY", os.environ.get("ELEVENLABS_API_KEY", ""))
 
 GAS_VOZ_URL = os.environ.get("GAS_VOZ_URL", "")
 VOZ_TOOL_SECRET = os.environ.get("VOZ_TOOL_SECRET", "")
@@ -144,18 +146,13 @@ server = AgentServer()
 @server.rtc_session()
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
-        # voz-a-voz: el modelo realtime hace VAD/turn-detection/STT/TTS; no hace falta pipeline aparte.
-        llm=openai.realtime.RealtimeModel(model="gpt-realtime", voice="ash"),  # gpt-realtime (GA) → voz "ash" (alt: cedar, marin, echo, verse)
+        # A': pipeline LiveKit — Deepgram STT + OpenAI LLM + ElevenLabs TTS (voz grave de Sato) + Silero VAD.
+        stt=deepgram.STT(model="nova-3", language="multi"),
+        llm=openai.LLM(model="gpt-4o-mini"),
+        tts=elevenlabs.TTS(voice_id=os.environ.get("ELEVENLABS_VOICE_ID", ""), model="eleven_turbo_v2_5", language="es"),
+        vad=silero.VAD.load(),
     )
     await session.start(room=ctx.room, agent=SatoriVoz())
-    try:  # latencia UX: sonido de "procesando" mientras Sato consulta (no depende de TTS)
-        _bg = BackgroundAudioPlayer(thinking_sound=[
-            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.5),
-            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.45),
-        ])
-        await _bg.start(room=ctx.room, agent_session=session)
-    except Exception as _bg_e:
-        logger.warning("background audio no disponible: %s", _bg_e)
     await session.generate_reply(
         instructions="Saludá breve a Luciano en español rioplatense y preguntale en qué lo ayudás."
     )

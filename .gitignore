@@ -13,3 +13,5 @@ __pycache__/
 .venv/
 *.bak
 voz/web/vendor/
+.env
+_*.txt

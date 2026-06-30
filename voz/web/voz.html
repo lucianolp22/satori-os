@@ -336,22 +336,36 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   chatSend.addEventListener('click', sendChat);
   chatTxt.addEventListener('keydown', function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); sendChat(); } });
 
+  function _isPhoneLabel(L){ return /iphone|ipad|continu|tel[eé]fono|phone|handoff/.test(L); }
+  function _isMacLabel(L){ return /built.?in|macbook|integrad|intern[oa]|imac|mac mini|mac studio|micr[oó]fono del mac/.test(L); }
+  // Elige SIEMPRE el micrófono del Mac; NUNCA el del iPhone (Continuity). Devuelve deviceId o ''.
+  async function pickMacMicId(){
+    try{
+      var devs=await navigator.mediaDevices.enumerateDevices();
+      var mics=devs.filter(function(d){return d.kind==='audioinput' && d.deviceId && d.deviceId!=='default' && d.deviceId!=='communications';});
+      for(var i=0;i<mics.length;i++){ var L=(mics[i].label||'').toLowerCase(); if(_isMacLabel(L) && !_isPhoneLabel(L)) return mics[i].deviceId; }
+      for(var j=0;j<mics.length;j++){ var L2=(mics[j].label||'').toLowerCase(); if(!_isPhoneLabel(L2)) return mics[j].deviceId; }
+      return '';
+    }catch(e){ return ''; }
+  }
   async function preferMic(){
     try{
       var devs=await navigator.mediaDevices.enumerateDevices();
       var mics=devs.filter(function(d){return d.kind==='audioinput';});
-      micSel.innerHTML=''; var prefId='';
+      micSel.innerHTML='';
       mics.forEach(function(d){
         var o=document.createElement('option');o.value=d.deviceId;o.textContent=d.label||('Micrófono '+(micSel.length+1));micSel.appendChild(o);
-        var L=(d.label||'').toLowerCase();
-        if(!prefId && /built-?in|macbook|interno|imac|mac mini|micrófono del mac/.test(L) && !/iphone|continu|teléfono|phone/.test(L)) prefId=d.deviceId;
       });
-      if(!prefId){ for(var i=0;i<mics.length;i++){var L=(mics[i].label||'').toLowerCase(); if(!/iphone|continu|phone/.test(L)){prefId=mics[i].deviceId;break;}} }
+      var prefId=await pickMacMicId();
       if(prefId){ micSel.value=prefId; await switchMic(prefId); }
     }catch(e){}
   }
   async function switchMic(id){ if(!room||!id)return; try{ await room.switchActiveDevice('audioinput', id); }catch(e){} }
   micSel.addEventListener('change',function(){ switchMic(this.value); });
+  // Micrófono robusto: si cambian los dispositivos (ej. el iPhone aparece por Continuity), re-forzar el Mac.
+  if(navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+    navigator.mediaDevices.addEventListener('devicechange', function(){ if(room) preferMic(); });
+  }
 
   function wire(rm){
     rm.on(RoomEvent.Connected,function(){ setStatus('Conectado. Esperando a Sato…'); });
@@ -384,9 +398,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     connecting=true; hideBanner(); btnTalk.disabled=true; setStatus('Conectando…'); setMic('off');
     try{ var tmp=await navigator.mediaDevices.getUserMedia({audio:true}); tmp.getTracks().forEach(function(t){t.stop();}); }
     catch(e){ return fail('No tengo acceso al micrófono.', 'Permitilo para este sitio (candado en la barra) y reintentá. ('+(e&&e.name||e)+')'); }
+    var macMicId=await pickMacMicId();   // SIEMPRE el Mac, NUNCA el iPhone — captura directa, sin ventana inicial
     var info;
     try{ info=await getToken(); } catch(e){ return fail('No pude obtener acceso a la sala.', 'Token: '+e.message+'. ¿Está corriendo el server local?'); }
-    try{ room=new LK.Room(); wire(room); registerTranscript(room); await room.connect(info.url, info.token); }
+    try{
+      var ropts = macMicId ? {audioCaptureDefaults:{deviceId:macMicId}} : {};
+      room=new LK.Room(ropts); wire(room); registerTranscript(room); await room.connect(info.url, info.token);
+    }
     catch(e){ try{room&&room.disconnect();}catch(_){} room=null; return fail('No me pude conectar a la sala.', 'Conexión: '+(e&&e.message||e)); }
     try{ await room.localParticipant.setMicrophoneEnabled(true); setMic('on'); }
     catch(e){ setMic('err'); return fail('No pude activar el micrófono.', String(e&&e.name||e)); }
