@@ -1,7 +1,10 @@
 """
-Satori Voz — agente de voz (LiveKit + OpenAI Realtime) que consume el tool-backend GAS (doPost).
+Satori Voz — agente de voz (LiveKit Agents, pipeline STT→LLM→TTS) que consume el tool-backend GAS (doPost).
 
-Fork de marca: (b) voz-a-voz OpenAI Realtime (confirmado por Luciano). Secretos por env (.env.local),
+Pipeline A' fase (i), en vivo desde 30-jun-2026: Deepgram STT (nova-3, multi) + OpenAI LLM (gpt-4o-mini)
++ ElevenLabs TTS (eleven_turbo_v2_5, es, voz grave de Sato) + Silero VAD — NO REMOVER el VAD: sin él
+se cae el turn-detection (regla dura HANDOFF 30-jun); su deprecation warning es deuda aceptada. El fork
+previo (b) OpenAI Realtime queda como backup en agent.py.preA.bak. Secretos por env (.env.local),
 nunca hardcodeados (Bastión). El agente NUNCA toca los Sheets: pide al doPost (gateado por secreto) y
 recibe texto para hablar.
 
@@ -19,7 +22,6 @@ from livekit import agents
 from livekit.agents import Agent, AgentServer, AgentSession, RunContext, function_tool
 from livekit.agents.llm import ToolError
 from livekit.plugins import openai, deepgram, elevenlabs, silero
-from livekit.agents import BackgroundAudioPlayer, AudioConfig, BuiltinAudioClip
 
 import gas_voz_client  # cliente autenticado: Bearer (refresh de luciano@) + secreto-en-body + redirect 302
 
