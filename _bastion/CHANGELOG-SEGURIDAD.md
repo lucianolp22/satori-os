@@ -3,13 +3,19 @@
 > Registro de cambios de seguridad del proyecto GAS MAESTRO y componentes asociados.
 > Lo mantienen Bastión (diseño/registro) + Code (ejecución técnica). Formato: más nuevo arriba.
 
+## 2026-07-03 — Promoción CM v2 (cockpit zen-futurista) a `/exec`
+
+- **Qué:** Command Center v2 (reconstrucción del interior del overlay `#centro`: cockpit + kanban de Tareas con backend nuevo `tableroTareas()`/`moverTarea()`) promovido a prod junto con el scope `drive.file`. Deployment `AKfycbxZJL4E…` `@13 → @15`.
+- **Postura de seguridad preservada:** gate `doGet` (`OWNER_EMAIL`, fail-closed) + `webapp.access: DOMAIN` **intactos** (no se tocaron). `moverTarea()` valida whitelist de escritura `[pendiente,en_curso,hecha]` + existencia del id y escribe **solo** la columna estado (nunca borra ni toca otras) + loguea a `Actividad` (auditabilidad). Sin datos sensibles nuevos expuestos en el DOM del iframe (least-privilege visual).
+- **Verificación:** Code offline (`node --check`, IDs únicos, guardia diff) + **eyeball de Luciano aprobado** (render-check en `/dev`, desktop+iPhone). Commits `9ceffbd`(A)…`f68709a`(D).
+
 ## 2026-07-03 — Scope OAuth `drive` → `drive.file` (menor privilegio)
 
 - **Qué:** `src/appsscript.json` — scope `https://www.googleapis.com/auth/drive` reemplazado por `https://www.googleapis.com/auth/drive.file`. ENCARGO del 29-jun (`ENCARGO-Code-scope-drive-2026-06-29.md`).
 - **Por qué:** menor privilegio. Los únicos usos de `DriveApp` (`09_selftest.js:329,353`) operan sobre sheets creados por `SpreadsheetApp.create` → `drive.file` (solo archivos creados por la app) cubre el 100% del uso real. Pre-validado por Cowork 03-jul.
 - **Ejecución:** Code, commit `2e014f0` + `clasp push` (03-jul). Backup rollback: `src/appsscript.json.bak-2026-07-03`.
 - **Validación:** selfTest completo **TODO OK** bajo `drive.file` (03-jul 14:33), incluida la limpieza «cliente __TEST__ a papelera» (`setTrashed` funciona con el scope menor). Google no re-pidió consent: el grant viejo `drive` cubre el subconjunto; en runtime manda el manifest → downgrade efectivo.
-- **Promoción a deployments prod:** PENDIENTE → se hace **al cierre de B4** (03-jul: el HEAD de GAS ya incluye el CM v2 parcial — Commit A `9ceffbd` — así que promover antes serviría un cockpit a medio cablear en `/exec`; el scope menor YA rige en runtime vía manifest, la promoción es alineación de código servido). Al promover: marcar acá con fecha + borrar `src/appsscript.json.bak-2026-07-03`.
+- **Promoción a deployments prod:** ✅ **HECHA 2026-07-03 al cierre de B4** — deployment `AKfycbxZJL4E…` (el `/exec` del CM) promovido `@13 → @15` («03.07.2026 v3 - CM v2 zen-futurista (cockpit + kanban) + scope drive.file») vía `clasp deploy -i`, con guardia diff GAS↔repo verde previa. Backup rollback `src/appsscript.json.bak-2026-07-03` borrado. (El scope menor ya regía en runtime vía manifest desde el `clasp push` del 03-jul; esta promoción alinea el código servido en `/exec`.)
 - **Recomendación Bastión (opcional, la hace Luciano):** revocar el grant viejo en https://myaccount.google.com/permissions → el próximo consent pedirá solo «archivos creados por esta app». Severidad: baja (defensa en profundidad; el runtime ya opera con el scope menor).
 
 ## 2026-07-03 — Rotación `VOZ_TOOL_SECRET`
