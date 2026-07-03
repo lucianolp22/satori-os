@@ -1206,7 +1206,7 @@ function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),
   cmOx.clearRect(0,0,w,w);
   // resplandor central, más intenso con actividad
   var g=cmOx.createRadialGradient(cx,cx,R*0.12,cx,cx,R*1.18);
-  g.addColorStop(0,'rgba(108,221,186,'+(0.05+0.12*energy)+')');g.addColorStop(1,'rgba(108,221,186,0)');
+  g.addColorStop(0,'rgba(213,130,79,'+(0.06+0.14*energy)+')');g.addColorStop(1,'rgba(213,130,79,0)');
   cmOx.fillStyle=g;cmOx.beginPath();cmOx.arc(cx,cx,R*1.18,0,7);cmOx.fill();
   var proj=[];
   for(var i=0;i<cmPts.length;i++){var p=cmPts[i];
@@ -1217,20 +1217,20 @@ function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),
   for(var r=0;r<rows;r++)for(var c=0;c<cols;c++){var a=proj[r*cols+c],b=proj[r*cols+((c+1)%cols)],d=(r<rows-1)?proj[(r+1)*cols+c]:null;
     if(a.z>-0.15){
       var near=Math.max(0,Math.cos(cmPts[r*cols+c].lo+rot-sweep)),boost=energy*0.45*near;
-      cmOx.strokeStyle='rgba(108,221,186,'+Math.min(.72,.04+.14*Math.max(0,a.z)+boost)+')';cmOx.lineWidth=1;
+      cmOx.strokeStyle='rgba(213,130,79,'+Math.min(.72,.04+.14*Math.max(0,a.z)+boost)+')';cmOx.lineWidth=1;
       cmOx.beginPath();cmOx.moveTo(a.x,a.y);cmOx.lineTo(b.x,b.y);cmOx.stroke();
       if(d){cmOx.beginPath();cmOx.moveTo(a.x,a.y);cmOx.lineTo(d.x,d.y);cmOx.stroke();}}}
   // neuronas: vértices frontales que titilan (más vivos con actividad)
   for(var j=0;j<proj.length;j+=2){var pt=proj[j];if(pt.z<=0.12)continue;
     var tw=0.5+0.5*Math.sin(t*(0.002+0.004*energy)+j*1.7);
     var al=Math.min(.9,(0.08+0.45*pt.z)*(0.35+0.65*tw)*(0.45+0.55*energy)),rad=1+1.7*pt.z*tw;
-    cmOx.fillStyle='rgba('+(150+Math.round(70*energy))+',232,202,'+al+')';
+    cmOx.fillStyle='rgba(242,'+(196+Math.round(20*energy))+',147,'+al+')';
     cmOx.beginPath();cmOx.arc(pt.x,pt.y,rad,0,7);cmOx.fill();}}
 /* ── orbe 3D (Three.js r128, CDN+SRI; degrada a 2D si Three.js no cargó) — estilo Trillion + cerebro ── */
 var cm3D={on:false,ready:false,renderer:null,scene:null,cam:null,grp:null,pts:null,wire:null,core:null,lines:null,tex:null,graph:null,lastCli:null,composer:null,bloom:null,calidad:'alto',last:0};
 function cmCalidadBaja_(){return cm3D.calidad==='bajo';}
 // Paleta por dimensión del CEREBRO (líder/negocio/sistema) + alerta. Incluye naranja y rojo.
-var CM_DIMCOL={negocio:0x4ff0c8,sistema:0x9a6cff,lider:0xff9a3c,alerta:0xff4d4d};
+var CM_DIMCOL={negocio:0xD5824F,sistema:0x3E9B82,lider:0xF2C893,alerta:0xE0795F};
 function cmNodeColor_(n){return (n&&n.alert)?CM_DIMCOL.alerta:((n&&CM_DIMCOL[n.dim])||CM_DIMCOL.negocio);}
 function cmDecoNode_(i){var r=(i*53)%100;return {dim:r<60?'negocio':(r<80?'sistema':'lider'),alert:r>=96};}
 function cmGlowTex_(){
@@ -1270,7 +1270,7 @@ function cmBuildOrb(graph){
   }
   if(cm3D.lines){cm3D.grp.remove(cm3D.lines);cm3D.lines.geometry.dispose();cm3D.lines.material.dispose();cm3D.lines=null;}
   if(lp.length){var lg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(lp),3));
-    cm3D.lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x4ff0c8,transparent:true,opacity:0.12,depthWrite:false,blending:THREE.AdditiveBlending}));cm3D.grp.add(cm3D.lines);}
+    cm3D.lines=new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0xD5824F,transparent:true,opacity:0.14,depthWrite:false,blending:THREE.AdditiveBlending}));cm3D.grp.add(cm3D.lines);}
 }
 /* -- Pulido orbe (27-jun): leyenda + overlay de nodos por dimension -- */
 var CM_DIMLABEL={negocio:'Negocio',sistema:'Sistema',lider:'Lider',alerta:'Punto ciego'};
@@ -1321,7 +1321,7 @@ function cmInit3D(){
     var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.0;
     var grp=new THREE.Group();sc.add(grp);
     var BAJA=cmCalidadBaja_();
-    var gm=function(op){return new THREE.MeshBasicMaterial({color:0x33e6b8,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
+    var gm=function(op){return new THREE.MeshBasicMaterial({color:0xE6A87E,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
     grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,24,24),gm(0.015)));   // halo nebuloso externo (glow -50%)
     grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,24,24),gm(0.03)));
     grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.72,28,28),gm(0.06)));
@@ -1330,7 +1330,7 @@ function cmInit3D(){
     for(var k=0;k<ip.count;k++){var vx=ip.getX(k),vy=ip.getY(k),vz=ip.getZ(k);
       var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.2*nz;
       ip.setXYZ(k,vx*s,vy*s,vz*s);}
-    var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0x4ff0c8,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
+    var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0xD5824F,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
     cm3D.renderer=r;cm3D.scene=sc;cm3D.cam=cam;cm3D.grp=grp;cm3D.wire=wire;cm3D.ready=true;cm3D.on=true;
     cmInitNodeHover();
     cmBuildOrb(cm3D.graph); // nodos reales si ya llegaron del cerebro; si no, decorativos
