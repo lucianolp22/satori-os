@@ -18,6 +18,7 @@ Uso (desde la raíz del repo, con el venv del agente):
 """
 import os
 import json
+import secrets
 import pathlib
 import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -51,23 +52,39 @@ except Exception as _e:  # pragma: no cover
 
 
 def mint_token():
+    # Sala e identidad UNICAS por sesion: una desconexion abrupta (cerrar la app, bloquear el
+    # iPhone) NO deja un job huerfano bloqueando la proxima conexion. La sala vieja muere sola
+    # (empty timeout de LiveKit) y la nueva arranca un job nuevo. El agente es auto-dispatch.
+    room = ROOM + "-" + secrets.token_hex(4)
     grants = lk_api.VideoGrants(
-        room_join=True, room=ROOM,
+        room_join=True, room=room,
         can_publish=True, can_subscribe=True, can_publish_data=True,
     )
-    return (
+    token = (
         lk_api.AccessToken(api_key=LIVEKIT_API_KEY, api_secret=LIVEKIT_API_SECRET)
-        .with_identity("luciano-desktop")
+        .with_identity("luciano-" + secrets.token_hex(3))
         .with_name("Luciano")
         .with_grants(grants)
         .with_ttl(datetime.timedelta(minutes=TTL_MIN))
         .to_jwt()
     )
+    return room, token
 
 
 class Handler(SimpleHTTPRequestHandler):
+    # MIME del manifest PWA (SimpleHTTPRequestHandler no lo conoce de fábrica).
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".webmanifest": "application/manifest+json"}
+
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(HERE), **kw)
+
+    def end_headers(self):
+        # El shell y los archivos PWA NO se cachean (truco iOS #7): evita dejar al
+        # teléfono varado en una versión vieja. El vendor/SDK versionado sí se cachea.
+        p = urlparse(self.path).path
+        if p in ("/", "", "/voz.html", "/sw.js", "/manifest.webmanifest"):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
 
     def _send_json(self, code, obj):
         body = json.dumps(obj).encode("utf-8")
@@ -86,7 +103,8 @@ class Handler(SimpleHTTPRequestHandler):
             if not (LIVEKIT_URL and LIVEKIT_API_KEY and LIVEKIT_API_SECRET):
                 return self._send_json(500, {"error": "faltan credenciales LiveKit en .env.local"})
             try:
-                return self._send_json(200, {"url": LIVEKIT_URL, "room": ROOM, "token": mint_token()})
+                room, token = mint_token()
+                return self._send_json(200, {"url": LIVEKIT_URL, "room": room, "token": token})
             except Exception:
                 return self._send_json(500, {"error": "no pude mintear el token"})
         if path in ("/", ""):

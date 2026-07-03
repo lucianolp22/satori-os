@@ -2,7 +2,14 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sato">
+<meta name="theme-color" content="#030307">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <title>Satori · Voz</title>
 <!-- Orbe portado del Centro de Mando (#centro). Tokens replicados (doc standalone en localhost). -->
 <style>
@@ -17,8 +24,9 @@
 html,body{margin:0;padding:0;height:100%;overflow:hidden}
 body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
 #space{position:fixed;inset:0;z-index:0}
-.hud{position:relative;z-index:2;height:100vh;display:grid;grid-template-columns:1fr 360px;
-  grid-template-rows:auto 1fr auto;gap:14px;padding:16px 20px}
+.hud{position:relative;z-index:2;height:100vh;height:100dvh;display:grid;grid-template-columns:1fr 360px;
+  grid-template-rows:auto 1fr auto;gap:14px;
+  padding:max(16px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
 
 /* Botón estilo Centro de Mando (cm-btn.voz) — unificado con la pantalla principal */
 .cmbtn{appearance:none;font-family:inherit;background:transparent;border:1px solid var(--teal-strong);
@@ -76,9 +84,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 .chat-send[disabled]{opacity:.5;cursor:not-allowed}
 
 @media (max-width:880px){
-  .hud{grid-template-columns:1fr;grid-template-rows:auto 320px auto 240px;overflow-y:auto}
-  .top{grid-column:1} .stage{grid-column:1;grid-row:2} .bottom{grid-column:1;grid-row:3}
-  .chat{grid-column:1;grid-row:4}
+  .hud{grid-template-columns:1fr;grid-template-rows:auto 1fr auto auto;gap:10px;overflow:hidden}
+  .top{grid-column:1} .stage{grid-column:1;grid-row:2;min-height:0} .bottom{grid-column:1;grid-row:3}
+  .chat{grid-column:1;grid-row:4;max-height:34dvh}
+  .controls .cmbtn{min-height:52px;font-size:15px;padding:0 22px}   /* targets táctiles grandes */
+  .brand .sub{display:none}
 }
 </style>
 <!-- Three.js r128 (CDN + SRI, igual que el Centro de Mando). Si no carga, el orbe degrada a 2D. -->
@@ -131,6 +141,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 (function(){
   "use strict";
   var REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Touch/móvil: en el teléfono NO se fuerza el mic del Mac (usa el del propio device).
+  var IS_TOUCH = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || /iphone|ipad|ipod|android/i.test(navigator.userAgent||'');
   var VOICE = {energy:0, target:0, connected:false, sampling:false};
 
   var statusEl=document.getElementById('status'), banner=document.getElementById('banner');
@@ -198,7 +210,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   }
   function buildOrb(){
     if(!O3.ready)return;
-    var N=1500,pos=new Float32Array(N*3),col=new Float32Array(N*3),tmp=new THREE.Color();
+    var N=(IS_TOUCH?900:1500),pos=new Float32Array(N*3),col=new Float32Array(N*3),tmp=new THREE.Color();   // móvil: 900 (balance densidad/CPU)
     for(var i=0;i<N;i++){
       var y=1-(i/(Math.max(1,N-1)))*2,rad=Math.sqrt(Math.max(0,1-y*y)),th=i*2.399963229,rr=1.0+((i*0.37)%1)*0.08;
       pos[i*3]=Math.cos(th)*rad*rr;pos[i*3+1]=y*rr;pos[i*3+2]=Math.sin(th)*rad*rr;
@@ -239,7 +251,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   }
   function resize3D(){
     if(!O3.ready||!O3.renderer||!o2)return;
-    O3.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));
+    O3.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,IS_TOUCH?1:1.5));
     O3.renderer.setSize(o2.width,o2.height,true);
     O3.cam.aspect=1;O3.cam.updateProjectionMatrix();
   }
@@ -267,6 +279,52 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   var LK=window.LivekitClient, RoomEvent=LK&&LK.RoomEvent;
   var room=null, connecting=false, audioCtx=null, analyser=null, vData=null, transcriptReg=false;
 
+  // iOS: desbloquear el audio DENTRO del gesto del usuario (síncrono, antes de cualquier await).
+  // Le da user-activation permanente al <audio> y resume el AudioContext, para que el track de
+  // Sato suene aunque iOS bloquee el autoplay. (Trucos iOS #4 y #9, Kevin.)
+  var SILENT_WAV='data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQIAAAAAAA==';
+  function primeAudio(){
+    try{
+      audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+      if(audioCtx.state==='suspended'){ audioCtx.resume().catch(function(){}); }
+    }catch(_){}
+    try{
+      agentAudio.muted=false;
+      if(!agentAudio.srcObject && !agentAudio.src){ agentAudio.src=SILENT_WAV; }
+      var p=agentAudio.play(); if(p&&p.catch){ p.catch(function(){}); }
+    }catch(_){}
+  }
+
+  // Tecleo de "Sato pensando" durante la espera. Generado en el CLIENTE con WebAudio
+  // (NO es un track del agente -> nunca se mezcla con la voz de Sato, a diferencia del
+  // BackgroundAudioPlayer que quitamos el 30-jun). Arranca cuando Luciano termina de hablar
+  // y se corta cuando Sato empieza a responder. (En iOS el silent switch lo silencia, igual que cualquier efecto.)
+  var THINK={on:false, timer:null, gain:null};
+  function startThinking(){
+    if(THINK.on || !audioCtx) return;
+    try{ if(audioCtx.state==='suspended'){ audioCtx.resume().catch(function(){}); } }catch(_){}
+    THINK.on=true;
+    try{ THINK.gain=audioCtx.createGain(); THINK.gain.gain.value=0.05; THINK.gain.connect(audioCtx.destination); }
+    catch(_){ THINK.on=false; return; }
+    (function tick(){
+      if(!THINK.on || !audioCtx) return;
+      try{
+        var dur=0.013, n=Math.max(1,Math.ceil(audioCtx.sampleRate*dur));
+        var buf=audioCtx.createBuffer(1,n,audioCtx.sampleRate), ch=buf.getChannelData(0);
+        for(var i=0;i<n;i++){ ch[i]=(Math.random()*2-1)*Math.pow(1-i/n,2); }   // click corto con decay
+        var src=audioCtx.createBufferSource(); src.buffer=buf;
+        var bp=audioCtx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800+Math.random()*1600; bp.Q.value=0.8;
+        src.connect(bp); bp.connect(THINK.gain); src.start();
+      }catch(_){}
+      THINK.timer=setTimeout(tick, 85+Math.random()*150);   // ritmo de tecleo irregular
+    })();
+  }
+  function stopThinking(){
+    THINK.on=false;
+    if(THINK.timer){ clearTimeout(THINK.timer); THINK.timer=null; }
+    if(THINK.gain){ try{ THINK.gain.disconnect(); }catch(_){} THINK.gain=null; }
+  }
+
   function startOrb(){ sizeAll(); init3D(); requestAnimationFrame(loop); }
 
   if(!LK){ showBanner('No cargó el SDK de voz (/vendor). Verificá el server local.'); btnTalk.disabled=true; }
@@ -291,6 +349,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
         var sum=0; for(var i=0;i<vData.length;i++){var v=(vData[i]-128)/128; sum+=v*v;}
         var rms=Math.sqrt(sum/vData.length);
         VOICE.target = Math.max(0.12, Math.min(1, rms*4.2));   // Sato hablando → orbe vivo; silencio → pulso "escuchando"
+        if(VOICE.target>0.3){ stopThinking(); }   // respaldo: si ya suena la voz de Sato, cortar el tecleo
       } else { VOICE.target = 0.12; }
       requestAnimationFrame(tick);
     })();
@@ -320,7 +379,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     var final=attrs['lk.transcription_final']==='true';
     var meId=room&&room.localParticipant&&room.localParticipant.identity;
     var role=(info&&info.identity===meId)?'vos':'sato';
-    reader.readAll().then(function(text){ if(text) upsert(sid, role, text, final); }).catch(function(){});
+    reader.readAll().then(function(text){
+      if(text){
+        upsert(sid, role, text, final);
+        if(role==='sato'){ stopThinking(); }        // Sato empezó a responder -> cortar el tecleo
+        else if(final){ startThinking(); }           // Luciano terminó una frase -> Sato va a pensar
+      }
+    }).catch(function(){});
   }
   function registerTranscript(rm){
     if(transcriptReg) return;
@@ -340,6 +405,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   function _isMacLabel(L){ return /built.?in|macbook|integrad|intern[oa]|imac|mac mini|mac studio|micr[oó]fono del mac/.test(L); }
   // Elige SIEMPRE el micrófono del Mac; NUNCA el del iPhone (Continuity). Devuelve deviceId o ''.
   async function pickMacMicId(){
+    if(IS_TOUCH) return '';   // móvil: usar el micrófono del propio teléfono, no buscar el del Mac
     try{
       var devs=await navigator.mediaDevices.enumerateDevices();
       var mics=devs.filter(function(d){return d.kind==='audioinput' && d.deviceId && d.deviceId!=='default' && d.deviceId!=='communications';});
@@ -382,6 +448,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       if(!rm.canPlaybackAudio){ btnAudio.hidden=false; showBanner('El navegador bloqueó el audio. Tocá "Activar audio".'); }
       else { btnAudio.hidden=true; hideBanner(); }
     });
+    // Tecleo por el ESTADO REAL del agente: 'thinking' (incluso después del filler, mientras consulta el brief)
+    // -> tecleo; 'speaking'/'listening' -> corta. Resuelve la espera post-filler que quedaba muda.
+    rm.on(RoomEvent.ParticipantAttributesChanged,function(changed){
+      try{
+        if(changed && Object.prototype.hasOwnProperty.call(changed,'lk.agent.state')){
+          if(changed['lk.agent.state']==='thinking'){ startThinking(); } else { stopThinking(); }
+        }
+      }catch(_){}
+    });
   }
   function fail(msg,detail){
     setStatus(msg); if(detail) showBanner(detail);
@@ -395,15 +470,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   }
   async function start(){
     if(connecting||room||!LK) return;
+    primeAudio();   // iOS: desbloqueo de audio en el gesto, antes de cualquier await
     connecting=true; hideBanner(); btnTalk.disabled=true; setStatus('Conectando…'); setMic('off');
-    try{ var tmp=await navigator.mediaDevices.getUserMedia({audio:true}); tmp.getTracks().forEach(function(t){t.stop();}); }
+    try{ var tmp=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); tmp.getTracks().forEach(function(t){t.stop();}); }
     catch(e){ return fail('No tengo acceso al micrófono.', 'Permitilo para este sitio (candado en la barra) y reintentá. ('+(e&&e.name||e)+')'); }
     var macMicId=await pickMacMicId();   // SIEMPRE el Mac, NUNCA el iPhone — captura directa, sin ventana inicial
     var info;
     try{ info=await getToken(); } catch(e){ return fail('No pude obtener acceso a la sala.', 'Token: '+e.message+'. ¿Está corriendo el server local?'); }
     try{
-      var ropts = macMicId ? {audioCaptureDefaults:{deviceId:macMicId}} : {};
-      room=new LK.Room(ropts); wire(room); registerTranscript(room); await room.connect(info.url, info.token);
+      // AEC/ruido/ganancia forzados: clave en el iPhone (el altavoz realimenta el mic -> el STT transcribe a Sato).
+      var acd = {echoCancellation:true, noiseSuppression:true, autoGainControl:true};
+      if(macMicId){ acd.deviceId = macMicId; }
+      room=new LK.Room({audioCaptureDefaults:acd}); wire(room); registerTranscript(room); await room.connect(info.url, info.token);
     }
     catch(e){ try{room&&room.disconnect();}catch(_){} room=null; return fail('No me pude conectar a la sala.', 'Conexión: '+(e&&e.message||e)); }
     try{ await room.localParticipant.setMicrophoneEnabled(true); setMic('on'); }
@@ -415,6 +493,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     sampleLoop(); preferMic();
   }
   function teardown(msg){
+    stopThinking();
     try{ room&&room.disconnect(); }catch(_){}
     room=null; connecting=false; VOICE.connected=false; VOICE.target=0; transcriptReg=false;
     btnHang.hidden=true; btnAudio.hidden=true; btnTalk.hidden=false; btnTalk.disabled=false; setMic('off');
@@ -433,6 +512,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     else if(document.referrer) location.href=document.referrer;
     else window.close();
   });
+
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(_){} }
 
   if(document.readyState!=='loading') startOrb();
   else window.addEventListener('DOMContentLoaded', startOrb);
