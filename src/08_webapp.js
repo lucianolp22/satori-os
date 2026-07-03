@@ -489,6 +489,60 @@ function resolverAprobacionUI(idCliente, id, decision, ediciones) {
   return resolverAprobacion(idCliente, id, decision, ediciones || {});
 }
 
+// ── Tablero de tareas (kanban del Command Center · B4) ───────────────────────
+
+/**
+ * Whitelist de ESCRITURA del kanban (riel 1). Solo estos literales se pueden setear
+ * por drag&drop. 'cancelada'/'completada' NO se setean por drag (semántica aparte):
+ * la columna de cierre AGRUPA los 3 terminales en LECTURA, pero al cerrar se escribe 'hecha'.
+ */
+var ESTADOS_TAREA_UI = ['pendiente', 'en_curso', 'hecha'];
+var TERMINALES_TAREA = ['hecha', 'completada', 'cancelada'];
+
+/** Tablero completo de tareas del MAESTRO para el kanban (solo lectura). */
+function tableroTareas() {
+  var ss = getMaestro();
+  return leerTabla(ss.getSheetByName('Tareas')).map(function (t) {
+    var est = String(t.estado || '').toLowerCase();
+    // riel: en lectura, los 3 terminales caen en el carril 'hecha'
+    var carril = (TERMINALES_TAREA.indexOf(est) >= 0) ? 'hecha' : (est === 'en_curso' ? 'en_curso' : 'pendiente');
+    return {
+      id_tarea: t.id_tarea, descripcion: t.descripcion, prioridad: t.prioridad,
+      estado: est, carril: carril, fecha_limite: aFechaISO(t.fecha_limite),
+      id_cliente: clienteDeProyecto(t.id_proyecto), vencida: esVencida(t.fecha_limite, t.estado)
+    };
+  });
+}
+
+/**
+ * Mueve una tarea a un estado destino desde el kanban del CM. Reglas duras (03-jul):
+ *  (1) whitelist de escritura = ESTADOS_TAREA_UI (valida id destino);
+ *  (2) valida que la tarea exista y escribe SOLO la columna estado (nunca borra ni toca otras);
+ *  (3) loguea el cambio en Actividad (quién/qué/cuándo) — auditabilidad.
+ * AREL: interno + reversible = avanzar (sin gate).
+ */
+function moverTarea(idTarea, estadoDestino) {
+  estadoDestino = String(estadoDestino || '').toLowerCase();
+  if (ESTADOS_TAREA_UI.indexOf(estadoDestino) < 0) throw new Error('Estado destino no permitido: ' + estadoDestino);
+  var sh = getMaestro().getSheetByName('Tareas');
+  if (!sh) throw new Error('No existe la pestaña Tareas');
+  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var cId = H.indexOf('id_tarea'), cEst = H.indexOf('estado'), cProy = H.indexOf('id_proyecto');
+  if (cId < 0 || cEst < 0) throw new Error('Schema Tareas sin columnas id_tarea/estado');
+  var n = sh.getLastRow();
+  if (n < 2) throw new Error('Sin tareas');
+  var filas = sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
+  var fila = -1, previo = '', idProy = '';
+  for (var i = 0; i < filas.length; i++) {
+    if (String(filas[i][cId]) === String(idTarea)) { fila = i + 2; previo = String(filas[i][cEst]); idProy = cProy >= 0 ? filas[i][cProy] : ''; break; }
+  }
+  if (fila < 0) throw new Error('Tarea no encontrada: ' + idTarea);
+  if (String(previo).toLowerCase() === estadoDestino) return { id_tarea: idTarea, estado: estadoDestino, previo: previo, sin_cambio: true };
+  sh.getRange(fila, cEst + 1).setValue(estadoDestino);   // riel 2: SOLO la columna estado
+  try { feed_('Director', 'accion', clienteDeProyecto(idProy), 'Tarea ' + idTarea + ': ' + (previo || '—') + ' → ' + estadoDestino + ' (kanban CM)', idTarea, ''); } catch (e) {}
+  return { id_tarea: idTarea, estado: estadoDestino, previo: previo };
+}
+
 /** 'yyyy-MM-ddTHH:mm:ss' → 'YYYY-MM-DD HH:mm' (legible). Acepta Date o string. */
 function aHoraLegible_(v) {
   if (!v) return '';

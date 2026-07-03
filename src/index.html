@@ -1597,6 +1597,66 @@ function ccHoy(){
   });
 })();
 
+/* ════════════ Commit D: kanban de Tareas (3 carriles reales + D&D persistente) ════════════ */
+CC.dragged=null; CC.kanbanWired=false;
+var CC_KMAP=['pendiente','en_curso','hecha'];
+
+function ccKanbanLoad(){
+  var cols=document.querySelectorAll('#kcols .kcol'); if(cols.length<3)return;
+  var conts=[];
+  for(var i=0;i<3;i++){ var kc=cols[i].querySelector('.kcards'); kc.setAttribute('data-estado',CC_KMAP[i]); clear(kc);
+    conts.push(kc); cols[i].querySelector('.ct').textContent='…'; }
+  if(!EN_GAS)return;
+  google.script.run.withSuccessHandler(function(rows){ ccKanbanRender(rows,conts,cols); })
+    .withFailureHandler(function(e){ cmToast('No se pudo leer el tablero: '+((e&&e.message)||'error')); }).tableroTareas();
+}
+function ccKanbanRender(rows,conts,cols){
+  var by={pendiente:[],en_curso:[],hecha:[]};
+  (rows||[]).forEach(function(t){ (by[t.carril]||by.pendiente).push(t); });
+  for(var i=0;i<3;i++){ clear(conts[i]);
+    by[CC_KMAP[i]].forEach(function(t){ conts[i].appendChild(ccKCard(t)); });
+    cols[i].querySelector('.ct').textContent=String(by[CC_KMAP[i]].length); }
+  ccKanbanDnD();
+}
+function ccKCard(t){
+  var c=el('div','kcard'+(t.carril==='hecha'?' done':'')); c.setAttribute('data-id',t.id_tarea);
+  if(t.prioridad){ var lbl=el('div','lbl');
+    lbl.style.setProperty('--lc', String(t.prioridad).toUpperCase()==='A'?'var(--color-danger)':(String(t.prioridad).toUpperCase()==='B'?'var(--color-warning)':'var(--_terra-500)'));
+    c.appendChild(lbl); }
+  c.appendChild(el('div','ti',t.descripcion||t.id_tarea));
+  var meta=el('div','meta');
+  if(t.id_cliente)meta.appendChild(el('span','ck',t.id_cliente));
+  if(t.fecha_limite){ var f=el('span','ck',t.fecha_limite); if(t.vencida)f.style.color='var(--color-danger)'; meta.appendChild(f); }
+  if(meta.childNodes.length)c.appendChild(meta);
+  return c;
+}
+function ccKanbanDnD(){
+  // tarjetas: re-bind por render (elementos nuevos)
+  document.querySelectorAll('#kcols .kcard').forEach(function(c){ c.draggable=true;
+    c.addEventListener('dragstart',function(){ CC.dragged=c; c.classList.add('dragging'); });
+    c.addEventListener('dragend',function(){ c.classList.remove('dragging'); CC.dragged=null; }); });
+  // contenedores: bind UNA vez (persisten entre renders → no apilar listeners)
+  if(CC.kanbanWired)return; CC.kanbanWired=true;
+  document.querySelectorAll('#kcols .kcards').forEach(function(col){
+    col.addEventListener('dragover',function(e){ e.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave',function(){ col.classList.remove('over'); });
+    col.addEventListener('drop',function(e){ e.preventDefault(); col.classList.remove('over');
+      var card=CC.dragged; if(!card)return;
+      var origen=card.parentNode, destino=col.getAttribute('data-estado');
+      if(origen===col)return;
+      col.appendChild(card);                                   // optimistic
+      var id=card.getAttribute('data-id');
+      if(!EN_GAS){ cmToast('Movida simulada → '+destino); return; }
+      cmToast('Moviendo '+id+' → '+destino+'…');
+      google.script.run
+        .withSuccessHandler(function(){ cmToast(id+' → '+destino+' ✓'); ccKanbanLoad(); })
+        .withFailureHandler(function(e){ origen.appendChild(card); cmToast('No se pudo mover '+id+': '+((e&&e.message)||'error')); })  // revertir visual + toast
+        .moverTarea(id,destino);
+    }); });
+}
+// abrir tablero → cargar datos frescos (además del openB que muestra el modal)
+(function(){ var ob=document.getElementById('openBoard'); if(ob)ob.addEventListener('click',ccKanbanLoad); })();
+
 window.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
