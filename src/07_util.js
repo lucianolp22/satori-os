@@ -116,7 +116,9 @@ function appendFila(sh, objeto) {
  * como texto literal. Solo afecta strings — números/fechas-Date pasan intactos.
  */
 function sanitizarCelda(v) {
-  if (typeof v === 'string' && v.length > 0 && '=+-@'.indexOf(v.charAt(0)) >= 0) {
+  // PURGA B5 #3: además de = + - @, neutralizar TAB/CR/LF iniciales (control chars que
+  // Sheets/CSV pueden malinterpretar en export/import). Solo afecta strings.
+  if (typeof v === 'string' && v.length > 0 && '=+-@\t\r\n'.indexOf(v.charAt(0)) >= 0) {
     return "'" + v;
   }
   return v;
@@ -179,12 +181,16 @@ function setConfig(clave, valor) {
 function nextId(sh, columna, prefijo, ancho) {
   ancho = ancho || 3;
   var filas = leerTabla(sh);
-  var max = 0;
+  var max = 0, sucios = 0;
   filas.forEach(function (f) {
     var v = String(f[columna] || '');
     var m = v.match(new RegExp('^' + prefijo + '-(\\d+)'));
     if (m) { var n = parseInt(m[1], 10); if (n > max) max = n; }
+    else if (v !== '') { sucios++; } // ID presente que NO matchea el patrón (coacción a fecha / pegado a mano)
   });
+  // PURGA B5 #4: si hay IDs "sucios" (no parseables), el max podría subestimarse → ID duplicado.
+  // Piso defensivo = cantidad de filas, SOLO cuando hay sucios (deja el caso limpio idéntico).
+  if (sucios > 0 && filas.length > max) max = filas.length;
   var num = String(max + 1);
   while (num.length < ancho) num = '0' + num;
   return prefijo + '-' + num;

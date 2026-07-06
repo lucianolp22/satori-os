@@ -56,10 +56,12 @@ function doPost(e) {
     if (!vozRate_()) return vozOut_({ ok: false, error: 'rate_limit' });                 // PURGA #3: 30/min (el agente legítimo PUEDE gatillarlo → NO alerta)
     tool = String(body.tool || '');
     if (!VOZ_TOOLS[tool]) { vozRechazo_('unknown_tool'); return vozOut_({ ok: false, error: 'unknown_tool' }); }       // post-auth anómalo (tiene el secreto) → alerta
+    // PURGA B5 #7 (decisión Luciano): en PAUSA se congela TODO el canal de voz — lecturas incluidas
+    // (cliente/cerebro exponen estado/PII de cualquier tenant), no solo 'capturar'. Máxima contención.
+    if (_sistemaPausado_()) return vozOut_({ ok: false, error: 'sistema_en_pausa', pausado: true });
     var args = (body.args && typeof body.args === 'object') ? body.args : {};
     var id = vozStr_(args.idCliente, 24);
     if (id && !clienteExiste_(id)) return vozOut_({ ok: false, error: 'cliente_desconocido' }); // PURGA #5: roster (el agente puede errar el id → NO alerta)
-    if (_sistemaPausado_() && tool === 'capturar') return vozOut_({ ok: false, error: 'sistema_en_pausa' });
     var data;
     switch (tool) {
       case 'estado':    data = estadoVigente(id || undefined); break;

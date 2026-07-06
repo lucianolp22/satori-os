@@ -86,11 +86,15 @@ function correrDirector(tenant) {
 function poblarCerebro_(idCliente, objetivos) {
   var AGENTES = ['vigia', 'analista', 'conciliador', 'cobrador', 'abastecedor'];
   var sanitId_ = function (s) { return 'X' + String(s).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 22); };
+  // PURGA B5 #1: snapshot de nodos/aristas UNA sola vez por corrida (upsert lo reusa en vez de releer
+  // la tabla completa por cada nodo/arista → rompe el O(n²) del poblado del cerebro).
+  var snapN = leerTabla(cerebroSheet_(idCliente, 'nodos'));
+  var snapA = leerTabla(cerebroSheet_(idCliente, 'aristas'));
   // SISTEMA: Director + agentes
-  upsertNodo(idCliente, { id_nodo: 'NOD-SIS-director', dimension: 'sistema', tipo: 'agente', etiqueta: 'Director', relevancia: 5, cobertura: 85, fuente: 'director' });
+  upsertNodo(idCliente, { id_nodo: 'NOD-SIS-director', dimension: 'sistema', tipo: 'agente', etiqueta: 'Director', relevancia: 5, cobertura: 85, fuente: 'director' }, snapN);
   AGENTES.forEach(function (a) {
-    upsertNodo(idCliente, { id_nodo: 'NOD-SIS-' + a, dimension: 'sistema', tipo: 'agente', etiqueta: a, relevancia: 3, cobertura: 70, fuente: 'director' });
-    upsertArista(idCliente, { id_arista: 'ARI-orq-' + a, origen: 'NOD-SIS-director', destino: 'NOD-SIS-' + a, relacion: 'orquesta', actor: 'director' });
+    upsertNodo(idCliente, { id_nodo: 'NOD-SIS-' + a, dimension: 'sistema', tipo: 'agente', etiqueta: a, relevancia: 3, cobertura: 70, fuente: 'director' }, snapN);
+    upsertArista(idCliente, { id_arista: 'ARI-orq-' + a, origen: 'NOD-SIS-director', destino: 'NOD-SIS-' + a, relacion: 'orquesta', actor: 'director' }, snapA);
   });
   // NEGOCIO: objetivos + métricas
   (objetivos || []).forEach(function (o) {
@@ -101,12 +105,12 @@ function poblarCerebro_(idCliente, objetivos) {
       etiqueta: String(o.descripcion || o.metrica || 'objetivo').slice(0, 40),
       relevancia: (String(o.prioridad).toUpperCase() === 'A' ? 5 : 3),
       cobertura: (medible ? 60 : 20), fuente: 'director' // sin métrica → punto ciego (rojo)
-    });
-    upsertArista(idCliente, { id_arista: 'ARI-resp-' + oid, origen: 'NOD-SIS-analista', destino: oid, relacion: 'responsable_de', actor: 'director' });
+    }, snapN);
+    upsertArista(idCliente, { id_arista: 'ARI-resp-' + oid, origen: 'NOD-SIS-analista', destino: oid, relacion: 'responsable_de', actor: 'director' }, snapA);
     if (medible) {
       var mid = 'NOD-MET-' + sanitId_(o.metrica);
-      upsertNodo(idCliente, { id_nodo: mid, dimension: 'negocio', tipo: 'metrica', etiqueta: String(o.metrica).slice(0, 40), relevancia: 3, cobertura: 50, fuente: 'director' });
-      upsertArista(idCliente, { id_arista: 'ARI-mide-' + oid, origen: oid, destino: mid, relacion: 'debe', actor: 'director' });
+      upsertNodo(idCliente, { id_nodo: mid, dimension: 'negocio', tipo: 'metrica', etiqueta: String(o.metrica).slice(0, 40), relevancia: 3, cobertura: 50, fuente: 'director' }, snapN);
+      upsertArista(idCliente, { id_arista: 'ARI-mide-' + oid, origen: oid, destino: mid, relacion: 'debe', actor: 'director' }, snapA);
     }
   });
 }

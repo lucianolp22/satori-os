@@ -1,10 +1,10 @@
 /**
  * 20_killswitch.js — Kill switch unificado (riel Bastión #7).
- * Un solo interruptor congela la actividad autónoma + las ESCRITURAS de voz:
+ * Un solo interruptor congela la actividad autónoma + TODO el canal de voz:
  *   automatizaciones (corridaDiaria, drenarCola, chequeoLivianoDirector, clasificarBandeja)
- *   y la tool de escritura de voz (doPost rechaza 'capturar'; la lectura sigue viva).
- * Modo elegido: PAUSA OPERATIVA — congela lo autónomo y las escrituras, deja consultar
- * el brief por voz. Estado: Script Property SISTEMA_PAUSADO ('1' = pausado). Default = ACTIVO.
+ *   y el doPost de voz: en pausa rechaza TODAS las tools, lecturas incluidas (B5 #7).
+ * Modo elegido: PAUSA OPERATIVA — congela lo autónomo, las escrituras y las consultas por voz;
+ * solo se informa la pausa. Estado: Script Property SISTEMA_PAUSADO ('1' = pausado). Default = ACTIVO.
  * Fail-safe: si la lectura fallara, NO pausa (un glitch no frena la operación).
  * Control: pausarSistema() / reanudarSistema() desde el editor de Apps Script (Ejecutar).
  * El proyecto es standalone (no bound a la hoja) -> no hay menu onOpen; el control de

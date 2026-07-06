@@ -31,10 +31,13 @@ function cerebroSheet_(tenant, pestana) {
  * presentes en obj), si no la appendea. Bajo conLock (nextId + write atómico). Si la
  * clave viene vacía, se genera con nextId(prefijo). @return {id, creado}
  */
-function upsertPorClave_(sh, claveCol, obj, prefijo, ancho) {
+function upsertPorClave_(sh, claveCol, obj, prefijo, ancho, snap) {
   return conLock(function () {
     if (!obj[claveCol]) obj[claveCol] = nextId(sh, claveCol, prefijo, ancho || 4);
-    var hit = leerTabla(sh).filter(function (f) { return String(f[claveCol]) === String(obj[claveCol]); })[0];
+    // PURGA B5 #1: si el caller pasa `snap` (leerTabla capturado 1 vez), buscar el hit ahí en vez de
+    // releer TODA la tabla por cada upsert (rompe el O(n²) del poblado del cerebro). El caller garantiza
+    // claves únicas por lote; las filas no se borran → hit._fila sigue válido al escribir.
+    var hit = (snap || leerTabla(sh)).filter(function (f) { return String(f[claveCol]) === String(obj[claveCol]); })[0];
     if (hit) {
       var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
       for (var i = 0; i < H.length; i++) {
@@ -43,6 +46,9 @@ function upsertPorClave_(sh, claveCol, obj, prefijo, ancho) {
       return { id: obj[claveCol], creado: false };
     }
     appendFila(sh, obj);
+    // #1: mantener el snap consistente dentro del lote → si la MISMA clave vuelve a upsertarse
+    // en la misma corrida (p.ej. dos objetivos con la misma métrica), la 2ª vez ACTUALIZA, no duplica.
+    if (snap) { var nuevo = {}; for (var k in obj) nuevo[k] = obj[k]; nuevo._fila = sh.getLastRow(); snap.push(nuevo); }
     return { id: obj[claveCol], creado: true };
   });
 }
@@ -65,7 +71,7 @@ function dimensionDeTipo_(tipo) { return DIMENSION_POR_TIPO[String(tipo)] || 'ne
  * @param {Object} nodo    { id_nodo?, tipo?, etiqueta?, atributos?, estado?, actor? }
  * @return {{id_nodo:string, creado:boolean}}
  */
-function upsertNodo(tenant, nodo) {
+function upsertNodo(tenant, nodo, snap) {
   nodo = nodo || {};
   var sh = cerebroSheet_(tenant, 'nodos');
   var tipo = nodo.tipo || 'generico';
@@ -81,7 +87,7 @@ function upsertNodo(tenant, nodo) {
     fuente: nodo.fuente || nodo.actor || 'sistema',
     actualizado_en: ahoraISO()
   };
-  var r = upsertPorClave_(sh, 'id_nodo', fila, 'NOD', 4);
+  var r = upsertPorClave_(sh, 'id_nodo', fila, 'NOD', 4, snap);
   logEvento(tenant, { evento: r.creado ? 'nodo_creado' : 'nodo_actualizado', id_nodo: r.id, origen: nodo.actor || 'sistema' });
   return { id_nodo: r.id, creado: r.creado };
 }
@@ -92,7 +98,7 @@ function upsertNodo(tenant, nodo) {
  * @param {Object} arista  { id_arista?, origen, destino, tipo?, peso?, atributos?, actor? }
  * @return {{id_arista:string, creado:boolean}}
  */
-function upsertArista(tenant, arista) {
+function upsertArista(tenant, arista, snap) {
   arista = arista || {};
   if (!arista.origen || !arista.destino) throw new Error('arista sin origen/destino');
   var sh = cerebroSheet_(tenant, 'aristas');
@@ -107,7 +113,7 @@ function upsertArista(tenant, arista) {
     atributos: (typeof arista.atributos === 'string') ? arista.atributos : JSON.stringify(arista.atributos || {}),
     actualizado_en: ahoraISO()
   };
-  var r = upsertPorClave_(sh, 'id_arista', fila, 'ARI', 4);
+  var r = upsertPorClave_(sh, 'id_arista', fila, 'ARI', 4, snap);
   logEvento(tenant, { evento: r.creado ? 'arista_creada' : 'arista_actualizada', id_arista: r.id, origen: arista.actor || 'sistema' });
   return { id_arista: r.id, creado: r.creado };
 }

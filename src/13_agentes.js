@@ -46,7 +46,8 @@ function budgetMensualUSD_() {
   return isNaN(n) ? 25 : n;
 }
 
-function filaConsumoAgentes_() {
+// PURGA B5 #5: núcleo lee-o-crea SIN lock (lo llaman los wrappers que SÍ lockean; no reentrante).
+function _filaConsumoCore_() {
   var sh = getMaestro().getSheetByName('Consumo_agentes');
   var mes = mesISO();
   var vals = sh.getDataRange().getValues();
@@ -57,14 +58,19 @@ function filaConsumoAgentes_() {
   return { fila: sh.getLastRow(), gasto: 0, corridas: {} };
 }
 
-/** Registra una corrida exitosa: suma USD del mes y +1 al cupo diario del agente. */
+/** Fila del mes (lectura). Bajo conLock: evita la fila de mes DUPLICADA si dos corridas se solapan al cambiar de mes. */
+function filaConsumoAgentes_() { return conLock(_filaConsumoCore_); }
+
+/** Registra una corrida exitosa: suma USD del mes y +1 al cupo diario del agente. Read-modify-write atómico (#5). */
 function registrarConsumoAgente_(usd, clave) {
-  var sh = getMaestro().getSheetByName('Consumo_agentes');
-  var c = filaConsumoAgentes_();
-  var key = clave + ':' + hoyISO();
-  c.corridas[key] = (c.corridas[key] || 0) + 1;
-  sh.getRange(c.fila, 2).setValue(Math.round((c.gasto + (usd || 0)) * 1e4) / 1e4);
-  sh.getRange(c.fila, 3).setValue(sanitizarCelda(JSON.stringify(c.corridas)));
+  return conLock(function () {
+    var sh = getMaestro().getSheetByName('Consumo_agentes');
+    var c = _filaConsumoCore_();
+    var key = clave + ':' + hoyISO();
+    c.corridas[key] = (c.corridas[key] || 0) + 1;
+    sh.getRange(c.fila, 2).setValue(Math.round((c.gasto + (usd || 0)) * 1e4) / 1e4);
+    sh.getRange(c.fila, 3).setValue(sanitizarCelda(JSON.stringify(c.corridas)));
+  });
 }
 
 /** Guard de cupo/presupuesto. {ok} o {ok:false, motivo}. Vigía nunca se pausa por tope mensual. */
