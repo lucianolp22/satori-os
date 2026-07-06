@@ -25,6 +25,11 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;height:100%;overflow:hidden}
+/* Transición Voz<->CM: cortina cálida (mismo #0b0806 → dissolve sin corte, coherente con el CM) */
+#cmFx{position:fixed;inset:0;background:#0b0806;z-index:100000;opacity:0;pointer-events:none;transition:opacity .32s cubic-bezier(.22,.61,.36,1);animation:cmFxIn .42s cubic-bezier(.22,.61,.36,1)}
+#cmFx.on{opacity:1;pointer-events:auto}
+@keyframes cmFxIn{from{opacity:1}to{opacity:0}}
+@media (prefers-reduced-motion:reduce){#cmFx{animation:none;transition:none}}
 body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased}
 #space{position:fixed;inset:0;z-index:0}
 .hud{position:relative;z-index:2;height:100vh;height:100dvh;display:grid;grid-template-columns:1fr 360px;
@@ -247,10 +252,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       grp.add(new THREE.Mesh(new THREE.SphereGeometry(1.05,24,24),gm(0.03)));
       grp.add(new THREE.Mesh(new THREE.SphereGeometry(0.72,28,28),gm(0.06)));
       var core=new THREE.Mesh(new THREE.SphereGeometry(0.5,28,28),gm(0.1));grp.add(core);O3.core=core;
-      var ico=new THREE.IcosahedronGeometry(1.0,3),ip=ico.attributes.position;
-      for(var k=0;k<ip.count;k++){var vx=ip.getX(k),vy=ip.getY(k),vz=ip.getZ(k);
-        var nz=(Math.sin(vx*3.1+vy*2.3)+Math.cos(vy*2.7+vz*3.3)+Math.sin(vz*3.9+vx*1.7))/3,s=1+0.2*nz;
-        ip.setXYZ(k,vx*s,vy*s,vz*s);}
+      var ico=new THREE.IcosahedronGeometry(1.0,3); // wireframe REGULAR (geodésico limpio) — sin deformación por ruido (coherente con el CM)
       var wire=new THREE.Mesh(ico,new THREE.MeshBasicMaterial({color:0xe0a17a,wireframe:true,transparent:true,opacity:0.4,depthWrite:false,blending:THREE.AdditiveBlending}));grp.add(wire);
       O3.renderer=r;O3.scene=sc;O3.cam=cam;O3.grp=grp;O3.wire=wire;O3.ready=true;O3.on=true;
       buildOrb();resize3D();
@@ -513,11 +515,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   btnAudio.addEventListener('click',function(){ if(room){ room.startAudio().then(function(){btnAudio.hidden=true;hideBanner();}).catch(function(){}); } });
   window.addEventListener('beforeunload',function(){ try{ room&&room.disconnect(); }catch(_){} });
   // PURGA #4: volver con fallback (history → referrer → cerrar)
+  var cmFx=document.createElement('div'); cmFx.id='cmFx'; document.body.appendChild(cmFx); // cortina de transición (fade-in por CSS al cargar)
   document.getElementById('back').addEventListener('click',function(){
     try{room&&room.disconnect();}catch(_){}
-    if(history.length>1) history.back();
-    else if(document.referrer) location.href=document.referrer;
-    else window.close();
+    cmFx.classList.add('on'); // dissolve antes de volver al panel
+    setTimeout(function(){
+      if(history.length>1) history.back();
+      else if(document.referrer) location.href=document.referrer;
+      else window.close();
+    }, 300);
   });
 
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(_){} }
