@@ -439,6 +439,11 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .kcard .lbl{height:5px; width:38px; border-radius:var(--radius-full); margin-bottom:7px; background:var(--lc,var(--color-primary))}
 #centro .kcard .meta{display:flex; align-items:center; gap:8px; margin-top:7px; font-size:10.5px; color:var(--color-text-subtle)}#centro .kcard .meta .ck{display:inline-flex; align-items:center; gap:4px; font-family:var(--font-mono)}
 #centro .kcard.done{opacity:.6}#centro .kcard.done .ti{text-decoration:line-through}
+/* Tareas-v2 F1: quick-add + filtros por tipo del board */
+#centro .kadd-in{flex:1; min-width:180px; margin-left:var(--space-3); background:rgba(255,255,255,.06); border:1px solid var(--color-border-strong); border-radius:var(--radius-full); padding:7px var(--space-4); color:var(--color-text); font:inherit; font-size:var(--text-sm); outline:none}
+#centro .kadd-in:focus{border-color:var(--color-primary)}
+#centro .kadd-in::placeholder{color:var(--color-text-subtle)}
+#centro .kfrow{display:flex; gap:6px; flex-wrap:wrap; padding:var(--space-2) var(--space-5) 0}
 #centro .kadd{margin-top:var(--space-2); font-size:var(--text-xs); color:var(--color-text-subtle); padding:6px; border-radius:var(--radius-sm); cursor:pointer}#centro .kadd:hover{background:rgba(255,255,255,.05); color:var(--color-text)}
 @keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @media (prefers-reduced-motion: reduce){ #centro .orbiter, #centro .node, #centro .dotlive{animation:none !important}#centro .orbiter{transform:rotate(var(--angle,0deg))}#centro .node{transform:rotate(calc(-1 * var(--angle,0deg)))}  }
@@ -638,7 +643,17 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div class="kboard" id="kboard" role="dialog" aria-modal="true" aria-label="Tablero de tareas">
     <div class="khead"><h3>Tablero · Tareas</h3>
       <span class="chip c-info" style="margin-left:6px">arrastrá las tarjetas entre columnas</span>
+      <input id="kadd" class="kadd-in" type="text" placeholder="Nueva tarea…  !a  #etiqueta  @cliente  15/08  cada semana" aria-label="Alta rápida de tarea (Enter crea)">
       <button class="icon-btn" id="kclose" style="margin-left:auto" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="kfrow" id="kfilters" role="group" aria-label="Filtrar tarjetas por tipo">
+      <button class="fchip on" data-kf="todo">Todo</button>
+      <button class="fchip" data-kf="cliente">Clientes</button>
+      <button class="fchip" data-kf="periodica">Periódicas</button>
+      <button class="fchip" data-kf="objetivo">Objetivos</button>
+      <button class="fchip" data-kf="personal">Personal</button>
+      <button class="fchip" data-kf="admin">Admin</button>
+      <button class="fchip" data-kf="">Sin tipo</button>
     </div>
     <div class="kcols" id="kcols">
       <div class="kcol"><h4>Pendiente <span class="ct">—</span></h4><div class="kcards"></div></div>
@@ -1857,9 +1872,41 @@ function ccKanbanRender(rows,conts,cols){
     by[CC_KMAP[i]].forEach(function(t){ conts[i].appendChild(ccKCard(t)); });
     cols[i].querySelector('.ct').textContent=String(by[CC_KMAP[i]].length); }
   ccKanbanDnD();
+  kfAplicar(); // Tareas-v2 F1: re-aplicar el filtro de tipo activo tras cada render
 }
+// Tareas-v2 F1: filtro por tipo persistente entre renders (CC.kf) + quick-add con sigilos
+CC.kf='todo';
+function kfAplicar(){
+  document.querySelectorAll('#kcols .kcard').forEach(function(c){
+    var t=c.getAttribute('data-tipo')||'';
+    c.style.display=(CC.kf==='todo'||t===CC.kf)?'':'none';
+  });
+}
+(function(){
+  var inp=document.getElementById('kadd');
+  if(inp){ inp.addEventListener('keydown',function(e){
+    if(e.key!=='Enter')return; e.preventDefault();
+    var v=inp.value.trim(); if(!v)return;
+    if(!EN_GAS){ cmToast('Alta disponible solo en GAS'); return; }
+    inp.disabled=true;
+    google.script.run.withSuccessHandler(function(r){
+      inp.value=''; inp.disabled=false; inp.focus();
+      cmToast('Tarea '+r.id_tarea+' creada'+((r.parsed&&r.parsed.fecha_limite)?' · vence '+r.parsed.fecha_limite:'')+((r.parsed&&r.parsed.recurrencia)?' · ↻'+r.parsed.recurrencia:''));
+      ccKanbanLoad();
+    }).withFailureHandler(function(err){
+      inp.disabled=false; cmToast('No se pudo crear: '+((err&&err.message)||'error'));
+    }).crearTareaQuick(v);
+  }); }
+  document.querySelectorAll('#kfilters .fchip').forEach(function(fc){
+    fc.addEventListener('click',function(){
+      document.querySelectorAll('#kfilters .fchip').forEach(function(x){x.classList.remove('on');});
+      fc.classList.add('on'); CC.kf=fc.getAttribute('data-kf'); kfAplicar();
+    });
+  });
+})();
 function ccKCard(t){
   var c=el('div','kcard'+(t.carril==='hecha'?' done':'')); c.setAttribute('data-id',t.id_tarea);
+  c.setAttribute('data-tipo',t.tipo||''); // Tareas-v2 F1: filtros por tipo
   if(t.prioridad){ var lbl=el('div','lbl');
     lbl.style.setProperty('--lc', String(t.prioridad).toUpperCase()==='A'?'var(--color-danger)':(String(t.prioridad).toUpperCase()==='B'?'var(--color-warning)':'var(--_terra-500)'));
     c.appendChild(lbl); }
@@ -1867,6 +1914,8 @@ function ccKCard(t){
   var meta=el('div','meta');
   if(t.id_cliente)meta.appendChild(el('span','ck',t.id_cliente));
   if(t.fecha_limite){ var f=el('span','ck',t.fecha_limite); if(t.vencida)f.style.color='var(--color-danger)'; meta.appendChild(f); }
+  if(t.recurrencia)meta.appendChild(el('span','ck','↻ '+t.recurrencia));
+  String(t.etiquetas||'').split(',').filter(String).slice(0,2).forEach(function(e2){ meta.appendChild(el('span','ck','#'+e2.trim())); });
   if(meta.childNodes.length)c.appendChild(meta);
   return c;
 }

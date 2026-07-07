@@ -13,7 +13,9 @@ var MAESTRO_NOMBRE = 'Satori OS — MAESTRO';
 var MAESTRO_SHEETS = {
   Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento'],
-  Tareas: ['id_tarea', 'id_proyecto', 'descripcion', 'prioridad', 'estado', 'fecha_limite', 'fecha_creacion'],
+  // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
+  // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). ensureSheet reconcilia headers ADITIVO.
+  Tareas: ['id_tarea', 'id_proyecto', 'descripcion', 'prioridad', 'estado', 'fecha_limite', 'fecha_creacion', 'tipo', 'etiquetas', 'recurrencia', 'orden'],
   Avisos: ['id_aviso', 'origen', 'id_cliente', 'tipo', 'mensaje', 'estado', 'fecha'],
   Bitacora: ['fecha', 'id_cliente', 'observacion', 'etiqueta'],
   // Espejo de pendientes de cada Sheet cliente (solo lectura agregada — 0.3).

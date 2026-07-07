@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-07 23:41 · commit: 679398b
+> Generado: 2026-07-08 00:02 · commit: 5838677
 
 ## Módulos
 
@@ -15,7 +15,7 @@
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 16 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 16 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 31 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 36 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 4 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 11 |
@@ -29,6 +29,7 @@
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
+| `99_tmp_tipos.js` | TEMPORAL: puebla tipo/recurrencia en las 23 tareas migradas de Trello | 1 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -122,7 +123,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig setConfig nextId protegerSheet 
 
-**08_webapp.js:** doGet doPost vozOut_ vozAuth_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI tableroTareas moverTarea aHoraLegible_ 
+**08_webapp.js:** doGet doPost vozOut_ vozAuth_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
 **09_selftest.js:** selfTest debugE21 limpiarTodoTest borrarFilasDonde 
 
@@ -149,4 +150,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **20_killswitch.js:** _sistemaPausado_ pausarSistema reanudarSistema estadoPausa smokeKill 
 
 **21_backup.js:** _stampBackup_ _nombreSeguro_ _backupRootFolder_ _retencionSemanas_ _copiarSpreadsheet_ _ejecutarBackup_ backupSemanal backupAhora instalarTriggerBackup estadoTriggerBackup smokeBackup backupListar drillRestore _drillRestore_ 
+
+**99_tmp_tipos.js:** tmp_poblarTipos 
 

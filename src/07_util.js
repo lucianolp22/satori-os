@@ -52,6 +52,16 @@ function ensureSheet(ss, nombre, headers) {
     sh.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#f0f0f0');
     sh.setFrozenRows(1);
     sh.autoResizeColumns(1, headers.length);
+  } else if (headers && headers.length && sh.getLastColumn() > 0) {
+    // Tareas-v2 F1 (07-jul): reconciliación ADITIVA de headers en hojas existentes — agrega al
+    // FINAL los que faltan del schema. Nunca reordena, renombra ni borra; los datos no se tocan
+    // (leerTabla/appendFila mapean por nombre, así que los consumidores viejos siguen igual).
+    var actuales = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    var faltan = headers.filter(function (h) { return actuales.indexOf(String(h)) < 0; });
+    if (faltan.length) {
+      sh.getRange(1, actuales.length + 1, 1, faltan.length).setValues([faltan]);
+      sh.getRange(1, actuales.length + 1, 1, faltan.length).setFontWeight('bold').setBackground('#f0f0f0');
+    }
   }
   aplicarFormatoTexto(sh); // IDs/claves como texto plano (evita coerción a fecha; ver COLUMNAS_TEXTO)
   return sh;

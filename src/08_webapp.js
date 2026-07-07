@@ -531,9 +531,118 @@ function tableroTareas() {
     return {
       id_tarea: t.id_tarea, descripcion: t.descripcion, prioridad: t.prioridad,
       estado: est, carril: carril, fecha_limite: aFechaISO(t.fecha_limite),
-      id_cliente: clienteDeProyecto(t.id_proyecto), vencida: esVencida(t.fecha_limite, t.estado)
+      id_cliente: clienteDeProyecto(t.id_proyecto), vencida: esVencida(t.fecha_limite, t.estado),
+      // Tareas-v2 F1: contexto + recurrencia para chips/filtros del board
+      tipo: String(t.tipo || '').toLowerCase(), etiquetas: String(t.etiquetas || ''), recurrencia: String(t.recurrencia || '').toLowerCase()
     };
   });
+}
+
+// ── Tareas-v2 F1 (07-jul, docs/TRELLO-a-Satori-mapeo.md §6) — alta rápida + recurrencia ──
+
+var TAREA_TIPOS = ['cliente', 'periodica', 'objetivo', 'personal', 'admin'];
+var TAREA_RECS = ['1d', '1s', '2s', '1m'];
+
+/** PURA (testeable): suma n días a un ISO YYYY-MM-DD. */
+function sumarDiasISO_(iso, n) {
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return '';
+  var dt = new Date(+m[1], +m[2] - 1, +m[3] + n);
+  return dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2) + '-' + ('0' + dt.getDate()).slice(-2);
+}
+
+/**
+ * PURA: próxima fecha de una regla de recurrencia desde una base.
+ * 1d=+1día · 1s=+7 · 2s=+14 · 1m=+1 mes calendario (clampa fin de mes: 31/01→28/02).
+ */
+function parseRecurrencia(rec, baseISO) {
+  var r = String(rec || '').trim().toLowerCase();
+  var m = String(baseISO || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m || TAREA_RECS.indexOf(r) < 0) return '';
+  if (r === '1d') return sumarDiasISO_(baseISO, 1);
+  if (r === '1s') return sumarDiasISO_(baseISO, 7);
+  if (r === '2s') return sumarDiasISO_(baseISO, 14);
+  var y = +m[1], mo = +m[2] - 1, d = +m[3];
+  var dt = new Date(y, mo + 1, d);
+  if (dt.getMonth() !== (mo + 1) % 12) dt = new Date(y, mo + 2, 0); // se pasó de mes → último día del mes destino
+  return dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2) + '-' + ('0' + dt.getDate()).slice(-2);
+}
+
+/**
+ * PURA: parsea el quick-add del board con sigilos. hoyBase opcional (inyectable en tests).
+ *   !a/!b/!c → prioridad · #etiqueta (multi) · @cliente → cliente_txt · ^tipo → override
+ *   "hoy" | "mañana" | dd/mm → fecha_limite · "cada dia|semana|quincena|mes" → recurrencia
+ * Heurística de tipo si no hay ^override: @cliente→'cliente' · recurrencia→'periodica' · resto 'personal'.
+ */
+function parseQuickAdd(str, hoyBase) {
+  var hoy = /^\d{4}-\d{2}-\d{2}$/.test(String(hoyBase || '')) ? String(hoyBase) : hoyISO();
+  var out = { descripcion: '', prioridad: 'B', tipo: '', etiquetas: [], cliente_txt: '', fecha_limite: '', recurrencia: '' };
+  var s = String(str || '').trim();
+  if (!s) return out;
+  s = s.replace(/\bcada\s+d[ií]a\b/i, function () { out.recurrencia = '1d'; return ' '; });
+  s = s.replace(/\bcada\s+semana\b/i, function () { out.recurrencia = '1s'; return ' '; });
+  s = s.replace(/\bcada\s+quincena\b/i, function () { out.recurrencia = '2s'; return ' '; });
+  s = s.replace(/\bcada\s+mes\b/i, function () { out.recurrencia = '1m'; return ' '; });
+  s = s.replace(/(^|\s)!([abc])\b/i, function (_, sp, p) { out.prioridad = p.toUpperCase(); return sp; });
+  s = s.replace(/(^|\s)#([\wáéíóúñ-]+)/gi, function (_, sp, e) { out.etiquetas.push(e.toLowerCase()); return sp; });
+  s = s.replace(/(^|\s)@([\wáéíóúñ-]+)/i, function (_, sp, c) { out.cliente_txt = c.toLowerCase(); return sp; });
+  s = s.replace(/(^|\s)\^(cliente|periodica|objetivo|personal|admin)\b/i, function (_, sp, t) { out.tipo = t.toLowerCase(); return sp; });
+  s = s.replace(/(^|\s)hoy\b/i, function (_, sp) { out.fecha_limite = hoy; return sp; });
+  s = s.replace(/(^|\s)ma[ñn]ana\b/i, function (_, sp) { out.fecha_limite = sumarDiasISO_(hoy, 1); return sp; });
+  s = s.replace(/(^|\s)(\d{1,2})\/(\d{1,2})(?=\s|$)/, function (_, sp, dd, mm) {
+    var f = hoy.slice(0, 4) + '-' + ('0' + mm).slice(-2) + '-' + ('0' + dd).slice(-2);
+    if (f < hoy) f = (+hoy.slice(0, 4) + 1) + f.slice(4); // ya pasó este año → el próximo
+    out.fecha_limite = f; return sp;
+  });
+  if (!out.tipo) out.tipo = out.cliente_txt ? 'cliente' : (out.recurrencia ? 'periodica' : 'personal');
+  out.descripcion = s.replace(/\s+/g, ' ').trim();
+  return out;
+}
+
+/**
+ * Alta de tarea (board/editor/bridge Bandeja futuro). payload: {descripcion*, prioridad, tipo,
+ * etiquetas (array|CSV), recurrencia, fecha_limite, id_proyecto}. Valida contra whitelists,
+ * nunca inventa cliente: si cliente_txt no matchea un cliente real, queda como etiqueta visible.
+ */
+function crearTarea(payload) {
+  var p = payload || {};
+  var desc = String(p.descripcion || '').trim();
+  if (!desc) throw new Error('crearTarea: falta la descripción.');
+  var sh = getMaestro().getSheetByName('Tareas');
+  if (!sh) throw new Error('Falta la pestaña Tareas — correr setup().');
+  var tipo = String(p.tipo || '').toLowerCase(); if (TAREA_TIPOS.indexOf(tipo) < 0) tipo = '';
+  var pri = String(p.prioridad || 'B').toUpperCase(); if (['A', 'B', 'C'].indexOf(pri) < 0) pri = 'B';
+  var rec = String(p.recurrencia || '').toLowerCase(); if (TAREA_RECS.indexOf(rec) < 0) rec = '';
+  var fl = aFechaISO(p.fecha_limite) || '';
+  var ets = p.etiquetas || [];
+  if (typeof ets === 'string') ets = ets.split(',');
+  ets = ets.map(function (e) { return String(e).trim().toLowerCase(); }).filter(String).slice(0, 6);
+  var idProy = String(p.id_proyecto || '');
+  return conLock(function () {
+    var id = nextId(sh, 'id_tarea', 'TAR', 4);
+    appendFila(sh, {
+      id_tarea: id, id_proyecto: idProy, descripcion: desc, prioridad: pri, estado: 'pendiente',
+      fecha_limite: fl, fecha_creacion: hoyISO(), tipo: tipo, etiquetas: ets.join(','), recurrencia: rec, orden: ''
+    });
+    try { feed_('Director', 'accion', clienteDeProyecto(idProy), 'Tarea creada desde el board: ' + id + ' · ' + desc.slice(0, 80), id, ''); } catch (e) {}
+    return { id_tarea: id, descripcion: desc, prioridad: pri, tipo: tipo, recurrencia: rec, fecha_limite: fl };
+  });
+}
+
+/** CM: quick-add del board — parsea sigilos y crea. @cliente intenta matchear Clientes (por nombre). */
+function crearTareaQuick(str) {
+  var q = parseQuickAdd(str);
+  if (!q.descripcion) throw new Error('Escribí la tarea (los sigilos solos no alcanzan).');
+  if (q.cliente_txt) {
+    var hit = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
+      return String(c.nombre).toLowerCase().indexOf(q.cliente_txt) >= 0;
+    })[0];
+    // Fase 1: sin proyecto activo por cliente todavía → el vínculo visible queda como etiqueta.
+    q.etiquetas.push(hit ? String(hit.nombre).toLowerCase().split(' ')[0] : q.cliente_txt);
+  }
+  var r = crearTarea(q);
+  r.parsed = { tipo: q.tipo, prioridad: q.prioridad, fecha_limite: q.fecha_limite, recurrencia: q.recurrencia, etiquetas: q.etiquetas };
+  return r;
 }
 
 /**
@@ -562,7 +671,36 @@ function moverTarea(idTarea, estadoDestino) {
   if (String(previo).toLowerCase() === estadoDestino) return { id_tarea: idTarea, estado: estadoDestino, previo: previo, sin_cambio: true };
   sh.getRange(fila, cEst + 1).setValue(estadoDestino);   // riel 2: SOLO la columna estado
   try { feed_('Director', 'accion', clienteDeProyecto(idProy), 'Tarea ' + idTarea + ': ' + (previo || '—') + ' → ' + estadoDestino + ' (kanban CM)', idTarea, ''); } catch (e) {}
-  return { id_tarea: idTarea, estado: estadoDestino, previo: previo };
+  // Tareas-v2 F1: recurrencia — al COMPLETAR ('hecha') una tarea con regla, renace 1 clon
+  // pendiente con la próxima fecha (base = HOY, estilo "after completion"). Guards: nunca en
+  // 'cancelada' (no entra por el kanban: whitelist ESTADOS_TAREA_UI) · no-op ya cortó arriba ·
+  // dedupe si ya hay una viva idéntica (evita doble clon por re-drag hecha→pendiente→hecha) ·
+  // el clon JAMÁS rompe el drag (try/catch).
+  var renace = '';
+  if (estadoDestino === 'hecha') {
+    try {
+      var cRec = H.indexOf('recurrencia');
+      var rec = cRec >= 0 ? String(filas[fila - 2][cRec] || '').toLowerCase() : '';
+      if (rec && TAREA_RECS.indexOf(rec) >= 0) {
+        var descV = String(filas[fila - 2][H.indexOf('descripcion')] || '');
+        var yaViva = leerTabla(sh).some(function (f) {
+          return String(f.descripcion) === descV &&
+                 String(f.recurrencia || '').toLowerCase() === rec &&
+                 TERMINALES_TAREA.indexOf(String(f.estado).toLowerCase()) < 0;
+        });
+        if (!yaViva) {
+          var cTip = H.indexOf('tipo'), cEt = H.indexOf('etiquetas');
+          var clon = crearTarea({
+            descripcion: descV, prioridad: filas[fila - 2][H.indexOf('prioridad')],
+            tipo: cTip >= 0 ? filas[fila - 2][cTip] : '', etiquetas: cEt >= 0 ? String(filas[fila - 2][cEt] || '') : '',
+            recurrencia: rec, fecha_limite: parseRecurrencia(rec, hoyISO()), id_proyecto: idProy
+          });
+          renace = clon.id_tarea;
+        }
+      }
+    } catch (e) { /* recurrencia nunca bloquea el tablero */ }
+  }
+  return { id_tarea: idTarea, estado: estadoDestino, previo: previo, renace: renace };
 }
 
 /** 'yyyy-MM-ddTHH:mm:ss' → 'YYYY-MM-DD HH:mm' (legible). Acepta Date o string. */

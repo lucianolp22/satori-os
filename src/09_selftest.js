@@ -249,6 +249,22 @@ function selfTest() {
     chk(agendaRango(hoyISO(), hoyISO()).some(function (e) { return String(e.id) === ageId; }), 'D7b agendaRango(hoy,hoy) incluye el evento');
     chk(agendaRango('2020-01-02', '2020-01-01').length === 0 && agendaRango('x', 'y').length === 0, 'D7b agendaRango rechaza rango inválido (fail-closed)');
 
+    // ── D8 Tareas-v2 F1 — parsers puros + alta + clon-al-completar (auto-limpiante) ──
+    var q8 = parseQuickAdd('Llamar a @vehemence por EERR !a #finanzas 15/08 cada semana', '2026-07-07');
+    chk(q8.prioridad === 'A' && q8.recurrencia === '1s' && q8.etiquetas[0] === 'finanzas' && q8.cliente_txt === 'vehemence' && q8.fecha_limite === '2026-08-15' && q8.tipo === 'cliente', 'D8 parseQuickAdd: !a #etiqueta @cliente dd/mm y "cada semana"');
+    chk(parseQuickAdd('cosa simple', '2026-07-07').tipo === 'personal' && parseQuickAdd('regar cada mes', '2026-07-07').tipo === 'periodica', 'D8 heurística de tipo (default personal · recurrente→periodica)');
+    chk(parseRecurrencia('1s', '2026-07-07') === '2026-07-14' && parseRecurrencia('1m', '2026-01-31') === '2026-02-28' && parseRecurrencia('zz', '2026-07-07') === '', 'D8 parseRecurrencia (semana · clamp fin de mes · regla inválida)');
+    var t8 = crearTarea({ descripcion: '__TEST__ tarea v2 recurrente', prioridad: 'A', tipo: 'personal', recurrencia: '1d' });
+    chk(/^TAR-\d+$/.test(t8.id_tarea), 'D8 crearTarea devuelve id (' + t8.id_tarea + ')');
+    var mv8 = moverTarea(t8.id_tarea, 'hecha');
+    chk(!!mv8.renace && mv8.renace !== t8.id_tarea, 'D8 recurrente completada RENACE (' + mv8.renace + ')');
+    var clon8 = leerTabla(getMaestro().getSheetByName('Tareas')).filter(function (f) { return String(f.id_tarea) === mv8.renace; })[0];
+    chk(!!clon8 && String(clon8.estado) === 'pendiente' && aFechaISO(clon8.fecha_limite) === sumarDiasISO_(hoyISO(), 1), 'D8 el clon nace pendiente con fecha +1d');
+    moverTarea(t8.id_tarea, 'pendiente');
+    chk(moverTarea(t8.id_tarea, 'hecha').renace === '', 'D8 dedupe: con un clon vivo idéntico NO re-clona (re-drag)');
+    var t8b = crearTarea({ descripcion: '__TEST__ tarea v2 simple' });
+    chk(moverTarea(t8b.id_tarea, 'hecha').renace === '', 'D8 no-recurrente completada NO renace');
+
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');
     chk(modeloDeModulo_('triajeX') === MODELO_DEFAULT, 'C módulo sin mapear cae a Haiku (default seguro)');
@@ -387,7 +403,7 @@ function limpiarTodoTest() {
 
   borrarFilasDonde(shClientes, function (f) { return String(f.nombre).indexOf('__TEST__') === 0; });
   borrarFilasDonde(ss.getSheetByName('Aprobaciones_agregadas'), function (f) { return String(f.id).indexOf('APR-TEST') === 0; });
-  borrarFilasDonde(ss.getSheetByName('Tareas'), function (f) { return String(f.id_tarea).indexOf('TAR-TEST') === 0; });
+  borrarFilasDonde(ss.getSheetByName('Tareas'), function (f) { return String(f.id_tarea).indexOf('TAR-TEST') === 0 || String(f.descripcion).indexOf('__TEST__') === 0; });
   // PURGA #14: acotar a marcadores de prueba (TAR-TEST/APR-TEST), nunca a un
   // 'TEST' suelto en el mensaje — borraría avisos reales que mencionen "test".
   borrarFilasDonde(ss.getSheetByName('Avisos'), function (f) {
@@ -402,7 +418,7 @@ function limpiarTodoTest() {
     for (var id in idsTest) { if (idsTest[id] && p.indexOf('"id_cliente":"' + id + '"') >= 0) return true; }
     return false;
   });
-  borrarFilasDonde(ss.getSheetByName('Actividad'), function (f) { return idsTest[String(f.id_cliente)] === true; });
+  borrarFilasDonde(ss.getSheetByName('Actividad'), function (f) { return idsTest[String(f.id_cliente)] === true || String(f.texto).indexOf('__TEST__') >= 0; });
   // ETAPA 8a: índice agregado del cerebro (el grafo por tenant se va con el Sheet a papelera).
   var shCI = ss.getSheetByName('Cerebro_index');
   if (shCI) borrarFilasDonde(shCI, function (f) { return idsTest[String(f.id_cliente)] === true; });
