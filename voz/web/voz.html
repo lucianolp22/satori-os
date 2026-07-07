@@ -164,6 +164,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   var chatLog=document.getElementById('chatLog'), chatEmpty=document.getElementById('chatEmpty');
   var chatTxt=document.getElementById('chatTxt'), chatSend=document.getElementById('chatSend');
   function setStatus(t){ statusEl.textContent=t; }
+  // Estados visibles del agente (gap #1 plan 06-jul / norte v9 §3.3): lk.agent.state -> texto+color.
+  // MVP sobre #status (el aro del orbe 3D queda para el próximo toque de UI). Paleta zen (jade/ámbar/terracota).
+  var SATO_EST={listening:{t:'Sato escucha…',c:'#8FBFAD'},thinking:{t:'Sato está pensando…',c:'#D5A24F'},speaking:{t:'Sato está hablando',c:'#D5824F'},initializing:{t:'Sato se está preparando…',c:''}};
+  function setSato(st){
+    var e=SATO_EST[st];
+    if(!e){ statusEl.style.color=''; return; }
+    statusEl.style.color=e.c||'';
+    setStatus('● '+e.t);
+  }
   function showBanner(t){ banner.textContent=t; banner.classList.add('show'); }
   function hideBanner(){ banner.classList.remove('show'); }
   function setMic(s){ micDot.className='dot'+(s==='on'?' on':s==='err'?' err':''); }
@@ -463,6 +472,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
       try{
         if(changed && Object.prototype.hasOwnProperty.call(changed,'lk.agent.state')){
           if(changed['lk.agent.state']==='thinking'){ startThinking(); } else { stopThinking(); }
+          setSato(changed['lk.agent.state']);   // estado visible (texto+color), además del tecleo
         }
       }catch(_){}
     });
