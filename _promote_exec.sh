@@ -94,7 +94,7 @@ echo "-- 2/5 regenerar CAPABILITIES.md"
 bash _capabilities_gen.sh || { echo "ABORT: fallo la regeneracion de CAPABILITIES"; exit 3; }
 
 echo "-- 3/5 commit"
-git add CLAUDE.md PIPELINE-SatoriOS.md docs/CRITERIO-arquitectura-agentes.md _hooks/pre-push _install_hooks.sh _promote_exec.sh CAPABILITIES.md HANDOFF.md _b3_code.sh
+git add CLAUDE.md PIPELINE-SatoriOS.md docs/CRITERIO-arquitectura-agentes.md _hooks/pre-push _install_hooks.sh _promote_exec.sh CAPABILITIES.md HANDOFF.md _b3_code.sh voz/web/voz.html voz/launchagents
 if git diff --cached --quiet; then
   echo "nada nuevo para commitear — sigo"
 else

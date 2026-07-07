@@ -481,9 +481,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     if(connecting||room||!LK) return;
     primeAudio();   // iOS: desbloqueo de audio en el gesto, antes de cualquier await
     connecting=true; hideBanner(); btnTalk.disabled=true; setStatus('Conectando…'); setMic('off');
-    try{ var tmp=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); tmp.getTracks().forEach(function(t){t.stop();}); }
-    catch(e){ return fail('No tengo acceso al micrófono.', 'Permitilo para este sitio (candado en la barra) y reintentá. ('+(e&&e.name||e)+')'); }
-    var macMicId=await pickMacMicId();   // SIEMPRE el Mac, NUNCA el iPhone — captura directa, sin ventana inicial
+    // Anti-flash iPhone (07-jul): si el permiso ya está persistido, enumerateDevices trae labels SIN getUserMedia
+    // -> elegimos el mic del Mac ANTES de la primera activación, para que ni siquiera el getUserMedia inicial
+    // caiga en el default del sistema (iPhone por Continuity). Primera visita (sin labels): genérico, inevitable 1 vez.
+    var macMicId=await pickMacMicId();
+    var gumc={echoCancellation:true,noiseSuppression:true,autoGainControl:true};
+    if(macMicId){ gumc.deviceId={exact:macMicId}; }
+    try{ var tmp=await navigator.mediaDevices.getUserMedia({audio:gumc}); tmp.getTracks().forEach(function(t){t.stop();}); }
+    catch(e){
+      if(macMicId){
+        // id stale u OverconstrainedError -> reintento genérico (una sola activación default) y re-elegimos abajo
+        macMicId='';
+        try{ var tmp2=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); tmp2.getTracks().forEach(function(t){t.stop();}); }
+        catch(e2){ return fail('No tengo acceso al micrófono.', 'Permitilo para este sitio (candado en la barra) y reintentá. ('+(e2&&e2.name||e2)+')'); }
+      } else {
+        return fail('No tengo acceso al micrófono.', 'Permitilo para este sitio (candado en la barra) y reintentá. ('+(e&&e.name||e)+')');
+      }
+    }
+    if(!macMicId){ macMicId=await pickMacMicId(); }   // SIEMPRE el Mac, NUNCA el iPhone — con labels ya disponibles
     var info;
     try{ info=await getToken(); } catch(e){ return fail('No pude obtener acceso a la sala.', 'Token: '+e.message+'. ¿Está corriendo el server local?'); }
     try{
