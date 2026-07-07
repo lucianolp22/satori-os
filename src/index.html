@@ -1549,17 +1549,24 @@ function ccBrief(){
 }
 
 // P2 F1 (07-jul): feedback 1-clic del brief — semilla del lazo de resultados (hoja Feedback).
+// Fix loop (07-jul PM): el CM re-renderiza la card periódicamente y la fila renacía virgen →
+// el voto del día se recuerda en localStorage (optimistic; si el server falla, se desmarca).
 function ccFeedbackRow(){
+  var hoy=new Date().toISOString().slice(0,10), K='fbk_brief_'+hoy;
   var row=el('div','brief-act'); row.style.marginTop='10px';
+  try{ Object.keys(localStorage).forEach(function(k){ if(k.indexOf('fbk_brief_')===0&&k!==K) localStorage.removeItem(k); }); }catch(_e){}
+  var ya=false; try{ ya=localStorage.getItem(K)==='1'; }catch(_e){}
+  if(ya){ row.appendChild(el('span','ac','Feedback de hoy registrado ✓')); return row; }
   var lbl=el('span','ac','¿Te sirvió este brief?'); row.appendChild(lbl);
   var si=el('button','btn btn-ghost btn-sm','Sí'), no=el('button','btn btn-ghost btn-sm','No');
   function votar(v){
     si.disabled=true; no.disabled=true; lbl.textContent='Gracias — registrado ✓';
+    try{ localStorage.setItem(K,'1'); }catch(_e){}
     if(!EN_GAS){ cmToast('Feedback simulado ('+v+')'); return; }
     google.script.run
       .withSuccessHandler(function(){ cmToast('Feedback registrado ✓'); })
-      .withFailureHandler(function(e){ cmToast('No se pudo registrar: '+((e&&e.message)||'error')); })
-      .registrarFeedback('brief', new Date().toISOString().slice(0,10), v, '');
+      .withFailureHandler(function(e){ try{ localStorage.removeItem(K); }catch(_e){} cmToast('No se pudo registrar: '+((e&&e.message)||'error')); })
+      .registrarFeedback('brief', hoy, v, '');
   }
   si.addEventListener('click',function(){ votar('si'); });
   no.addEventListener('click',function(){ votar('no'); });
