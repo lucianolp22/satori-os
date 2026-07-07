@@ -129,6 +129,10 @@ function corridaDiaria() {
   try { resumen.costos = consolidarCostosMes(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Consolidar costos falló: ' + e.message }); }
 
+  // P2 F4: registrar la recomendación del día (lazo de resultados; dedupe por texto abierto).
+  try { resumen.recomendacion = registrarRecomendacionDelDia(); }
+  catch (e) { try { Logger.log('registrarRecomendacionDelDia fallo: ' + e.message); } catch (_e) {} }
+
   // P2 F3: brief-push (opt-in brief_push_on, default OFF; solo OWNER_EMAIL; dedupe diario).
   try { resumen.brief_push = briefPush_(); }
   catch (e) { try { Logger.log('brief_push fallo: ' + e.message); } catch (_e) {} }

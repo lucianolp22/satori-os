@@ -1546,6 +1546,35 @@ function ccBrief(){
     bi.appendChild(b); card.appendChild(bi);
   });
   card.appendChild(ccFeedbackRow());
+  (CC.recs||[]).slice(0,3).forEach(function(r){ card.appendChild(ccRecRow(r)); });
+}
+
+// P2 F4 (07-jul): fila del lazo por recomendación abierta — 2 juicios humanos (se hizo / movió KPI).
+function ccRecRow(r){
+  var bi=el('div','brief-item'); bi.appendChild(el('div','brief-ic'));
+  var b=el('div','brief-b');
+  b.appendChild(el('div','t',r.texto));
+  b.appendChild(el('div','d','Lazo · '+(r.fecha||'')+(r.kpi?' · KPI: '+r.kpi:'')));
+  var acts=el('div','brief-act');
+  function par(campo,label,val){
+    acts.appendChild(el('span','ac',label));
+    if(val){ acts.appendChild(el('span','ac',val==='si'?'Sí ✓':'No ✗')); return; }
+    var s=el('button','btn btn-ghost btn-sm','Sí'), n=el('button','btn btn-ghost btn-sm','No');
+    function marca(v){
+      s.disabled=true; n.disabled=true;
+      if(!EN_GAS){ cmToast('Lazo simulado ('+campo+'='+v+')'); return; }
+      google.script.run
+        .withSuccessHandler(function(res){ cmToast(res&&res.cerrada?'Lazo cerrado ✓':'Lazo registrado ✓'); ccHoy(); })
+        .withFailureHandler(function(e){ s.disabled=false; n.disabled=false; cmToast('No se pudo registrar: '+((e&&e.message)||'error')); })
+        .marcarRecomendacion(r.id,campo,v);
+    }
+    s.addEventListener('click',function(){ marca('si'); });
+    n.addEventListener('click',function(){ marca('no'); });
+    acts.appendChild(s); acts.appendChild(n);
+  }
+  par('se_hizo','¿Se hizo?',r.se_hizo);
+  par('kpi_movio','¿Movió el KPI?',r.kpi_movio);
+  b.appendChild(acts); bi.appendChild(b); return bi;
 }
 
 // P2 F1 (07-jul): feedback 1-clic del brief — semilla del lazo de resultados (hoja Feedback).
@@ -1577,8 +1606,42 @@ function ccAprob(){
   var card=ccCard('Aprobaciones · default-deny'); if(!card)return; ccBody(card);
   var aprob=(CC.est&&CC.est.aprobaciones)||[];
   if(!aprob.length){ card.appendChild(el('div','served','Nada pendiente de aprobación.')); return; }
+  // P2 F5 (07-jul): despacho en LOTE (checkbox por fila + barra) reusando resolverAprobacionUI unitaria.
+  var sel={}, info=null, ba=null, br=null;
+  function nsel(){ return aprob.filter(function(a){ return sel[a.id]; }).length; }
+  function upd(){ if(!info)return; var n=nsel(); info.textContent='Lote: '+n+' seleccionada(s)'; ba.disabled=!n; br.disabled=!n; }
+  function lote(decision){
+    var ids=aprob.filter(function(a){ return sel[a.id]; });
+    if(!ids.length) return;
+    if(!EN_GAS){ cmToast('Lote simulado ('+decision+' x'+ids.length+')'); return; }
+    ba.disabled=true; br.disabled=true;
+    cmToast('Despachando '+ids.length+' ('+decision+')…');
+    var done=0, fail=0;
+    function fin(){ if(done+fail<ids.length) return; cmToast('Lote '+decision+': '+done+' ok'+(fail?(' · '+fail+' con error'):'')+' ✓'); refrescarCentro(); ccHoy(); }
+    ids.forEach(function(a){
+      google.script.run
+        .withSuccessHandler(function(){ done++; fin(); })
+        .withFailureHandler(function(){ fail++; fin(); })
+        .resolverAprobacionUI(a.id_cliente,a.id,decision,{});
+    });
+  }
+  if(aprob.length>1){
+    var bar=el('div','brief-act'); bar.style.marginBottom='8px';
+    info=el('span','ac','Lote: 0 seleccionada(s)');
+    ba=el('button','btn btn-primary btn-sm','Aprobar lote'); ba.disabled=true;
+    br=el('button','btn btn-ghost btn-sm','Rechazar lote'); br.disabled=true;
+    ba.addEventListener('click',function(){ lote('aprobada'); });
+    br.addEventListener('click',function(){ lote('rechazada'); });
+    bar.appendChild(info); bar.appendChild(ba); bar.appendChild(br); card.appendChild(bar);
+  }
   aprob.forEach(function(a){
-    var li=el('div','li'); var left=el('div'); left.style.flex='1';
+    var li=el('div','li');
+    if(aprob.length>1){
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.style.marginRight='8px';
+      cb.addEventListener('change',function(){ sel[a.id]=cb.checked; upd(); });
+      li.appendChild(cb);
+    }
+    var left=el('div'); left.style.flex='1';
     left.appendChild(el('div','nm',a.descripcion||a.tipo_accion||a.id));
     left.appendChild(el('div','ac',(a.cliente||a.id_cliente||'')+(a.patron?' · '+a.patron:''))); li.appendChild(left);
     var rt=el('span','rt');
@@ -1603,6 +1666,9 @@ function ccHoy(){
   if(!EN_GAS)return;
   google.script.run.withSuccessHandler(function(h){ CC.hoy=h; try{ccEstado();ccCartera();ccTareas();ccBrief();}catch(_e){} })
     .withFailureHandler(function(){}).datosHoy();
+  // P2 F4: recomendaciones abiertas del lazo (se pintan en la card del brief)
+  google.script.run.withSuccessHandler(function(r){ CC.recs=r||[]; try{ccBrief();}catch(_e){} })
+    .withFailureHandler(function(){}).recomendacionesAbiertas();
 }
 
 // filtros del feed (si el tipo real no matchea el codigo, 'Todo' siempre muestra)

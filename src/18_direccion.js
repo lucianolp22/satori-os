@@ -207,13 +207,8 @@ function briefDiarioSistema_() {
   else L.push('- (sin actividad reciente)');
   L.push('');
   L.push('## Qué primero (recomendación)');
-  var rec;
-  if (sal.global === 'crit') rec = 'Estabilizar la salud del sistema (está en CRÍTICO) antes de cualquier otra cosa.';
-  else if (vencidas.length) rec = 'Cerrar la vencida más vieja: ' + truncar_(vencidas[0].descripcion, 90);
-  else if (ap) rec = 'Despachar las ' + ap + ' aprobación(es) pendiente(s) — desbloquean a los agentes.';
-  else if (tres.length) rec = 'Arrancar por: ' + truncar_(tres[0].descripcion, 90);
-  else rec = 'Definir la próxima movida hacia el North Star.';
-  L.push('- ' + rec);
+  var rec = recomendacionDelDia_({ d: d, sal: sal, abiertas: abiertas, vencidas: vencidas });
+  L.push('- ' + rec.texto);
   L.push('- ¿Sirvió este brief? Marcalo con 1 clic en el Centro de Mando (alimenta el lazo de resultados).');
   L.push('');
   L.push('— generado por briefDiario()');
@@ -320,6 +315,74 @@ function verVehemence() {
 function truncar_(s, n) {
   s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+// ── P2 F4 (07-jul) — Lazo de resultados: recomendó → se hizo → el KPI se movió ─
+
+/**
+ * Regla ÚNICA de la recomendación del día (la misma que muestra el brief y la que
+ * se registra). `pre` opcional {d, sal, abiertas, vencidas} evita re-leer si el
+ * caller ya lo tiene (briefDiario); sin `pre` es self-contained (corridaDiaria).
+ */
+function recomendacionDelDia_(pre) {
+  var d = (pre && pre.d) || datosHoy();
+  var sal = (pre && pre.sal) || estadoSalud();
+  var abiertas = (pre && pre.abiertas) || tareasActivasOrdenadas(leerTabla(getMaestro().getSheetByName('Tareas')));
+  var vencidas = (pre && pre.vencidas) || abiertas.filter(function (t) { return esVencida(t.fecha_limite, t.estado); });
+  var ap = d.estado.aprobaciones_pendientes;
+  if (sal.global === 'crit') return { texto: 'Estabilizar la salud del sistema (está en CRÍTICO) antes de cualquier otra cosa.', kpi: 'salud' };
+  if (vencidas.length) return { texto: 'Cerrar la vencida más vieja: ' + truncar_(vencidas[0].descripcion, 90), kpi: 'tareas_vencidas' };
+  if (ap) return { texto: 'Despachar las ' + ap + ' aprobación(es) pendiente(s) — desbloquean a los agentes.', kpi: 'aprobaciones_pendientes' };
+  if (abiertas.length) return { texto: 'Arrancar por: ' + truncar_(abiertas[0].descripcion, 90), kpi: 'north_star' };
+  return { texto: 'Definir la próxima movida hacia el North Star.', kpi: 'north_star' };
+}
+
+/**
+ * Registra la recomendación del día en la hoja Recomendaciones (estado 'abierta').
+ * Dedupe: si ya hay una ABIERTA con el mismo texto, no duplica. La llama corridaDiaria
+ * (1/día efectivo); el brief solo la MUESTRA (no escribe).
+ */
+function registrarRecomendacionDelDia() {
+  var sh = getMaestro().getSheetByName('Recomendaciones');
+  if (!sh) return { ok: false, motivo: 'falta hoja Recomendaciones (correr setup)' };
+  var r = recomendacionDelDia_();
+  return conLock(function () {
+    var ya = leerTabla(sh).filter(function (f) { return String(f.estado) === 'abierta' && String(f.texto) === r.texto; })[0];
+    if (ya) return { ok: true, id: ya.id, dedupe: true };
+    var id = nextId(sh, 'id', 'REC', 4);
+    appendFila(sh, { id: id, fecha: hoyISO(), texto: r.texto, kpi_objetivo: r.kpi, se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '' });
+    return { ok: true, id: id };
+  });
+}
+
+/**
+ * CM: marca 'se_hizo' o 'kpi_movio' ('si'/'no') de una recomendación abierta.
+ * Cuando ambos campos quedan seteados → estado 'cerrada' + cerrada_en. Juicio humano, no automático.
+ */
+function marcarRecomendacion(id, campo, valor) {
+  if (['se_hizo', 'kpi_movio'].indexOf(String(campo)) < 0) throw new Error('campo inválido: ' + campo);
+  var v = String(valor).toLowerCase() === 'si' ? 'si' : 'no';
+  var sh = getMaestro().getSheetByName('Recomendaciones');
+  if (!sh) throw new Error('Falta la hoja Recomendaciones — correr setup().');
+  return conLock(function () {
+    var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    function setCol(filaN, col, val) { var i = headers.indexOf(col); if (i >= 0) sh.getRange(filaN, i + 1).setValue(sanitizarCelda(val)); }
+    var f = leerTabla(sh).filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!f) throw new Error('Recomendación no encontrada: ' + id);
+    setCol(f._fila, campo, v);
+    var otroVal = campo === 'se_hizo' ? String(f.kpi_movio || '') : String(f.se_hizo || '');
+    if (otroVal) { setCol(f._fila, 'estado', 'cerrada'); setCol(f._fila, 'cerrada_en', ahoraISO()); }
+    return { ok: true, id: id, cerrada: !!otroVal };
+  });
+}
+
+/** CM: recomendaciones abiertas (vista del lazo en la card del brief). */
+function recomendacionesAbiertas() {
+  var sh = getMaestro().getSheetByName('Recomendaciones');
+  if (!sh) return [];
+  return leerTabla(sh).filter(function (f) { return String(f.estado) === 'abierta'; }).map(function (f) {
+    return { id: f.id, fecha: aFechaISO(f.fecha), texto: String(f.texto || ''), kpi: String(f.kpi_objetivo || ''), se_hizo: String(f.se_hizo || ''), kpi_movio: String(f.kpi_movio || '') };
+  });
 }
 
 // ── P2 F1 (07-jul) — Feedback 1-clic: semilla del lazo de resultados ─────────

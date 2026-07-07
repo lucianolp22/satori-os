@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-07 12:35 · commit: acf4c43
+> Generado: 2026-07-07 13:41 · commit: 4ad3d4d
 
 ## Módulos
 
@@ -25,7 +25,7 @@
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 7 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 14 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 18 |
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
@@ -71,7 +71,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Pestañas
 
-**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Config
+**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Recomendaciones, Config
 
 **Cliente:** Datos_operativos, KPIs, Aprobaciones, Excepciones, Umbrales, Costos_API, Reglas, nodos, aristas, cerebro_log, estado_actual, objetivos
 
@@ -142,7 +142,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **17_bandeja.js:** capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ registrarFeedback 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ recomendacionDelDia_ registrarRecomendacionDelDia marcarRecomendacion recomendacionesAbiertas registrarFeedback 
 
 **19_conectores.js:** sincronizarVehemence sincronizarConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ 
 
