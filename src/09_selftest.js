@@ -264,6 +264,8 @@ function selfTest() {
     chk(moverTarea(t8.id_tarea, 'hecha').renace === '', 'D8 dedupe: con un clon vivo idéntico NO re-clona (re-drag)');
     var t8b = crearTarea({ descripcion: '__TEST__ tarea v2 simple' });
     chk(moverTarea(t8b.id_tarea, 'hecha').renace === '', 'D8 no-recurrente completada NO renace');
+    var ctx8 = datosHoy().tareas_ctx;
+    chk(!!ctx8 && typeof ctx8.hoy === 'number' && typeof ctx8.periodicas === 'number' && ctx8.abiertas >= ctx8.en_curso, 'D8b datosHoy expone tareas_ctx (checklist de contexto)');
 
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');

@@ -135,7 +135,9 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 
 /* ── Centro de Mando (overlay A+, B-orbe · DESIGN.md §8bis) ───────────────── */
 #centro{position:fixed;inset:0;z-index:50;display:none;background:#030307;color:#E8EAF2;
-  font-family:var(--font-sans);overflow:hidden}
+  /* F1.1 (08-jul): overflow-y auto — con hidden, Actividad de agentes y Calendario quedaban
+     renderizados DEBAJO del viewport, inalcanzables (el topbar ya era sticky; los fondos son fixed). */
+  font-family:var(--font-sans);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin}
 #centro.open{display:block}
 #cmSpace{position:fixed;inset:0;z-index:0}
 .cm-hud{position:relative;z-index:2;display:grid;grid-template-columns:1fr 340px;grid-template-rows:auto auto 1fr;height:100vh;padding:16px 20px;gap:14px}
@@ -1561,11 +1563,19 @@ function ccCartera(){
 function ccTareas(){
   var card=ccCard('Tareas'); if(!card||!CC.hoy)return;
   var g=card.querySelector('.tsum'); if(!g)return; clear(g);
-  var ps=CC.hoy.proximos_pasos||[], pend=0,curso=0,venc=0;
-  ps.forEach(function(t){ if(String(t.estado).toLowerCase()==='en_curso')curso++; else pend++; if(t.vencida)venc++; });
   function box(l,v,color){ var b=el('div','b'); b.appendChild(document.createTextNode(l+' '));
     var bb=el('b',null,String(v)); if(color)bb.style.color='var(--color-'+color+')'; b.appendChild(bb); g.appendChild(b); }
-  box('Pendientes',pend); box('En curso',curso,'warning'); box('Vencidas',venc,(venc>0?'danger':null)); box('Abiertas',ps.length);
+  var cx=CC.hoy.tareas_ctx;
+  if(cx){ // Tareas-v2 F1.1: contextos reales — "Hoy" = vence hoy o vencida (el checklist del día del Trello, ahora automático)
+    box('Hoy',cx.hoy,(cx.hoy>0?'warning':null));
+    box('Clientes',cx.clientes);
+    box('Periódicas',cx.periodicas);
+    box('En curso',cx.en_curso,(cx.en_curso>0?'warning':null));
+  } else { // fallback si el backend aún no expone tareas_ctx (deploy desfasado)
+    var ps=CC.hoy.proximos_pasos||[], pend=0,curso=0,venc=0;
+    ps.forEach(function(t){ if(String(t.estado).toLowerCase()==='en_curso')curso++; else pend++; if(t.vencida)venc++; });
+    box('Pendientes',pend); box('En curso',curso,'warning'); box('Vencidas',venc,(venc>0?'danger':null)); box('Abiertas',ps.length);
+  }
 }
 
 // v11: roster real — color por agente (coherente con los nodos del orbe), última acción del feed

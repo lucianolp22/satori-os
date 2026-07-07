@@ -224,7 +224,20 @@ function datosHoy() {
       return { tipo: f.tipo, mensaje: f.mensaje, id_cliente: f.id_cliente, fecha: aFechaISO(f.fecha) };
     });
 
-  var proximos = tareasActivasOrdenadas(leerTabla(ss.getSheetByName('Tareas')))
+  var activas = tareasActivasOrdenadas(leerTabla(ss.getSheetByName('Tareas')));
+  // Tareas-v2 F1.1: conteos de CONTEXTO para la card Tareas del CM (el "checklist de hoy" real =
+  // vence hoy o ya vencida; los tipos vienen de la columna nueva). Campo aditivo: no cambia el shape viejo.
+  var hoyCtx = hoyISO();
+  var tareasCtx = { hoy: 0, clientes: 0, periodicas: 0, en_curso: 0, abiertas: activas.length };
+  activas.forEach(function (t) {
+    var fl = aFechaISO(t.fecha_limite);
+    if (fl && fl <= hoyCtx) tareasCtx.hoy++;
+    var tp = String(t.tipo || '').toLowerCase();
+    if (tp === 'cliente') tareasCtx.clientes++;
+    if (tp === 'periodica') tareasCtx.periodicas++;
+    if (String(t.estado).toLowerCase() === 'en_curso') tareasCtx.en_curso++;
+  });
+  var proximos = activas
     .slice(0, 25)
     .map(function (t) {
       return {
@@ -246,7 +259,7 @@ function datosHoy() {
     });
   });
 
-  return { estado: estadoSistema(), avisos: avisos, proximos_pasos: proximos, aprobaciones_por_patron: porPatron };
+  return { estado: estadoSistema(), avisos: avisos, proximos_pasos: proximos, aprobaciones_por_patron: porPatron, tareas_ctx: tareasCtx };
 }
 
 // ── Panel por cliente ───────────────────────────────────────────────────────
