@@ -379,7 +379,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .served{display:flex; align-items:center; gap:8px; margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px dashed var(--color-border); font-size:var(--text-xs); color:var(--color-text-subtle); flex-wrap:wrap}
 #centro .thumb{width:28px;height:28px;border-radius:var(--radius-full); border:1px solid var(--color-border-strong); background:transparent; color:var(--color-text-muted); cursor:pointer; display:grid; place-items:center}#centro .thumb:hover{border-color:var(--color-primary); color:var(--color-primary)}#centro .thumb svg{width:14px;height:14px}
 #centro .sys-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3)}
-#centro .stat{background:rgba(255,255,255,.05); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-3)}#centro .stat .l{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-text-subtle)}#centro .stat .v{font-family:var(--font-mono); font-size:var(--text-md); font-weight:600; margin-top:3px}
+#centro .stat{background:rgba(255,255,255,.05); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-3); min-height:64px; min-width:0; display:flex; flex-direction:column; justify-content:center}#centro .stat .l{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-text-subtle); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}#centro .stat .v{font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:var(--text-md); font-weight:600; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 #centro .client{display:flex; align-items:center; gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--color-border); cursor:pointer}#centro .client:last-child{border-bottom:0}
 #centro .client .n{font-family:var(--font-brand); font-size:var(--text-sm); font-weight:600}#centro .client .ns{font-family:var(--font-mono); font-size:11px; color:var(--color-text-subtle)}#centro .client .rt{margin-left:auto}
 #centro .li{display:flex; align-items:center; gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--color-border)}#centro .li:last-child{border-bottom:0}
@@ -400,6 +400,25 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .day .dh b{font-family:var(--font-mono); font-size:var(--text-md); color:var(--color-text); letter-spacing:0}
 #centro .ev{font-size:11px; padding:5px 8px; border-radius:8px; margin-top:7px; border-left:2px solid var(--evc,var(--color-primary)); background:rgba(255,255,255,.06); line-height:1.3}
 #centro .ev .t{font-family:var(--font-mono); color:var(--color-text-subtle); font-size:10px; display:block}
+/* v11 — calendario: días clickeables (abren el mes) + modal mensual */
+#centro .day{cursor:pointer}
+#centro .day:hover{border-color:var(--color-border-strong)}
+#centro .day:focus-visible{outline:2px solid var(--color-primary); outline-offset:2px}
+#centro .kboard.calboard{inset:6vh auto auto 50%; height:88vh; width:min(1080px,94vw); transform:translateX(-50%) scale(.98)}
+#centro .kboard.calboard.open{transform:translateX(-50%)}
+#centro .mnav{margin-left:auto; display:flex; gap:6px; align-items:center}
+#centro .mwrap{flex:1; overflow-y:auto; padding:var(--space-5)}
+#centro .mhdr{display:grid; grid-template-columns:repeat(7,1fr); gap:var(--space-2); margin-bottom:var(--space-2)}
+#centro .mhdr span{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-text-subtle); padding:0 4px}
+#centro .mgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:var(--space-2)}
+#centro .mday{min-height:88px; background:rgba(255,255,255,.04); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-2); min-width:0}
+#centro .mday .mn{font-family:var(--font-mono); font-size:var(--text-xs); color:var(--color-text-muted)}
+#centro .mday.today{border-color:var(--color-primary); background:var(--color-primary-weak)}
+#centro .mday.out{opacity:.35}
+#centro .mev{font-size:10px; padding:2px 6px; border-radius:6px; margin-top:4px; border-left:2px solid var(--evc,var(--color-primary)); background:rgba(255,255,255,.06); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+#centro .mev .t{font-family:var(--font-mono); color:var(--color-text-subtle); margin-right:4px}
+#centro .mmore{font-size:10px; color:var(--color-text-subtle); margin-top:3px}
+@media (max-width:760px){ #centro .mday{min-height:64px} }
 /* chat */
 #centro .chat{position:absolute; left:50%; bottom:var(--space-3); transform:translateX(-50%) translateY(20px); width:min(440px,94%); z-index:5; opacity:0; pointer-events:none; transition:opacity var(--dur-state) var(--ease-out), transform var(--dur-state) var(--ease-out-expo)}#centro .chat.show{opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0)}
 #centro .chatbox{background:var(--glass-strong); border:1px solid var(--glass-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); backdrop-filter:blur(20px) saturate(1.3); -webkit-backdrop-filter:blur(20px) saturate(1.3); padding:var(--space-4)}
@@ -407,8 +426,9 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .msg{padding:9px var(--space-3); border-radius:var(--radius-md); font-size:var(--text-sm); max-width:88%}#centro .msg.sato{background:rgba(255,255,255,.06); border:1px solid var(--color-border); align-self:flex-start}#centro .msg.you{background:var(--color-primary-weak); align-self:flex-end}
 #centro .chatin{display:flex; gap:var(--space-2)}#centro .chatin input{flex:1; background:rgba(255,255,255,.06); border:1px solid var(--color-border-strong); border-radius:var(--radius-full); padding:9px var(--space-4); color:var(--color-text); font:inherit; font-size:var(--text-sm); outline:none}#centro .chatin input:focus{border-color:var(--color-primary)}
 /* Kanban (Trello) */
-#centro .kscrim{position:fixed; inset:0; z-index:70; background:rgba(8,6,10,.6); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); opacity:0; pointer-events:none; transition:opacity var(--dur-state) var(--ease-out)}#centro .kscrim.open{opacity:1; pointer-events:auto}
-#centro .kboard{position:fixed; inset:3vh 2vw; z-index:71; background:var(--glass-strong); border:1px solid var(--glass-border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); backdrop-filter:blur(22px) saturate(1.3); -webkit-backdrop-filter:blur(22px) saturate(1.3); display:flex; flex-direction:column; opacity:0; pointer-events:none; transform:scale(.98); transition:opacity var(--dur-state) var(--ease-out), transform var(--dur-state) var(--ease-out-expo)}
+#centro .kscrim{position:fixed; inset:0; z-index:70; background:rgba(8,6,10,.38); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:opacity var(--dur-state) var(--ease-out)}#centro .kscrim.open{opacity:1; pointer-events:auto}
+/* v11: el tablero usa el MISMO vidrio que las cards (glass-bg) — el cosmos se ve a través y parece correr sobre el mismo fondo */
+#centro .kboard{position:fixed; inset:3vh 2vw; z-index:71; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); backdrop-filter:blur(var(--glass-blur)) saturate(1.25); -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25); display:flex; flex-direction:column; opacity:0; pointer-events:none; transform:scale(.98); transition:opacity var(--dur-state) var(--ease-out), transform var(--dur-state) var(--ease-out-expo)}
 #centro .kboard.open{opacity:1; pointer-events:auto; transform:none}
 #centro .khead{display:flex; align-items:center; gap:var(--space-3); padding:var(--space-4) var(--space-5); border-bottom:1px solid var(--color-border)}#centro .khead h3{font-family:var(--font-brand); font-weight:500; font-size:var(--text-lg); margin:0}
 #centro .kcols{flex:1; display:flex; gap:var(--space-4); padding:var(--space-5); overflow-x:auto; align-items:flex-start}
@@ -583,10 +603,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <h2><span class="eyebrow">Actividad de agentes</span></h2>
       <div class="agents-wrap">
         <div class="ag-list">
-          <div class="ag-row"><div class="ag-av" style="--ac:var(--_terra-400)">V</div><div><div class="nm">Vigía</div><div class="ac2">Monitoreando Vehemence · activo</div></div><div class="ag-bars"><div class="mini-l"><span>Tarea</span><span>100%</span></div><div class="mini"><i style="width:100%;--bc:var(--color-success)"></i></div><div class="mini-l"><span>Entren.</span><span>80%</span></div><div class="mini"><i style="width:80%"></i></div></div></div>
-          <div class="ag-row"><div class="ag-av" style="--ac:var(--_terra-400)">A</div><div><div class="nm">Analista</div><div class="ac2">AOV vs objetivo · activo</div></div><div class="ag-bars"><div class="mini-l"><span>Tarea</span><span>90%</span></div><div class="mini"><i style="width:90%;--bc:var(--color-success)"></i></div><div class="mini-l"><span>Entren.</span><span>72%</span></div><div class="mini"><i style="width:72%"></i></div></div></div>
-          <div class="ag-row"><div class="ag-av" style="--ac:var(--_amber-400)">C</div><div><div class="nm">Cobrador</div><div class="ac2">5 recordatorios · espera tu OK</div></div><div class="ag-bars"><div class="mini-l"><span>Tarea</span><span>70%</span></div><div class="mini"><i style="width:70%;--bc:var(--color-warning)"></i></div><div class="mini-l"><span>Entren.</span><span>50%</span></div><div class="mini"><i style="width:50%"></i></div></div></div>
-          <div class="ag-row"><div class="ag-av" style="--ac:var(--_jade-400)">D</div><div><div class="nm">Director</div><div class="ac2">Orquestando la corrida · activo</div></div><div class="ag-bars"><div class="mini-l"><span>Carga</span><span>3/5</span></div><div class="mini"><i style="width:60%;--bc:var(--_jade-400)"></i></div><div class="mini-l"><span>Entren.</span><span>88%</span></div><div class="mini"><i style="width:88%;--bc:var(--_jade-400)"></i></div></div></div>
+          <!-- placeholder pre-render honesto: ccAgentes() lo reemplaza con el roster real (estado + última acción + corridas de hoy) -->
+          <div class="served">Cargando agentes…</div>
         </div>
         <div>
           <div class="filters">
@@ -604,10 +622,13 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
     </section>
 
-    <!-- Agenda semanal (norte v9 §3.5 · opción A: pestaña MAESTRO, 07-jul) -->
+    <!-- Calendario (v11): grilla semanal lun-dom + modal mensual. Fuente: pestaña Agenda vía agendaRango() -->
     <section class="card">
-      <h2><span class="eyebrow">Agenda · próximos 7 días</span></h2>
-      <div class="feed" id="ccAgendaFeed"></div>
+      <h2><span class="eyebrow" id="ccCalTitulo">Calendario</span>
+        <button class="btn btn-ghost btn-sm" id="ccCalMes" style="margin-left:auto">Ver mes</button></h2>
+      <div class="cal-grid" id="ccCalGrid">
+        <div class="served">Cargando calendario…</div>
+      </div>
     </section>
 
   </div>
@@ -623,6 +644,23 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <div class="kcol"><h4>Pendiente <span class="ct">—</span></h4><div class="kcards"></div></div>
       <div class="kcol"><h4>En curso <span class="ct">—</span></h4><div class="kcards"></div></div>
       <div class="kcol"><h4>Hecha <span class="ct">—</span></h4><div class="kcards"></div></div>
+    </div>
+  </div>
+
+  <!-- CALENDARIO MENSUAL (v11) — modal hermano del tablero; navegación entre meses. Datos: agendaRango() -->
+  <div class="kscrim" id="calscrim"></div>
+  <div class="kboard calboard" id="calboard" role="dialog" aria-modal="true" aria-label="Calendario mensual">
+    <div class="khead"><h3 id="calTitulo">Calendario</h3>
+      <span class="mnav">
+        <button class="icon-btn" id="calPrev" aria-label="Mes anterior"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <button class="btn btn-ghost btn-sm" id="calHoy">Hoy</button>
+        <button class="icon-btn" id="calNext" aria-label="Mes siguiente"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+        <button class="icon-btn" id="calClose" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </span>
+    </div>
+    <div class="mwrap">
+      <div class="mhdr"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+      <div class="mgrid" id="mgrid"></div>
     </div>
   </div>
 
@@ -671,7 +709,10 @@ function thc(h){var t=el('th',null,h);t.setAttribute('scope','col');return t;}
 function montoEl(v){return el('span','mono','€'+v);}
 function clear(node){while(node.firstChild)node.removeChild(node.firstChild);}
 function fmtNum(n){n=Number(n)||0;return n.toLocaleString('es-ES');}
-function fechaHoraCorta(iso){iso=String(iso||'');var m=iso.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);return m?(m[3]+'/'+m[2]+' '+m[4]):iso;}
+function fechaHoraCorta(iso){iso=String(iso||'');var m=iso.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);if(m)return m[3]+'/'+m[2]+' '+m[4];
+  // v11: los Date de Sheets llegan serializados ("Tue Jul 07 2026 17:23:57 GMT+0200 (…)") — parsear y acortar, jamás mostrar el crudo.
+  var d=new Date(iso);if(!isNaN(d.getTime()))return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  return iso;}
 function saludoHora(){var h=new Date().getHours();return h<6?'Buenas noches':h<13?'Buenos días':h<20?'Buenas tardes':'Buenas noches';}
 // PURGA #10: solo aceptar http(s) en href; cualquier otro esquema (javascript:, data:) → ''.
 function safeUrl(u){return /^https?:\/\//i.test(String(u||''))?String(u):'';}
@@ -1512,13 +1553,31 @@ function ccTareas(){
   box('Pendientes',pend); box('En curso',curso,'warning'); box('Vencidas',venc,(venc>0?'danger':null)); box('Abiertas',ps.length);
 }
 
+// v11: roster real — color por agente (coherente con los nodos del orbe), última acción del feed
+// y barra "Hoy" (corridas ok/total del día, de la cola). SIN barra de entrenamiento hasta E8b: ese dato no existe y no se inventa.
+var AG_COLOR={vigia:'var(--_terra-400)',analista:'var(--_terra-400)',conciliador:'var(--_terra-400)',cobrador:'var(--_amber-400)',abastecedor:'var(--_ink-300)',director:'var(--_jade-400)'};
 function ccAgentes(agentes){
   var card=ccCard('Actividad de agentes'); if(!card)return;
   var box=card.querySelector('.ag-list'); if(!box)return; clear(box);
   (agentes||[]).filter(function(a){return a.activo;}).forEach(function(a){
     var row=el('div','ag-row '+(a.estado||'idle'));
-    var av=el('div','ag-av',a.nombre.charAt(0)); av.style.setProperty('--ac','var(--color-primary)'); row.appendChild(av);
-    var mid=el('div'); mid.appendChild(el('div','nm',a.nombre)); mid.appendChild(el('div','ac2',a.rol+' · '+(EST_TXT[a.estado]||a.estado))); row.appendChild(mid);
+    var av=el('div','ag-av',a.nombre.charAt(0)); av.style.setProperty('--ac',AG_COLOR[a.clave]||'var(--color-primary)'); row.appendChild(av);
+    var mid=el('div'); mid.style.minWidth='0'; mid.style.flex='1';
+    mid.appendChild(el('div','nm',a.nombre));
+    var sub=String(a.ultimo||'')||(a.rol+' · '+(EST_TXT[a.estado]||a.estado));
+    if(sub.length>64)sub=sub.slice(0,63)+'…';
+    mid.appendChild(el('div','ac2',sub)); row.appendChild(mid);
+    var bars=el('div','ag-bars'), hoy=a.hoy||{total:0,ok:0};
+    if(hoy.total>0){
+      var ll=el('div','mini-l'); ll.appendChild(el('span',null,a.clave==='director'?'Carga':'Hoy')); ll.appendChild(el('span',null,hoy.ok+'/'+hoy.total)); bars.appendChild(ll);
+      var mini=el('div','mini'), fill=document.createElement('i');
+      fill.style.width=Math.round(hoy.ok/hoy.total*100)+'%';
+      fill.style.setProperty('--bc',hoy.ok>=hoy.total?'var(--color-success)':'var(--color-warning)');
+      mini.appendChild(fill); bars.appendChild(mini);
+    } else {
+      var sl=el('div','mini-l'); sl.appendChild(el('span',null,'sin corridas hoy')); bars.appendChild(sl);
+    }
+    row.appendChild(bars);
     box.appendChild(row);
   });
 }
@@ -1674,26 +1733,97 @@ function ccHoy(){
   // P2 F4: recomendaciones abiertas del lazo (se pintan en la card del brief)
   google.script.run.withSuccessHandler(function(r){ CC.recs=r||[]; try{ccBrief();}catch(_e){} })
     .withFailureHandler(function(){}).recomendacionesAbiertas();
-  // Agenda semanal (pestaña MAESTRO, opción A)
-  google.script.run.withSuccessHandler(function(ev){ try{ccAgenda(ev||[]);}catch(_e){} })
-    .withFailureHandler(function(){}).agendaSemana();
+  // Calendario semanal (v11): grilla lun-dom de la semana en curso (pestaña Agenda)
+  ccCalSemana();
 }
 
-// Agenda · próximos 7 días (07-jul): eventos de la pestaña Agenda, formato timeline del feed.
-function ccAgenda(evs){
-  var box=document.getElementById('ccAgendaFeed'); if(!box)return; clear(box);
-  if(!evs.length){ box.appendChild(el('div','served','Semana sin eventos cargados. Sumalos con agendarEvento o en la pestaña Agenda.')); return; }
-  evs.forEach(function(e){
-    var fe=el('div','fe');
-    fe.appendChild(el('div','t',e.fecha+(e.hora?' '+e.hora:'')));
-    var dot=el('div','dot'); dot.style.setProperty('--ac','var(--color-primary)'); fe.appendChild(dot);
-    var bd=el('div','bd'), h=el('div','h');
-    h.appendChild(el('b',null,e.titulo));
-    var extra=(e.id_cliente?' · '+e.id_cliente:'')+(e.notas?' · '+e.notas:'');
-    if(extra) h.appendChild(document.createTextNode(extra));
-    bd.appendChild(h); fe.appendChild(bd); box.appendChild(fe);
+// ── Calendario (v11): grilla semanal + modal mensual con navegación ‹ › y "Hoy". Fuente: agendaRango() ──
+var CAL={y:0,m:0,cache:{}};
+function calISO(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function calLunes(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x;}
+function calAdd(d,n){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+n);return x;}
+var CAL_DIAS=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+var CAL_MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+var CAL_EVC=['var(--_terra-500)','var(--_jade-400)','var(--_amber-400)','var(--_ink-400)'];
+function calColor(idc){ if(!idc)return 'var(--color-primary)'; var h=0,s=String(idc); for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0; return CAL_EVC[h%CAL_EVC.length]; }
+// fresh=true saltea el cache (la franja semanal siempre trae fresco; la navegación del mes reusa)
+function calFetch(d1,d2,fn,fresh){
+  var key=d1+'|'+d2;
+  if(!fresh&&CAL.cache[key]){fn(CAL.cache[key]);return;}
+  if(!EN_GAS){fn([]);return;}
+  google.script.run.withSuccessHandler(function(ev){ev=ev||[];CAL.cache[key]=ev;try{fn(ev);}catch(_e){}})
+    .withFailureHandler(function(){try{fn(null);}catch(_e){}}).agendaRango(d1,d2);
+}
+function ccCalSemana(){
+  var grid=document.getElementById('ccCalGrid'); if(!grid)return;
+  var hoy=new Date(), lun=calLunes(hoy), dom=calAdd(lun,6);
+  var tit=document.getElementById('ccCalTitulo');
+  if(tit)tit.textContent='Calendario · semana del '+('0'+lun.getDate()).slice(-2)+'/'+('0'+(lun.getMonth()+1)).slice(-2)+' al '+('0'+dom.getDate()).slice(-2)+'/'+('0'+(dom.getMonth()+1)).slice(-2);
+  calFetch(calISO(lun),calISO(dom),function(evs){
+    clear(grid);
+    if(evs===null){ grid.appendChild(el('div','served','No se pudo leer la agenda.')); return; }
+    var por={}; evs.forEach(function(e){ (por[e.fecha]=por[e.fecha]||[]).push(e); });
+    var hoyI=calISO(hoy);
+    for(var i=0;i<7;i++){
+      var d=calAdd(lun,i), iso=calISO(d), evd=por[iso]||[];
+      var day=el('div','day'+(iso===hoyI?' today':''));
+      day.setAttribute('role','button'); day.setAttribute('tabindex','0');
+      day.setAttribute('aria-label',CAL_DIAS[i]+' '+d.getDate()+' — abrir vista mensual');
+      var dh=el('div','dh'); dh.appendChild(document.createTextNode(CAL_DIAS[i]+' ')); dh.appendChild(el('b',null,('0'+d.getDate()).slice(-2))); day.appendChild(dh);
+      evd.slice(0,4).forEach(function(e){
+        var ev=el('div','ev'); ev.style.setProperty('--evc',calColor(e.id_cliente));
+        ev.appendChild(el('span','t',e.hora||'—')); ev.appendChild(document.createTextNode(e.titulo)); day.appendChild(ev);
+      });
+      if(evd.length>4) day.appendChild(el('div','mmore','+'+(evd.length-4)+' más'));
+      (function(dd){ day.addEventListener('click',function(){calAbrir(dd);});
+        day.addEventListener('keydown',function(k){if(k.key==='Enter'||k.key===' '){k.preventDefault();calAbrir(dd);}}); })(d);
+      grid.appendChild(day);
+    }
+  },true);
+}
+function calAbrir(d){
+  var base=d||new Date(); CAL.y=base.getFullYear(); CAL.m=base.getMonth(); CAL.cache={};
+  var ks=document.getElementById('calscrim'), kb=document.getElementById('calboard');
+  if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open');
+  calMes();
+}
+function calCerrar(){
+  var ks=document.getElementById('calscrim'), kb=document.getElementById('calboard');
+  if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open');
+}
+function calMes(){
+  var g=document.getElementById('mgrid'), t=document.getElementById('calTitulo'); if(!g)return;
+  if(t)t.textContent=CAL_MESES[CAL.m]+' '+CAL.y;
+  var p1=new Date(CAL.y,CAL.m,1), pN=new Date(CAL.y,CAL.m+1,0);
+  var ini=calLunes(p1), fin=calAdd(calLunes(pN),6);
+  clear(g); g.appendChild(el('div','served','Cargando mes…'));
+  calFetch(calISO(ini),calISO(fin),function(evs){
+    clear(g);
+    if(evs===null){ g.appendChild(el('div','served','No se pudo leer la agenda.')); return; }
+    var por={}; (evs||[]).forEach(function(e){ (por[e.fecha]=por[e.fecha]||[]).push(e); });
+    var hoyI=calISO(new Date());
+    for(var d=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()); d<=fin; d=calAdd(d,1)){
+      var iso=calISO(d), evd=por[iso]||[];
+      var md=el('div','mday'+(d.getMonth()!==CAL.m?' out':'')+(iso===hoyI?' today':''));
+      md.appendChild(el('div','mn',String(d.getDate())));
+      evd.slice(0,3).forEach(function(e){
+        var ev=el('div','mev'); ev.style.setProperty('--evc',calColor(e.id_cliente));
+        ev.appendChild(el('span','t',e.hora||'')); ev.appendChild(document.createTextNode(e.titulo)); md.appendChild(ev);
+      });
+      if(evd.length>3) md.appendChild(el('div','mmore','+'+(evd.length-3)+' más'));
+      g.appendChild(md);
+    }
   });
 }
+(function(){
+  var b=document.getElementById('ccCalMes'); if(b)b.addEventListener('click',function(){calAbrir(new Date());});
+  var p=document.getElementById('calPrev'); if(p)p.addEventListener('click',function(){CAL.m--;if(CAL.m<0){CAL.m=11;CAL.y--;}calMes();});
+  var n=document.getElementById('calNext'); if(n)n.addEventListener('click',function(){CAL.m++;if(CAL.m>11){CAL.m=0;CAL.y++;}calMes();});
+  var h=document.getElementById('calHoy'); if(h)h.addEventListener('click',function(){var t=new Date();CAL.y=t.getFullYear();CAL.m=t.getMonth();calMes();});
+  var c=document.getElementById('calClose'); if(c)c.addEventListener('click',calCerrar);
+  var s=document.getElementById('calscrim'); if(s)s.addEventListener('click',calCerrar);
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape')calCerrar(); });
+})();
 
 // filtros del feed (si el tipo real no matchea el codigo, 'Todo' siempre muestra)
 (function(){

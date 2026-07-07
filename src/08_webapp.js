@@ -376,15 +376,35 @@ function estadoAgentes() {
   var colaSh = getMaestro().getSheetByName('Cola_tareas');
   var cola = colaSh ? leerTabla(colaSh) : [];
   var estados = estadosAgentesCola_(cola);
+  // v11 (07-jul): actividad de HOY por agente desde la MISMA lectura de cola (sin I/O extra).
+  // Alimenta la barra "Hoy" del roster; NO hay dato de entrenamiento hasta E8b (no se inventa).
+  var hoyI = hoyISO(), hoyAg = {}, encoladasHoy = 0, completadasHoy = 0;
+  cola.forEach(function (r) {
+    if (String(r.tipo) !== 'agente') return;
+    if (aFechaISO(r.creada_en) !== hoyI) return;
+    var p = parsearPayload_(r.payload);
+    if (!p.agente) return;
+    var h = hoyAg[p.agente] || (hoyAg[p.agente] = { total: 0, ok: 0 });
+    h.total++; encoladasHoy++;
+    if (String(r.estado) === 'completada') { h.ok++; completadasHoy++; }
+  });
+  var feed = feedReciente_(30);
+  var ultimoDe = {}; // primer item del feed (ya viene reverse = más nuevo) por nombre de agente
+  feed.forEach(function (f) { var n = String(f.agente || ''); if (n && !ultimoDe[n]) ultimoDe[n] = String(f.texto || ''); });
   var agentes = Object.keys(AGENTES).map(function (k) {
     var a = AGENTES[k];
-    return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estados[k] || 'idle' };
+    return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estados[k] || 'idle',
+             hoy: hoyAg[k] || { total: 0, ok: 0 }, ultimo: ultimoDe[a.nombre] || '' };
   });
+  // Director (orquestador, no vive en AGENTES): carga real = encoladas de hoy en la cola.
+  agentes.push({ clave: 'director', nombre: 'Director', rol: 'Orquestación', activo: true, gate: false,
+                 estado: (encoladasHoy > completadasHoy) ? 'work' : (encoladasHoy > 0 ? 'ok' : 'idle'),
+                 hoy: { total: encoladasHoy, ok: completadasHoy }, ultimo: ultimoDe['Director'] || '' });
   var c = filaConsumoAgentes_();   // PURGA #2: Consumo una sola vez (gasto)
   var tope = budgetMensualUSD_();  // PURGA #2: tope una sola vez
   return {
     agentes: agentes,
-    feed: feedReciente_(30),
+    feed: feed,
     presupuesto: { gastoUsd: c.gasto, topeUsd: tope },
     aprobaciones: inboxAprobaciones_(),
     clientes_activos: listaClientes().filter(function (x) {

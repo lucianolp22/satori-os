@@ -412,6 +412,23 @@ function agendarEvento(fecha, hora, titulo, idCliente, notas) {
   });
 }
 
+/**
+ * CM (calendario semanal/mensual, v11): eventos en [desdeISO, hastaISO] inclusive
+ * (YYYY-MM-DD). Read-only, mismo shape que agendaSemana. Cap defensivo 200.
+ * NO reemplaza a agendaSemana (esa queda tal cual para voz/vistas "próximos 7 días").
+ */
+function agendaRango(desdeISO, hastaISO) {
+  var sh = getMaestro().getSheetByName('Agenda');
+  if (!sh) return [];
+  var d = String(desdeISO || ''), h = String(hastaISO || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{4}-\d{2}-\d{2}$/.test(h) || h < d) return [];
+  return leerTabla(sh)
+    .map(function (f) { return { id: f.id, fecha: aFechaISO(f.fecha), hora: String(f.hora || ''), titulo: String(f.titulo || ''), id_cliente: String(f.id_cliente || ''), notas: String(f.notas || ''), estado: String(f.estado || '') }; })
+    .filter(function (e) { return e.fecha >= d && e.fecha <= h && e.estado !== 'cancelado' && e.titulo; })
+    .sort(function (a, b) { return (a.fecha + a.hora) < (b.fecha + b.hora) ? -1 : 1; })
+    .slice(0, 200);
+}
+
 // ── P2 F1 (07-jul) — Feedback 1-clic: semilla del lazo de resultados ─────────
 
 /**

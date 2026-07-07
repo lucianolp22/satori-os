@@ -245,6 +245,9 @@ function selfTest() {
     var ageId = agendarEvento(hoyISO(), '09:00', '__TEST__ evento selfTest', '', 'assert selfTest');
     chk(/^AGE-\d+$/.test(ageId), 'D7 agendarEvento devuelve id (' + ageId + ')');
     chk(agendaSemana().some(function (e) { return String(e.id) === ageId; }), 'D7 agendaSemana incluye el evento de hoy');
+    // D7b agendaRango (v11 calendario): rango puntual lo incluye; rango inválido = vacío.
+    chk(agendaRango(hoyISO(), hoyISO()).some(function (e) { return String(e.id) === ageId; }), 'D7b agendaRango(hoy,hoy) incluye el evento');
+    chk(agendaRango('2020-01-02', '2020-01-01').length === 0 && agendaRango('x', 'y').length === 0, 'D7b agendaRango rechaza rango inválido (fail-closed)');
 
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');

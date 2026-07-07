@@ -1,6 +1,6 @@
 # HANDOFF — Satori OS — 2026-07-07
 
-PRÓXIMO PASO: **correr `bash _cierre_code.sh` en Terminal (dry-run → `--go`)** = git rm del importador temporal + CAPABILITIES regen + commit + clasp push + git push. Después, en el editor GAS: `selfTest()` → esperar **TODO OK** con los asserts nuevos D5/D6/D7. Con eso el cierre-dev queda 100% y el programa pasa a NEGOCIO (B7) + gates del 08-jul.
+PRÓXIMO PASO: **correr `bash _cm_v11_code.sh` en Terminal (dry-run → `--go`)** = CM v11 a GAS HEAD (calendario semanal+mensual real, roster agentes con actividad-hoy, fix fecha GMT, tablero integrado al fondo) → `selfTest()` (TODO OK con D7b) → **eyeball en `/dev`** (checklist en el output del script). Si el eyeball aprueba: promover `/exec` (@20) cuando quieras. Después: gates 08-jul (IG monitor debe ACUMULAR · subvención Barcelona Activa) + B7 negocio + **Tanda B pendiente = Tareas-v2** (`docs/TRELLO-a-Satori-mapeo.md`: alta rápida desde board + recurrencia + tipo/contexto + detalle de tarjeta).
 
 ## Contexto del día (07-jul, consolidado)
 
@@ -10,6 +10,8 @@ PRÓXIMO PASO: **correr `bash _cierre_code.sh` en Terminal (dry-run → `--go`)*
 Satori OS = ERP multi-tenant **GAS + Sheets** en prod (`luciano@satoriconsultoria.com`) + Voz (CM desktop + PWA iPhone por Tailscale). **SISTEMA OS TERMINADO: P2 completo (lazo F1-F5) + Agenda + 23 tareas Trello en prod `@19`, confirmado por Luciano.** B1-B5 ✅ · P2 F1-F5 ✅ · norte v9 ✅. Resta SOLO el paso Code de esta sesión de cierre (ver PRÓXIMO PASO). Después el programa es **NEGOCIO — B7** (SIP al regreso de Nicolás · Vehemence monto ARS · build-in-public decisión) + **research Tareas-v2** (`docs/TRELLO-a-Satori-mapeo.md`: alta rápida desde board, recurrencia real, etiqueta contexto) + **B8 FINAL** (datos reales + Bucket B + RGPD + `puesta-en-marcha`) con gatillo de cliente real. Motor/método (fase→skill, F2/F3, brief-push) = diferidos con gatillo. Fuente de plan: `consultoría/PLAN-ACCION-INTEGRAL-SatoriOS-2026-07-06.md`.
 
 ### Verificado
+- [07-jul noche] **CM v11 implementado por Cowork en working tree** (pedido de Luciano con video de referencia = mock v10img): (1) calendario semanal REAL en grilla lun-dom + **modal mensual** con navegación ‹ ›/Hoy/Esc — backend nuevo `agendaRango(desde,hasta)` read-only con validación fail-closed; (2) **roster de agentes real** (color por agente como los nodos, última acción del feed, barra "Hoy" = corridas ok/total del día desde la cola ya leída — **sin barra de entrenamiento hasta E8b: dato inexistente, no se inventa**; Director sintético con carga real); (3) **fix GMT**: `fechaHoraCorta` parsea el Date serializado de Sheets → `dd/mm HH:mm` (raíz: Config coacciona ISO a Date); (4) `.stat` armónico (flex centrado, tabular-nums, ellipsis); (5) tablero Tareas con vidrio de card (`glass-bg`) + scrim suave = el cosmos se ve a través. Evidencia: `node --check` OK en los 3 .js + script del index (71k) extraído y parseado OK + 0 residuos de la card Agenda vieja + asserts D7b escritos. **Correr en GAS y eyeball = pendiente** (No verificado).
+- [07-jul 17:28] **CIERRE-DEV 100% — selfTest TODO OK post-push con D5/D6/D7** (log de Luciano): D5 FBK-0007 + normalización SI→si · D6 regla (`tareas_vencidas` por TAR-TEST-1, rama esperada) + lazo cierra solo con 2 juicios · D7 AGE-0001 en agendaSemana · limpieza barrió CLI-007 y filas TEST. Commit `679398b` (99_tmp fuera de repo y GAS HEAD, GitHub pusheado, working tree limpio verificado por Cowork). Nota: "18 pestañas" = 17 del schema + `Voz_log` (extra manual, esperada).
 - [07-jul] **@19 EN PROD** — evidencia: eyeball de Luciano en `/exec` 16:30 (Agenda + Tareas con las 23 de Trello + lazo F1-F5 + contrato brief + estados de voz). Hoja `Tareas` re-verificada por gviz en la sesión de cierre: 23 filas, headers correctos.
 - [07-jul cierre] **Hoja `Feedback` depurada** — evidencia: gviz post-borrado = solo `FBK-0006` (0001-0005 eran clics del loop pre-fix; borradas por Cowork vía Chrome).
 - [07-jul cierre] **Hoja `Agenda` descontaminada** — evidencia: gviz post = solo headers, 0 filas (tenía las 23 TAR-* volcadas posicionalmente — ver Imprevistos; 0 eventos reales perdidos).
@@ -20,15 +22,15 @@ Satori OS = ERP multi-tenant **GAS + Sheets** en prod (`luciano@satoriconsultori
 - [06-jul] **Rediseño CM+Voz LIVE en `/dev` + eyeball Luciano OK** — evidencia: commit `20531db` en GAS HEAD (Calidad fuera, `#cmFx` presente, orbe regular, isologo alineado, transiciones ~320ms); Luciano confirmó los 8 cambios en `/dev`. Solo falta promover a `/exec`.
 
 ### No verificado
-- `selfTest()` con los asserts nuevos D5/D6/D7: **NO corrido aún** — se corre tras `_cierre_code.sh --go` (clasp push). Hasta entonces, los asserts son código que parsea, no evidencia.
-- El delta del cierre (asserts + placeholder feed + rm del temporal) está en HEAD/working tree, **NO en prod @19**: entra recién en la próxima promoción `/exec`.
+- **CM v11 completo**: NO corrido en GAS todavía (`_cm_v11_code.sh` pendiente) → selfTest con D7b + render (calendario/roster/estado/tablero) = **eyeball de Luciano en `/dev`** tras el push. El delta acumulado (cierre + v11) entra a prod recién al promover `/exec` (@20) POST-eyeball.
 - Transcripción `es-419`+keyterms: aplicada y agente reiniciado (07-jul 11:05); **calidad a validar por Luciano en la próxima conversación de voz**.
 
 ## Pendiente
 *(re-inventariado en la sesión de cierre 07-jul con `_inventario_cierre.sh` — gate de declaración del CLAUDE.md)*
 
-**Must (único residual del cierre-dev):**
-- Correr `bash _cierre_code.sh` (dry-run → `--go`) en Terminal + `selfTest()` en el editor → **TODO OK** con D5/D6/D7.
+**Must:**
+- Correr `bash _cm_v11_code.sh` (dry-run → `--go`) + `selfTest()` (D7b) + **eyeball `/dev`** con el checklist del script → si aprueba, promover `/exec` @20.
+- **Tanda B — Tareas-v2** (gatillo: cuando Luciano diga avanzá): los 3 must del research + toque de detalle de tarjeta. Doc: `docs/TRELLO-a-Satori-mapeo.md`.
 
 **Should (cabos verificados, con dueño/gatillo):**
 - **Archivar 7 deployments GAS viejos** (@4-@14 sin uso; UI de Apps Script → Implementaciones. CUIDADO: no tocar el deployment de `/exec` @19 ni el de `/dev` — verificar IDs contra los Artefactos antes de borrar cada uno).
