@@ -149,7 +149,15 @@ server = AgentServer()
 async def entrypoint(ctx: agents.JobContext):
     session = AgentSession(
         # A': pipeline LiveKit — Deepgram STT + OpenAI LLM + ElevenLabs TTS (voz grave de Sato) + Silero VAD.
-        stt=deepgram.STT(model="nova-3", language="multi"),
+        # [07-jul] language: multi -> es-419. El modo multi (code-switching) saltaba de idioma con el acento
+        # rioplatense + anglicismos sueltos => transcripciones erraticas en el chat. es-419 = espanol LatAm
+        # monolingue (soportado por nova-3, doc oficial models-languages-overview). keyterm (solo nova-3):
+        # vocabulario propio para nombres que el STT no conoce.
+        stt=deepgram.STT(
+            model="nova-3",
+            language="es-419",
+            keyterm=["Sato", "Satori", "Vehemence", "FRANFLACA", "SIP", "brief", "cerebro", "bandeja"],
+        ),
         llm=openai.LLM(model="gpt-4o-mini"),
         tts=elevenlabs.TTS(voice_id=os.environ.get("ELEVENLABS_VOICE_ID", ""), model="eleven_turbo_v2_5", language="es"),
         vad=silero.VAD.load(),

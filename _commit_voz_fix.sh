@@ -13,7 +13,7 @@ if [ -f .git/index.lock ]; then
   rm -f .git/index.lock
 fi
 
-git add HANDOFF.md _promote_exec.sh _commit_voz_fix.sh voz/web/voz.html voz/launchagents
+git add HANDOFF.md _promote_exec.sh _commit_voz_fix.sh voz/web/voz.html voz/launchagents voz/agent/agent.py
 if git diff --cached --quiet; then
   echo "nada nuevo para commitear"
   exit 0
