@@ -385,6 +385,33 @@ function recomendacionesAbiertas() {
   });
 }
 
+// ── Agenda semanal (07-jul, norte v9 §3.5 — opción A: pestaña MAESTRO, sin scope Calendar) ──
+
+/** CM: eventos de HOY a +7 días desde la pestaña Agenda, ordenados. Estado != cancelado. */
+function agendaSemana() {
+  var sh = getMaestro().getSheetByName('Agenda');
+  if (!sh) return [];
+  var hoy = hoyISO();
+  var fin = Utilities.formatDate(new Date(Date.now() + 7 * 86400000), TZ, 'yyyy-MM-dd');
+  return leerTabla(sh)
+    .map(function (f) { return { id: f.id, fecha: aFechaISO(f.fecha), hora: String(f.hora || ''), titulo: String(f.titulo || ''), id_cliente: String(f.id_cliente || ''), notas: String(f.notas || ''), estado: String(f.estado || '') }; })
+    .filter(function (e) { return e.fecha >= hoy && e.fecha <= fin && e.estado !== 'cancelado' && e.titulo; })
+    .sort(function (a, b) { return (a.fecha + a.hora) < (b.fecha + b.hora) ? -1 : 1; })
+    .slice(0, 20);
+}
+
+/** Alta rápida de evento (CM o editor). fecha YYYY-MM-DD, hora HH:mm opcional. */
+function agendarEvento(fecha, hora, titulo, idCliente, notas) {
+  if (!fecha || !titulo) throw new Error('agendarEvento: falta fecha o titulo.');
+  var sh = getMaestro().getSheetByName('Agenda');
+  if (!sh) throw new Error('Falta la hoja Agenda — correr setup().');
+  return conLock(function () {
+    var id = nextId(sh, 'id', 'AGE', 4);
+    appendFila(sh, { id: id, fecha: String(fecha), hora: String(hora || ''), titulo: String(titulo), id_cliente: String(idCliente || ''), notas: String(notas || ''), estado: 'activo' });
+    return id;
+  });
+}
+
 // ── P2 F1 (07-jul) — Feedback 1-clic: semilla del lazo de resultados ─────────
 
 /**

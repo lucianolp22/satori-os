@@ -35,11 +35,13 @@ var MAESTRO_SHEETS = {
   Feedback: ['id', 'ts', 'origen_tipo', 'origen_id', 'util', 'nota'],
   // P2 F4 (07-jul) — lazo completo: recomendó → se hizo (si/no) → el KPI se movió (si/no).
   Recomendaciones: ['id', 'fecha', 'texto', 'kpi_objetivo', 'se_hizo', 'kpi_movio', 'estado', 'cerrada_en'],
+  // Norte v9 §3.5 (07-jul, decisión Luciano: opción A) — agenda semanal SIN scope de Calendar.
+  Agenda: ['id', 'fecha', 'hora', 'titulo', 'id_cliente', 'notas', 'estado'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {

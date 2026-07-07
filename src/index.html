@@ -605,6 +605,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
     </section>
 
+    <!-- Agenda semanal (norte v9 §3.5 · opción A: pestaña MAESTRO, 07-jul) -->
+    <section class="card">
+      <h2><span class="eyebrow">Agenda · próximos 7 días</span></h2>
+      <div class="feed" id="ccAgendaFeed"></div>
+    </section>
+
   </div>
 
   <!-- TABLERO (Trello) — mock estático, se cablea en el commit del kanban -->
@@ -1669,6 +1675,25 @@ function ccHoy(){
   // P2 F4: recomendaciones abiertas del lazo (se pintan en la card del brief)
   google.script.run.withSuccessHandler(function(r){ CC.recs=r||[]; try{ccBrief();}catch(_e){} })
     .withFailureHandler(function(){}).recomendacionesAbiertas();
+  // Agenda semanal (pestaña MAESTRO, opción A)
+  google.script.run.withSuccessHandler(function(ev){ try{ccAgenda(ev||[]);}catch(_e){} })
+    .withFailureHandler(function(){}).agendaSemana();
+}
+
+// Agenda · próximos 7 días (07-jul): eventos de la pestaña Agenda, formato timeline del feed.
+function ccAgenda(evs){
+  var box=document.getElementById('ccAgendaFeed'); if(!box)return; clear(box);
+  if(!evs.length){ box.appendChild(el('div','served','Semana sin eventos cargados. Sumalos con agendarEvento o en la pestaña Agenda.')); return; }
+  evs.forEach(function(e){
+    var fe=el('div','fe');
+    fe.appendChild(el('div','t',e.fecha+(e.hora?' '+e.hora:'')));
+    var dot=el('div','dot'); dot.style.setProperty('--ac','var(--color-primary)'); fe.appendChild(dot);
+    var bd=el('div','bd'), h=el('div','h');
+    h.appendChild(el('b',null,e.titulo));
+    var extra=(e.id_cliente?' · '+e.id_cliente:'')+(e.notas?' · '+e.notas:'');
+    if(extra) h.appendChild(document.createTextNode(extra));
+    bd.appendChild(h); fe.appendChild(bd); box.appendChild(fe);
+  });
 }
 
 // filtros del feed (si el tipo real no matchea el codigo, 'Todo' siempre muestra)
