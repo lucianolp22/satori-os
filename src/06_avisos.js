@@ -34,6 +34,37 @@ function probarAlertaEmail() {
   return { enviado: sent, nota: sent ? 'email enviado a OWNER_EMAIL' : 'alertas_email_on=false o falta OWNER_EMAIL' };
 }
 
+/**
+ * P2 F3 (07-jul) — Brief-push: manda el briefDiario por email a OWNER_EMAIL.
+ * Opt-in PROPIO: `brief_push_on` = 'true' en Config o Script Property (default OFF,
+ * regla Bastión 27-jun; independiente de alertas_email_on). Dedupe: 1 por día.
+ * AREL: destinatario = SOLO OWNER_EMAIL (nunca terceros).
+ */
+function briefPush_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var on = String(props.getProperty('brief_push_on') || getConfig('brief_push_on') || 'false') === 'true';
+    if (!on) return { enviado: false, motivo: 'brief_push_on=false' };
+    var to = props.getProperty('OWNER_EMAIL') || getConfig('owner_email') || '';
+    if (!to) return { enviado: false, motivo: 'falta OWNER_EMAIL' };
+    var k = 'BRIEFPUSH_ultimo';
+    if (props.getProperty(k) === hoyISO()) return { enviado: false, motivo: 'ya enviado hoy' };
+    var md = briefDiario();
+    MailApp.sendEmail(to, '[Satori OS] Brief diario — ' + hoyISO(), md);
+    props.setProperty(k, hoyISO());
+    return { enviado: true };
+  } catch (e) {
+    try { Logger.log('briefPush_ fallo: ' + e.message); } catch (_e) {}
+    return { enviado: false, motivo: 'error: ' + e.message };
+  }
+}
+
+/** Verificacion manual (editor): fuerza un envio del brief-push (ignora el dedupe del dia, respeta opt-in). */
+function probarBriefPush() {
+  PropertiesService.getScriptProperties().deleteProperty('BRIEFPUSH_ultimo');
+  return briefPush_();
+}
+
 function crearAviso(a) {
   var sh = getMaestro().getSheetByName('Avisos');
   return conLock(function () { // PURGA #4: dedupe + nextId + append, atómico
@@ -97,6 +128,10 @@ function corridaDiaria() {
   // ETAPA 2: consolidar costos del mes al MAESTRO (USD/EUR + alerta de presupuesto).
   try { resumen.costos = consolidarCostosMes(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Consolidar costos falló: ' + e.message }); }
+
+  // P2 F3: brief-push (opt-in brief_push_on, default OFF; solo OWNER_EMAIL; dedupe diario).
+  try { resumen.brief_push = briefPush_(); }
+  catch (e) { try { Logger.log('brief_push fallo: ' + e.message); } catch (_e) {} }
 
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));

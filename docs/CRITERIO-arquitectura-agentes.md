@@ -20,7 +20,7 @@ Stack WS-custom de voz · UI cinemática como fin · MRR/waitlist como métrica 
 | 2 | Contrato de status report fijo (métrica → auto-resuelto → espera decisión → recomendación) | Luke R3 | P2 |
 | 3 | Brief-push (el brief llega solo; hábito > feature) | Kevin #034 | P2 |
 | 4 | Drift-checker CAPABILITIES pre-push | Trillion self-aware | HECHO 06-jul (`_hooks/pre-push`) |
-| 5 | Clasificador con confianza + escalate X/10 | @_no_hype_ai | P2 (verificar Bandeja antes de construir) |
+| 5 | Clasificador con confianza + escalate X/10 | @_no_hype_ai | **CERRADO 07-jul: ya existía** (`17_bandeja.js`, umbral+escalate) |
 | 6 | Cola de aprobaciones con despacho en lote | Luke | P2 (verificar si existe vista) |
 | 7 | Bucle de contenido autoalimentado (el sistema documenta → borrador de post) | Luke (Ava) + Kevin | P1 solo si va build-in-public |
 | 8 | Test gates runtime / agentes revisando agentes (Director sobre salidas) | @_no_hype_ai | gatillo: agentes lab→prod |

@@ -31,11 +31,13 @@ var MAESTRO_SHEETS = {
   Cerebro_index: ['id_cliente', 'nodos', 'aristas', 'ultimo_evento', 'estado_resumen', 'materializado_en'],
   // Fase 1 (Jarvis) — bandeja de captura personal + clasificación Haiku con confianza.
   Bandeja: ['id', 'ts', 'texto', 'fuente', 'bin', 'confianza', 'slug', 'tags', 'resumen', 'id_cliente', 'estado', 'procesado_en'],
+  // P2 F1 (07-jul) — lazo de resultados: feedback 1-clic sobre briefs/avisos. Append-only.
+  Feedback: ['id', 'ts', 'origen_tipo', 'origen_id', 'util', 'nota'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {

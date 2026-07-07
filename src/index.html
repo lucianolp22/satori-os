@@ -1535,7 +1535,7 @@ function ccBrief(){
   var aprob=(CC.est&&CC.est.aprobaciones)||[], ps=(CC.hoy&&CC.hoy.proximos_pasos)||[], items=[];
   aprob.slice(0,2).forEach(function(a){ items.push({t:a.descripcion||a.tipo_accion||a.id, d:(a.cliente||a.id_cliente||'')+' · aprobación', ap:a}); });
   ps.slice(0,Math.max(0,3-items.length)).forEach(function(t){ items.push({t:t.descripcion, d:(t.id_cliente?t.id_cliente+' · ':'')+(t.vencida?'VENCIDA':'tarea')}); });
-  if(!items.length){ card.appendChild(el('div','served','Sin urgencias — día para avanzar lo importante.')); return; }
+  if(!items.length){ card.appendChild(el('div','served','Sin urgencias — día para avanzar lo importante.')); card.appendChild(ccFeedbackRow()); return; }
   items.forEach(function(it){
     var bi=el('div','brief-item'); bi.appendChild(el('div','brief-ic'));
     var b=el('div','brief-b'); b.appendChild(el('div','t',it.t)); b.appendChild(el('div','d',it.d));
@@ -1545,6 +1545,25 @@ function ccBrief(){
       acts.appendChild(ok); acts.appendChild(no); b.appendChild(acts); }
     bi.appendChild(b); card.appendChild(bi);
   });
+  card.appendChild(ccFeedbackRow());
+}
+
+// P2 F1 (07-jul): feedback 1-clic del brief — semilla del lazo de resultados (hoja Feedback).
+function ccFeedbackRow(){
+  var row=el('div','brief-act'); row.style.marginTop='10px';
+  var lbl=el('span','ac','¿Te sirvió este brief?'); row.appendChild(lbl);
+  var si=el('button','btn btn-ghost btn-sm','Sí'), no=el('button','btn btn-ghost btn-sm','No');
+  function votar(v){
+    si.disabled=true; no.disabled=true; lbl.textContent='Gracias — registrado ✓';
+    if(!EN_GAS){ cmToast('Feedback simulado ('+v+')'); return; }
+    google.script.run
+      .withSuccessHandler(function(){ cmToast('Feedback registrado ✓'); })
+      .withFailureHandler(function(e){ cmToast('No se pudo registrar: '+((e&&e.message)||'error')); })
+      .registrarFeedback('brief', new Date().toISOString().slice(0,10), v, '');
+  }
+  si.addEventListener('click',function(){ votar('si'); });
+  no.addEventListener('click',function(){ votar('no'); });
+  row.appendChild(si); row.appendChild(no); return row;
 }
 
 function ccAprob(){

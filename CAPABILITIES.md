@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-07 10:24 · commit: 20531db
+> Generado: 2026-07-07 12:35 · commit: acf4c43
 
 ## Módulos
 
@@ -13,7 +13,7 @@
 | `03_cliente.js` | Alta de clientes y plantilla de Sheet cliente | 2 |
 | `04_sync.js` | Agregación MAESTRO ← Sheets cliente (vía GAS, NO IMPORTRANGE) | 1 |
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
-| `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 14 |
+| `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 16 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 16 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 31 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 4 |
@@ -25,7 +25,7 @@
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 7 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 13 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 14 |
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
@@ -71,7 +71,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Pestañas
 
-**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Config
+**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Config
 
 **Cliente:** Datos_operativos, KPIs, Aprobaciones, Excepciones, Umbrales, Costos_API, Reglas, nodos, aristas, cerebro_log, estado_actual, objetivos
 
@@ -98,6 +98,8 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 - alertas_email_on
 - API_BUDGET_MENSUAL_USD
 - AUTOHEAL_ON
+- brief_push_on
+- BRIEFPUSH_ultimo
 - CLAUDE_API_KEY
 - OWNER_EMAIL
 - voz_alerta_fecha
@@ -116,7 +118,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **05_costos.js:** modeloDeModulo_ llamadaAPI costearUSD_ logCostoCliente anonimizar desanonimizar consolidarCostosMes 
 
-**06_avisos.js:** alertaEmail_ probarAlertaEmail crearAviso corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
+**06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush crearAviso corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig setConfig nextId protegerSheet 
 
@@ -140,7 +142,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **17_bandeja.js:** capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ registrarFeedback 
 
 **19_conectores.js:** sincronizarVehemence sincronizarConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ 
 

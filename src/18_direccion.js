@@ -177,6 +177,16 @@ function briefDiarioSistema_() {
     L.push('- ' + ns.desc + (ns.meta != null ? ' · ' + ns.actual + '/' + ns.meta : '') + (ns.horizonte ? ' · ' + ns.horizonte : ''));
     L.push('');
   }
+  // P2 F2 (07-jul) — contrato de status report fijo (Luke R3): métrica (arriba) →
+  // qué espera decisión → plan → números → auto-resuelto → recomendación única.
+  L.push('## Espera tu decisión');
+  var ban = leerTabla(getMaestro().getSheetByName('Bandeja'));
+  var banEsc = ban.filter(function (b) { return String(b.estado) === 'escalado'; }).length;
+  L.push('- ' + ap + ' aprobación(es) · ' + av + ' aviso(s) activo(s) · ' + banEsc + ' escalado(s) de Bandeja');
+  d.avisos.slice(0, 3).forEach(function (a) {
+    L.push('- [' + (a.tipo || 'aviso') + '] ' + truncar_(a.mensaje || '', 110));
+  });
+  L.push('');
   L.push('## Las 3 cosas de hoy');
   var tres = abiertas.slice(0, 3);
   if (tres.length) tres.forEach(function (t, i) {
@@ -191,10 +201,20 @@ function briefDiarioSistema_() {
   L.push('- Cartera: ' + d.estado.clientes + ' clientes · ' + abiertas.length + ' tareas abiertas (' + vencidas.length + ' vencidas) · ' + ap + ' aprobaciones · ' + av + ' avisos');
   L.push('- Salud: ' + String(sal.global).toUpperCase() + ' (' + sal.integridad + '%)');
   L.push('');
-  L.push('## Movimiento reciente');
+  L.push('## Se auto-resolvió (agentes, últimas corridas)');
   var feed = feedReciente_(5);
   if (feed.length) feed.forEach(function (f) { L.push('- ' + f.ts + ' · ' + f.agente + ': ' + truncar_(f.texto, 120)); });
   else L.push('- (sin actividad reciente)');
+  L.push('');
+  L.push('## Qué primero (recomendación)');
+  var rec;
+  if (sal.global === 'crit') rec = 'Estabilizar la salud del sistema (está en CRÍTICO) antes de cualquier otra cosa.';
+  else if (vencidas.length) rec = 'Cerrar la vencida más vieja: ' + truncar_(vencidas[0].descripcion, 90);
+  else if (ap) rec = 'Despachar las ' + ap + ' aprobación(es) pendiente(s) — desbloquean a los agentes.';
+  else if (tres.length) rec = 'Arrancar por: ' + truncar_(tres[0].descripcion, 90);
+  else rec = 'Definir la próxima movida hacia el North Star.';
+  L.push('- ' + rec);
+  L.push('- ¿Sirvió este brief? Marcalo con 1 clic en el Centro de Mando (alimenta el lazo de resultados).');
   L.push('');
   L.push('— generado por briefDiario()');
   return L.join('\n');
@@ -300,4 +320,29 @@ function verVehemence() {
 function truncar_(s, n) {
   s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
+}
+
+// ── P2 F1 (07-jul) — Feedback 1-clic: semilla del lazo de resultados ─────────
+
+/**
+ * registrarFeedback(origenTipo, origenId, util, [nota]) — append-only a la hoja Feedback.
+ * Lo llama el CM (google.script.run) desde los botones "¿Sirvió?" del brief.
+ * util: 'si' | 'no'. origenTipo: 'brief' | 'aviso' | 'recomendacion'. Devuelve el id.
+ */
+function registrarFeedback(origenTipo, origenId, util, nota) {
+  var u = String(util).toLowerCase() === 'si' ? 'si' : 'no';
+  var sh = getMaestro().getSheetByName('Feedback');
+  if (!sh) throw new Error('Falta la hoja Feedback — correr setup() para crearla.');
+  return conLock(function () {
+    var id = nextId(sh, 'id', 'FBK', 4);
+    appendFila(sh, {
+      id: id,
+      ts: ahoraISO(),
+      origen_tipo: String(origenTipo || 'brief'),
+      origen_id: String(origenId || hoyISO()),
+      util: u,
+      nota: truncar_(nota || '', 200)
+    });
+    return id;
+  });
 }
