@@ -219,6 +219,33 @@ function selfTest() {
     var aggLoc = agregarVentasPorMes_([{ ts: '2026-05-10', channel: 'local', total_ars: 100000, status: 'paid' }]);
     chk(aggLoc.filas[0].concepto.indexOf('local') >= 0, 'D4 acepta channel=local como local (serie Castelar)');
 
+    // ── Fase D · P2 F1/F4/F5 + Agenda (07-jul) — lazo de resultados, auto-limpiante ──
+    // D5 Feedback: registrar normaliza util y persiste (la fila TEST la barre limpiarTodoTest por origen_id).
+    var fbId = registrarFeedback('brief', '__TEST__', 'SI', 'assert selfTest');
+    chk(/^FBK-\d+$/.test(fbId), 'D5 registrarFeedback devuelve id (' + fbId + ')');
+    var fbRow = leerTabla(getMaestro().getSheetByName('Feedback')).filter(function (f) { return String(f.id) === fbId; })[0];
+    chk(!!fbRow && String(fbRow.util) === 'si' && String(fbRow.origen_id) === '__TEST__', 'D5 fila de feedback persistida con util normalizado (SI→si)');
+
+    // D6 Recomendaciones: regla pura + el lazo cierra SOLO con los 2 juicios humanos.
+    var recT = recomendacionDelDia_();
+    chk(!!recT && typeof recT.texto === 'string' && recT.texto.length > 0 && !!recT.kpi, 'D6 recomendacionDelDia_ devuelve texto+kpi (' + recT.kpi + ')');
+    var shRec = getMaestro().getSheetByName('Recomendaciones');
+    appendFila(shRec, { id: 'REC-TEST-1', fecha: hoyISO(), texto: '__TEST__ rec de prueba', kpi_objetivo: 'north_star', se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '' });
+    chk(recomendacionesAbiertas().some(function (x) { return String(x.id) === 'REC-TEST-1'; }), 'D6 recomendacionesAbiertas lista la abierta');
+    // Lecturas post-write con instancia FRESCA (open-after-write): getMaestro() NO memoiza y
+    // marcarRecomendacion escribe por su propia instancia — releer por shRec (abierta antes) puede ver stale (patrón E2).
+    marcarRecomendacion('REC-TEST-1', 'se_hizo', 'si');
+    var recMid = leerTabla(getMaestro().getSheetByName('Recomendaciones')).filter(function (f) { return String(f.id) === 'REC-TEST-1'; })[0];
+    chk(!!recMid && String(recMid.estado) === 'abierta', 'D6 un solo juicio NO cierra el lazo');
+    var recFin = marcarRecomendacion('REC-TEST-1', 'kpi_movio', 'no');
+    var recRow = leerTabla(getMaestro().getSheetByName('Recomendaciones')).filter(function (f) { return String(f.id) === 'REC-TEST-1'; })[0];
+    chk(recFin.cerrada === true && !!recRow && String(recRow.estado) === 'cerrada' && String(recRow.cerrada_en) !== '', 'D6 dos juicios cierran el lazo (estado+cerrada_en)');
+
+    // D7 Agenda: alta rápida + la vista semanal la incluye (hoy ∈ [hoy, hoy+7]).
+    var ageId = agendarEvento(hoyISO(), '09:00', '__TEST__ evento selfTest', '', 'assert selfTest');
+    chk(/^AGE-\d+$/.test(ageId), 'D7 agendarEvento devuelve id (' + ageId + ')');
+    chk(agendaSemana().some(function (e) { return String(e.id) === ageId; }), 'D7 agendaSemana incluye el evento de hoy');
+
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');
     chk(modeloDeModulo_('triajeX') === MODELO_DEFAULT, 'C módulo sin mapear cae a Haiku (default seguro)');
@@ -379,6 +406,13 @@ function limpiarTodoTest() {
   // Fase 1: filas de prueba de la Bandeja.
   var shBan = ss.getSheetByName('Bandeja');
   if (shBan) borrarFilasDonde(shBan, function (f) { return String(f.fuente) === '__TEST__' || String(f.texto).indexOf('__TEST__') === 0; });
+  // P2 F1/F4 + Agenda (07-jul): filas de prueba de las hojas nuevas (asserts D5/D6/D7).
+  var shFbk = ss.getSheetByName('Feedback');
+  if (shFbk) borrarFilasDonde(shFbk, function (f) { return String(f.origen_id) === '__TEST__'; });
+  var shRecL = ss.getSheetByName('Recomendaciones');
+  if (shRecL) borrarFilasDonde(shRecL, function (f) { return String(f.id).indexOf('REC-TEST') === 0 || String(f.texto).indexOf('__TEST__') === 0; });
+  var shAge = ss.getSheetByName('Agenda');
+  if (shAge) borrarFilasDonde(shAge, function (f) { return String(f.titulo).indexOf('__TEST__') === 0; });
   return { clientes: testClientes.length };
 }
 

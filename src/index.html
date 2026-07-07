@@ -597,9 +597,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
             <button class="fchip" data-f="ent">Entregas</button>
           </div>
           <div class="feed">
-            <div class="fe"><div class="t">hoy 09:10</div><div class="dot" style="--ac:var(--_amber-400)"></div><div class="bd"><div class="h"><b>Cobrador</b> ofrece 5 recordatorios listos (LC Travel) <span class="tag t-ent">Entrega</span></div></div></div>
-            <div class="fe"><div class="t">hoy 08:40</div><div class="dot" style="--ac:var(--_terra-400)"></div><div class="bd"><div class="h"><b>Analista</b> entregó informe AOV vs objetivo <span class="tag t-ent">Entrega</span></div></div></div>
-            <div class="fe"><div class="t">hoy 07:00</div><div class="dot" style="--ac:var(--_jade-400)"></div><div class="bd"><div class="h"><b>Director</b> ejecutó la corrida diaria · 5 agentes activados <span class="tag t-acc">Acción</span></div></div></div>
+            <!-- placeholder pre-render honesto: ccFeed() lo reemplaza con la actividad real al cargar -->
+            <div class="served">Cargando actividad…</div>
           </div>
         </div>
       </div>
@@ -613,7 +612,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 
   </div>
 
-  <!-- TABLERO (Trello) — mock estático, se cablea en el commit del kanban -->
+  <!-- TABLERO (kanban Tareas) — carriles reales: los puebla ccKanbanLoad() → tableroTareas() con D&D persistente -->
   <div class="kscrim" id="kscrim"></div>
   <div class="kboard" id="kboard" role="dialog" aria-modal="true" aria-label="Tablero de tareas">
     <div class="khead"><h3>Tablero · Tareas</h3>
@@ -1441,7 +1440,7 @@ document.addEventListener('keydown',function(ev){
 });
 document.getElementById('palette').addEventListener('click',function(ev){if(ev.target===this)palCerrar();});
 
-/* ── Commit A: chrome del cockpit (tema + tablero mock + orbe->voz) ── */
+/* ── Commit A: chrome del cockpit (tema + apertura del tablero + orbe->voz) ── */
 (function(){
   var t=document.getElementById('cmTheme'); if(t)t.addEventListener('click',toggleTheme);
   var ob=document.getElementById('openBoard'), ks=document.getElementById('kscrim'), kb=document.getElementById('kboard');
