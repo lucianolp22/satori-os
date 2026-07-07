@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# pre-push — drift-checker de CAPABILITIES.md (P0.6, cierra gap B/C de Trillion self-aware)
+# Regenera CAPABILITIES.md por introspeccion de src/ y ABORTA el push si el commiteado quedo stale.
+# La linea "> Generado:" (fecha+commit) se ignora en la comparacion para no dar falso positivo.
+set -u
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Si no existe el generador, no bloquea (repo clonado parcial, etc.)
+[ -f _capabilities_gen.sh ] || exit 0
+[ -f CAPABILITIES.md ] || { echo "pre-push: falta CAPABILITIES.md, corre bash _capabilities_gen.sh y commitealo"; exit 1; }
+
+# Caso 1: CAPABILITIES.md ya tiene cambios sin commitear -> el push llevaria un HEAD stale
+if ! git diff --quiet -- CAPABILITIES.md; then
+  echo "PUSH ABORTADO: CAPABILITIES.md tiene cambios sin commitear."
+  echo "  git add CAPABILITIES.md"
+  echo "  git commit -m 'CAPABILITIES: regen'"
+  echo "  git push"
+  exit 1
+fi
+
+# Caso 2: regenerar y comparar (ignorando la linea de fecha/commit)
+ANTES="$(mktemp)"; NUEVO="$(mktemp)"; VIEJO="$(mktemp)"
+cp CAPABILITIES.md "$ANTES"
+if ! bash _capabilities_gen.sh >/dev/null 2>&1; then
+  echo "pre-push: _capabilities_gen.sh fallo — sigo sin verificar (revisalo)"
+  cp "$ANTES" CAPABILITIES.md
+  rm -f "$ANTES" "$NUEVO" "$VIEJO"
+  exit 0
+fi
+grep -v '^> Generado:' CAPABILITIES.md > "$NUEVO"
+grep -v '^> Generado:' "$ANTES" > "$VIEJO"
+if cmp -s "$NUEVO" "$VIEJO"; then
+  cp "$ANTES" CAPABILITIES.md
+  rm -f "$ANTES" "$NUEVO" "$VIEJO"
+  exit 0
+fi
+rm -f "$ANTES" "$NUEVO" "$VIEJO"
+echo "PUSH ABORTADO: CAPABILITIES.md estaba desactualizado respecto de src/."
+echo "Ya quedo regenerado en el working tree. Corre:"
+echo "  git add CAPABILITIES.md"
+echo "  git commit -m 'CAPABILITIES: regen (drift-checker)'"
+echo "  git push"
+exit 1

@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-06 10:14 · commit: ec34ddd
+> Generado: 2026-07-07 10:24 · commit: 20531db
 
 ## Módulos
 
@@ -20,7 +20,7 @@
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 11 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 12 |
-| `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 11 |
+| `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
@@ -95,14 +95,14 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Script Properties (nombres, sin valores)
 
+- alertas_email_on
 - API_BUDGET_MENSUAL_USD
 - AUTOHEAL_ON
 - CLAUDE_API_KEY
 - OWNER_EMAIL
+- voz_alerta_fecha
 - VOZ_TOOL_SECRET
 - WORKER
-- alertas_email_on
-- voz_alerta_fecha
 
 ## Funciones por módulo (apéndice)
 
@@ -130,7 +130,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ aFechaHora_ 
 
-**13_agentes.js:** feed_ budgetMensualUSD_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
+**13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
 
 **14_director.js:** correrDirector poblarCerebro_ chequeoLivianoDirector instalarTriggerDirector 
 

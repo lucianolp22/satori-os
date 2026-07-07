@@ -69,9 +69,12 @@ echo "== EJECUTANDO --go =="
 [ -f src/99_tmp_b2.js ] && { rm -f src/99_tmp_b2.js; echo "temporal B2 borrado"; }
 
 git add src/21_backup.js docs/EJEMPLO-CLAUDE-cliente-DEMO.md HANDOFF.md RUNBOOK-recuperacion-total.md PAQUETE-CODE-B3-backup-2026-07-03.md _b3_code.sh .claude/settings.local.json
-git commit -m "B3 backup: 21_backup.js (backup semanal Drive + restore drill + smoke + logs editor) + runbook recuperacion total; limpia temporal B2; docs DEMO/HANDOFF"
-if [ $? -ne 0 ]; then echo "ABORT: git commit falló — mirá el error de arriba (lock / identidad / hook). NO se pushea nada."; exit 4; fi
-echo "commit OK"
+if git diff --cached --quiet; then
+  echo "nada nuevo para commitear (ya estaba commiteado) — sigo al clasp push + remoto"
+else
+  git commit -m "B3 backup: 21_backup.js (backup semanal Drive + restore drill + smoke + logs editor) + runbook recuperacion total; limpia temporal B2; docs DEMO/HANDOFF" || { echo "ABORT: git commit falló — mirá el error de arriba (lock / identidad / hook)."; exit 4; }
+  echo "commit OK"
+fi
 
 echo "clasp push..."; clasp push -f || { echo "ABORT: clasp push falló"; exit 5; }
 echo "clasp push OK (GAS HEAD queda con 21_backup.js v2 y sin el temporal)"
