@@ -354,8 +354,10 @@ function _diasDesde_(v) {
 
 /**
  * Regla ÚNICA de la recomendación del día (la misma que muestra el brief y la que
- * se registra). `pre` opcional {d, sal, abiertas, vencidas} evita re-leer si el
- * caller ya lo tiene (briefDiario); sin `pre` es self-contained (corridaDiaria).
+ * se registra). `pre` opcional {d, sal, abiertas, vencidas, kpiAlerta} evita re-leer
+ * si el caller ya lo tiene (briefDiario); sin `pre` es self-contained (corridaDiaria).
+ * `pre.kpiAlerta` (A3, 08-jul): inyectable para asserts; undefined → escanea las hojas
+ * KPIs de los clientes (clienteKpiEnAlerta_) para anclar la rec a un cliente.
  *
  * Trillion-delta A2 (08-jul) — JUICIO ANCLADO: cada recomendación cita el dato real
  * que la sustenta (días vencida, integridad %, espera de la aprobación, progreso NS).
@@ -386,6 +388,17 @@ function recomendacionDelDia_(pre) {
     return {
       texto: 'Cerrar la vencida más vieja — lleva ' + (diasV == null ? '?' : diasV) + ' día(s) vencida (de ' + vencidas.length + ' vencidas): ' + truncar_(v0.descripcion, 80) + (cliV ? ' · ' + cliV : ''),
       kpi: 'tareas_vencidas', id_cliente: cliV, dato: 'vencidas=' + vencidas.length + ';dias=' + diasV
+    };
+  }
+
+  // A3 (08-jul): KPI de CLIENTE en alerta → recomendación ANCLADA al cliente (id_cliente set)
+  // → el botón "→ Crear aprobación" cobra sentido en el uso real, sin depender de proyectos.
+  var ka = (pre && pre.kpiAlerta !== undefined) ? pre.kpiAlerta : clienteKpiEnAlerta_();
+  if (ka && ka.id_cliente) {
+    var objK = (ka.objetivo === '' || ka.objetivo == null) ? '' : ' (objetivo ' + ka.objetivo + ')';
+    return {
+      texto: 'Atender ' + (ka.kpi || 'el KPI') + ' de ' + (ka.cliente || ka.id_cliente) + ' = ' + ka.valor + objK + ' — ' + truncar_(String(ka.alerta || ''), 70),
+      kpi: 'kpi_cliente', id_cliente: String(ka.id_cliente), dato: 'kpi=' + (ka.kpi || '') + ';valor=' + ka.valor
     };
   }
 
@@ -420,6 +433,37 @@ function recomendacionDelDia_(pre) {
     texto: 'Definir la próxima movida hacia el North Star' + (ns && ns.meta != null ? ' — vas ' + ns.actual + '/' + ns.meta + ' (' + ns.desc + ')' : '') + '.',
     kpi: 'north_star', id_cliente: '', dato: ns ? 'progreso=' + ns.actual + '/' + (ns.meta == null ? '—' : ns.meta) : ''
   };
+}
+
+/**
+ * Primer cliente con un KPI en alerta (columna `alerta` no vacía en su hoja KPIs).
+ * Fuente del anclaje a cliente de recomendacionDelDia_ (A3). Abre las hojas cliente,
+ * por eso solo corre en llamadas de baja frecuencia (corrida/brief), NO en cada carga
+ * del CM (datosHoy no llama a recomendacionDelDia_). Fail-safe: cliente ilegible se
+ * saltea; null si no hay alerta.
+ * @return {?{id_cliente:string, cliente:string, kpi:string, valor:*, objetivo:*, alerta:string}}
+ */
+function clienteKpiEnAlerta_() {
+  try {
+    var clientes = leerTabla(getMaestro().getSheetByName('Clientes'));
+    for (var i = 0; i < clientes.length; i++) {
+      var cli = clientes[i];
+      if (!cli.url_sheet_cliente) continue;
+      var sh;
+      try { sh = SpreadsheetApp.openByUrl(cli.url_sheet_cliente).getSheetByName('KPIs'); } catch (e) { continue; }
+      if (!sh) continue;
+      var enAlerta = leerTabla(sh).filter(function (k) { return String(k.alerta || '') !== ''; });
+      if (enAlerta.length) {
+        var k0 = enAlerta[enAlerta.length - 1];
+        return {
+          id_cliente: cli.id_cliente, cliente: cli.nombre, kpi: String(k0.kpi || 'KPI'),
+          valor: (k0.valor === undefined ? '' : k0.valor),
+          objetivo: (k0.objetivo === undefined ? '' : k0.objetivo), alerta: String(k0.alerta || '')
+        };
+      }
+    }
+  } catch (e) { /* sin alerta accesible → sigue el resto de la lógica */ }
+  return null;
 }
 
 /**

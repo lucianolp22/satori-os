@@ -521,7 +521,25 @@ function dispararAgenteUI(idCliente, clave) {
 
 /** Resuelve una aprobación desde la UI (único punto de decisión: resolverAprobacion). */
 function resolverAprobacionUI(idCliente, id, decision, ediciones) {
-  return resolverAprobacion(idCliente, id, decision, ediciones || {});
+  var res = resolverAprobacion(idCliente, id, decision, ediciones || {});
+  // Reflejo inmediato (08-jul): el espejo agregado es "pendientes only"; una resuelta
+  // sale YA, sin esperar al próximo syncMaestro (antes reaparecía en el CM al recargar).
+  if (res && res.ok) { try { quitarAgregada_(id); } catch (e) { /* la resolución ya quedó; el próximo sync la limpia */ } }
+  return res;
+}
+
+/** Quita una aprobación del espejo agregado por id (consistente con syncMaestro = pendientes only). */
+function quitarAgregada_(id) {
+  var sh = getMaestro().getSheetByName('Aprobaciones_agregadas');
+  if (!sh || sh.getLastRow() < 2) return;
+  conLock(function () {
+    var m = sh.getDataRange().getValues();
+    var ic = m[0].indexOf('id');
+    if (ic < 0) return;
+    for (var r = m.length - 1; r >= 1; r--) {
+      if (String(m[r][ic]) === String(id)) sh.deleteRow(r + 1);
+    }
+  });
 }
 
 // ── Tablero de tareas (kanban del Command Center · B4) ───────────────────────

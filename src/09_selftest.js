@@ -227,7 +227,8 @@ function selfTest() {
     chk(!!fbRow && String(fbRow.util) === 'si' && String(fbRow.origen_id) === '__TEST__', 'D5 fila de feedback persistida con util normalizado (SI→si)');
 
     // D6 Recomendaciones: regla pura + el lazo cierra SOLO con los 2 juicios humanos.
-    var recT = recomendacionDelDia_();
+    // kpiAlerta:null → no escanea las hojas cliente (la rama A3 se testea por inyección en D10).
+    var recT = recomendacionDelDia_({ kpiAlerta: null });
     chk(!!recT && typeof recT.texto === 'string' && recT.texto.length > 0 && !!recT.kpi, 'D6 recomendacionDelDia_ devuelve texto+kpi (' + recT.kpi + ')');
     var shRec = getMaestro().getSheetByName('Recomendaciones');
     appendFila(shRec, { id: 'REC-TEST-1', fecha: hoyISO(), texto: '__TEST__ rec de prueba', kpi_objetivo: 'north_star', se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '' });
@@ -296,6 +297,25 @@ function selfTest() {
     var a9c = aprobacionDesdeRecomendacion('REC-TEST-9B');
     chk(a9c.ok === false && String(a9c.motivo).indexOf('lazo') >= 0,
       'D9 B2 rec sin cliente → ok:false con motivo (no inventa tenant)');
+
+    // ── D10 (08-jul) A3: recomendación ANCLADA a un KPI de cliente (inyectada, determinística) ──
+    var recK = recomendacionDelDia_({
+      d: { estado: { aprobaciones_pendientes: 0 } }, sal: { global: 'ok', integridad: 100, hallazgos: [] },
+      abiertas: [], vencidas: [],
+      kpiAlerta: { id_cliente: r.id_cliente, cliente: '__TEST__ cli', kpi: 'margen_%', valor: 12, objetivo: 30, alerta: 'por debajo del piso' }
+    });
+    chk(recK.kpi === 'kpi_cliente' && String(recK.id_cliente) === String(r.id_cliente) && recK.texto.indexOf('margen_%') >= 0 && String(recK.dato).indexOf('kpi=margen_%') === 0,
+      'D10 A3 recomendación anclada al KPI de cliente (id_cliente + dato)');
+    var recSinKpi = recomendacionDelDia_({ d: { estado: { aprobaciones_pendientes: 0 } }, sal: { global: 'ok', integridad: 100, hallazgos: [] }, abiertas: [], vencidas: [], kpiAlerta: null });
+    chk(String(recSinKpi.kpi) === 'north_star' && String(recSinKpi.id_cliente) === '', 'D10 A3 sin KPI en alerta → NO ancla (cae a north_star, sin cliente)');
+
+    // ── D11 (08-jul): quitarAgregada_ saca una fila del espejo por id → reflejo inmediato al resolver ──
+    var shAggT = getMaestro().getSheetByName('Aprobaciones_agregadas');
+    appendFila(shAggT, { id: 'APR-TEST-AGG', cliente: '__TEST__', estado: 'pendiente' });
+    var aggAntes = leerTabla(shAggT).some(function (f) { return String(f.id) === 'APR-TEST-AGG'; });
+    quitarAgregada_('APR-TEST-AGG');
+    var aggDespues = leerTabla(shAggT).some(function (f) { return String(f.id) === 'APR-TEST-AGG'; });
+    chk(aggAntes && !aggDespues, 'D11 quitarAgregada_ saca la aprobación del espejo (no reaparece en el CM al resolver)');
 
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');
