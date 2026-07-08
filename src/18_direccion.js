@@ -159,9 +159,14 @@ function briefDiarioSistema_() {
   var vencidas = abiertas.filter(function (t) { return esVencida(t.fecha_limite, t.estado); });
   var ap = d.estado.aprobaciones_pendientes, av = d.estado.avisos_activos;
 
+  // A2 (08-jul): BLUF anclado — cita el dato que lo sustenta (espejo honesto, no oráculo).
   var bluf;
-  if (sal.global === 'crit') bluf = 'Salud en CRÍTICO — estabilizá el sistema antes que nada.';
-  else if (vencidas.length) bluf = vencidas.length + ' tarea(s) vencida(s) pidiendo cierre.';
+  if (sal.global === 'crit') bluf = 'Salud en CRÍTICO (integridad ' + sal.integridad + '%) — estabilizá el sistema antes que nada.';
+  else if (vencidas.length) {
+    var vB = vencidas.slice().sort(function (a, b) { return String(aFechaISO(a.fecha_limite)) < String(aFechaISO(b.fecha_limite)) ? -1 : 1; })[0];
+    var dB = _diasDesde_(vB.fecha_limite);
+    bluf = vencidas.length + ' tarea(s) vencida(s) pidiendo cierre' + (dB != null ? ' — la más vieja lleva ' + dB + ' día(s)' : '') + '.';
+  }
   else if (ap) bluf = ap + ' aprobación(es) esperando tu decisión.';
   else if (av) bluf = av + ' aviso(s) activo(s) para revisar.';
   else bluf = 'Sin urgencias — día para avanzar lo importante, no lo ruidoso.';
@@ -229,9 +234,17 @@ function briefDiarioCliente_(id) {
   var aprob = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).filter(function (a) { return a.id_cliente === id; });
   var ns = obj.length ? obj[0] : null;
 
+  // A2 (08-jul): juicio anclado en KPIs del CLIENTE — si hay KPI en alerta, el juicio lo cita.
+  var kpisCli = (cs && cs.getSheetByName('KPIs')) ? leerTabla(cs.getSheetByName('KPIs')) : [];
+  var kpisAlerta = kpisCli.filter(function (k) { return String(k.alerta || '') !== ''; });
+
   var bluf;
   if (vencidas.length) bluf = vencidas.length + ' tarea(s) vencida(s) de ' + c.nombre + '.';
   else if (aprob.length) bluf = aprob.length + ' aprobación(es) pendiente(s) de ' + c.nombre + '.';
+  else if (kpisAlerta.length) {
+    var k0 = kpisAlerta[kpisAlerta.length - 1];
+    bluf = 'Atender ' + (k0.kpi || 'el KPI en alerta') + ' = ' + k0.valor + ((k0.objetivo !== '' && k0.objetivo != null) ? ' (objetivo ' + k0.objetivo + ')' : '') + ' — ' + truncar_(String(k0.alerta), 80);
+  }
   else if (ns) bluf = 'Foco: ' + (ns.descripcion || 'objetivo') + (ns.metrica ? ' (' + ns.metrica + '→' + ns.valor_objetivo + ')' : '') + '.';
   else bluf = c.nombre + ' sin North Star definido — definí 1 objetivo.';
 
@@ -256,6 +269,17 @@ function briefDiarioCliente_(id) {
   L.push('## Números');
   L.push('- Proyectos: ' + dc.proyectos.length + ' · Tareas abiertas: ' + abiertas.length + ' (' + vencidas.length + ' vencidas) · Aprobaciones: ' + aprob.length);
   L.push('');
+  // A2 (08-jul): señal de KPIs — cada juicio cita el dato del cliente (últimas 3 alertas).
+  if (kpisAlerta.length) {
+    L.push('## Señal de KPIs');
+    kpisAlerta.slice(-3).forEach(function (k) {
+      L.push('- ' + (k.kpi || '—') + ' = ' + k.valor +
+        ((k.objetivo !== '' && k.objetivo != null) ? ' (objetivo ' + k.objetivo + ')' : '') +
+        ' ⚠ ' + truncar_(String(k.alerta), 90) +
+        (k.fecha ? ' · ' + aFechaISO(k.fecha) : ''));
+    });
+    L.push('');
+  }
   L.push('— generado por briefDiario(\'' + id + '\')');
   return L.join('\n');
 }
@@ -319,10 +343,25 @@ function truncar_(s, n) {
 
 // ── P2 F4 (07-jul) — Lazo de resultados: recomendó → se hizo → el KPI se movió ─
 
+/** Días enteros desde una fecha ISO hasta hoy (0 si es hoy; null si no parsea o es futura). */
+function _diasDesde_(v) {
+  var f = String(aFechaISO(v) || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return null;
+  var ms = new Date(hoyISO() + 'T00:00:00').getTime() - new Date(f + 'T00:00:00').getTime();
+  var dias = Math.round(ms / 86400000);
+  return dias >= 0 ? dias : null;
+}
+
 /**
  * Regla ÚNICA de la recomendación del día (la misma que muestra el brief y la que
  * se registra). `pre` opcional {d, sal, abiertas, vencidas} evita re-leer si el
  * caller ya lo tiene (briefDiario); sin `pre` es self-contained (corridaDiaria).
+ *
+ * Trillion-delta A2 (08-jul) — JUICIO ANCLADO: cada recomendación cita el dato real
+ * que la sustenta (días vencida, integridad %, espera de la aprobación, progreso NS).
+ * Espejo honesto, no oráculo: solo datos que están en las hojas, sin proyecciones.
+ * Devuelve {texto, kpi, id_cliente, dato}: id_cliente ('' si no mapea a un tenant)
+ * habilita B2 ("→ Aprobación" en el CM); dato es el ancla cruda (asserts D9).
  */
 function recomendacionDelDia_(pre) {
   var d = (pre && pre.d) || datosHoy();
@@ -330,27 +369,81 @@ function recomendacionDelDia_(pre) {
   var abiertas = (pre && pre.abiertas) || tareasActivasOrdenadas(leerTabla(getMaestro().getSheetByName('Tareas')));
   var vencidas = (pre && pre.vencidas) || abiertas.filter(function (t) { return esVencida(t.fecha_limite, t.estado); });
   var ap = d.estado.aprobaciones_pendientes;
-  if (sal.global === 'crit') return { texto: 'Estabilizar la salud del sistema (está en CRÍTICO) antes de cualquier otra cosa.', kpi: 'salud' };
-  if (vencidas.length) return { texto: 'Cerrar la vencida más vieja: ' + truncar_(vencidas[0].descripcion, 90), kpi: 'tareas_vencidas' };
-  if (ap) return { texto: 'Despachar las ' + ap + ' aprobación(es) pendiente(s) — desbloquean a los agentes.', kpi: 'aprobaciones_pendientes' };
-  if (abiertas.length) return { texto: 'Arrancar por: ' + truncar_(abiertas[0].descripcion, 90), kpi: 'north_star' };
-  return { texto: 'Definir la próxima movida hacia el North Star.', kpi: 'north_star' };
+
+  if (sal.global === 'crit') {
+    var h0 = (sal.hallazgos || []).filter(function (h) { return h.estado !== 'ok'; })[0];
+    return {
+      texto: 'Estabilizar la salud del sistema — está en CRÍTICO (integridad ' + sal.integridad + '%' + (h0 ? '; ' + h0.nombre : '') + ') antes de cualquier otra cosa.',
+      kpi: 'salud', id_cliente: '', dato: 'integridad=' + sal.integridad + '%'
+    };
+  }
+
+  if (vencidas.length) {
+    // la MÁS VIEJA de verdad (por fecha límite), no la primera del orden de prioridad
+    var v0 = vencidas.slice().sort(function (a, b) { return String(aFechaISO(a.fecha_limite)) < String(aFechaISO(b.fecha_limite)) ? -1 : 1; })[0];
+    var diasV = _diasDesde_(v0.fecha_limite);
+    var cliV = String(v0.id_proyecto ? (clienteDeProyecto(v0.id_proyecto) || '') : '');
+    return {
+      texto: 'Cerrar la vencida más vieja — lleva ' + (diasV == null ? '?' : diasV) + ' día(s) vencida (de ' + vencidas.length + ' vencidas): ' + truncar_(v0.descripcion, 80) + (cliV ? ' · ' + cliV : ''),
+      kpi: 'tareas_vencidas', id_cliente: cliV, dato: 'vencidas=' + vencidas.length + ';dias=' + diasV
+    };
+  }
+
+  if (ap) {
+    var ancla = '';
+    try { // lazy: solo en esta rama, hoja chica del MAESTRO
+      var pend = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).filter(function (a) { return String(a.estado).toLowerCase() === 'pendiente'; });
+      if (pend.length) {
+        var p0 = pend.slice().sort(function (a, b) { return String(aFechaISO(a.fecha_creacion)) < String(aFechaISO(b.fecha_creacion)) ? -1 : 1; })[0];
+        var diasA = _diasDesde_(p0.fecha_creacion);
+        ancla = ' — la más vieja (' + (p0.cliente || p0.id_cliente || '—') + ') espera hace ' + (diasA == null ? '?' : diasA) + ' día(s)';
+      }
+    } catch (e) { /* sin ancla, la recomendación sigue */ }
+    return {
+      texto: 'Despachar las ' + ap + ' aprobación(es) pendiente(s)' + ancla + ' — desbloquean a los agentes.',
+      kpi: 'aprobaciones_pendientes', id_cliente: '', dato: 'pendientes=' + ap
+    };
+  }
+
+  if (abiertas.length) {
+    var t0 = abiertas[0];
+    var cliT = String(t0.id_proyecto ? (clienteDeProyecto(t0.id_proyecto) || '') : '');
+    var lim = t0.fecha_limite ? String(aFechaISO(t0.fecha_limite)) : '';
+    return {
+      texto: 'Arrancar por: [' + (t0.prioridad || '—') + '] ' + truncar_(t0.descripcion, 80) + (lim ? ' · vence ' + lim : '') + (cliT ? ' · ' + cliT : ''),
+      kpi: 'north_star', id_cliente: cliT, dato: lim ? 'limite=' + lim : ''
+    };
+  }
+
+  var ns = northStarSatori_();
+  return {
+    texto: 'Definir la próxima movida hacia el North Star' + (ns && ns.meta != null ? ' — vas ' + ns.actual + '/' + ns.meta + ' (' + ns.desc + ')' : '') + '.',
+    kpi: 'north_star', id_cliente: '', dato: ns ? 'progreso=' + ns.actual + '/' + (ns.meta == null ? '—' : ns.meta) : ''
+  };
 }
 
 /**
  * Registra la recomendación del día en la hoja Recomendaciones (estado 'abierta').
- * Dedupe: si ya hay una ABIERTA con el mismo texto, no duplica. La llama corridaDiaria
- * (1/día efectivo); el brief solo la MUESTRA (no escribe).
+ * Dedupe por ESENCIA (kpi_objetivo + id_cliente entre abiertas), no por texto: el texto
+ * anclado de A2 cambia a diario ("lleva N día(s)") y dedupear por texto acumularía una
+ * fila abierta por día para la misma situación (purga 08-jul). Mientras el humano no
+ * cierre el lazo de esa situación, no se apila otra. La llama corridaDiaria (1/día
+ * efectivo); el brief solo la MUESTRA (no escribe).
  */
 function registrarRecomendacionDelDia() {
   var sh = getMaestro().getSheetByName('Recomendaciones');
   if (!sh) return { ok: false, motivo: 'falta hoja Recomendaciones (correr setup)' };
   var r = recomendacionDelDia_();
   return conLock(function () {
-    var ya = leerTabla(sh).filter(function (f) { return String(f.estado) === 'abierta' && String(f.texto) === r.texto; })[0];
+    var ya = leerTabla(sh).filter(function (f) {
+      return String(f.estado) === 'abierta' &&
+        (String(f.texto) === r.texto ||
+          (String(f.kpi_objetivo) === String(r.kpi) && String(f.id_cliente || '') === String(r.id_cliente || '')));
+    })[0];
     if (ya) return { ok: true, id: ya.id, dedupe: true };
     var id = nextId(sh, 'id', 'REC', 4);
-    appendFila(sh, { id: id, fecha: hoyISO(), texto: r.texto, kpi_objetivo: r.kpi, se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '' });
+    // id_cliente (B2): si el header aún no existe (setup pendiente), appendFila lo ignora — degradación limpia.
+    appendFila(sh, { id: id, fecha: hoyISO(), texto: r.texto, kpi_objetivo: r.kpi, se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '', id_cliente: String(r.id_cliente || '') });
     return { ok: true, id: id };
   });
 }
@@ -376,12 +469,51 @@ function marcarRecomendacion(id, campo, valor) {
   });
 }
 
+/**
+ * Trillion-delta B2 (08-jul) — el brief DECIDE: convierte una recomendación abierta en
+ * una aprobación P1 del cliente al que refiere. Extiende F4+F5, no crea sistema paralelo:
+ * reusa crearAprobacion (default-deny: 'ejecutar_recomendacion' sin monto → P1) y la
+ * aprobación entra a la cola/lote existentes del CM vía sync. Reglas duras:
+ *  - Sin id_cliente NO se crea nada (Satori no es tenant — decisión firme 07-jul);
+ *    el seguimiento de esas queda en el lazo (2 juicios), como hasta ahora.
+ *  - Dedupe por rec_id: una recomendación genera a lo sumo UNA aprobación pendiente.
+ *  - No marca se_hizo: el juicio del lazo sigue siendo humano (F4 intacto).
+ * @param {string} recId  id de la hoja Recomendaciones (REC-####)
+ * @return {{ok:boolean, id?:string, patron?:string, dedupe?:boolean, motivo?:string}}
+ */
+function aprobacionDesdeRecomendacion(recId) {
+  var sh = getMaestro().getSheetByName('Recomendaciones');
+  if (!sh) return { ok: false, motivo: 'falta hoja Recomendaciones (correr setup)' };
+  var rec = leerTabla(sh).filter(function (f) { return String(f.id) === String(recId); })[0];
+  if (!rec) return { ok: false, motivo: 'recomendación no encontrada: ' + recId };
+  if (String(rec.estado) !== 'abierta') return { ok: false, motivo: 'la recomendación no está abierta (estado: ' + rec.estado + ')' };
+  var idc = String(rec.id_cliente || '');
+  if (!idc) return { ok: false, motivo: 'la recomendación no refiere a un cliente — seguila por el lazo (¿se hizo? / ¿movió el KPI?)' };
+
+  var shAp;
+  try { shAp = abrirCliente(idc).ss.getSheetByName('Aprobaciones'); }
+  catch (e) { return { ok: false, motivo: 'cliente ' + idc + ': ' + e.message }; }
+  if (!shAp) return { ok: false, motivo: 'cliente ' + idc + ' sin pestaña Aprobaciones' };
+
+  var marca = '"rec_id":"' + String(recId) + '"';
+  var ya = leerTabla(shAp).filter(function (a) {
+    return String(a.estado).toLowerCase() === 'pendiente' && String(a.payload || '').indexOf(marca) >= 0;
+  })[0];
+  if (ya) return { ok: true, id: ya.id, dedupe: true };
+
+  var apr = crearAprobacion(idc, 'direccion', 'ejecutar_recomendacion',
+    { rec_id: String(recId), kpi: String(rec.kpi_objetivo || ''), texto: String(rec.texto || '') },
+    { descripcion: 'Recomendación del día → ' + truncar_(String(rec.texto || ''), 90) });
+  try { syncMaestro(); } catch (e) { /* la agregada llega con la próxima sync */ }
+  return { ok: true, id: apr.id, patron: apr.patron };
+}
+
 /** CM: recomendaciones abiertas (vista del lazo en la card del brief). */
 function recomendacionesAbiertas() {
   var sh = getMaestro().getSheetByName('Recomendaciones');
   if (!sh) return [];
   return leerTabla(sh).filter(function (f) { return String(f.estado) === 'abierta'; }).map(function (f) {
-    return { id: f.id, fecha: aFechaISO(f.fecha), texto: String(f.texto || ''), kpi: String(f.kpi_objetivo || ''), se_hizo: String(f.se_hizo || ''), kpi_movio: String(f.kpi_movio || '') };
+    return { id: f.id, fecha: aFechaISO(f.fecha), texto: String(f.texto || ''), kpi: String(f.kpi_objetivo || ''), se_hizo: String(f.se_hizo || ''), kpi_movio: String(f.kpi_movio || ''), id_cliente: String(f.id_cliente || '') };
   });
 }
 

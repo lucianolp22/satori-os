@@ -267,6 +267,36 @@ function selfTest() {
     var ctx8 = datosHoy().tareas_ctx;
     chk(!!ctx8 && typeof ctx8.hoy === 'number' && typeof ctx8.periodicas === 'number' && ctx8.abiertas >= ctx8.en_curso, 'D8b datosHoy expone tareas_ctx (checklist de contexto)');
 
+    // ── D9 Trillion-delta Tanda 2 (08-jul) — juicio anclado (A2) + rec→aprobación (B2) ──
+    // A2: determinístico con `pre` inyectado (no depende del estado real del sistema).
+    var pre9 = {
+      d: { estado: { aprobaciones_pendientes: 0 } },
+      sal: { global: 'ok', integridad: 100, hallazgos: [] },
+      abiertas: [{ descripcion: 'abierta test', fecha_limite: '', id_proyecto: '', estado: 'en_curso', prioridad: 'A' }],
+      vencidas: [{ descripcion: 'vencida ancla test', fecha_limite: '2020-01-01', id_proyecto: '', estado: 'en_curso', prioridad: 'A' }]
+    };
+    var rec9 = recomendacionDelDia_(pre9);
+    chk(rec9.kpi === 'tareas_vencidas' && /lleva \d+ día\(s\) vencida/.test(rec9.texto) && rec9.texto.indexOf('vencida ancla test') >= 0,
+      'D9 A2 juicio ANCLADO: la recomendación cita días + dato real');
+    chk(String(rec9.id_cliente) === '' && String(rec9.dato).indexOf('vencidas=1') === 0,
+      'D9 A2 expone id_cliente y dato (ancla cruda)');
+    // B2: rec con cliente → crea APR P1 en el cliente de prueba; dedupe; fail-closed sin cliente.
+    appendFila(getMaestro().getSheetByName('Recomendaciones'), { id: 'REC-TEST-9', fecha: hoyISO(), texto: '__TEST__ rec para aprobación', kpi_objetivo: 'north_star', se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '', id_cliente: r.id_cliente });
+    var a9 = aprobacionDesdeRecomendacion('REC-TEST-9');
+    chk(a9.ok === true && /^APR-\d+$/.test(String(a9.id)) && a9.patron === 'P1',
+      'D9 B2 rec→aprobación crea P1 en el cliente (' + (a9.id || a9.motivo) + ')');
+    var a9row = aprCli().filter(function (f) { return String(f.id) === String(a9.id); })[0];
+    chk(!!a9row && String(a9row.estado).toLowerCase() === 'pendiente' && String(a9row.payload).indexOf('"rec_id":"REC-TEST-9"') >= 0,
+      'D9 B2 la aprobación nace PENDIENTE con payload de la recomendación');
+    var a9b = aprobacionDesdeRecomendacion('REC-TEST-9');
+    chk(a9b.ok === true && a9b.dedupe === true && String(a9b.id) === String(a9.id),
+      'D9 B2 dedupe: segunda llamada NO duplica la pendiente');
+    chk(aprobacionDesdeRecomendacion('REC-NO-EXISTE').ok === false, 'D9 B2 rec inexistente → ok:false (no escribe)');
+    appendFila(getMaestro().getSheetByName('Recomendaciones'), { id: 'REC-TEST-9B', fecha: hoyISO(), texto: '__TEST__ rec de sistema', kpi_objetivo: 'salud', se_hizo: '', kpi_movio: '', estado: 'abierta', cerrada_en: '', id_cliente: '' });
+    var a9c = aprobacionDesdeRecomendacion('REC-TEST-9B');
+    chk(a9c.ok === false && String(a9c.motivo).indexOf('lazo') >= 0,
+      'D9 B2 rec sin cliente → ok:false con motivo (no inventa tenant)');
+
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');
     chk(modeloDeModulo_('triajeX') === MODELO_DEFAULT, 'C módulo sin mapear cae a Haiku (default seguro)');
@@ -404,7 +434,9 @@ function limpiarTodoTest() {
   });
 
   borrarFilasDonde(shClientes, function (f) { return String(f.nombre).indexOf('__TEST__') === 0; });
-  borrarFilasDonde(ss.getSheetByName('Aprobaciones_agregadas'), function (f) { return String(f.id).indexOf('APR-TEST') === 0; });
+  // D9 (08-jul): la APR creada vía rec→aprobación sube a agregadas con syncMaestro y NO es APR-TEST-*
+  // → barrer también por cliente __TEST__ (mismo patrón que Clientes).
+  borrarFilasDonde(ss.getSheetByName('Aprobaciones_agregadas'), function (f) { return String(f.id).indexOf('APR-TEST') === 0 || String(f.cliente).indexOf('__TEST__') === 0; });
   borrarFilasDonde(ss.getSheetByName('Tareas'), function (f) { return String(f.id_tarea).indexOf('TAR-TEST') === 0 || String(f.descripcion).indexOf('__TEST__') === 0; });
   // PURGA #14: acotar a marcadores de prueba (TAR-TEST/APR-TEST), nunca a un
   // 'TEST' suelto en el mensaje — borraría avisos reales que mencionen "test".

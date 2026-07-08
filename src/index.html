@@ -1663,6 +1663,25 @@ function ccRecRow(r){
   }
   par('se_hizo','¿Se hizo?',r.se_hizo);
   par('kpi_movio','¿Movió el KPI?',r.kpi_movio);
+  // Trillion-delta B2 (08-jul): el brief DECIDE — la recomendación se vuelve aprobación con 1 clic.
+  // Solo si mapea a un cliente (backend fail-closed: sin tenant no se crea nada) y sin juicio "se hizo" aún.
+  if(r.id_cliente && !r.se_hizo){
+    var ap=el('button','btn btn-ghost btn-sm','→ Crear aprobación');
+    ap.title='Crea una aprobación P1 (default-deny) en '+r.id_cliente+' para ejecutar esta recomendación';
+    ap.addEventListener('click',function(){
+      ap.disabled=true;
+      if(!EN_GAS){ cmToast('Aprobación simulada'); return; }
+      cmToast('Creando aprobación…');
+      google.script.run
+        .withSuccessHandler(function(res){
+          if(res&&res.ok){ cmToast(res.dedupe?('Ya existía pendiente: '+res.id+' ✓'):('Aprobación '+res.id+' creada ✓ — entra a la cola')); refrescarCentro(); ccHoy(); }
+          else { ap.disabled=false; cmToast('No se creó: '+((res&&res.motivo)||'error')); }
+        })
+        .withFailureHandler(function(e){ ap.disabled=false; cmToast('No se creó: '+((e&&e.message)||'error')); })
+        .aprobacionDesdeRecomendacion(r.id);
+    });
+    acts.appendChild(ap);
+  }
   b.appendChild(acts); bi.appendChild(b); return bi;
 }
 

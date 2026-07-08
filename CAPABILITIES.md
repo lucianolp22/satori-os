@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-08 00:25 · commit: 5e81d27
+> Generado: 2026-07-08 10:39 · commit: 16d6c0d
 
 ## Módulos
 
@@ -25,7 +25,7 @@
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 7 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 21 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 23 |
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
@@ -143,7 +143,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **17_bandeja.js:** capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ recomendacionDelDia_ registrarRecomendacionDelDia marcarRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ _diasDesde_ recomendacionDelDia_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
 
 **19_conectores.js:** sincronizarVehemence sincronizarConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ 
 

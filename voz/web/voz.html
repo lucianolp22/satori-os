@@ -57,6 +57,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
 
 .stage{grid-column:1;grid-row:2;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
 #orb2d,#orb3d{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+/* C1-delta (Trillion T1, 08-jul): aro de estado del orbe — color por lk.agent.state.
+   La DATA ya viene de setSato; esto es solo render. Paleta = SATO_EST (jade/ámbar/terracota). */
+#orbRing{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;
+  border:1.5px solid transparent;pointer-events:none;opacity:0;
+  transition:border-color .32s ease,box-shadow .32s ease,opacity .32s ease}
+#orbRing[data-st]{opacity:1}
+#orbRing[data-st="listening"]{border-color:rgba(143,191,173,.55);box-shadow:0 0 26px rgba(143,191,173,.22),inset 0 0 18px rgba(143,191,173,.08)}
+#orbRing[data-st="thinking"]{border-color:rgba(213,162,79,.60);box-shadow:0 0 26px rgba(213,162,79,.25),inset 0 0 18px rgba(213,162,79,.10);animation:ringPulse 2.2s ease-in-out infinite}
+#orbRing[data-st="speaking"]{border-color:rgba(213,130,79,.65);box-shadow:0 0 30px rgba(213,130,79,.30),inset 0 0 18px rgba(213,130,79,.10)}
+@keyframes ringPulse{0%,100%{box-shadow:0 0 18px rgba(213,162,79,.16),inset 0 0 18px rgba(213,162,79,.08)}50%{box-shadow:0 0 34px rgba(213,162,79,.34),inset 0 0 18px rgba(213,162,79,.12)}}
+@media (prefers-reduced-motion:reduce){#orbRing{transition:none;animation:none!important}}
 .msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(440px,84%);pointer-events:none}
 .msg .who{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--teal);opacity:.8;margin-bottom:10px}
 .msg .txt{font-size:16px;line-height:1.55;color:#fff;text-shadow:0 2px 24px rgba(3,3,7,.9)}
@@ -83,6 +94,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   border-radius:8px;padding:8px 10px;white-space:pre-wrap;word-break:break-word}
 .mrow.sato .tx{border-left:2px solid var(--teal)}
 .mrow.interim .tx{opacity:.6;font-style:italic}
+/* C2 (Trillion T1, 08-jul): fila de progreso del turno — etapas reales, sin barra falsa */
+.mrow.prog .tx{opacity:.75;font-style:italic}
+.mrow.prog .tx .cron{color:var(--muted);font-variant-numeric:tabular-nums}
 .chat-input{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(224,161,122,.12)}
 .chat-input input{flex:1;background:var(--surface-2);border:1px solid var(--teal-line);color:var(--text);
   border-radius:8px;padding:9px 11px;font-size:13px;min-height:40px;font-family:inherit}
@@ -119,6 +133,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   <div class="stage">
     <canvas id="orb2d"></canvas>
     <canvas id="orb3d" aria-hidden="true"></canvas>
+    <div id="orbRing" aria-hidden="true"></div>
     <div class="msg"><div class="who">· Satori ·</div><div class="txt" id="status">Tocá Hablar con Sato y arrancá.</div></div>
   </div>
 
@@ -165,13 +180,57 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   var chatTxt=document.getElementById('chatTxt'), chatSend=document.getElementById('chatSend');
   function setStatus(t){ statusEl.textContent=t; }
   // Estados visibles del agente (gap #1 plan 06-jul / norte v9 §3.3): lk.agent.state -> texto+color.
-  // MVP sobre #status (el aro del orbe 3D queda para el próximo toque de UI). Paleta zen (jade/ámbar/terracota).
+  // Paleta zen (jade/ámbar/terracota). C1-delta (08-jul): + aro del orbe. C2: + progreso en el chatlog.
   var SATO_EST={listening:{t:'Sato escucha…',c:'#8FBFAD'},thinking:{t:'Sato está pensando…',c:'#D5A24F'},speaking:{t:'Sato está hablando',c:'#D5824F'},initializing:{t:'Sato se está preparando…',c:''}};
+  var orbRing=document.getElementById('orbRing');
   function setSato(st){
     var e=SATO_EST[st];
+    if(orbRing){
+      if(st==='listening'||st==='thinking'||st==='speaking') orbRing.setAttribute('data-st',st);
+      else orbRing.removeAttribute('data-st');
+    }
+    progUpdate(st);
     if(!e){ statusEl.style.color=''; return; }
     statusEl.style.color=e.c||'';
     setStatus('● '+e.t);
+  }
+
+  /* C2 (Trillion T1, 08-jul): progreso del turno en el chatlog — etapas REALES de lk.agent.state.
+     'thinking' que llega DESPUÉS de un 'speaking' en la misma espera = tool GAS en curso
+     (patrón filler documentado 30-jun: Sato avisa en una frase y sigue pensando mientras consulta)
+     → "Consultando el sistema". El cronómetro son segundos reales. Nada inventado, sin barra falsa. */
+  var PROG={el:null,base:null,cron:null,t0:0,timer:null,fase:'',last:''};
+  function progRemove(){
+    if(PROG.timer){ clearInterval(PROG.timer); PROG.timer=null; }
+    if(PROG.el&&PROG.el.parentNode) PROG.el.parentNode.removeChild(PROG.el);
+    PROG.el=null; PROG.base=null; PROG.cron=null; PROG.fase='';
+  }
+  function progPaint(){
+    if(!PROG.base) return;
+    PROG.base.textContent=(PROG.fase==='consultando'?'Consultando el sistema':'Pensando')+'…';
+    var s=Math.max(0,Math.round((Date.now()-PROG.t0)/1000));
+    PROG.cron.textContent=(s>=3?(' '+s+'s'):'');
+  }
+  function progShow(fase){
+    if(!PROG.el){
+      clearEmpty();
+      var row=document.createElement('div'); row.className='mrow sato prog';
+      var who=document.createElement('div'); who.className='who'; who.textContent='Sato';
+      var tx=document.createElement('div'); tx.className='tx';
+      var b=document.createElement('span');
+      var c=document.createElement('span'); c.className='cron'; c.setAttribute('aria-hidden','true'); // el contador no spamea el screen reader
+      tx.appendChild(b); tx.appendChild(c); row.appendChild(who); row.appendChild(tx);
+      chatLog.appendChild(row);
+      PROG.el=row; PROG.base=b; PROG.cron=c; PROG.t0=Date.now();
+      PROG.timer=setInterval(function(){ progPaint(); },1000);
+    }
+    PROG.fase=fase; progPaint();
+    chatLog.scrollTop=chatLog.scrollHeight;
+  }
+  function progUpdate(st){
+    if(st==='thinking'){ progShow(PROG.last==='speaking'?'consultando':'pensando'); }
+    else if(st==='listening'){ progRemove(); }   // turno cerrado (o interrupción): fuera el progreso
+    if(st) PROG.last=st;
   }
   function showBanner(t){ banner.textContent=t; banner.classList.add('show'); }
   function hideBanner(){ banner.classList.remove('show'); }
@@ -187,6 +246,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     spaceC.width=innerWidth; spaceC.height=innerHeight;
     var st=document.querySelector('.stage'); if(!st)return;
     var m=Math.min(st.clientWidth,st.clientHeight); o2.width=o2.height=Math.max(240,m*.82); resize3D();
+    if(orbRing){ var rd=Math.round(o2.width*.84); orbRing.style.width=rd+'px'; orbRing.style.height=rd+'px'; } // aro ≥ orbe respirando (~.72–.81 del canvas)
   }
   function drawSpace(t){
     spaceX.clearRect(0,0,spaceC.width,spaceC.height);
@@ -399,6 +459,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
     var role=(info&&info.identity===meId)?'vos':'sato';
     reader.readAll().then(function(text){
       if(text){
+        if(role==='sato'){ progRemove(); }          // C2: llegó texto real de Sato -> fuera la fila de progreso
         upsert(sid, role, text, final);
         if(role==='sato'){ stopThinking(); }        // Sato empezó a responder -> cortar el tecleo
         else if(final){ startThinking(); }           // Luciano terminó una frase -> Sato va a pensar
@@ -528,6 +589,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   }
   function teardown(msg){
     stopThinking();
+    progRemove(); if(orbRing) orbRing.removeAttribute('data-st'); PROG.last='';   // C1/C2: limpiar aro + progreso
     try{ room&&room.disconnect(); }catch(_){}
     room=null; connecting=false; VOICE.connected=false; VOICE.target=0; transcriptReg=false;
     btnHang.hidden=true; btnAudio.hidden=true; btnTalk.hidden=false; btnTalk.disabled=false; setMic('off');

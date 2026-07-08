@@ -36,7 +36,9 @@ var MAESTRO_SHEETS = {
   // P2 F1 (07-jul) — lazo de resultados: feedback 1-clic sobre briefs/avisos. Append-only.
   Feedback: ['id', 'ts', 'origen_tipo', 'origen_id', 'util', 'nota'],
   // P2 F4 (07-jul) — lazo completo: recomendó → se hizo (si/no) → el KPI se movió (si/no).
-  Recomendaciones: ['id', 'fecha', 'texto', 'kpi_objetivo', 'se_hizo', 'kpi_movio', 'estado', 'cerrada_en'],
+  // Trillion-delta B2 (08-jul): +id_cliente — si la recomendación mapea a un cliente, habilita
+  // "→ Aprobación" en el CM (crearAprobacion exige tenant; Satori NO es tenant, decisión firme).
+  Recomendaciones: ['id', 'fecha', 'texto', 'kpi_objetivo', 'se_hizo', 'kpi_movio', 'estado', 'cerrada_en', 'id_cliente'],
   // Norte v9 §3.5 (07-jul, decisión Luciano: opción A) — agenda semanal SIN scope de Calendar.
   Agenda: ['id', 'fecha', 'hora', 'titulo', 'id_cliente', 'notas', 'estado'],
   Config: ['clave', 'valor']
