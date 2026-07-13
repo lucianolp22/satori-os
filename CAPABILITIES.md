@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-13 16:59 · commit: e63648a
+> Generado: 2026-07-13 19:35 · commit: 914a2e1
 
 ## Módulos
 
@@ -55,6 +55,7 @@ Funciones públicas sin guión bajo final que son de arranque/verificación manu
 | Handler | Cadencia | Módulo |
 |---|---|---|
 | `drenarCola` | everyMinutes(5)  | 06_avisos.js |
+| `sincronizarConectores` | everyHours(8)  | 06_avisos.js |
 | `chequeoLivianoDirector` | everyMinutes(30)  | 14_director.js |
 | `clasificarBandeja` | everyMinutes(30)  | 17_bandeja.js |
 | `backupSemanal` | onWeekDay(ScriptApp.WeekDay.SUNDAY) atHour(4)  | 21_backup.js |

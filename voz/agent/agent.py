@@ -14,6 +14,7 @@ agents.cli.run_app(server). Verificado contra docs.livekit.io/agents/start/voice
 from __future__ import annotations
 
 import asyncio
+import itertools
 import json
 import os
 import time
@@ -70,9 +71,9 @@ INSTRUCCIONES = (
     # A4 — eco de captura: que Luciano sepa QUÉ texto quedó, y frenar frases rotas por el STT.
     "Al capturar: si el pedido fue explícito, capturá y REPETÍ el texto exacto guardado: 'Anotado: …'. Si la frase "
     "llegó cortada, ambigua o con palabras raras del reconocimiento, confirmá el texto ANTES de guardar. "
-    "Para '¿cómo venimos?' usá 'brief' (sistema) o 'estado'. Las consultas al sistema (estado, brief, cliente, cerebro, vehemence) tardan unos segundos: ANTES de llamar cualquiera de esas herramientas decí en UNA frase muy corta que estás mirando (ej. 'dame un segundo que lo reviso') y recién llamala; nunca te quedes mudo mientras consultás. "
-    # A5 — anunciar sin llamar (preventivo del round 1).
-    "Si anunciás que vas a consultar algo, llamá la tool en ESE MISMO turno. Nunca anuncies una consulta y respondas sin haberla hecho. "
+    "Para '¿cómo venimos?' usá 'brief' (sistema) o 'estado'. "
+    # T1 (E1.2) — el trabado-mudo era orquestación, no instrucción: el anuncio lo emite la propia tool.
+    "No anuncies que vas a consultar: llamá la tool directamente. El aviso hablado lo emite la propia herramienta mientras trabaja. "
     # Oficina Virtual: negocio paralelo de productos digitales y dropshipping. Al narrarla, distinguir SIEMPRE
     # "digital" de "físico dropshipping" (tools oficina_estado / oficina_brief / oficina_aprobaciones).
     "La Oficina Virtual es un negocio paralelo de Luciano: productos digitales y dropshipping físico. "
@@ -85,6 +86,10 @@ INSTRUCCIONES = (
     # A3 — conteos deterministas: la cantidad la trae el tool ya calculada; el LLM no cuenta.
     "Los conteos también son regla N4: la cantidad de agentes, hallazgos o aprobaciones la repetís tal cual la dice el "
     "tool de ESTE turno — jamás de memoria ni estimada. "
+    # T2 (E1.2) — frescura: los números de clientes son un snapshot del último cierre, no live.
+    "Los números de clientes (ventas, saldos, KPIs) salen del último cierre sincronizado, no son en vivo. Si la pregunta "
+    "implica el momento actual, aclaralo con naturalidad: 'al último cierre de esta mañana'. La hora exacta del sync no "
+    "la inventes — regla N4: si no la trae un tool, decí 'del último cierre' a secas. "
     # A2 — REGLA N5: anti-alucinación de ACCIÓN (el hallazgo GRAVE del stress test).
     "REGLA N5 — Acciones reales: solo hiciste lo que hizo una tool llamada EN ESTE turno. Tus tools de la Oficina son "
     "SOLO LECTURA: no podés aprobar, rechazar, decidir, pausar, reiniciar ni modificar nada de la Oficina. Tu única "
@@ -170,6 +175,26 @@ async def _llamar_oficina(ruta: str, metodo: str = "GET", payload: dict | None =
     return await loop.run_in_executor(None, lambda: _oficina_http(ruta, metodo, payload))
 
 
+# T1 (E1.2) — anuncio hablado ATADO a la ejecución de las tools GAS lentas: al ENTRAR a la tool se
+# emite un filler por voz y recién después se hace el trabajo. Así es imposible "anunciar sin llamar"
+# (el trabado-mudo del 13/07 era orquestación, no prompt). Rotación de frases para no sonar robótico.
+_FRASES_ESPERA = itertools.cycle([
+    "Dame un segundo que lo reviso.",
+    "Lo miro y te digo.",
+    "Un momento, consulto el sistema.",
+])
+
+
+def _anunciar(context: RunContext) -> None:
+    """Emite un filler hablado corto por la sesión (API 1.6.4: RunContext.session.say). Fire-and-forget:
+    no se awaitea, suena mientras corre el backend. add_to_chat_ctx=False → el relleno NO ensucia el
+    contexto del LLM. Nunca rompe la tool: si say() no está disponible, se ignora."""
+    try:
+        context.session.say(next(_FRASES_ESPERA), add_to_chat_ctx=False)
+    except Exception as e:  # noqa: BLE001 — el filler es cosmético, jamás bloquea la consulta real
+        logger.debug("filler de voz no emitido: %s", e)
+
+
 class SatoriVoz(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=INSTRUCCIONES)
@@ -181,6 +206,7 @@ class SatoriVoz(Agent):
         Args:
             id_cliente: id del cliente, ej. CLI-002 (Vehemence). Vacío = sistema (Satori).
         """
+        _anunciar(context)  # T1: filler hablado atado a la ejecución
         return await _llamar_backend("estado", {"idCliente": id_cliente} if id_cliente else {})
 
     @function_tool()
@@ -190,11 +216,13 @@ class SatoriVoz(Agent):
         Args:
             id_cliente: id del cliente, ej. CLI-002. Vacío = sistema (Satori).
         """
+        _anunciar(context)  # T1: filler hablado atado a la ejecución
         return await _llamar_backend("brief", {"idCliente": id_cliente} if id_cliente else {})
 
     @function_tool()
     async def vehemence(self, context: RunContext) -> str:
         """Estado vigente de Vehemence (CLI-002): ventas, canales y pendientes."""
+        _anunciar(context)  # T1: filler hablado atado a la ejecución
         return await _llamar_backend("vehemence")
 
     @function_tool()
@@ -204,6 +232,7 @@ class SatoriVoz(Agent):
         Args:
             id_cliente: id del cliente, ej. CLI-002 (requerido).
         """
+        _anunciar(context)  # T1: filler hablado atado a la ejecución
         return await _llamar_backend("cliente", {"idCliente": id_cliente})
 
     @function_tool()
@@ -213,6 +242,7 @@ class SatoriVoz(Agent):
         Args:
             id_cliente: id del cliente, ej. CLI-002 (requerido).
         """
+        _anunciar(context)  # T1: filler hablado atado a la ejecución
         return await _llamar_backend("cerebro", {"idCliente": id_cliente})
 
     @function_tool()

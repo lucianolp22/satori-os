@@ -312,12 +312,16 @@ function clienteDeProyecto(idProyecto) {
  * Cuota consumer: un solo trigger batched, no uno por flujo (0.4).
  */
 function instalarTriggers() {
-  var deseados = [TRIGGER_AVISOS, 'drenarCola']; // Etapa 2: + worker de la cola (cada 5 min)
+  // E1.2 T3: + sincronizarConectores cada 8h (frescura intradía de ventas de clientes, decisión a de
+  // Vehemence). SOLO el sync de conectores — el brief y los avisos siguen 1×/día en corridaDiaria.
+  // sincronizarConectores es seguro suelto: solo sincroniza (conLock), no manda emails ni avisos.
+  var deseados = [TRIGGER_AVISOS, 'drenarCola', 'sincronizarConectores']; // reset = anti-duplicado
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (deseados.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger(TRIGGER_AVISOS).timeBased().everyDays(1).atHour(7).create();
   ScriptApp.newTrigger('drenarCola').timeBased().everyMinutes(5).create();
-  Logger.log('Triggers instalados: "' + TRIGGER_AVISOS + '" (07:00) + "drenarCola" (cada 5 min).');
+  ScriptApp.newTrigger('sincronizarConectores').timeBased().everyHours(8).create();
+  Logger.log('Triggers instalados: "' + TRIGGER_AVISOS + '" (07:00) + "drenarCola" (cada 5 min) + "sincronizarConectores" (cada 8h).');
   return true;
 }
