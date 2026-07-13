@@ -22,6 +22,7 @@
 - **Gate de DECLARACIÓN DE CIERRE (regla dura, 07-jul):** PROHIBIDO declarar "terminado / completo / cerrado" (en chat, HANDOFF o memoria) sin correr `bash _inventario_cierre.sh` y adjuntar a la declaración: (a) qué incluye exactamente el cierre, (b) qué queda abierto (la lista del barrido, depurada a mano — specs sin implementar, sugerencias sin ejecutar, mocks, comentarios stale, residuales de otros HANDOFFs), (c) dónde vive cada cabo. La Purga de cierre audita TAMBIÉN la declaración contra ese inventario. Aplica a Cowork, Code y Luciano. Origen: incidente 07-jul ("Sistema terminado" con E8b/deuda/HANDOFF-stale sin inventariar).
 - **Deep-review en PARALELO** ante plan multi-fase: Task tool, 1 subagente por fase, Haiku en los chequeos mecánicos, un master sintetiza. Correr ANTES de cerrar.
 - **Anti-context-rot:** compressed handoff + sesión fresca al ~80% de contexto (no esperar al auto-compact).
+- **Escalera de maduración (doctrina 14-jul, checkpoint D1):** nada se automatiza sin pressure-test manual — nivel 0 manual → 1 skill/SOP → 2 cadena con gates → 3 automatización; gates, desescalada y tabla de niveles vigentes en `PIPELINE-SatoriOS.md`. **Proceso sin nivel declarado = nivel 0.**
 
 ## Arquitectura (punteros, no copiar contenido)
 - Índice de código: `ARCHITECTURE.md`. Estado + próximo paso: `HANDOFF.md`. Capacidades autogeneradas: `CAPABILITIES.md`.
@@ -53,6 +54,14 @@
 - **Voz = pipeline LiveKit** (Deepgram nova-3 STT + OpenAI LLM + ElevenLabs TTS + Silero VAD). **El VAD NO se toca** (deprecación = warning cosmético; quitarlo rompe turn-detection). Mic SIEMPRE Mac en desktop. NO stack WS-custom, NO OpenAI Realtime.
 - Latencia voz 13s = overhead GAS (no cold-start); bajarla de raíz = opción C (diferida con gatillo de uso real).
 - **Datos reales de clientes + RGPD + puesta en marcha = AL FINAL (B8, firme).** Primero terminar el sistema.
+
+## Effort/modelo (ahorro de tokens diario — 14-jul)
+| Tarea | Modelo/Effort |
+|---|---|
+| Lecturas, greps, verificaciones, higiene | Haiku / effort bajo |
+| Dev normal GAS/HTML, informes, planes | Sonnet / effort medio (default) |
+| Arquitectura, purgas profundas, decisiones de diseño | Opus o effort alto — SOLO estos |
+| Regla | correr `/doctor` ante consumo anómalo; override puntual con `/model` y `/effort`, no permanente |
 
 ## IDs vivos
 - No inline. Ver tabla «Artefactos» de `HANDOFF.md` (scriptId MAESTRO, Sheet MAESTRO, deployment prod `/exec`, `/dev`, GitHub privado, carpeta backups).
