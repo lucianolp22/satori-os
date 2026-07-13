@@ -52,6 +52,13 @@ function doPost(e) {
     var raw = (e && e.postData && e.postData.contents) || '';
     var body;
     try { body = JSON.parse(raw || '{}'); } catch (_p) { vozRechazo_('bad_json'); return vozOut_({ ok: false, error: 'bad_json' }); }
+    // E3.1 (D1): action 'oficina_sync' usa su PROPIO secreto (whitelist por caller). El secreto de voz
+    // NO habilita esta action y este secreto NO habilita las tools de voz. Se rutea ANTES del vozAuth_.
+    if (String(body.action || '') === 'oficina_sync') {
+      if (!oficinaSyncAuth_(body.secret)) { vozRechazo_('oficina_sync_unauth'); return vozOut_({ ok: false, error: 'unauthorized' }); }
+      try { var rs = oficinaSync_(body.payload); vozLog_('oficina_sync', !!rs.ok, rs.error || ''); return vozOut_(rs); }
+      catch (err2) { vozLog_('oficina_sync', false, String((err2 && err2.message) || err2)); return vozOut_({ ok: false, error: 'error_interno' }); }
+    }
     if (!vozAuth_(body.secret)) { vozRechazo_('unauthorized'); return vozOut_({ ok: false, error: 'unauthorized' }); } // fail-closed + alerta
     if (!vozRate_()) return vozOut_({ ok: false, error: 'rate_limit' });                 // PURGA #3: 30/min (el agente legítimo PUEDE gatillarlo → NO alerta)
     tool = String(body.tool || '');
@@ -89,6 +96,84 @@ function vozAuth_(secret) {
   var k = PropertiesService.getScriptProperties().getProperty('VOZ_TOOL_SECRET');
   if (!k) return false;
   return ctEq_(String(secret == null ? '' : secret), String(k));
+}
+
+/** E3.1 (D1): valida el secreto DEDICADO del sync de la Oficina (Script Properties: OFICINA_SYNC_SECRET).
+ * Whitelist por caller: este secreto SOLO habilita 'oficina_sync'; el de voz NO sirve acá y viceversa.
+ * Fail-closed si no está seteado. El valor JAMÁS vive en el repo — solo en Script Properties + .env de la Oficina. */
+function oficinaSyncAuth_(secret) {
+  var k = PropertiesService.getScriptProperties().getProperty('OFICINA_SYNC_SECRET');
+  if (!k) return false;
+  return ctEq_(String(secret == null ? '' : secret), String(k));
+}
+
+/** E3: sanitiza texto HOSTIL de la Oficina (títulos/resúmenes que vienen de marketplaces/web, aunque
+ * lleguen por el sync propio) — defensa en profundidad, mismo criterio que _limpiar_hostil de la voz:
+ * strip \t\r\n, colapso de espacios, truncado a ~max. (appendFila ya cubre formula-injection.) */
+function limpiarHostilTexto_(s, max) {
+  s = String(s == null ? '' : s).replace(/[\t\r\n]+/g, ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+  max = max || 120;
+  return s.length > max ? s.slice(0, max).replace(/\s+$/, '') + '…' : s;
+}
+
+/** E3.2: asegura el tenant CLI-000 (Oficina Virtual). Idempotente: si ya está en Clientes, no recrea.
+ * Sigue el patrón EXACTO de crearCliente (mismas hojas). Se llama al inicio de cada oficina_sync. */
+function asegurarTenantOficina_() {
+  var sh = getMaestro().getSheetByName('Clientes');
+  var existe = leerTabla(sh).some(function (c) { return String(c.id_cliente) === 'CLI-000'; });
+  if (!existe) {
+    crearCliente({ nombre: 'Oficina Virtual', rubro: 'Negocio digital paralelo',
+                   estado: 'activo', forceId: 'CLI-000' });
+  }
+  return 'CLI-000';
+}
+
+/** E3.1: escribe el snapshot de la Oficina en el tenant CLI-000 (Datos_operativos + KPI de autonomía).
+ * Payload versionado (v:1). Reemplazo idempotente por 'fuente' (cada sync pisa el anterior). Bajo conLock. */
+function oficinaSync_(payload) {
+  if (!payload || Number(payload.v) !== 1) return { ok: false, error: 'payload_version' };
+  var id = asegurarTenantOficina_();
+  var fecha = payload.fecha || hoyISO();
+  var ns = payload.north_star || {};
+  var costos = payload.costos || {};
+  var ap = payload.aprobaciones_pendientes || {};
+  var ags = payload.agentes || {};
+  var FUENTE = 'Oficina Virtual · sync';
+  function n_(x) { var v = Number(x); return isFinite(v) ? v : 0; }
+  var titulos = (payload.hallazgos_top || []).slice(0, 10).map(function (h) {
+    return '[' + limpiarHostilTexto_(h && h.tipo, 20) + '] ' + limpiarHostilTexto_(h && h.titulo, 80) +
+           ' (' + n_(h && h.score) + ')';
+  }).join(' | ');
+  var resApr = ((ap.resumenes) || []).slice(0, 5).map(function (r) { return limpiarHostilTexto_(r, 80); }).join(' | ');
+  var filas = [
+    { concepto: 'Autonomía (North Star) %', valor: n_(ns.autonomia_pct), notas: '' },
+    { concepto: 'Jobs 30d', valor: n_(ns.jobs_30d), notas: '' },
+    { concepto: 'Decisiones 30d', valor: n_(ns.decisiones_30d), notas: '' },
+    { concepto: 'Gasto API USD (mes)', valor: n_(costos.gastado_usd), notas: 'cap ' + n_(costos.cap_usd) + ' USD' },
+    { concepto: 'Errores 7d', valor: n_(payload.errores_7d), notas: '' },
+    { concepto: 'Aprobaciones pendientes', valor: n_(ap.n), notas: resApr },
+    { concepto: 'Hallazgos top', valor: (payload.hallazgos_top || []).length, notas: titulos },
+    { concepto: 'Agentes', valor: n_(ags.n), notas: limpiarHostilTexto_(ags.estados, 100) },
+    { concepto: 'Negocio paralelo pausado', valor: payload.np_pausado ? 'sí' : 'no', notas: '' },
+    { concepto: 'Modo de fuentes', valor: limpiarHostilTexto_(payload.fuentes_modo, 20), notas: '' }
+  ];
+  return conLock(function () {
+    var cs = abrirCliente(id).ss;
+    var shDO = cs.getSheetByName('Datos_operativos');
+    var viejas = leerTabla(shDO).filter(function (f) { return String(f.fuente) === FUENTE; })
+      .map(function (f) { return f._fila; });
+    if (viejas.length) borrarFilasBatch_(shDO, viejas);
+    filas.forEach(function (r) {
+      appendFila(shDO, { fecha: fecha, concepto: r.concepto, valor: r.valor, fuente: FUENTE, notas: r.notas || '' });
+    });
+    // KPI del norte: autonomía % (reemplazo por nombre de KPI, idempotente).
+    var shK = cs.getSheetByName('KPIs');
+    var KPI = 'Autonomía OV (North Star)';
+    var vk = leerTabla(shK).filter(function (f) { return String(f.kpi) === KPI; }).map(function (f) { return f._fila; });
+    if (vk.length) borrarFilasBatch_(shK, vk);
+    appendFila(shK, { fecha: fecha, kpi: KPI, valor: n_(ns.autonomia_pct), objetivo: '', alerta: '' });
+    return { ok: true, tenant: id, filas: filas.length };
+  });
 }
 
 /** Comparación en tiempo constante vía digests de largo fijo (PURGA #6: no filtra el largo del secreto). */

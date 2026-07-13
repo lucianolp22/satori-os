@@ -25,7 +25,9 @@ function crearCliente(datos) {
     return { id_cliente: match.id_cliente, url: match.url_sheet_cliente, ya_existia: true };
   }
 
-  var idCliente = nextId(shClientes, 'id_cliente', 'CLI', 3);
+  // E3.2: id forzado (CLI-000 = tenant Oficina Virtual, reservado, fuera de la secuencia de nextId
+  // que arranca en CLI-001). Sin forceId, sigue el correlativo normal.
+  var idCliente = datos.forceId ? String(datos.forceId) : nextId(shClientes, 'id_cliente', 'CLI', 3);
 
   // Crear el Spreadsheet del cliente con la plantilla completa.
   var clienteSS = SpreadsheetApp.create('Satori OS — ' + datos.nombre + ' [' + idCliente + ']');

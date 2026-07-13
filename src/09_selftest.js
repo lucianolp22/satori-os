@@ -317,6 +317,48 @@ function selfTest() {
     var aggDespues = leerTabla(shAggT).some(function (f) { return String(f.id) === 'APR-TEST-AGG'; });
     chk(aggAntes && !aggDespues, 'D11 quitarAgregada_ saca la aprobación del espejo (no reaparece en el CM al resolver)');
 
+    // ── D12 (14-jul) E3: oficina_sync — guard de versión, whitelist por caller, escritura en CLI-000, np_pausado ──
+    // (a) guard de versión: payload malformado NO escribe, error limpio (retorna antes de crear/tocar nada).
+    chk(oficinaSync_({ v: 2 }).error === 'payload_version', 'D12 payload version != 1 → error sin escribir');
+    chk(oficinaSync_(null).error === 'payload_version', 'D12 payload nulo → error sin escribir');
+    // (b) whitelist por caller: con secretos de prueba, cada secreto habilita SOLO su canal (save/restore).
+    var _propsD12 = PropertiesService.getScriptProperties();
+    var _vozOrig = _propsD12.getProperty('VOZ_TOOL_SECRET');
+    var _synOrig = _propsD12.getProperty('OFICINA_SYNC_SECRET');
+    try {
+      _propsD12.setProperty('VOZ_TOOL_SECRET', 'voz-test-123');
+      _propsD12.setProperty('OFICINA_SYNC_SECRET', 'sync-test-999');
+      chk(oficinaSyncAuth_('sync-test-999') === true, 'D12 oficina_sync acepta su propio secreto');
+      chk(oficinaSyncAuth_('voz-test-123') === false, 'D12 oficina_sync RECHAZA el secreto de voz (whitelist)');
+      chk(vozAuth_('sync-test-999') === false, 'D12 la voz RECHAZA el secreto de sync (whitelist)');
+    } finally {
+      if (_vozOrig === null) _propsD12.deleteProperty('VOZ_TOOL_SECRET'); else _propsD12.setProperty('VOZ_TOOL_SECRET', _vozOrig);
+      if (_synOrig === null) _propsD12.deleteProperty('OFICINA_SYNC_SECRET'); else _propsD12.setProperty('OFICINA_SYNC_SECRET', _synOrig);
+    }
+    // (c) escritura real en CLI-000 con payload válido → refleja np_pausado y números; título hostil re-sanitizado.
+    var _payD12 = { v: 1, fecha: hoyISO(), north_star: { autonomia_pct: 42.9, jobs_30d: 7, decisiones_30d: 3 },
+                    costos: { gastado_usd: 0.01, cap_usd: 30 }, agentes: { n: 4, estados: 'idle' },
+                    hallazgos_top: [{ tipo: 'oportunidad', titulo: 'Titulo\ncon\tsalto', score: 9.5 }],
+                    aprobaciones_pendientes: { n: 1, resumenes: ['r'] }, errores_7d: 0, fuentes_modo: 'live', np_pausado: true };
+    var rSyncD12 = oficinaSync_(_payD12);
+    chk(rSyncD12.ok === true && rSyncD12.tenant === 'CLI-000', 'D12 oficina_sync escribe en CLI-000 (ok + tenant)');
+    var _doD12 = leerTabla(abrirCliente('CLI-000').ss.getSheetByName('Datos_operativos'))
+      .filter(function (f) { return String(f.fuente) === 'Oficina Virtual · sync'; });
+    var _pausaD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Negocio paralelo pausado'; })[0];
+    chk(_pausaD12 && String(_pausaD12.valor) === 'sí', 'D12 el sync refleja np_pausado (sí)');
+    var _autoD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Autonomía (North Star) %'; })[0];
+    chk(_autoD12 && Number(_autoD12.valor) === 42.9, 'D12 el sync escribe los números reales (autonomía 42.9)');
+    var _hallD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Hallazgos top'; })[0];
+    chk(_hallD12 && String(_hallD12.notas).indexOf('\n') < 0 && String(_hallD12.notas).indexOf('\t') < 0,
+        'D12 títulos re-sanitizados server-side (sin saltos ni tabs)');
+    // limpieza D12: sacar las filas de sync de prueba de CLI-000 (el sync real las repuebla en el próximo ciclo).
+    var _shDOc = abrirCliente('CLI-000').ss.getSheetByName('Datos_operativos');
+    var _viejasc = leerTabla(_shDOc).filter(function (f) { return String(f.fuente) === 'Oficina Virtual · sync'; }).map(function (f) { return f._fila; });
+    if (_viejasc.length) borrarFilasBatch_(_shDOc, _viejasc);
+    var _shKc = abrirCliente('CLI-000').ss.getSheetByName('KPIs');
+    var _vkc = leerTabla(_shKc).filter(function (f) { return String(f.kpi) === 'Autonomía OV (North Star)'; }).map(function (f) { return f._fila; });
+    if (_vkc.length) borrarFilasBatch_(_shKc, _vkc);
+
     // ── Costos · C — ruteo de modelo por costo (quick win, 19-jun) ───────────────
     chk(MODELOS_POR_MODULO.analista === MODELO_SONNET && MODELOS_POR_MODULO.conciliador === MODELO_SONNET, 'C analista/conciliador rutean a Sonnet (veredicto)');
     chk(modeloDeModulo_('triajeX') === MODELO_DEFAULT, 'C módulo sin mapear cae a Haiku (default seguro)');
