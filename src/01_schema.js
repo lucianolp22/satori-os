@@ -89,7 +89,21 @@ var CONFIG_DEFAULTS = [
   // puede vivir en Script Properties (API_BUDGET_MENSUAL_USD); Config es el default.
   ['api_budget_mensual_usd', '25'],
   // Fase 1 (Jarvis) — confianza < umbral en la Bandeja → escala como aviso.
-  ['bandeja_umbral_confianza', '6']
+  ['bandeja_umbral_confianza', '6'],
+  // E1.1 (12-jul) — URLs de servicios locales que el CM abre. voz_url: orbe de voz (default Mac);
+  // cambiala a la URL ts.net para operar la voz del CM desde el iPhone sin tocar código. oficina_url:
+  // Observatorio de la Oficina Virtual (loopback, solo Mac por dictamen Bastión). VACÍA => el CM oculta
+  // el botón (exponerla a la tailnet es decisión D4 de Luciano, no default).
+  ['voz_url', 'http://127.0.0.1:8787'],
+  ['oficina_url', 'http://127.0.0.1:8420'],
+  // E1.1 — slots de avatar por agente (arte IA cargado como DATO, sin tocar código). Vacío => el CM
+  // cae al placeholder con inicial + color de acento. Clave = 'avatar_' + clave del agente.
+  ['avatar_director', ''],
+  ['avatar_vigia', ''],
+  ['avatar_conciliador', ''],
+  ['avatar_cobrador', ''],
+  ['avatar_analista', ''],
+  ['avatar_abastecedor', '']
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;

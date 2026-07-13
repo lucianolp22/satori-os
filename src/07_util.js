@@ -174,6 +174,20 @@ function getConfig(clave) {
   return '';
 }
 
+/** Lee todas las claves de Config que empiezan con `pref` en UNA sola lectura y devuelve
+ * un mapa { claveSinPrefijo: valor }. Ej: configPrefijo_('avatar_') → { director: '…', vigia: '' }.
+ * Evita N lecturas de la hoja cuando se necesita un grupo de claves (avatares de agentes). */
+function configPrefijo_(pref) {
+  var sh = getMaestro().getSheetByName('Config');
+  var vals = sh.getDataRange().getValues();
+  var out = {};
+  for (var i = 1; i < vals.length; i++) {
+    var k = String(vals[i][0]);
+    if (k.indexOf(pref) === 0) out[k.slice(pref.length)] = String(vals[i][1]);
+  }
+  return out;
+}
+
 /** Escribe (upsert) un valor de Config por clave. */
 function setConfig(clave, valor) {
   var sh = getMaestro().getSheetByName('Config');

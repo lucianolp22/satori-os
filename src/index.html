@@ -159,6 +159,13 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .sub-cc{align-self:center;margin:0 0 0 6px;line-height:1}
 .cm-btn.voz{display:inline-flex;align-items:center;gap:6px;text-decoration:none;border-color:rgba(224,161,122,.55);color:#e0a17a}
 .cm-btn.voz:hover{background:rgba(224,161,122,.10)}
+/* E1.1: botón Oficina Virtual — acento jade (distinto del terracota de voz); mismo chrome que .cm-btn */
+.cm-btn.oficina{display:inline-flex;align-items:center;gap:6px;text-decoration:none;border-color:rgba(108,221,186,.5);color:#6cddba}
+.cm-btn.oficina:hover{background:rgba(108,221,186,.10)}
+/* E1.1: avatares con imagen (arte IA). Sin url => el div queda con inicial (placeholder). La img llena el
+   medallón circular ya existente; onerror en JS revierte al placeholder. Aplica a órbita, chips y roster. */
+.ag .av.has-img,.agm-av.has-img,#centro .ag-av.has-img{padding:0;overflow:hidden}
+.ag .av img,.agm-av img,#centro .ag-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
 .cm-stage{position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
 #cmOrb,#cmOrb3D{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
 .cm-msg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;width:min(440px,70%);pointer-events:none}
@@ -522,6 +529,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <div class="bar"><i id="cmBudgetBar"></i></div>
       </div>
       <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_top" rel="noopener" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
+      <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
       <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
       <button class="icon-btn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
@@ -1050,12 +1058,23 @@ function cmTab(t){
   if(t==='salud')refrescarSalud();
 }
 
+function cmAplicarCfg(cfg){
+  cfg=cfg||{};
+  var voz=document.getElementById('cmVoz');
+  if(voz&&cfg.voz_url)voz.href=cfg.voz_url; // B2: la voz del CM lee su URL de Config (Mac por default, ts.net si Luciano la cambia)
+  var of=document.getElementById('cmOficina');
+  if(of){ // B1: botón Oficina solo si oficina_url tiene valor (loopback => funciona solo en el Mac; vacía => oculto)
+    if(cfg.oficina_url){of.href=cfg.oficina_url;of.style.display='';}
+    else{of.style.display='none';}
+  }
+}
 function refrescarCentro(){
   if(!EN_GAS){return;} // sin backend no hay datos reales
   if(CM.busy)return;   // guard in-flight: estadoAgentes() puede tardar >5s, no apilar llamadas
   CM.busy=true;
   google.script.run.withSuccessHandler(function(est){
     CM.busy=false;
+    cmAplicarCfg(est.cfg); // E1.1: voz_url + oficina_url desde Config (botón Oficina se muestra solo si hay url)
     CM.agentes=est.agentes;CM.aprobaciones=est.aprobaciones||[];CC.est=est;try{ccAgentes(est.agentes);ccFeed(est.feed);ccAprob();ccBrief();ccEstado();}catch(_e){}
     cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();
     cmTelem(est.telemetria);cmDirectiva(est.feed);
@@ -1136,7 +1155,7 @@ function cmChips(){
   CM.agentes.slice().sort(function(a,b){return (b.activo?1:0)-(a.activo?1:0);}).forEach(function(a){ // activos primero
     var lab=!a.activo,estado=lab?'lab':(a.estado||'idle');
     var chip=el('div','agm '+estado);
-    var av=el('div','agm-av',a.nombre.charAt(0));av.appendChild(el('span','agm-st'));
+    var av=agAvatar(a,'agm-av');av.appendChild(el('span','agm-st'));
     if(lab)av.appendChild(el('span','agm-lock','🔒'));
     chip.appendChild(av);
     var meta=el('div','agm-meta');
@@ -1161,7 +1180,7 @@ function cmRing(cont,list,Rx,Ry,lab,off){
     node.setAttribute('role','button');
     node.setAttribute('aria-label',a.nombre+' · '+a.rol+' · '+(lab?'en el laboratorio':(EST_TXT[estado]||estado)));
     node.title=lab?a.nombre+' · en el laboratorio (se desbloquea por etapas)':a.nombre+' · '+(EST_TXT[estado]||'');
-    var av=el('div','av',a.nombre.charAt(0));av.appendChild(el('span','st'));
+    var av=agAvatar(a,'av');av.appendChild(el('span','st'));
     if(lab)av.appendChild(el('span','lock','🔒'));
     node.appendChild(av);node.appendChild(el('div','nm',a.nombre));node.appendChild(el('div','rl',a.rol));
     node.appendChild(el('div','est',lab?'laboratorio':(EST_TXT[estado]||'')));
@@ -1581,12 +1600,28 @@ function ccTareas(){
 // v11: roster real — color por agente (coherente con los nodos del orbe), última acción del feed
 // y barra "Hoy" (corridas ok/total del día, de la cola). SIN barra de entrenamiento hasta E8b: ese dato no existe y no se inventa.
 var AG_COLOR={vigia:'var(--_terra-400)',analista:'var(--_terra-400)',conciliador:'var(--_terra-400)',cobrador:'var(--_amber-400)',abastecedor:'var(--_ink-300)',director:'var(--_jade-400)'};
+/* E1.1 — avatar de agente: si hay avatar_url (arte IA) renderiza la imagen; si no, placeholder con inicial.
+   Siempre fija el color de acento (--ac) por clave. onerror => vuelve al placeholder sin romper el layout.
+   El status-dot (.st/.agm-st) lo appendea cada llamador después. `cls` = 'av' | 'agm-av' | 'ag-av'. */
+function agAvatar(a,cls){
+  var av;
+  if(a&&a.avatar_url){
+    av=el('div',cls); av.classList.add('has-img');
+    var img=document.createElement('img'); img.src=a.avatar_url; img.alt=a.nombre||''; img.loading='lazy';
+    img.onerror=function(){ av.classList.remove('has-img'); clear(av); av.appendChild(document.createTextNode((a.nombre||'?').charAt(0))); };
+    av.appendChild(img);
+  } else {
+    av=el('div',cls,(a&&a.nombre||'?').charAt(0));
+  }
+  av.style.setProperty('--ac',AG_COLOR[a&&a.clave]||'var(--color-primary)');
+  return av;
+}
 function ccAgentes(agentes){
   var card=ccCard('Actividad de agentes'); if(!card)return;
   var box=card.querySelector('.ag-list'); if(!box)return; clear(box);
   (agentes||[]).filter(function(a){return a.activo;}).forEach(function(a){
     var row=el('div','ag-row '+(a.estado||'idle'));
-    var av=el('div','ag-av',a.nombre.charAt(0)); av.style.setProperty('--ac',AG_COLOR[a.clave]||'var(--color-primary)'); row.appendChild(av);
+    var av=agAvatar(a,'ag-av'); row.appendChild(av);
     var mid=el('div'); mid.style.minWidth='0'; mid.style.flex='1';
     mid.appendChild(el('div','nm',a.nombre));
     var sub=String(a.ultimo||'')||(a.rol+' · '+(EST_TXT[a.estado]||a.estado));

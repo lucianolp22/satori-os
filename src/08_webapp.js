@@ -404,20 +404,26 @@ function estadoAgentes() {
   var feed = feedReciente_(30);
   var ultimoDe = {}; // primer item del feed (ya viene reverse = más nuevo) por nombre de agente
   feed.forEach(function (f) { var n = String(f.agente || ''); if (n && !ultimoDe[n]) ultimoDe[n] = String(f.texto || ''); });
+  // E1.1: avatar_url por agente desde Config (una sola lectura). Vacío => el CM cae al placeholder.
+  var avatares = configPrefijo_('avatar_');
   var agentes = Object.keys(AGENTES).map(function (k) {
     var a = AGENTES[k];
     return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estados[k] || 'idle',
-             hoy: hoyAg[k] || { total: 0, ok: 0 }, ultimo: ultimoDe[a.nombre] || '' };
+             hoy: hoyAg[k] || { total: 0, ok: 0 }, ultimo: ultimoDe[a.nombre] || '', avatar_url: avatares[k] || '' };
   });
   // Director (orquestador, no vive en AGENTES): carga real = encoladas de hoy en la cola.
   agentes.push({ clave: 'director', nombre: 'Director', rol: 'Orquestación', activo: true, gate: false,
                  estado: (encoladasHoy > completadasHoy) ? 'work' : (encoladasHoy > 0 ? 'ok' : 'idle'),
-                 hoy: { total: encoladasHoy, ok: completadasHoy }, ultimo: ultimoDe['Director'] || '' });
+                 hoy: { total: encoladasHoy, ok: completadasHoy }, ultimo: ultimoDe['Director'] || '',
+                 avatar_url: avatares['director'] || '' });
   var c = filaConsumoAgentes_();   // PURGA #2: Consumo una sola vez (gasto)
   var tope = budgetMensualUSD_();  // PURGA #2: tope una sola vez
   return {
     agentes: agentes,
     feed: feed,
+    // E1.1: URLs de servicios locales que el CM abre. voz_url cae al hardcode histórico si Config
+    // aún no se sembró; oficina_url va CRUDA (vacía => el CM oculta el botón, por diseño B1).
+    cfg: { voz_url: getConfig('voz_url') || 'http://127.0.0.1:8787', oficina_url: getConfig('oficina_url') },
     presupuesto: { gastoUsd: c.gasto, topeUsd: tope },
     aprobaciones: inboxAprobaciones_(),
     clientes_activos: listaClientes().filter(function (x) {
