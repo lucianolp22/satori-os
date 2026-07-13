@@ -103,7 +103,12 @@ else
 fi
 
 echo "-- 4/5 promocion a /exec"
-if ! clasp deploy -i "$DEPLOY_ID" -d "Rediseno CM+Voz zen-futurista + B5 fixes + kill-switch total (06-jul)"; then
+# N5: label del deploy DINAMICO — subject del ultimo commit (saneado), override con DEPLOY_DESC.
+# Antes quedaba fijo en "Rediseno CM+Voz... 06-jul" para cualquier promocion.
+DESC="${DEPLOY_DESC:-$(git log -1 --pretty=%s 2>/dev/null | tr -cd 'a-zA-Z0-9 ._+()-' | cut -c1-90)}"
+[ -z "$DESC" ] && DESC="Satori OS deploy"
+echo "label del deploy: $DESC"
+if ! clasp deploy -i "$DEPLOY_ID" -d "$DESC"; then
   echo "ABORT: clasp deploy fallo — prod sigue en la version anterior (sin cambios)."
   echo "Alternativa manual por editor: script.google.com -> abrir MAESTRO -> Implementar -> Administrar implementaciones -> lapiz sobre el deployment prod -> Version: Nueva version -> Implementar"
   exit 5

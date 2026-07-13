@@ -1554,7 +1554,7 @@ function ccEstado(){
   function stat(l,v,color){ var s=el('div','stat'); s.appendChild(el('div','l',l));
     var vv=el('div','v',v); if(color)vv.style.color='var(--color-'+color+')'; s.appendChild(vv); g.appendChild(s); }
   stat('Última corrida',(e.ultima_corrida_avisos?fechaHoraCorta(e.ultima_corrida_avisos):'—'));
-  stat('Coste del mes',(tel.gasto_usd!=null?('$'+(Number(tel.gasto_usd)||0).toFixed(0)+' / '+tel.tope_usd):'—'));
+  stat('Coste del mes',(tel.gasto_usd!=null?('$'+(Number(tel.gasto_usd)||0).toFixed(2)+' / '+tel.tope_usd):'—'));  // N3: toFixed(2) como el header (0.27, no 0) — misma fuente c.gasto, solo diferían por redondeo
   stat('Errores',fmtNum(tel.errores||0),(tel.errores>0?'warning':'success'));
   stat('Salud',(sal.global?String(sal.global).toUpperCase():'—')+(sal.integridad!=null?' '+sal.integridad+'%':''),
     (sal.global==='crit'?'danger':(sal.global==='warn'?'warning':'success')));
