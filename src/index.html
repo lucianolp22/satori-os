@@ -373,6 +373,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .arm{position:absolute; left:0; top:0; transform:translateX(var(--r))}
 #centro .node{position:absolute; left:-19px; top:-19px; width:38px; height:38px; border-radius:50%; display:grid; place-items:center; cursor:pointer; background:var(--glass-strong); border:1px solid var(--nc,var(--color-border-strong)); color:var(--nc,var(--color-text)); box-shadow:0 0 18px -6px var(--nc,transparent); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:spin var(--dur,95s) linear infinite reverse; animation-delay:var(--d,0s)}
 #centro .node svg{width:17px;height:17px}#centro .node .lab{position:absolute; top:42px; font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-muted); white-space:nowrap; text-shadow:0 1px 6px rgba(0,0,0,.85)}
+/* FIX órbita avatares: imagen circular del agente que tapa el glifo SVG; el borde --nc (acento) queda como aro. Si no hay URL o falla la carga, el JS la quita y vuelve el glifo. La etiqueta .lab (top:42px) no se toca. */
+#centro .node .av-img{position:absolute; left:0; top:0; width:100%; height:100%; object-fit:cover; border-radius:50%}
 #centro .node:hover{box-shadow:0 0 26px -4px var(--nc)}
 #centro .card{position:relative; background:var(--glass-bg); border:1px solid var(--color-border); border-radius:var(--radius-lg); padding:var(--space-5); box-shadow:var(--shadow-md); backdrop-filter:blur(var(--glass-blur)) saturate(1.25); -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25)}
 #centro .card h2{margin:0 0 var(--space-4); display:flex; align-items:center; gap:var(--space-2)}#centro .eyebrow{font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--color-primary); font-weight:700}
@@ -565,12 +567,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <div class="stage cm-stage">
         <div class="constel">
           <div class="oring a"></div>
-          <div class="orbiter inner" style="--dur:95s;--d:0s;--angle:0deg;--nc:var(--_terra-400)"><div class="spoke"></div><div class="arm"><div class="node" data-info="Vigía · detectó declive online" style="--dur:95s;--d:0s;--angle:0deg;--nc:var(--_terra-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span class="lab">Vigía</span></div></div></div>
-          <div class="orbiter inner" style="--dur:95s;--d:-19s;--angle:72deg;--nc:var(--_terra-400)"><div class="spoke"></div><div class="arm"><div class="node" data-info="Analista · AOV vs objetivo" style="--dur:95s;--d:-19s;--angle:72deg;--nc:var(--_terra-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="lab">Analista</span></div></div></div>
-          <div class="orbiter inner" style="--dur:95s;--d:-38s;--angle:144deg;--nc:var(--_terra-400)"><div class="spoke"></div><div class="arm"><div class="node" data-info="Conciliador · Fresha↔banco OK" style="--dur:95s;--d:-38s;--angle:144deg;--nc:var(--_terra-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span class="lab">Conciliador</span></div></div></div>
-          <div class="orbiter inner" style="--dur:95s;--d:-57s;--angle:216deg;--nc:var(--_amber-400)"><div class="spoke" style="--nc:rgba(220,167,94,.5)"></div><div class="arm"><div class="node" data-info="Cobrador · 5 recordatorios, espera OK" style="--dur:95s;--d:-57s;--angle:216deg;--nc:var(--_amber-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><span class="lab">Cobrador</span></div></div></div>
-          <div class="orbiter inner" style="--dur:95s;--d:-76s;--angle:288deg;--nc:var(--_ink-300)"><div class="spoke" style="--nc:rgba(184,173,150,.4)"></div><div class="arm"><div class="node" data-info="Abastecedor · sin tareas hoy" style="--dur:95s;--d:-76s;--angle:288deg;--nc:var(--_ink-300)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg><span class="lab">Abastecedor</span></div></div></div>
-          <div class="orbiter outer" style="--dur:145s;--d:-12s;--angle:33deg;--nc:var(--_jade-400)"><div class="spoke" style="--nc:rgba(62,155,130,.5)"></div><div class="arm"><div class="node" data-info="Director · orquesta y asigna" style="--dur:145s;--d:-12s;--angle:33deg;--nc:var(--_jade-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg><span class="lab">Director</span></div></div></div>
+          <div class="orbiter inner" style="--dur:95s;--d:0s;--angle:0deg;--nc:var(--_terra-400)"><div class="spoke"></div><div class="arm"><div class="node" data-ag="vigia" data-info="Vigía · detectó declive online" style="--dur:95s;--d:0s;--angle:0deg;--nc:var(--_terra-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span class="lab">Vigía</span></div></div></div>
+          <div class="orbiter inner" style="--dur:95s;--d:-19s;--angle:72deg;--nc:var(--_terra-400)"><div class="spoke"></div><div class="arm"><div class="node" data-ag="analista" data-info="Analista · AOV vs objetivo" style="--dur:95s;--d:-19s;--angle:72deg;--nc:var(--_terra-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="lab">Analista</span></div></div></div>
+          <div class="orbiter inner" style="--dur:95s;--d:-38s;--angle:144deg;--nc:var(--_terra-400)"><div class="spoke"></div><div class="arm"><div class="node" data-ag="conciliador" data-info="Conciliador · Fresha↔banco OK" style="--dur:95s;--d:-38s;--angle:144deg;--nc:var(--_terra-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg><span class="lab">Conciliador</span></div></div></div>
+          <div class="orbiter inner" style="--dur:95s;--d:-57s;--angle:216deg;--nc:var(--_amber-400)"><div class="spoke" style="--nc:rgba(220,167,94,.5)"></div><div class="arm"><div class="node" data-ag="cobrador" data-info="Cobrador · 5 recordatorios, espera OK" style="--dur:95s;--d:-57s;--angle:216deg;--nc:var(--_amber-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><span class="lab">Cobrador</span></div></div></div>
+          <div class="orbiter inner" style="--dur:95s;--d:-76s;--angle:288deg;--nc:var(--_ink-300)"><div class="spoke" style="--nc:rgba(184,173,150,.4)"></div><div class="arm"><div class="node" data-ag="abastecedor" data-info="Abastecedor · sin tareas hoy" style="--dur:95s;--d:-76s;--angle:288deg;--nc:var(--_ink-300)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg><span class="lab">Abastecedor</span></div></div></div>
+          <div class="orbiter outer" style="--dur:145s;--d:-12s;--angle:33deg;--nc:var(--_jade-400)"><div class="spoke" style="--nc:rgba(62,155,130,.5)"></div><div class="arm"><div class="node" data-ag="director" data-info="Director · orquesta y asigna" style="--dur:145s;--d:-12s;--angle:33deg;--nc:var(--_jade-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg><span class="lab">Director</span></div></div></div>
           <div class="orbiter outer" style="--dur:145s;--d:-60s;--angle:153deg;--nc:var(--_jade-400)"><div class="spoke" style="--nc:rgba(62,155,130,.5)"></div><div class="arm"><div class="node" data-info="Cerebro · memoria viva del negocio" style="--dur:145s;--d:-60s;--angle:153deg;--nc:var(--_jade-400)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-1 5 3 3 0 0 0 2 5 3 3 0 0 0 6 0V4a3 3 0 0 0-4-1z"/></svg><span class="lab">Cerebro</span></div></div></div>
           <div class="orbiter outer" style="--dur:145s;--d:-108s;--angle:273deg;--nc:var(--_jade-300)"><div class="spoke" style="--nc:rgba(111,194,168,.5)"></div><div class="arm"><div class="node" data-info="Bandeja · captura y clasifica" style="--dur:145s;--d:-108s;--angle:273deg;--nc:var(--_jade-300)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13l3-9h12l3 9M3 13v6h18v-6M3 13h5l1 2h6l1-2h5"/></svg><span class="lab">Bandeja</span></div></div></div>
 
@@ -1058,6 +1060,21 @@ function cmTab(t){
   if(t==='salud')refrescarSalud();
 }
 
+function cmAvataresOrbita(agentes){
+  // FIX órbita: aplica el avatar a los nodos orbitales que son AGENTES (data-ag). Imagen circular
+  // desde avatar_url (Config avatar_<clave>); si no hay URL o falla, conserva el glifo SVG. Los nodos
+  // de navegación (Cerebro/Bandeja) no tienen data-ag → intactos. NO toca el orbe ni el aro T1.
+  var mapa={}; (agentes||[]).forEach(function(a){ if(a&&a.clave) mapa[a.clave]=a.avatar_url||''; });
+  var nodos=document.querySelectorAll('#centro .constel .node[data-ag]');
+  Array.prototype.forEach.call(nodos,function(node){
+    var url=mapa[node.getAttribute('data-ag')];
+    var prev=node.querySelector('.av-img'); if(prev)prev.parentNode.removeChild(prev); // idempotente en cada refresh
+    if(!url)return; // sin URL → queda el glifo actual
+    var img=document.createElement('img'); img.className='av-img'; img.src=url; img.alt=''; img.loading='lazy';
+    img.onerror=function(){ if(img.parentNode)img.parentNode.removeChild(img); }; // falla → vuelve el glifo
+    node.appendChild(img);
+  });
+}
 function cmAplicarCfg(cfg){
   cfg=cfg||{};
   var voz=document.getElementById('cmVoz');
@@ -1075,6 +1092,7 @@ function refrescarCentro(){
   google.script.run.withSuccessHandler(function(est){
     CM.busy=false;
     cmAplicarCfg(est.cfg); // E1.1: voz_url + oficina_url desde Config (botón Oficina se muestra solo si hay url)
+    cmAvataresOrbita(est.agentes); // FIX órbita: avatares en los nodos orbitales que son agentes
     CM.agentes=est.agentes;CM.aprobaciones=est.aprobaciones||[];CC.est=est;try{ccAgentes(est.agentes);ccFeed(est.feed);ccAprob();ccBrief();ccEstado();}catch(_e){}
     cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();
     cmTelem(est.telemetria);cmDirectiva(est.feed);
