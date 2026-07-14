@@ -68,6 +68,10 @@ INSTRUCCIONES = (
     "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, capturar. "
     "Si no tenés un dato (clima, noticias, cualquier cosa externa que no venga de tus herramientas), decilo con "
     "naturalidad y NO lo inventes. Si una tool falla, decilo con honestidad y ofrecé reintentar. "
+    # Anti-promesa-vacía (encargo 14-jul): si una tool avisa que el sistema tarda o no pudo responder,
+    # NO digas 'lo sigo mirando', 'ya te lo consigo' ni prometas volver con el dato: dá ESA respuesta
+    # tal cual y ofrecé reintentar cuando Luciano quiera. Coherente con N5: no narres una acción en curso
+    # que no está ocurriendo. "
     "Cuando Luciano tira una idea o un pendiente, ANTES de usar 'capturar' repeti en una frase corta lo que vas a anotar y espera que te confirme (un 'si', 'dale' o 'guarda'); recien con esa confirmacion llamas 'capturar'. Si te dice que no o lo cambia, ajusta y volve a confirmar. "
     # A4 — eco de captura: que Luciano sepa QUÉ texto quedó, y frenar frases rotas por el STT.
     "Al capturar: si el pedido fue explícito, capturá y REPETÍ el texto exacto guardado: 'Anotado: …'. Si la frase "
@@ -106,21 +110,43 @@ INSTRUCCIONES = (
 )
 
 
+# Timeout duro TOTAL del backend GAS (encargo 14-jul: la voz colgada). call_tool ya tiene
+# timeout=30 POR HOP de requests, pero el POST + hasta 5 redirects 302 NO tienen tope agregado,
+# y _llamar_backend no imponía ninguno → el usuario percibía cuelgues de 25-60s+ y el turno moría
+# sin respuesta (incidente 08:22, brief encadenado 4×). Acá va el tope TOTAL de wall-clock: al
+# vencer, la MISMA tool devuelve texto hablable (fail-closed, SIN reintento — brief no es idempotente
+# en costo/tiempo). El thread bloqueado en el executor no se puede cancelar; muere solo cuando el
+# requests interno alcanza su propio timeout=30 (huérfano acotado, sin efecto para el usuario).
+_TIMEOUT_BACKEND_S = 25
+# Sentinela hablable del timeout. Es un str normal (se relata al LLM como cualquier data), pero las
+# tools de ESCRITURA lo comparan por identidad para NO confirmar un guardado que quizá no ocurrió (N5).
+_MSG_BACKEND_TIMEOUT = "El sistema está tardando más de lo normal. Probá de nuevo en un momento."
+
+
 async def _llamar_backend(tool: str, args: dict | None = None) -> str:
     """Llama el tool-backend GAS vía gas_voz_client (Opción A): Authorization Bearer
     (refresh token de luciano@) + secreto-en-body + manejo del redirect 302.
     Único punto de salida de las 6 function_tools. call_tool es BLOQUEANTE (requests +
     refresh del token) → se corre en executor para no frenar el loop async de LiveKit.
-    Devuelve el campo `data` (string o JSON)."""
+    Timeout TOTAL de _TIMEOUT_BACKEND_S: al vencer devuelve `_MSG_BACKEND_TIMEOUT` (hablable),
+    fail-closed y sin reintento; el turno SIEMPRE termina con una respuesta.
+    Devuelve el campo `data` (string o JSON), o el sentinela de timeout."""
     if not GAS_VOZ_URL or not VOZ_TOOL_SECRET:
         raise ToolError("Falta configurar el backend de voz (GAS_VOZ_URL / VOZ_TOOL_SECRET).")
     loop = asyncio.get_running_loop()
     try:
         # call_tool spreadea **params al top level del body; pasamos `args` como un
         # único kwarg → body = {secret, tool, args:{...}}, la forma que espera el doPost.
-        data = await loop.run_in_executor(
-            None, lambda: gas_voz_client.call_tool(tool, args=args or {})
+        data = await asyncio.wait_for(
+            loop.run_in_executor(
+                None, lambda: gas_voz_client.call_tool(tool, args=args or {})
+            ),
+            timeout=_TIMEOUT_BACKEND_S,
         )
+    except asyncio.TimeoutError:
+        # El backend superó el tope: fail-closed hablable, sin reintento (N5: no prometer sin cumplir).
+        logger.warning("backend tool '%s' excedió %ss — fail-closed hablable", tool, _TIMEOUT_BACKEND_S)
+        return _MSG_BACKEND_TIMEOUT
     except Exception as e:
         # transporte caído / HTML de error / JSON inválido → log real + mensaje genérico al usuario
         logger.exception("backend tool '%s' falló: %s", tool, e)
@@ -275,7 +301,11 @@ class SatoriVoz(Agent):
             texto: lo que Luciano quiere anotar.
         """
         context.disallow_interruptions()  # escritura: no dejarla a medias por una interrupción
-        await _llamar_backend("capturar", {"texto": texto})
+        res = await _llamar_backend("capturar", {"texto": texto})
+        # Timeout del backend en una ESCRITURA: NO afirmar que quedó guardado (N5, no inventar acción).
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardó demasiado y no puedo confirmar si quedó anotado. "
+                    "Volvé a intentarlo cuando quieras y lo verifico.")
         # A4: devolver el texto guardado para que el eco de Sato sea el EXACTO ('Anotado: …'), no un genérico.
         return f"Anotado: {texto}"
 
