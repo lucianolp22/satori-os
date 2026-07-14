@@ -376,6 +376,12 @@ function selfTest() {
     var vAlertB = PropertiesService.getScriptProperties().getProperty('voz_alerta_fecha');
     PropertiesService.getScriptProperties().setProperty('voz_alerta_fecha', hoyISO());   // PURGA #8: suprime el aviso real durante los tests de rechazo
     PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', '__TESTSECRET__');
+    // Bonus (14-jul): baseline de avisos voz para resolver SOLO los que este test pudiera crear (nunca
+    // toca un aviso de seguridad real preexistente — limpiarTodoTest no puede identificarlos sin marker).
+    var _vozAviPre = {};
+    leerTabla(getMaestro().getSheetByName('Avisos')).forEach(function (f) {
+      if (String(f.tipo) === 'voz_acceso_no_autorizado') _vozAviPre[String(f.id_aviso)] = true;
+    });
     try {
       chk(ctEq_('abc', 'abc') && !ctEq_('abc', 'abd'), 'Voz ctEq_ por digest (igual vs distinto)');
       chk(vozCall_({ secret: '__no_matchea__', tool: 'estado' }).error === 'unauthorized', 'Voz secreto inválido → unauthorized (fail-closed)');
@@ -383,11 +389,48 @@ function selfTest() {
       chk(vozCall_({ secret: '__TESTSECRET__', tool: 'no_existe' }).error === 'unknown_tool', 'Voz tool fuera de whitelist → unknown_tool');
       var vEstado = vozCall_({ secret: '__TESTSECRET__', tool: 'estado' });
       chk(vEstado.ok === true && typeof vEstado.data === 'string' && vEstado.data.indexOf('# Estado vigente') === 0, 'Voz tool "estado" devuelve el snapshot');
+
+      // ── D13 (14-jul) SGIC: tool sgic read-only + whitelist dura + ventas exactas + saneo hostil ──
+      // Sembramos Datos_operativos en el cliente __TEST__ (via el handle que usará sgic → writes visibles tras flush).
+      var _doTest = abrirCliente(r.id_cliente).ss.getSheetByName('Datos_operativos');
+      appendFila(_doTest, { fecha: '2026-06-01', concepto: 'Ventas online (mes, ARS)', valor: 1000000, fuente: '__TEST__', notas: '50 ordenes' });
+      appendFila(_doTest, { fecha: '2026-07-01', concepto: 'Ventas online (mes, ARS)', valor: 2000000, fuente: '__TEST__', notas: 'linea1\nlinea2\t<script>alerta</script>' });
+      appendFila(_doTest, { fecha: '2026-07-15', concepto: 'stock', valor: 5, fuente: '__TEST__', notas: '' });
+      SpreadsheetApp.flush();
+      // (a) hoja fuera de whitelist → rechazada SIN leer (whitelist antes de abrir el sheet)
+      var d13a = vozCall_({ secret: '__TESTSECRET__', tool: 'sgic', args: { idCliente: r.id_cliente, hoja: 'Cerebro_nodos' } });
+      chk(d13a.error === 'hoja_no_permitida', 'D13a hoja fuera de whitelist → hoja_no_permitida (sin leer)');
+      // (b) lee Datos_operativos del cliente __TEST__
+      var d13b = vozCall_({ secret: '__TESTSECRET__', tool: 'sgic', args: { idCliente: r.id_cliente, hoja: 'Datos_operativos' } });
+      chk(d13b.ok === true && d13b.data.total >= 3 && d13b.data.filas.length >= 3, 'D13b sgic lee Datos_operativos del cliente');
+      // (c) filtro por mes
+      var d13c = vozCall_({ secret: '__TESTSECRET__', tool: 'sgic', args: { idCliente: r.id_cliente, hoja: 'Datos_operativos', mes: '2026-07' } });
+      chk(d13c.data.total === 2, 'D13c filtro por mes (2 filas de julio)');
+      // (d) limite acota
+      var d13d = vozCall_({ secret: '__TESTSECRET__', tool: 'sgic', args: { idCliente: r.id_cliente, hoja: 'Datos_operativos', limite: 2 } });
+      chk(d13d.data.mostrados <= 2, 'D13d limite acota los mostrados (<=2)');
+      // (e) ventas con fixture → órdenes/total/AOV EXACTOS (puro, sin I/O): 2 válidas (cancelada excluida)
+      var d13vf = agregarVentasPorMes_([
+        { ts: '2026-07-05', channel: 'online', total_ars: 100000, status: 'paid' },
+        { ts: '2026-07-20', channel: 'online', total_ars: 200000, status: 'paid' },
+        { ts: '2026-07-10', channel: 'online', total_ars: 999, status: 'cancelled' }
+      ]);
+      var d13e = _sgicResumenVentas_(d13vf.filas, d13vf.canales, '2026-07', 'CLI-FIX');
+      chk(d13e.ordenes === 2 && d13e.total === 300000 && d13e.aov === 150000, 'D13e ventas: órdenes/total/AOV exactos (2 / 300000 / 150000)');
+      // (f) celda hostil sale sanitizada (sin \n\t) + truncada
+      var d13f = _sgicFila_({ concepto: 'x', notas: 'a\nb\tc ' + new Array(300).join('z') });
+      chk(String(d13f.notas).indexOf('\n') < 0 && String(d13f.notas).indexOf('\t') < 0 && d13f.notas.length <= 201, 'D13f celda hostil sanitizada + truncada');
     } finally {
       if (vSecB == null) PropertiesService.getScriptProperties().deleteProperty('VOZ_TOOL_SECRET');
       else PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', vSecB);
       if (vAlertB == null) PropertiesService.getScriptProperties().deleteProperty('voz_alerta_fecha');
       else PropertiesService.getScriptProperties().setProperty('voz_alerta_fecha', vAlertB);
+      // Bonus (14-jul): resolver los avisos voz_acceso_no_autorizado que ESTE test creó (baseline diff).
+      // Junto con limpiarTodoTest (que ya barre tarea_vencida [TAR-TEST-1] y aprobacion_expirada
+      // [APR-TEST-EXP] por marcador), el selfTest deja de ensuciar el CM con avisos de prueba.
+      borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) {
+        return String(f.tipo) === 'voz_acceso_no_autorizado' && !_vozAviPre[String(f.id_aviso)];
+      });
     }
 
     log.push('— TODO OK —');

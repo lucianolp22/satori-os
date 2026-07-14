@@ -117,7 +117,12 @@ function estadoVigenteCliente_(id) {
 
   var ops = leerCli_('Datos_operativos');
   L.push('## Operación reciente');
-  if (ops.length) ops.slice(-5).forEach(function (o) { L.push('- ' + aFechaISO(o.fecha) + ' · ' + (o.concepto || '—') + ' = ' + o.valor); });
+  // Capa 1 (SGIC 14-jul): incluir `notas` — ahí viven las órdenes/AOV mensuales que escribe el conector
+  // ("N órdenes · AOV $X · prod $Y…"). Sanitizado (celda del SGIC = dato hostil) + truncado.
+  if (ops.length) ops.slice(-5).forEach(function (o) {
+    L.push('- ' + aFechaISO(o.fecha) + ' · ' + (o.concepto || '—') + ' = ' + o.valor +
+      (o.notas ? ' · ' + limpiarHostilTexto_(o.notas, 200) : ''));
+  });
   else L.push('- (sin datos operativos)');
   L.push('');
 

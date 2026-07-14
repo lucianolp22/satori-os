@@ -65,7 +65,12 @@ INSTRUCCIONES = (
     "y cualquier número que llegue con puntos de miles, se convierte a este formato hablado. Los decimales cortos "
     "tipo 0.0037 o 42.9% se dicen tal cual. La cifra es EXACTA — agrupar no es redondear (regla N4). "
     # Datos y herramientas
-    "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, capturar. "
+    "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, sgic_consulta, capturar. "
+    # SGIC (14-jul) — capacidad general de consulta del sistema del cliente.
+    "Si Luciano pregunta un dato fino de un cliente que NO está en tu snapshot (cuántas órdenes de venta, un KPI "
+    "puntual, una regla, un umbral, un costo, una aprobación), usá 'sgic_consulta' ANTES de decir que no tenés el "
+    "dato. Para órdenes/ventas/AOV de un mes usá hoja 'ventas' con el mes 'YYYY-MM'. Si la tool devuelve vacío o "
+    "sin conector, decilo tal cual — no lo inventes (N4). "
     "Si no tenés un dato (clima, noticias, cualquier cosa externa que no venga de tus herramientas), decilo con "
     "naturalidad y NO lo inventes. Si una tool falla, decilo con honestidad y ofrecé reintentar. "
     # Anti-promesa-vacía (encargo 14-jul): si una tool avisa que el sistema tarda o no pudo responder,
@@ -292,6 +297,24 @@ class SatoriVoz(Agent):
         """
         _anunciar(context)  # T1: filler hablado atado a la ejecución
         return await _llamar_backend("cerebro", {"idCliente": id_cliente})
+
+    @function_tool()
+    async def sgic_consulta(self, context: RunContext, id_cliente: str, hoja: str, mes: str = "") -> str:
+        """Consulta CUALQUIER dato del SGIC (sistema del cliente) que no esté en tu snapshot: órdenes de
+        venta, un KPI puntual, una regla, un umbral, un costo, una aprobación. Es de solo lectura.
+
+        Hojas disponibles: 'Datos_operativos', 'KPIs', 'objetivos', 'estado_actual', 'Aprobaciones',
+        'Excepciones', 'Umbrales', 'Reglas', 'Costos_API'. Y el caso especial 'ventas' (fuente viva del
+        conector): devuelve órdenes, total, AOV y por_canal del mes — es la respuesta EXACTA a
+        "cuántas órdenes tuvo X en julio". Cliente con conector hoy: CLI-002 (Vehemence).
+
+        Args:
+            id_cliente: id del cliente, ej. CLI-002 (requerido).
+            hoja: una de las hojas de arriba, o 'ventas' (requerido).
+            mes: opcional 'YYYY-MM' (ej. '2026-07') para filtrar por mes.
+        """
+        _anunciar(context)  # T1: filler hablado (es lenta: abre el spreadsheet del cliente)
+        return await _llamar_backend("sgic", {"idCliente": id_cliente, "hoja": hoja, "mes": mes})
 
     @function_tool()
     async def capturar(self, context: RunContext, texto: str) -> str:

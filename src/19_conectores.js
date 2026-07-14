@@ -146,6 +146,12 @@ function agregarVentasPorMes_(ventas) {
       fecha: a.mes + '-01',
       concepto: 'Ventas ' + a.canal + ' (mes, ARS)',
       valor: Math.round(a.total),
+      // canal/ordenes/aov: aditivos (sincronizarConectorVentas_ solo escribe fecha/concepto/valor/
+      // fuente/notas → NO cambian el schema de Datos_operativos). Los consume la tool sgic (hoja 'ventas')
+      // para dar el conteo EXACTO por canal sin parsear el string notas.
+      canal: a.canal,
+      ordenes: a.n,
+      aov: aov,
       notas: a.n + ' órdenes · AOV $' + aov + ' · prod $' + Math.round(a.subtotal) +
              ' · envío $' + Math.round(a.envio) + ' · ' + a.mes + coberturaNota
     };

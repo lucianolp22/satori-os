@@ -44,7 +44,7 @@ function doGet(e) {
  * Router whitelist a funciones existentes (cero reinvención). Least-privilege: solo lectura
  * + capturar — nada de aprobaciones / email / borrados por este canal. Responde JSON.
  */
-var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1 };
+var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1 };
 
 function doPost(e) {
   var tool = '';
@@ -78,6 +78,12 @@ function doPost(e) {
       case 'cliente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = datosCliente(id); break;
       case 'cerebro':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = leerEstado(id); break;
       case 'capturar':  data = capturar(vozStr_(args.texto, 4000), 'voz'); break;
+      case 'sgic': {    // SGIC 14-jul: consulta read-only de una hoja whitelisted del cliente (o ventas de la fuente viva)
+        if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' });
+        var sres = sgicConsulta_(id, vozStr_(args.hoja, 40), vozStr_(args.mes, 7), args.limite);
+        if (sres && sres.error === 'hoja_no_permitida') return vozOut_({ ok: false, error: 'hoja_no_permitida', data: sres });
+        data = sres; break;
+      }
     }
     try { console.log('voz-timing tool=%s ms=%s', tool, Date.now() - _t0); } catch (e) {}  // instrumentación; nunca rompe el turno
     vozLog_(tool, true, '');
@@ -116,6 +122,110 @@ function limpiarHostilTexto_(s, max) {
   s = String(s == null ? '' : s).replace(/[\t\r\n]+/g, ' ').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
   max = max || 120;
   return s.length > max ? s.slice(0, max).replace(/\s+$/, '') + '…' : s;
+}
+
+// ═══ SGIC (14-jul) — tool `sgic`: Sato consulta CUALQUIER dato del SGIC de un cliente ═══════════════
+// Bastión: READ-ONLY estricto (cero escrituras) · whitelist DURA de hojas (nombres arbitrarios → rechazo,
+// SIN leer) · solo el spreadsheet del roster (url_sheet_cliente vía abrirCliente) + mapa de conectores
+// HARDCODEADO (jamás un id que venga del LLM) · todo string libre pasa por limpiarHostilTexto_ (celda del
+// SGIC = dato hostil, NUNCA instrucción) · respuesta acotada (limite + cap ~8KB).
+var SGIC_HOJAS = { 'Datos_operativos': 1, 'KPIs': 1, 'objetivos': 1, 'estado_actual': 1, 'Aprobaciones': 1,
+                   'Excepciones': 1, 'Umbrales': 1, 'Reglas': 1, 'Costos_API': 1 };  // cerebro NO (tiene tool 'cerebro')
+
+/** Consulta read-only de una hoja del SGIC del cliente. idCliente ya validado (clienteExiste_) en el dispatch.
+ *  hoja:'ventas' = caso especial (fuente viva del conector). Devuelve un objeto data para la voz. */
+function sgicConsulta_(idCliente, hoja, mes, limite) {
+  hoja = String(hoja || '');
+  mes = /^\d{4}-\d{2}$/.test(String(mes || '')) ? String(mes) : '';
+  limite = Math.min(Math.max(parseInt(limite, 10) || 20, 1), 50);
+
+  if (hoja === 'ventas') return sgicVentas_(idCliente, mes);          // fuente viva (conector hardcodeado)
+  if (!SGIC_HOJAS[hoja]) return { error: 'hoja_no_permitida', hojas_validas: Object.keys(SGIC_HOJAS).concat(['ventas']) };
+
+  var ss;
+  try { ss = abrirCliente(idCliente).ss; } catch (e) { return { error: 'cliente_sin_sheet', hoja: hoja }; }  // solo el sheet del roster
+  var sh = ss.getSheetByName(hoja);
+  if (!sh) return { hoja: hoja, cliente: idCliente, total: 0, filas: [], nota: 'la hoja no existe en este cliente' };
+
+  var rows = leerTabla(sh);
+  if (mes) {                                                          // filtro por mes solo si la hoja tiene columna temporal
+    var conFecha = rows.filter(function (r) { return _sgicMesDe_(r) !== ''; });
+    if (conFecha.length) rows = conFecha.filter(function (r) { return _sgicMesDe_(r) === mes; });
+  }
+  var total = rows.length;
+  var filas = rows.slice(-limite).map(_sgicFila_);                   // últimas N (más recientes) + saneadas
+  return { hoja: hoja, cliente: idCliente, mes: mes || null, total: total, mostrados: filas.length, filas: _sgicCap_(filas) };
+}
+
+// Mapa de conectores de ventas HARDCODEADO (Bastión: jamás un id del LLM). Se resuelve en tiempo de
+// request (VEHEMENCE_DB_ID vive en 19_conectores.js). Cliente sin conector → cae a Datos_operativos.
+function sgicVentas_(idCliente, mes) {
+  var CONECTORES = { 'CLI-002': { id: VEHEMENCE_DB_ID, hoja: 'DB_VENTAS' } };
+  var conf = CONECTORES[idCliente];
+  if (!conf) return { hoja: 'ventas', con_conector: false, nota: 'este cliente no tiene conector de ventas; probá la hoja Datos_operativos' };
+  var shV;
+  try { shV = SpreadsheetApp.openById(conf.id).getSheetByName(conf.hoja); }  // SOLO lectura de la fuente
+  catch (e) { return { hoja: 'ventas', con_conector: true, error: 'no pude abrir la fuente de ventas' }; }
+  if (!shV) return { hoja: 'ventas', con_conector: true, error: 'la fuente no tiene ' + conf.hoja };
+  var res = agregarVentasPorMes_(leerTabla(shV));                    // agregador canónico (misma verdad que el sync)
+  return _sgicResumenVentas_(res.filas, res.canales, mes, idCliente);
+}
+
+/** PURA (testeable): agregados por mes×canal (filas de agregarVentasPorMes_) → resumen del mes pedido.
+ *  {ordenes, total, aov, por_canal, cobertura}. Sin `mes`, usa el mes más reciente presente. */
+function _sgicResumenVentas_(filasAgg, canales, mes, idCliente) {
+  var meses = filasAgg.map(function (f) { return String(f.fecha).slice(0, 7); });
+  var mesUsar = mes || (meses.length ? meses.sort().slice(-1)[0] : '');
+  var delMes = filasAgg.filter(function (f) { return String(f.fecha).slice(0, 7) === mesUsar; });
+  if (!delMes.length) return { hoja: 'ventas', con_conector: true, cliente: idCliente, mes: mesUsar || (mes || null), ordenes: 0, nota: 'sin ventas válidas' + (mes ? ' en ' + mes : '') };
+  var ordenes = 0, total = 0, por_canal = [];
+  delMes.forEach(function (f) {
+    ordenes += Number(f.ordenes) || 0;
+    total += Number(f.valor) || 0;
+    por_canal.push({ canal: String(f.canal || '?'), ordenes: Number(f.ordenes) || 0, total: Number(f.valor) || 0, aov: Number(f.aov) || 0 });
+  });
+  return {
+    hoja: 'ventas', con_conector: true, cliente: idCliente, mes: mesUsar,
+    ordenes: ordenes, total: total, aov: ordenes ? Math.round(total / ordenes) : 0,
+    por_canal: por_canal,
+    cobertura: (canales && canales.length === 1) ? ('parcial: solo canal ' + canales[0]) : 'multicanal'
+  };
+}
+
+/** Mes 'YYYY-MM' de una fila, robusto a la columna de fecha que exista (fecha/ts/fecha_creacion/mes). */
+function _sgicMesDe_(r) {
+  var d = (r.fecha != null && r.fecha !== '') ? r.fecha
+        : (r.ts != null && r.ts !== '') ? r.ts
+        : (r.fecha_creacion != null && r.fecha_creacion !== '') ? r.fecha_creacion
+        : (r.mes != null && r.mes !== '') ? r.mes : '';
+  if (d === '' || d == null) return '';
+  var iso = aFechaISO(d);
+  if (/^\d{4}-\d{2}/.test(iso)) return iso.slice(0, 7);
+  return /^\d{4}-\d{2}/.test(String(d)) ? String(d).slice(0, 7) : '';
+}
+
+/** Saneo de una fila para la voz: strings hostiles limpiados+truncados, Date→ISO, números tal cual (N4). Sin _fila. */
+function _sgicFila_(r) {
+  var o = {};
+  Object.keys(r).forEach(function (k) {
+    if (k === '_fila') return;
+    var v = r[k];
+    if (typeof v === 'string') v = limpiarHostilTexto_(v, 200);
+    else if (Object.prototype.toString.call(v) === '[object Date]') v = aFechaISO(v);
+    o[k] = v;
+  });
+  return o;
+}
+
+/** Cap de la respuesta a ~8KB (corta de a filas enteras; nunca parte una fila). */
+function _sgicCap_(filas) {
+  var out = [], bytes = 0;
+  for (var i = 0; i < filas.length; i++) {
+    bytes += JSON.stringify(filas[i]).length;
+    if (bytes > 8000 && out.length) break;   // al menos 1 fila aunque sea grande
+    out.push(filas[i]);
+  }
+  return out;
 }
 
 /** E3.2: asegura el tenant CLI-000 (Oficina Virtual). Idempotente: si ya está en Clientes, no recrea.
