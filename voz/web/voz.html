@@ -608,16 +608,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   btnHang.addEventListener('click',function(){ teardown('Cortaste la conversación.'); });
   btnAudio.addEventListener('click',function(){ if(room){ room.startAudio().then(function(){btnAudio.hidden=true;hideBanner();}).catch(function(){}); } });
   window.addEventListener('beforeunload',function(){ try{ room&&room.disconnect(); }catch(_){} });
-  // PURGA #4: volver con fallback (history → referrer → cerrar)
+  // 14-jul: el CM ahora abre la voz en PESTAÑA NUEVA (_blank) → volver = CERRAR esta pestaña
+  // (el CM nunca se descargó: cero recarga, cero flash blanco del wrapper de Google).
+  // Fallback si el navegador no deja cerrar (PWA standalone / apertura directa): history → referrer.
   var cmFx=document.createElement('div'); cmFx.id='cmFx'; document.body.appendChild(cmFx); // cortina de transición (fade-in por CSS al cargar)
   document.getElementById('back').addEventListener('click',function(){
     try{room&&room.disconnect();}catch(_){}
     cmFx.classList.add('on'); // dissolve antes de volver al panel
-    setTimeout(function(){
+    setTimeout(function(){ window.close(); },320); // pestaña _blank: se cierra sola y aparece el CM intacto
+    setTimeout(function(){ // fallback SOLO si el navegador no permitió cerrar (PWA standalone / apertura directa)
       if(history.length>1) history.back();
       else if(document.referrer) location.href=document.referrer;
-      else window.close();
-    }, 300);
+    }, 900);
   });
 
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('/sw.js').catch(function(){}); }catch(_){} }

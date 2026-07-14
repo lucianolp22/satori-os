@@ -368,9 +368,9 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 @media (max-width:1080px){ #centro .stage{min-height:calc(var(--orbe) + 200px)}  }
 #centro .constel{position:relative; width:min(94vmin, calc(var(--orbe) + 230px)); height:min(94vmin, calc(var(--orbe) + 230px)); display:grid; place-items:center; overflow:visible}
 #centro .oring{position:absolute; inset:0; margin:auto; border-radius:50%; border:1px dashed rgba(244,238,226,.09)}
-#centro .oring.a{width:calc(var(--orbe)*.84); height:calc(var(--orbe)*.84); border:1px solid rgba(242,200,147,.5); box-shadow:0 0 9px rgba(242,200,147,.4), inset 0 0 9px rgba(242,200,147,.18)}   /* aro glow pegado al orbe (v8) */
+#centro .oring.a{width:calc(var(--orbe)*.80); height:calc(var(--orbe)*.80); border:1px solid rgba(242,200,147,.5); box-shadow:0 0 9px rgba(242,200,147,.4), inset 0 0 9px rgba(242,200,147,.18)}   /* aro glow pegado al orbe (v8) */
 #centro .oring.b{display:none}
-#centro .orbe{position:relative; width:var(--orbe); height:var(--orbe); border-radius:50%; cursor:pointer; z-index:3; display:grid; place-items:center; box-shadow:0 0 30px -4px rgba(242,200,147,.72), 0 0 70px -12px rgba(213,130,79,.55), 0 0 130px -30px rgba(213,130,79,.38), 0 0 200px -54px rgba(62,155,130,.26), inset 0 0 70px -16px rgba(255,240,220,.46); transition:box-shadow var(--dur-state) var(--ease-out), transform var(--dur-state) var(--ease-out)}
+#centro .orbe{position:relative; width:calc(var(--orbe)*.78); height:calc(var(--orbe)*.78); border-radius:50%; cursor:pointer; z-index:3; display:grid; place-items:center; box-shadow:0 0 30px -4px rgba(242,200,147,.72), 0 0 70px -12px rgba(213,130,79,.55), 0 0 130px -30px rgba(213,130,79,.38), 0 0 200px -54px rgba(62,155,130,.26), inset 0 0 70px -16px rgba(255,240,220,.46); transition:box-shadow var(--dur-state) var(--ease-out), transform var(--dur-state) var(--ease-out)}
 #centro .orbe::before{content:""; position:absolute; inset:-7%; border-radius:50%; pointer-events:none; background:radial-gradient(circle at 50% 48%, rgba(213,130,79,.34), rgba(213,130,79,.10) 40%, transparent 58%)}
 #centro .orbe:hover{transform:scale(1.02); box-shadow:0 0 110px -4px rgba(213,130,79,.65), 0 0 230px -10px rgba(230,168,126,.4)}
 #centro .orbe canvas{width:100%; height:100%; display:block}
@@ -379,7 +379,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .orbe-center .status{position:relative; font-size:var(--text-sm); color:var(--color-text); text-shadow:0 1px 12px rgba(0,0,0,.75); font-weight:500; line-height:1.4}
 #centro [data-orb="listen"] .orbe{box-shadow:0 0 45px -3px rgba(242,200,147,.85), 0 0 100px -12px rgba(213,130,79,.62), 0 0 160px -30px rgba(213,130,79,.44), 0 0 240px -52px rgba(62,155,130,.32), inset 0 0 80px -14px rgba(255,245,225,.55)}
 #centro .orbiter{position:absolute; left:50%; top:50%; width:0; height:0; z-index:2; animation:spin var(--dur,95s) linear infinite; animation-delay:var(--d,0s)}
-#centro .orbiter.inner{--r:calc(var(--orbe)*.42 + 32px)}#centro .orbiter.outer{--r:calc(var(--orbe)*.42 + 82px)}   /* 14-jul: órbitas siguen al aro (R=.42·orbe) — gap esfera→aro a la mitad */
+#centro .orbiter.inner{--r:calc(var(--orbe)*.40)}#centro .orbiter.outer{--r:calc(var(--orbe)*.40 + 90px)}   /* 14-jul: órbitas siguen al aro (R=.42·orbe) — gap esfera→aro a la mitad */
 #centro .spoke{position:absolute; left:0; top:0; height:1px; width:var(--r); transform-origin:0 0; background:linear-gradient(90deg, transparent, var(--nc,rgba(213,130,79,.5))); opacity:.5}
 #centro .arm{position:absolute; left:0; top:0; transform:translateX(var(--r))}
 #centro .node{position:absolute; left:-38px; top:-38px; width:76px; height:76px; border-radius:50%; display:grid; place-items:center; cursor:pointer; background:var(--glass-strong); border:1px solid var(--nc,var(--color-border-strong)); color:var(--nc,var(--color-text)); box-shadow:0 0 18px -6px var(--nc,transparent); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:spin var(--dur,95s) linear infinite reverse; animation-delay:var(--d,0s)}
@@ -543,7 +543,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <div class="t"><span>API del mes</span><span class="mono" id="cmBudgetTxt">—</span></div>
         <div class="bar"><i id="cmBudgetBar"></i></div>
       </div>
-      <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_top" rel="noopener" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
+      <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_blank" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
       <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
       <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
       <button class="icon-btn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -1341,7 +1341,7 @@ function cmSize(){cmSc.width=innerWidth;cmSc.height=innerHeight;
 function cmDrawSpace(t){cmSx.clearRect(0,0,cmSc.width,cmSc.height);
   for(var i=0;i<cmStars.length;i++){var s=cmStars[i];var a=.15+.45*Math.abs(Math.sin(t*.0006*s.v+s.p));
     cmSx.fillStyle='rgba(140,200,180,'+a+')';cmSx.beginPath();cmSx.arc(s.x*cmSc.width,s.y*cmSc.height,s.r,0,7);cmSx.fill();}}
-function cmDrawOrb(t){var w=cmOc.width,R0=w*.34,R=R0*(1+.035*Math.sin(t*.0012)),rot=t*.00018,tilt=.35;
+function cmDrawOrb(t){var w=cmOc.width,R0=w*.436,R=R0*(1+.035*Math.sin(t*.0012)),rot=t*.00018,tilt=.35;
   // a4.2 orbe vivo: la energía sube con los agentes trabajando (0=calmo, 3+=pleno).
   var energy=Math.min(1,(CM.work||0)/3),cx=w/2;
   cmOx.clearRect(0,0,w,w);
@@ -1459,7 +1459,7 @@ function cmInit3D(){
   var cv=document.getElementById('cmOrb3D');if(!cv)return;
   try{
     var r=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:true});r.setClearColor(0x000000,0);
-    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=3.0;
+    var sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(50,1,0.1,100);cam.position.z=2.34;
     var grp=new THREE.Group();sc.add(grp);
     var BAJA=cmCalidadBaja_();
     var gm=function(op){return new THREE.MeshBasicMaterial({color:0xE6A87E,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
