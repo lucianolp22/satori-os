@@ -25,3 +25,33 @@ Latencia de ejecución server-side de GAS sobre la ruta de lectura del `brief`:
 
 ## Enganches
 - Cliente ya mitigado: `voz/agent/agent.py` `_llamar_backend` (timeout 25s → `_MSG_BACKEND_TIMEOUT`), harness `voz/agent/test_timeout_backend.py`. Aunque se arregle el server, el tope del cliente queda como red de seguridad.
+
+---
+
+## ADDENDUM 14-jul ~10:40 (Cowork — panel de Ejecuciones de Apps Script, read-only)
+Mediciones reales que faltaban (sin instrumentar nada todavia):
+- **Los 4 `brief` del incidente 08:22-08:24 COMPLETARON server-side:** 31.082s / 24.035s / 24.39s / 26.454s, estado Completada (sin error GAS). El server tarda 24-31s de verdad; solo el #1 supero el read-timeout de 30s del cliente. Es LATENCIA, no crash.
+- **El push `oficina_sync` de 10:26:49 (sync-cm rechazado):** doPost v25, **45.853s → Error "El motor de JavaScript ha notificado un error inesperado. Codigo de error: INTERNAL"** — error de PLATAFORMA Google, no del codigo propio. El fail-open del cliente OV funciono como fue disenado. `oficina_sync` es idempotente (reemplazo por fuente) → reintentar es seguro.
+- **HALLAZGO MAYOR — tormenta de polling del CM:** con el CM abierto, `estadoAgentes` corre cada 5s y cada llamada tarda **5-7s** (duty cycle ~100%: termina una y ya sale la otra), mas `estadoSalud` 9.2-9.9s cada 60s, `datosHoy` 4-7s cada 30s, `agendaRango`/`recomendacionesAbiertas` ~1.5s. Un CM abierto = ejecuciones GAS casi CONTINUAS → contencion de SpreadsheetApp sobre cualquier doPost concurrente (brief de voz, oficina_sync). Los incidentes de hoy ocurrieron ambos con el CM abierto en paralelo.
+- `drenarCola` (cada 5 min): 2-8s, Completada siempre → NO es el problema. Hipotesis del lock ya descartada por codigo.
+
+### Propuesta ampliada (sigue sin implementar; requiere OK de Luciano)
+4. **Cache server-side de `estadoAgentes`** (CacheService 15-30s + invalidacion al escribir/accionar, cuidando el reflejo-inmediato de aprobaciones) y/o **bajar el polling del CM de 5s → 15s**. Probablemente la palanca #1: hoy `estadoAgentes` consume ~60-84s de computo GAS por minuto con el CM abierto.
+5. Medir con la instrumentacion del punto 1 ANTES y DESPUES para confirmar el efecto sobre la latencia del `brief`.
+
+## PROPUESTA APARTE — dieta de `Cola_tareas` (NO implementar; encargo separado con OK de Luciano)
+**Hallazgo (14-jul, al ejecutar la dieta del feed):** el read pesado de "857 filas enteras con celdas gigantes" que se atribuía a Actividad es en realidad **`leerTabla(Cola_tareas)`** en `estadoAgentes` (`src/08_webapp.js:475`). `leerTabla` hace `getDataRange().getValues()` = lee la hoja ENTERA; la cola **no se poda ni archiva** (no hay código de archivado) → crece sin techo, y cada `estadoAgentes` (polling del CM) la lee completa, con la columna `payload` (JSON grande por fila). `feedReciente_` en cambio YA lee solo las últimas N (desde 12-jun). Ya mitigado en parte: polling 5s→15s baja la frecuencia ~3×.
+
+**Por qué NO se toca ahora (cambia números visibles):** la misma lectura completa alimenta 3 cosas que dependen de TODA la historia de la cola:
+1. **Último estado por agente** (`estadosAgentesCola_`): "la última fila de cada agente gana". Si acotamos a las últimas K filas, un agente cuya última tarea quedó fuera de la ventana mostraría `idle` aunque su verdadero último estado fuera `fail`/`ok`.
+2. **Conteo de errores** (`telemetriaMaestro_`: `cola.filter(estado==='fallida').length`): acotar a K subcontaría los `fallida` viejos → la tira del CM mostraría menos errores de los reales (riesgo de ocultar un problema).
+3. **Actividad de HOY por agente** (barra "Hoy"): esta SÍ es segura de acotar (las filas de hoy están al final, append-only), siempre que K > volumen diario.
+
+**Diseño propuesto (a decidir en el encargo):**
+- **Opción A — archivar la cola:** mover filas `completada`/`fallida` con >N días a una hoja `Cola_archivo` (bajo `conLock`, en `corridaDiaria`). `estadoAgentes` lee la cola viva (chica); el último-estado y el conteo de errores se computan sobre viva+resumen del archivo (un agregado precomputado, no relectura completa). Preserva semántica; agrega un job de mantenimiento.
+- **Opción B — leer solo columnas necesarias con ventana + agregados persistidos:** `estadoAgentes` lee las últimas K filas para "hoy" + un agregado de `último-estado-por-agente` y `errores-del-mes` mantenido incrementalmente (o recomputado 1×/día en `corridaDiaria`, no en cada poll). Evita el archivado pero requiere un store de agregados.
+- **Descartado — acotar a K a secas:** rompe (1) y (2) arriba; no hacerlo sin los agregados.
+- **Verificación exigida en el encargo:** conteo de errores y último-estado-por-agente IDÉNTICOS antes/después sobre una cola real (o snapshot), no solo "anda más rápido".
+
+### Nota UX menor (opcional, mismo batch)
+La fila `Negocio paralelo pausado: no` en Datos_operativos se presta a mislectura (el concepto contiene la palabra "pausado"). Sugerencia: concepto `Negocio paralelo` + valor `activo`/`pausado` (1 linea en 08_webapp.js:157). Ademas, quien lea esa hoja por gviz debe saber: la columna valor se tipa numerica y las celdas de TEXTO vuelven null — leer por UI o castear.

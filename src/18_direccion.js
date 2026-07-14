@@ -151,6 +151,54 @@ function briefDiario(idCliente) {
   return md;
 }
 
+// SPEC-GAS 14-jul (incidente 08:22 = doPost brief colgado 24-31s). El render de briefDiario es CARO:
+// estadoSalud() (los 6 chequeos de correrSalud) + Tareas entera. Bajo contención (CM polleando) el doPost
+// se iba a 30s+ y la voz colgaba. Read-only ⇒ solo TTL, sin invalidación. CacheService = strings ≤100KB.
+var _BRIEF_CACHE_TTL = 600;         // voz: 10 min (una consulta cada tanto reusa el render)
+var _BRIEF_CACHE_TTL_WARM = 21600;  // corridaDiaria calienta 6h → la consulta de la mañana es HIT instantáneo
+
+/**
+ * Cache corto del brief para la VOZ. Lee el cache (get endurecido: si tira por cuota no rompe, cae a
+ * render); solo si no hay hit renderiza y cachea con TTL corto. SOLO la ruta de LECTURA por voz pasa por
+ * acá; corridaDiaria y demás llaman briefDiario directo (siempre fresco). Clave por idCliente.
+ */
+function briefCacheado_(idCliente) {
+  var cache = CacheService.getScriptCache();
+  var key = 'brief_v1_' + (idCliente ? String(idCliente) : 'SISTEMA');
+  var hit = null;
+  try { hit = cache.get(key); } catch (e) { /* get puede tirar por cuota → render */ }
+  if (hit) return hit;
+  var md = briefDiario(idCliente || undefined);
+  try { cache.put(key, md, _BRIEF_CACHE_TTL); } catch (e) { /* >100KB u otro → sin cache, nunca rompe */ }
+  return md;
+}
+
+/**
+ * Calienta el cache del brief de SISTEMA al CIERRE de corridaDiaria (TTL 6h) con el render fresco de la
+ * corrida recién terminada → la consulta de voz "el brief del día" de la mañana es HIT instantáneo, sin
+ * el render frío que colgaba el doPost. Falla-silenciosa: nunca rompe la corrida.
+ */
+function calentarBriefCacheSistema_() {
+  try {
+    var md = briefDiarioSistema_();
+    CacheService.getScriptCache().put('brief_v1_SISTEMA', md, _BRIEF_CACHE_TTL_WARM);
+    Logger.log('brief-cache SISTEMA calentado (TTL ' + _BRIEF_CACHE_TTL_WARM + 's)');
+  } catch (e) { try { Logger.log('calentarBriefCache falló: ' + e); } catch (_e) {} }
+}
+
+/**
+ * Verificación de editor (SPEC-GAS 14-jul): fuerza cache frío, mide 2 llamadas a briefCacheado_ y loguea
+ * el antes/después. Esperado: 1a = render (miss, segundos), 2a = cache (hit, <1s). Correr en el editor GAS.
+ */
+function verifBriefCache_() {
+  try { CacheService.getScriptCache().remove('brief_v1_SISTEMA'); } catch (e) {}
+  var t1 = Date.now(); briefCacheado_(); var ms1 = Date.now() - t1;
+  var t2 = Date.now(); briefCacheado_(); var ms2 = Date.now() - t2;
+  var msg = 'voz-timing brief render(miss)=' + ms1 + 'ms  cache(hit)=' + ms2 + 'ms  hit_rapido=' + (ms2 < 1000);
+  Logger.log(msg); try { console.log(msg); } catch (e) {}
+  return { render_ms: ms1, cache_ms: ms2, hit_rapido: ms2 < 1000 };
+}
+
 /** Brief de SISTEMA (Satori): la movida más urgente + 3 cosas + números + feed. */
 function briefDiarioSistema_() {
   var d = datosHoy();

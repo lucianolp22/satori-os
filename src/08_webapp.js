@@ -70,14 +70,16 @@ function doPost(e) {
     var id = vozStr_(args.idCliente, 24);
     if (id && !clienteExiste_(id)) return vozOut_({ ok: false, error: 'cliente_desconocido' }); // PURGA #5: roster (el agente puede errar el id → NO alerta)
     var data;
+    var _t0 = Date.now();  // SPEC-GAS 14-jul: medir el tiempo server REAL por tool (separa doPost de render)
     switch (tool) {
       case 'estado':    data = estadoVigente(id || undefined); break;
-      case 'brief':     data = briefDiario(id || undefined); break;
+      case 'brief':     data = briefCacheado_(id || undefined); break;   // SPEC-GAS: cache corto (voz) — evita el render pesado (salud+tareas) en cada consulta
       case 'vehemence': data = estadoVigente('CLI-002'); break;   // verVehemence() solo loguea → acá devolvemos el dato
       case 'cliente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = datosCliente(id); break;
       case 'cerebro':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = leerEstado(id); break;
       case 'capturar':  data = capturar(vozStr_(args.texto, 4000), 'voz'); break;
     }
+    try { console.log('voz-timing tool=%s ms=%s', tool, Date.now() - _t0); } catch (e) {}  // instrumentación; nunca rompe el turno
     vozLog_(tool, true, '');
     return vozOut_({ ok: true, tool: tool, data: data });
   } catch (err) {
@@ -576,7 +578,11 @@ function estadosAgentesCola_(rows) {
   return out;
 }
 
-/** Últimos N eventos del feed Actividad (más nuevos primero). XSS lo maneja el front (textContent). */
+/** Últimos N eventos del feed Actividad (más nuevos primero). XSS lo maneja el front (textContent).
+ *  Ya lee SOLO las últimas `cuantos` filas (no la hoja entera). Dieta 14-jul: además trunca el
+ *  `texto` a `_FEED_TEXTO_LIM` chars — las celdas de Actividad pueden ser enormes (salidas de agentes)
+ *  y el feed es display; recorta payload al CM y costo de render sin perder la línea informativa. */
+var _FEED_TEXTO_LIM = 240;
 function feedReciente_(cuantos) {
   var sh = getMaestro().getSheetByName('Actividad');
   if (!sh || sh.getLastRow() < 2) return [];
@@ -584,9 +590,11 @@ function feedReciente_(cuantos) {
   var ix = {}; H.forEach(function (h, i) { ix[h] = i; });
   var n = sh.getLastRow(), desde = Math.max(2, n - cuantos + 1);
   return sh.getRange(desde, 1, n - desde + 1, sh.getLastColumn()).getValues().map(function (f) {
+    var txt = String(f[ix.texto]).replace(/^'/, '');
+    if (txt.length > _FEED_TEXTO_LIM) txt = txt.slice(0, _FEED_TEXTO_LIM - 1) + '…';
     return {
       ts: aHoraLegible_(f[ix.ts]), agente: String(f[ix.agente]), tipo: String(f[ix.tipo]),
-      id_cliente: String(f[ix.id_cliente] || ''), texto: String(f[ix.texto]).replace(/^'/, ''),
+      id_cliente: String(f[ix.id_cliente] || ''), texto: txt,
       tarea_id: String(f[ix.tarea_id] || ''), aprobacion_id: String(f[ix.aprobacion_id] || '')
     };
   }).reverse();

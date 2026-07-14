@@ -1028,7 +1028,7 @@ function centroAbrir(){
     if(EN_GAS&&!CMBOOT.done)setTimeout(function(){cmBootMark('est');cmBootMark('salud');cmBootMark('hoy');},12000); }
   refrescarCentro();refrescarSalud();ccHoy();
   if(CM.timer)clearInterval(CM.timer);
-  CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
+  CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},15000); // 14-jul: 5s->15s, baja la tormenta de polling (estadoAgentes tardaba 5-7s @100% duty) que contendía con el doPost de voz
   if(CM.timerS)clearInterval(CM.timerS);
   CM.timerS=setInterval(function(){if(CM.open&&!document.hidden)refrescarSalud();},60000);
   if(CM.timerH)clearInterval(CM.timerH);

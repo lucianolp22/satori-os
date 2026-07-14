@@ -137,6 +137,11 @@ function corridaDiaria() {
   try { resumen.brief_push = briefPush_(); }
   catch (e) { try { Logger.log('brief_push fallo: ' + e.message); } catch (_e) {} }
 
+  // SPEC-GAS 14-jul: calentar el cache del brief de SISTEMA con el render fresco de esta corrida (TTL 6h)
+  // → la consulta de voz de la mañana es HIT instantáneo (sin el render frío que colgaba el doPost).
+  try { calentarBriefCacheSistema_(); }
+  catch (e) { try { Logger.log('calentarBriefCache fallo: ' + e.message); } catch (_e) {} }
+
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));
   return resumen;
