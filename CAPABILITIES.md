@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-16 16:44 · commit: a062197
+> Generado: 2026-07-16 17:12 · commit: 982ea55
 
 ## Módulos
 
@@ -18,7 +18,7 @@
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 49 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 11 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
-| `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 14 |
+| `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
 | `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
@@ -131,9 +131,9 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **10_bootstrap.js:** bootstrap 
 
-**11_aprobaciones.js:** clasificarAccion direccionVigente_ _dirActiva_ ejecutarCrearObjetivo_ umbralPara crearAprobacion resolverAprobacion ejecutarAprobada ejecutarEmail_ ejecutarActivarRegla_ crearReglaDesdeExcepcion expirarPendientes parsearPayload_ autorActual_ 
+**11_aprobaciones.js:** clasificarAccion direccionVigente_ _dirActiva_ ejecutarCrearObjetivo_ umbralPara crearAprobacion agregarAgregada_ resolverAprobacion ejecutarAprobada ejecutarEmail_ ejecutarActivarRegla_ crearReglaDesdeExcepcion expirarPendientes parsearPayload_ autorActual_ 
 
-**12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ archivarColaVieja_ _colaArchivable_ verifArchivoCola_ verifArchivoCola archivarColaVieja aFechaHora_ 
+**12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ archivarColaVieja_ _colaArchivable_ verifArchivoCola_ verifArchivoCola archivarColaViejaREAL aFechaHora_ 
 
 **13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
 

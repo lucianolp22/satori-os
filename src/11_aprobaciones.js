@@ -139,9 +139,10 @@ function crearAprobacion(idCliente, modulo, tipoAccion, payload, opts) {
   // pasando por ejecutarAprobada() como siempre. Sin dirección → 'pendiente' (default-deny intacto).
   var dir = direccionVigente_(idCliente, tipoAccion);
 
-  return conLock(function () { // serializa nextId + append (PURGA #4)
+  var filaCreada = null;
+  var res = conLock(function () { // serializa nextId + append (PURGA #4)
     var id = nextId(shAp, 'id', 'APR', 4);
-    appendFila(shAp, {
+    var fila = {
       id: id,
       fecha_creacion: ahoraISO(),
       cliente: cliCtx.cli.nombre,
@@ -157,13 +158,71 @@ function crearAprobacion(idCliente, modulo, tipoAccion, payload, opts) {
       fecha_decision: dir ? ahoraISO() : '',
       resultado_ejecucion: '',
       notas: dir ? ('auto-aprobada por dirección ' + dir.id + ' (vigente hasta ' + aFechaISO(dir.vigencia) + ')') : ''
-    });
+    };
+    appendFila(shAp, fila);
     SpreadsheetApp.flush(); // durabilidad: la pendiente queda escrita antes de soltar el lock / completar la tarea
     if (dir) { // rastro visible en el feed: una auto-aprobación jamás es silenciosa
       try { feed_('Director', 'auto_aprobacion', idCliente, id + ' auto-aprobada por dirección ' + dir.id + ' · ' + tipoAccion, '', id); } catch (e) {}
     }
+    filaCreada = fila;
     return { id: id, patron: patron, auto: !!dir, direccion: dir ? String(dir.id) : '' };
   });
+
+  // Espejo incremental — FUERA del conLock de arriba. NO anidar conLock: el `finally` del interno
+  // haría releaseLock() y soltaría el lock del EXTERNO, rompiendo la atomicidad de nextId+append.
+  // Va después del flush: si el espejo falla, la aprobación del cliente ya está escrita y durable.
+  agregarAgregada_(cliCtx.cli, filaCreada);
+  return res;
+}
+
+/**
+ * Espejo INCREMENTAL de una aprobación recién creada → hoja `Aprobaciones_agregadas` del MAESTRO.
+ * Es el inverso de `quitarAgregada_` (Delta 2, 08-jul) y cierra el bug reportado el 16-jul: la voz
+ * creaba la aprobación en el Sheet del CLIENTE, pero el CM lee el ESPEJO del MAESTRO — que solo
+ * reconstruía `syncMaestro` (1×/día) ⇒ la aprobación no aparecía hasta la corrida siguiente.
+ * Se llama desde crearAprobacion, así que cubre a TODOS los callers (voz, T2 B2, futuros).
+ *
+ * Por qué no llamar a syncMaestro acá: tarda 15-30s server-side (abre TODOS los Sheets cliente) y
+ * colgaría el doPost de voz — la lección de la SPEC-GAS del 14-jul.
+ *
+ * CRITERIO DEL ESPEJO (copiado de syncMaestro, no inventado): lleva **solo `estado === 'pendiente'`**
+ * ⇒ una auto-aprobada por Dirección NO entra: no está esperando decisión de nadie.
+ * IDEMPOTENCIA: syncMaestro es wipe-then-rebuild (clearContent + setValues desde los Sheets cliente),
+ * así que la fila incremental no se duplica en la próxima corrida — la reconstruye igual.
+ * FAIL-SAFE: si algo tira, se loguea y se sigue. La aprobación del cliente YA está escrita; el sync
+ * de la mañana la refleja igual. El espejo jamás rompe el turno de voz.
+ * @return {boolean} true si la espejó.
+ */
+function agregarAgregada_(cli, fila) {
+  try {
+    if (!cli || !fila) return false;
+    if (String(fila.estado).toLowerCase() !== 'pendiente') return false;  // criterio de syncMaestro
+    var sh = getMaestro().getSheetByName('Aprobaciones_agregadas');
+    if (!sh) return false;
+    return conLock(function () {
+      // appendFila mapea por header y sanitiza (y respeta COLUMNAS_TEXTO: 'APR-0001' no se coacciona).
+      appendFila(sh, {
+        id: fila.id,
+        fecha_creacion: fila.fecha_creacion,
+        id_cliente: cli.id_cliente,
+        cliente: cli.nombre,
+        modulo: fila.modulo,
+        patron: fila.patron,
+        tipo_accion: fila.tipo_accion,
+        descripcion: fila.descripcion,
+        payload: fila.payload,
+        monto: fila.monto,
+        'confianza_%': fila['confianza_%'],
+        estado: fila.estado,
+        url_sheet_cliente: cli.url_sheet_cliente,
+        sincronizado_en: ahoraISO()
+      });
+      return true;
+    });
+  } catch (e) {
+    try { Logger.log('agregarAgregada_ falló (no rompe: el sync lo repone): ' + ((e && e.message) || e)); } catch (_e) {}
+    return false;
+  }
 }
 
 /**

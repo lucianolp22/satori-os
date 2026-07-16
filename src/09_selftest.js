@@ -458,7 +458,7 @@ function selfTest() {
       });
     }
 
-    _asertsF2_(chk, log);   // D14 contrato F2 · D15 mantenimiento · D16 voz-acciones (cuerpo compartido con selfTestF2_)
+    _asertsF2_(chk, log, { completo: true });   // D14 contrato F2 · D15 mantenimiento · D16 voz-acciones (cuerpo compartido con selfTestF2_)
 
     log.push('— TODO OK —');
   } finally {
@@ -501,17 +501,17 @@ function _aprobarSiOk_(chk, idCliente, res, etiqueta) {
  * @param {function} chk  aserción del runner
  * @param {Array} log     el log del runner
  */
-function _asertsF2_(chk, log) {
+function _asertsF2_(chk, log, opts) {
   [{ n: 'D14 contrato F2', f: _asertsD14_ },
    { n: 'D15 mantenimiento', f: _asertsD15_ },
    { n: 'D16 voz-acciones', f: _asertsD16_ }].forEach(function (t) {
-    try { t.f(chk, log); }
+    try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
 }
 
 /** D14 — contrato de status report v1 + direcciones pre-aprobadas (F2). Tanda aislada: la corre _asertsF2_. */
-function _asertsD14_(chk, log) {
+function _asertsD14_(chk, log, opts) {
   // ── D14 (16-jul) F2: contrato de status report v1 + direcciones pre-aprobadas ──
   // (a) el contrato renderiza las 10 secciones en orden con datos inyectados (renderer PURO).
   var d14ctx = { titulo: 'T', bluf: 'B' };
@@ -571,7 +571,7 @@ function _asertsD14_(chk, log) {
 }
 
 /** D15 — dieta de Cola_tareas + avisos de estancadas agrupados. Tanda aislada: la corre _asertsF2_. */
-function _asertsD15_(chk, log) {
+function _asertsD15_(chk, log, opts) {
   // ── D15 (16-jul) Mantenimiento: dieta de Cola_tareas + avisos agrupados ──
   var shCola = getMaestro().getSheetByName('Cola_tareas');
   var shArch = getMaestro().getSheetByName('Cola_archivo');
@@ -684,7 +684,7 @@ function _asertsD15_(chk, log) {
 }
 
 /** D16 — voz-acciones: la voz escribe con gate + la frontera de confianza. Tanda aislada: la corre _asertsF2_. */
-function _asertsD16_(chk, log) {
+function _asertsD16_(chk, log, opts) {
   // ── D16 (16-jul) Voz-acciones: la voz ESCRIBE, con gate. La frontera de confianza es lo que se prueba. ──
   //
   // REGLA DEL FLUJO (16-jul, la 4ª realidad): accionVoz_ es una superficie CON DEFENSAS. Su retorno de
@@ -734,6 +734,42 @@ function _asertsD16_(chk, log) {
   var d16big = accionVoz_('crear_objetivo', { titulo: new Array(5000).join('z') }, d16cli.id_cliente);
   chk(d16big && d16big.ok === false && d16big.error === 'payload_grande', 'D16k2 payload > 4KB → rechazo payload_grande (la defensa salta, sin crash)');
   chk(!leerTabla(d16obj).filter(function (o) { return String(o.descripcion).indexOf('zzz') === 0; })[0], 'D16k3 el payload rechazado NO escribió nada');
+  // ── D16u (16-jul noche) EL ESPEJO: la aprobación creada por voz aparece en el CM SIN syncMaestro.
+  // Bug reportado: crearAprobacion escribe en el Sheet del CLIENTE, el CM lee Aprobaciones_agregadas
+  // del MAESTRO, y eso solo lo reconstruía syncMaestro (1×/día) → la voz creaba y no se veía.
+  var shAggV = getMaestro().getSheetByName('Aprobaciones_agregadas');
+  var espejoDe = function (id) { return leerTabla(shAggV).filter(function (f) { return String(f.id) === String(id); }); };
+  var d16e1 = accionVoz_('crear_objetivo', { titulo: 'Objetivo espejo', meta: '9' }, d16cli.id_cliente);
+  chk(d16e1.ok === true && !!d16e1.id_aprobacion, 'D16u la acción creó la aprobación');
+  var filaEsp = espejoDe(d16e1.id_aprobacion);
+  chk(filaEsp.length === 1, 'D16u la aprobación aparece en Aprobaciones_agregadas SIN correr syncMaestro (el CM la ve al toque)');
+  chk(filaEsp[0] && String(filaEsp[0].id_cliente) === String(d16cli.id_cliente) && String(filaEsp[0].estado) === 'pendiente' && String(filaEsp[0].tipo_accion) === 'crear_objetivo',
+      'D16v el espejo lleva las columnas que arma syncMaestro (id_cliente/estado/tipo_accion)');
+  chk(filaEsp[0] && String(filaEsp[0].url_sheet_cliente) !== '' && String(filaEsp[0].cliente).indexOf('__TEST__') === 0,
+      'D16w el espejo trae cliente + url_sheet_cliente (el CM los necesita para abrir la fila)');
+  // syncMaestro es wipe-then-rebuild → NO puede duplicar la fila incremental. La idempotencia del
+  // espejo es LA propiedad que sostiene el diseño (si alguien pasa syncMaestro a incremental, cada
+  // corrida duplicaría) ⇒ merece guard de regresión. Pero syncMaestro abre TODOS los Sheets cliente
+  // (15-30s) y selfTestF2 tiene que costar segundos ⇒ solo corre en la certificación completa.
+  if (opts && opts.completo) {
+    syncMaestro();
+    chk(espejoDe(d16e1.id_aprobacion).length === 1, 'D16x syncMaestro posterior NO duplica la fila incremental (wipe-then-rebuild)');
+  } else {
+    log.push('⏭️  D16x (idempotencia vs syncMaestro) omitido: solo corre en selfTest() completo — abre todos los Sheets cliente');
+  }
+  // Auto-aprobada por Dirección → NO entra al espejo: el espejo lleva solo pendientes (criterio de syncMaestro).
+  var shDirE = getMaestro().getSheetByName('Direcciones');
+  var manE = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
+  appendFila(shDirE, { id: 'DIR-TEST-8', tipo_accion: 'crear_objetivo', alcance: d16cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manE, activa: 'si', notas: '__TEST__' });
+  var d16e2 = accionVoz_('crear_objetivo', { titulo: 'Objetivo auto-aprobado' }, d16cli.id_cliente);
+  chk(d16e2.auto === true, 'D16y (pre) la Dirección auto-aprobó');
+  chk(espejoDe(d16e2.id_aprobacion).length === 0, 'D16y una auto-aprobada por Dirección NO entra al espejo (no espera decisión de nadie)');
+  borrarFilasDonde(shDirE, function (f) { return String(f.id) === 'DIR-TEST-8'; });
+  // Fail-safe: el espejo NUNCA rompe la creación. Se simula el fallo con datos inválidos.
+  chk(agregarAgregada_(null, { estado: 'pendiente' }) === false, 'D16z1 espejo sin cliente → false, sin tirar');
+  chk(agregarAgregada_({ id_cliente: 'X' }, null) === false, 'D16z2 espejo sin fila → false, sin tirar');
+  chk(agregarAgregada_({ id_cliente: 'X' }, { estado: 'aprobada' }) === false, 'D16z3 el criterio del espejo (solo pendientes) se respeta en el helper');
+
   // (l) el North Star de SISTEMA no se crea por voz (fuente única = Config).
   chk(accionVoz_('crear_objetivo', { titulo: 'Mi north star: 6 clientes pagos' }, d16cli.id_cliente).error === 'north_star_no_por_voz', 'D16l un título que pretende ser el North Star de sistema → rechazo (fuente única en Config)');
   chk(_hueleANorthStar_('north star') && _hueleANorthStar_('el objetivo de Satori') && !_hueleANorthStar_('subir el AOV'), 'D16m el detector de North Star no marca objetivos operativos normales');
@@ -775,7 +811,9 @@ function selfTestF2_() {
   try {
     setup();            // reconcilia Direcciones + Cola_archivo (idempotente)
     limpiarTodoTest();  // pre-clean: restos de una corrida que falló a mitad
-    _asertsF2_(chk, log);
+    // completo:false => se saltea lo que abre TODOS los Sheets cliente (syncMaestro, 15-30s). Ese es
+    // el precio de que este runner cueste segundos; la certificación de selfTest() sí lo corre.
+    _asertsF2_(chk, log, { completo: false });
   } finally {
     var l = limpiarTodoTest();   // la limpieza corre SIEMPRE, pase o falle
     log.push('🧹 limpieza: ' + l.clientes + ' cliente(s) __TEST__ a papelera, filas TEST removidas');

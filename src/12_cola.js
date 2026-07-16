@@ -248,8 +248,16 @@ function verifArchivoCola_() {
  */
 function verifArchivoCola() { return verifArchivoCola_(); }
 
-/** Wrapper PÚBLICO — corre el archivo de cola REAL a mano (la diaria lo hace sola después). */
-function archivarColaVieja() { return archivarColaVieja_(); }
+/**
+ * Wrapper PÚBLICO — corre el archivo de cola REAL a mano (la diaria lo hace sola después).
+ * El sufijo REAL no es decorativo: en el desplegable del editor esta función y `verifArchivoCola`
+ * (el dry-run) quedaban con nombres casi gemelos y, por orden alfabético, la DESTRUCTIVA aparecía
+ * PRIMERO — un clic de más y se movían filas de verdad. Con REAL en el nombre no hay ambigüedad.
+ * (Se descartó pedir confirmación con Browser.msgBox: este proyecto es standalone, no bound a la
+ * hoja, y msgBox tira desde el editor en ese contexto.)
+ * Antes de correr esta: `verifArchivoCola()` dice cuántas filas movería SIN mover nada.
+ */
+function archivarColaViejaREAL() { return archivarColaVieja_(); }
 
 // ── helpers locales ─────────────────────────────────────────────────────────
 
