@@ -204,6 +204,15 @@ function verifBriefCache_() {
   return { render_ms: ms1, cache_ms: ms2, hit_rapido: ms2 < 1000 };
 }
 
+// ── Wrappers PÚBLICOS de operador (16-jul) ───────────────────────────────────
+// REGLA DURA: el desplegable del editor de Apps Script OCULTA toda función que termina en guion
+// bajo (privada por convención GAS). TODA función que Luciano corra a mano DEBE tener un wrapper
+// público sin guion bajo. Violada 2 veces hoy (selfTestF2_, calentarBriefCacheSistema_) — basta.
+/** Recalienta el cache del brief de sistema (correr POST-promote: el cache sobrevive al deploy). */
+function calentarBriefCache() { return calentarBriefCacheSistema_(); }
+/** Mide render(miss) vs cache(hit) del brief. */
+function verifBriefCache() { return verifBriefCache_(); }
+
 // ── F2 (16-jul) — CONTRATO DE STATUS REPORT v1 ───────────────────────────────
 //
 // Formato único y FIJO (10 secciones, orden inmutable) para todo reporte de estado.

@@ -248,6 +248,9 @@ function verifArchivoCola_() {
  */
 function verifArchivoCola() { return verifArchivoCola_(); }
 
+/** Wrapper PÚBLICO — corre el archivo de cola REAL a mano (la diaria lo hace sola después). */
+function archivarColaVieja() { return archivarColaVieja_(); }
+
 // ── helpers locales ─────────────────────────────────────────────────────────
 
 /** Date desde una celda 'yyyy-MM-ddTHH:mm:ss' (ahoraISO) o un Date de Sheets. */
