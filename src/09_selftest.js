@@ -738,7 +738,7 @@ function _asertsD16_(chk, log, opts) {
   // Bug reportado: crearAprobacion escribe en el Sheet del CLIENTE, el CM lee Aprobaciones_agregadas
   // del MAESTRO, y eso solo lo reconstruía syncMaestro (1×/día) → la voz creaba y no se veía.
   var shAggV = getMaestro().getSheetByName('Aprobaciones_agregadas');
-  var espejoDe = function (id) { return leerTabla(shAggV).filter(function (f) { return String(f.id) === String(id); }); };
+  var espejoDe = function (id) { return leerTabla(shAggV).filter(function (f) { return String(f.id) === String(id) && String(f.id_cliente) === String(d16cli.id_cliente); }); }; // id+tenant: APR-#### es secuencia POR CLIENTE (colisión real cazada por D16y, 16-jul)
   var d16e1 = accionVoz_('crear_objetivo', { titulo: 'Objetivo espejo', meta: '9' }, d16cli.id_cliente);
   chk(d16e1.ok === true && !!d16e1.id_aprobacion, 'D16u la acción creó la aprobación');
   var filaEsp = espejoDe(d16e1.id_aprobacion);
@@ -765,6 +765,16 @@ function _asertsD16_(chk, log, opts) {
   chk(d16e2.auto === true, 'D16y (pre) la Dirección auto-aprobó');
   chk(espejoDe(d16e2.id_aprobacion).length === 0, 'D16y una auto-aprobada por Dirección NO entra al espejo (no espera decisión de nadie)');
   borrarFilasDonde(shDirE, function (f) { return String(f.id) === 'DIR-TEST-8'; });
+  // D16y2/y3 (16-jul, tras cazar la colisión): quitarAgregada_ es POR TENANT. Mismo id 'APR-COLL'
+  // en dos clientes → borrar (id, tenant A) NO toca la fila del tenant B. Fixture sintético con
+  // nombre __TEST__ (limpiarTodoTest lo barre si esta tanda aborta a mitad).
+  agregarAgregada_({ id_cliente: '__T_A__', nombre: '__TEST__ colisionA', url_sheet_cliente: 'x' }, { id: 'APR-COLL', estado: 'pendiente' });
+  agregarAgregada_({ id_cliente: '__T_B__', nombre: '__TEST__ colisionB', url_sheet_cliente: 'x' }, { id: 'APR-COLL', estado: 'pendiente' });
+  quitarAgregada_('APR-COLL', '__T_A__');
+  var collE = leerTabla(shAggV).filter(function (f) { return String(f.id) === 'APR-COLL'; });
+  chk(collE.length === 1 && String(collE[0].id_cliente) === '__T_B__', 'D16y2 quitarAgregada_ scoped: borrar (APR-COLL, tenant A) deja intacta la fila del tenant B');
+  quitarAgregada_('APR-COLL', '__T_B__');
+  chk(leerTabla(shAggV).filter(function (f) { return String(f.id) === 'APR-COLL'; }).length === 0, 'D16y3 limpieza del fixture de colisión (espejo sin residuo)');
   // Fail-safe: el espejo NUNCA rompe la creación. Se simula el fallo con datos inválidos.
   chk(agregarAgregada_(null, { estado: 'pendiente' }) === false, 'D16z1 espejo sin cliente → false, sin tirar');
   chk(agregarAgregada_({ id_cliente: 'X' }, null) === false, 'D16z2 espejo sin fila → false, sin tirar');

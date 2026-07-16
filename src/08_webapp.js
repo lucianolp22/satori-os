@@ -840,20 +840,25 @@ function resolverAprobacionUI(idCliente, id, decision, ediciones) {
   var res = resolverAprobacion(idCliente, id, decision, ediciones || {});
   // Reflejo inmediato (08-jul): el espejo agregado es "pendientes only"; una resuelta
   // sale YA, sin esperar al próximo syncMaestro (antes reaparecía en el CM al recargar).
-  if (res && res.ok) { try { quitarAgregada_(id); } catch (e) { /* la resolución ya quedó; el próximo sync la limpia */ } }
+  if (res && res.ok) { try { quitarAgregada_(id, idCliente); } catch (e) { /* la resolución ya quedó; el próximo sync la limpia */ } }
   return res;
 }
 
-/** Quita una aprobación del espejo agregado por id (consistente con syncMaestro = pendientes only). */
-function quitarAgregada_(id) {
+/** Quita una aprobación del espejo agregado por id + id_cliente (D16y 16-jul: APR-#### es secuencia
+ *  POR CLIENTE ⇒ en el agregado multi-tenant el id pelado colisiona y podía borrar la fila de OTRO
+ *  cliente). Sin idCliente cae al borrado por id (compat con callers viejos, p.ej. D11). */
+function quitarAgregada_(id, idCliente) {
   var sh = getMaestro().getSheetByName('Aprobaciones_agregadas');
   if (!sh || sh.getLastRow() < 2) return;
   conLock(function () {
     var m = sh.getDataRange().getValues();
     var ic = m[0].indexOf('id');
+    var icli = m[0].indexOf('id_cliente');
     if (ic < 0) return;
     for (var r = m.length - 1; r >= 1; r--) {
-      if (String(m[r][ic]) === String(id)) sh.deleteRow(r + 1);
+      if (String(m[r][ic]) !== String(id)) continue;
+      if (idCliente && icli >= 0 && String(m[r][icli]) !== String(idCliente)) continue;
+      sh.deleteRow(r + 1);
     }
   });
 }
