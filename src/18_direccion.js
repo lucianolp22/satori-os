@@ -204,6 +204,124 @@ function verifBriefCache_() {
   return { render_ms: ms1, cache_ms: ms2, hit_rapido: ms2 < 1000 };
 }
 
+// ── F2 (16-jul) — CONTRATO DE STATUS REPORT v1 ───────────────────────────────
+//
+// Formato único y FIJO (10 secciones, orden inmutable) para todo reporte de estado.
+// EXTIENDE T2 (juicio anclado de recomendacionDelDia_), no lo reemplaza: el BLUF y las
+// recomendaciones siguen saliendo de la misma regla única, acá solo se les da forma.
+//
+// Regla de honestidad (la misma de todo el repo — el espejo no inventa): una sección sin
+// dato real dice que no lo hay. NUNCA se rellena con estimaciones ni proyecciones.
+// Hablable: el contrato lo lee la voz por la tool `brief` ⇒ markdown liviano (##, guiones),
+// sin tablas ni anidado. Si alguna vez suma una versión larga (informe mensual), que reuse
+// este renderer con `opts.completo` en vez de clonar el formato.
+
+/** Orden contractual. La posición es el contrato: no reordenar sin cambiar la versión. */
+var CONTRATO_ORDEN = ['bluf', 'apertura', 'metricas', 'autoresuelto', 'espera',
+                      'recomendaciones', 'cierre_accion', 'insumos', 'instrumentacion', 'cierre'];
+
+/** Títulos visibles de cada sección (el BLUF va suelto en negrita, sin encabezado). */
+var CONTRATO_TITULOS = {
+  apertura: 'Hoy',
+  metricas: 'Métricas core vs North Star',
+  autoresuelto: 'Se auto-resolvió',
+  espera: 'Espera tu decisión',
+  recomendaciones: 'Recomendación priorizada',
+  cierre_accion: 'Cierre acción→métrica',
+  insumos: 'Insumos requeridos',
+  instrumentacion: 'Señal de instrumentación',
+  cierre: 'Cierre'
+};
+
+/**
+ * Renderiza el contrato. `s` = {titulo, bluf, <seccion>: [líneas]}. Una sección sin líneas
+ * NO se omite: emite su fallback honesto — el contrato es fijo, y un hueco silencioso haría
+ * creer que la sección no aplica cuando lo que pasa es que no hay dato.
+ */
+function contratoStatusReport_(s) {
+  var L = [];
+  L.push('# ' + s.titulo);
+  L.push('');
+  L.push('**' + s.bluf + '**');   // 1 · BLUF (anclado por T2)
+  L.push('');
+  CONTRATO_ORDEN.forEach(function (k) {
+    if (k === 'bluf') return;
+    var lineas = s[k];
+    if (lineas === null || lineas === undefined) return;   // 'apertura' en la versión cliente
+    L.push('## ' + CONTRATO_TITULOS[k]);
+    if (lineas.length) lineas.forEach(function (x) { L.push(x); });
+    else L.push('- (sin dato)');
+    L.push('');
+  });
+  return L.join('\n');
+}
+
+/**
+ * Tendencia REAL entre los 2 últimos puntos de una serie [{fecha, valor}] del mismo KPI.
+ * Devuelve {palabra, detalle} o null si NO hay 2 puntos numéricos comparables — sin serie no
+ * hay tendencia y se dice, no se estima (el pedido del contrato es "no solo foto", no "adiviná").
+ */
+function _tendencia_(serie) {
+  var pts = (serie || [])
+    .map(function (p) { return { f: String(aFechaISO(p.fecha) || ''), v: Number(p.valor) }; })
+    .filter(function (p) { return /^\d{4}-\d{2}-\d{2}$/.test(p.f) && !isNaN(p.v); })
+    .sort(function (a, b) { return a.f < b.f ? -1 : 1; });
+  if (pts.length < 2) return null;
+  var prev = pts[pts.length - 2], ult = pts[pts.length - 1];
+  var delta = ult.v - prev.v;
+  var palabra = delta > 0 ? 'acelerando' : (delta < 0 ? 'frenando' : 'estable');
+  return { palabra: palabra, detalle: prev.v + ' → ' + ult.v + ' (' + (delta > 0 ? '+' : '') + delta + ') entre ' + prev.f + ' y ' + ult.f };
+}
+
+/**
+ * Contrapeso de riesgo por tipo de recomendación ("hacé X, pero protegé Y"). Tabla fija:
+ * el contrapeso es criterio de producto, no un dato de las hojas — por eso vive acá y no se
+ * infiere. kpi desconocido → contrapeso genérico (nunca vacío: el contrato lo exige).
+ */
+var CONTRAPESO_POR_KPI = {
+  salud: 'no metas cambios nuevos encima hasta que la integridad vuelva a verde',
+  tareas_vencidas: 'cerrá la vieja sin desatender lo que vence hoy',
+  aprobaciones: 'decidí, pero no apures montos que no tienen umbral cargado',
+  bandeja: 'triá rápido sin convertir la bandeja en un segundo backlog',
+  north_star: 'crecé sin comprometer la entrega de los clientes que ya están',
+  kpi_cliente: 'movés el KPI del cliente, pero no a costa del margen'
+};
+function _contrapeso_(kpi) {
+  return CONTRAPESO_POR_KPI[String(kpi || '')] || 'chequeá que no desatiende lo que hoy ya funciona';
+}
+
+/** Sección 6: la rec única de T2 → formato contractual (dato + contrapeso + acción). */
+function _recContractual_(rec) {
+  var out = [];
+  out.push('1. ' + rec.texto);
+  out.push('   - Dato que la ancla: ' + (rec.dato || '(sin ancla numérica)'));
+  out.push('   - Contrapeso: ' + _contrapeso_(rec.kpi));
+  out.push('   - Acción: ' + (rec.id_cliente
+    ? 'creá la aprobación desde el Centro de Mando (botón "→ Crear aprobación" en la rec del día).'
+    : 'resolvela hoy desde el Centro de Mando; no mapea a un cliente, así que no genera aprobación.'));
+  return out;
+}
+
+/**
+ * Sección 7: lo recomendado ANTES vuelve con efecto medido. Lee el lazo F1-F5 ya existente
+ * (hoja Recomendaciones: se_hizo + kpi_movio). Solo cerradas: una rec abierta todavía no tiene efecto.
+ */
+function _cierreAccionMetrica_(idCliente) {
+  var sh = getMaestro().getSheetByName('Recomendaciones');
+  if (!sh) return [];
+  var cerradas = leerTabla(sh).filter(function (r) {
+    if (String(r.estado) !== 'cerrada' || String(r.se_hizo) === '') return false;
+    return idCliente ? String(r.id_cliente) === String(idCliente) : true;
+  });
+  return cerradas.slice(-3).map(function (r) {
+    var hizo = String(r.se_hizo).toLowerCase() === 'si';
+    var movio = String(r.kpi_movio || '').toLowerCase();
+    return '- ' + truncar_(r.texto, 90) + ' → ' + (hizo ? 'se hizo' : 'NO se hizo') +
+      ' · el KPI ' + (r.kpi_objetivo || '—') + ' ' +
+      (movio === 'si' ? 'se movió' : (movio === 'no' ? 'NO se movió' : 'sin medición'));
+  });
+}
+
 /** Brief de SISTEMA (Satori): la movida más urgente + 3 cosas + números + feed. */
 function briefDiarioSistema_() {
   var d = datosHoy();
@@ -224,53 +342,98 @@ function briefDiarioSistema_() {
   else if (av) bluf = av + ' aviso(s) activo(s) para revisar.';
   else bluf = 'Sin urgencias — día para avanzar lo importante, no lo ruidoso.';
 
-  var L = [];
-  L.push('# Brief — Satori — ' + hoyISO());
-  L.push('');
-  L.push('**' + bluf + '**');
-  L.push('');
-  var ns = northStarSatori_();
-  if (ns) {
-    L.push('## North Star');
-    L.push('- ' + ns.desc + (ns.meta != null ? ' · ' + ns.actual + '/' + ns.meta : '') + (ns.horizonte ? ' · ' + ns.horizonte : ''));
-    L.push('');
-  }
-  // P2 F2 (07-jul) — contrato de status report fijo (Luke R3): métrica (arriba) →
-  // qué espera decisión → plan → números → auto-resuelto → recomendación única.
-  L.push('## Espera tu decisión');
+  // F2 (16-jul): el brief pasa a ser el CONTRATO v1 (10 secciones fijas). Todas las lecturas de
+  // acá son del MAESTRO (baratas) o ya vienen leídas: NO se abre ningún Sheet de cliente. El render
+  // frío de este brief es el que colgaba el doPost de voz (SPEC-GAS 14-jul) — no engordarlo.
   var ban = leerTabla(getMaestro().getSheetByName('Bandeja'));
   var banEsc = ban.filter(function (b) { return String(b.estado) === 'escalado'; }).length;
-  L.push('- ' + ap + ' aprobación(es) · ' + av + ' aviso(s) activo(s) · ' + banEsc + ' escalado(s) de Bandeja');
-  d.avisos.slice(0, 3).forEach(function (a) {
-    L.push('- [' + (a.tipo || 'aviso') + '] ' + truncar_(a.mensaje || '', 110));
-  });
-  L.push('');
-  L.push('## Las 3 cosas de hoy');
+  var ns = northStarSatori_();
+  var feed = feedReciente_(8);
+  var rec = recomendacionDelDia_({ d: d, sal: sal, abiertas: abiertas, vencidas: vencidas });
+
+  // 2 · Apertura humana: la agenda del día ANTES de los KPIs (la persona antes que el tablero).
+  var hoy = hoyISO();
+  var agHoy = agendaSemana().filter(function (e) { return e.fecha === hoy; });
+  var apertura = [];
+  apertura.push(agHoy.length
+    ? '- Agenda: ' + agHoy.map(function (e) { return (e.hora ? e.hora + ' ' : '') + truncar_(e.titulo, 40); }).join(' · ')
+    : '- Agenda: sin eventos hoy — el día está libre para lo importante.');
   var tres = abiertas.slice(0, 3);
   if (tres.length) tres.forEach(function (t, i) {
     var cli = clienteDeProyecto(t.id_proyecto);
-    L.push((i + 1) + '. [' + (t.prioridad || '—') + '] ' + t.descripcion +
+    apertura.push('- ' + (i + 1) + '. [' + (t.prioridad || '—') + '] ' + t.descripcion +
       (esVencida(t.fecha_limite, t.estado) ? ' · VENCIDA ' + aFechaISO(t.fecha_limite) : (t.fecha_limite ? ' · ' + aFechaISO(t.fecha_limite) : '')) +
       (cli ? ' · ' + cli : ''));
   });
-  else L.push('1. (sin tareas abiertas — definí 1 movida hacia tu objetivo)');
-  L.push('');
-  L.push('## Números');
-  L.push('- Cartera: ' + d.estado.clientes + ' clientes · ' + abiertas.length + ' tareas abiertas (' + vencidas.length + ' vencidas) · ' + ap + ' aprobaciones · ' + av + ' avisos');
-  L.push('- Salud: ' + String(sal.global).toUpperCase() + ' (' + sal.integridad + '%)');
-  L.push('');
-  L.push('## Se auto-resolvió (agentes, últimas corridas)');
-  var feed = feedReciente_(5);
-  if (feed.length) feed.forEach(function (f) { L.push('- ' + f.ts + ' · ' + f.agente + ': ' + truncar_(f.texto, 120)); });
-  else L.push('- (sin actividad reciente)');
-  L.push('');
-  L.push('## Qué primero (recomendación)');
-  var rec = recomendacionDelDia_({ d: d, sal: sal, abiertas: abiertas, vencidas: vencidas });
-  L.push('- ' + rec.texto);
-  L.push('- ¿Sirvió este brief? Marcalo con 1 clic en el Centro de Mando (alimenta el lazo de resultados).');
-  L.push('');
-  L.push('— generado por briefDiario()');
-  return L.join('\n');
+  else apertura.push('- (sin tareas abiertas — definí 1 movida hacia tu objetivo)');
+
+  // 3 · Métricas core vs North Star, CON tendencia. El NS de sistema (clientes pagos) no tiene
+  // serie histórica en ninguna hoja ⇒ se dice que no la hay. Inventar la tendencia sería el
+  // primer número falso del reporte; el contrato pide honestidad, no relleno.
+  var metricas = [];
+  if (ns) {
+    metricas.push('- North Star: ' + ns.desc + (ns.meta != null ? ' · ' + ns.actual + '/' + ns.meta : '') + (ns.horizonte ? ' · horizonte ' + ns.horizonte : ''));
+    metricas.push('- Tendencia: sin serie histórica del North Star (no se registra por período) — es foto, no película.');
+  } else metricas.push('- North Star de Satori sin definir (Config ns_satori_desc) — sin norte no hay tendencia que medir.');
+  metricas.push('- Cartera: ' + d.estado.clientes + ' clientes · ' + abiertas.length + ' tareas abiertas (' + vencidas.length + ' vencidas) · ' + ap + ' aprobaciones · ' + av + ' avisos');
+  metricas.push('- Salud: ' + String(sal.global).toUpperCase() + ' (integridad ' + sal.integridad + '%)');
+
+  // 4 · Qué se auto-resolvió + qué aprendí y ya ajusté (dentro de mandato, sin pedir permiso).
+  var autoresuelto = [];
+  if (feed.length) feed.slice(0, 5).forEach(function (f) { autoresuelto.push('- ' + f.ts + ' · ' + f.agente + ': ' + truncar_(f.texto, 120)); });
+  else autoresuelto.push('- (sin actividad de agentes reciente)');
+  var autoAprob = feed.filter(function (f) { return String(f.tipo) === 'auto_aprobacion'; });
+  autoresuelto.push(autoAprob.length
+    ? '- Aprendí y ya ajusté: ' + autoAprob.length + ' acción(es) auto-aprobadas por dirección vigente, sin molestarte.'
+    : '- Aprendí y ya ajusté: nada esta vez — ningún micro-ajuste entró dentro de mandato.');
+
+  // 5 · Qué espera TU decisión.
+  var espera = [];
+  espera.push('- ' + ap + ' aprobación(es) · ' + av + ' aviso(s) activo(s) · ' + banEsc + ' escalado(s) de Bandeja');
+  d.avisos.slice(0, 3).forEach(function (a) { espera.push('- [' + (a.tipo || 'aviso') + '] ' + truncar_(a.mensaje || '', 110)); });
+
+  // 8 · Insumos requeridos: SOLO huecos reales y baratos de detectar (nada de abrir Sheets cliente).
+  var insumos = [];
+  if (!ns) insumos.push('- Definí el North Star de Satori (cargarNorthStarSatori en el editor) — sin eso el reporte no puede medir avance.');
+  // OJO: datosHoy() NO expone la cartera (solo estado/avisos/proximos/aprobaciones) → lectura propia
+  // del MAESTRO. Con d.clientes esta rama quedaba muerta en silencio (undefined → nunca dispara).
+  var sinSheet = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
+    return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0 && !String(c.url_sheet_cliente || '').trim();
+  });
+  if (sinSheet.length) insumos.push('- ' + sinSheet.length + ' cliente(s) sin Sheet vinculado — no puedo leer sus datos.');
+  if (banEsc) insumos.push('- ' + banEsc + ' captura(s) de Bandeja escaladas: no las entendí con confianza suficiente, decidime el destino.');
+  if (!insumos.length) insumos.push('- Nada bloqueado: tengo todo lo que necesito para seguir.');
+
+  // 9 · Señal de instrumentación: qué NO estamos midiendo y debería. Cheap: Cerebro_index + consolidado.
+  var instrumentacion = [];
+  var cIdx = leerTabla(getMaestro().getSheetByName('Cerebro_index'));
+  var mes = mesISO();
+  var consol = leerTabla(getMaestro().getSheetByName('Costos_API_consolidado')).filter(function (f) { return String(f.mes) === mes; });
+  instrumentacion.push('- Conectores: solo Vehemence (CLI-002) tiene fuente viva de ventas; el resto de la cartera entra a mano — caja, cobranza y reseñas siguen a ciegas.');
+  if (!cIdx.length) instrumentacion.push('- Ningún cliente tiene cerebro materializado (Cerebro_index vacío) — sin memoria, cada corrida arranca de cero.');
+  if (!consol.length) instrumentacion.push('- Costos_API_consolidado sin filas de ' + mes + ' — el gasto por cliente/módulo del mes no está medido.');
+
+  // 10 · Cierre: la pregunta + el feedback 1-clic (P2.1). El widget YA existe en el CM
+  // (registrarFeedback('brief', …)): el reporte lo invoca, no lo duplica.
+  var cierre = [];
+  cierre.push('- ¿Qué manejo primero?');
+  cierre.push('- ¿Sirvió este brief? 👍/👎 con 1 clic en el Centro de Mando (alimenta el lazo de resultados).');
+  cierre.push('');
+  cierre.push('— generado por briefDiario() · contrato v1');
+
+  return contratoStatusReport_({
+    titulo: 'Brief — Satori — ' + hoyISO(),
+    bluf: bluf,
+    apertura: apertura,
+    metricas: metricas,
+    autoresuelto: autoresuelto,
+    espera: espera,
+    recomendaciones: _recContractual_(rec),
+    cierre_accion: _cierreAccionMetrica_(),
+    insumos: insumos,
+    instrumentacion: instrumentacion,
+    cierre: cierre
+  });
 }
 
 /** Brief por CLIENTE: foco en el North Star + 3 cosas + números del cliente. */
@@ -301,40 +464,101 @@ function briefDiarioCliente_(id) {
   else if (ns) bluf = 'Foco: ' + (ns.descripcion || 'objetivo') + (ns.metrica ? ' (' + ns.metrica + '→' + ns.valor_objetivo + ')' : '') + '.';
   else bluf = c.nombre + ' sin North Star definido — definí 1 objetivo.';
 
-  var L = [];
-  L.push('# Brief — ' + c.nombre + ' (' + id + ') — ' + hoyISO());
-  L.push('');
-  L.push('**' + bluf + '**');
-  L.push('');
-  if (ns) {
-    L.push('## North Star');
-    L.push('- [' + (ns.horizonte || '—') + '] ' + (ns.descripcion || '—') + (ns.metrica ? ' · meta ' + ns.metrica + '=' + ns.valor_objetivo : ''));
-    L.push('');
-  }
-  L.push('## Las 3 cosas de hoy');
+  // F2 (16-jul): el brief de cliente pasa al CONTRATO v1, mismas 10 secciones y mismo orden.
+  var hoy = hoyISO();
+
+  // 2 · Apertura humana: agenda de HOY de este cliente + las 3 cosas.
+  var agHoy = agendaSemana().filter(function (e) { return e.fecha === hoy && String(e.id_cliente) === String(id); });
+  var apertura = [];
+  apertura.push(agHoy.length
+    ? '- Agenda: ' + agHoy.map(function (e) { return (e.hora ? e.hora + ' ' : '') + truncar_(e.titulo, 40); }).join(' · ')
+    : '- Agenda: sin eventos de ' + c.nombre + ' hoy.');
   var tres = abiertas.slice(0, 3);
   if (tres.length) tres.forEach(function (t, i) {
-    L.push((i + 1) + '. [' + (t.prioridad || '—') + '] ' + t.descripcion +
+    apertura.push('- ' + (i + 1) + '. [' + (t.prioridad || '—') + '] ' + t.descripcion +
       (t.vencida ? ' · VENCIDA ' + t.fecha_limite : (t.fecha_limite ? ' · ' + t.fecha_limite : '')));
   });
-  else L.push('1. (sin tareas abiertas para ' + c.nombre + ')');
-  L.push('');
-  L.push('## Números');
-  L.push('- Proyectos: ' + dc.proyectos.length + ' · Tareas abiertas: ' + abiertas.length + ' (' + vencidas.length + ' vencidas) · Aprobaciones: ' + aprob.length);
-  L.push('');
-  // A2 (08-jul): señal de KPIs — cada juicio cita el dato del cliente (últimas 3 alertas).
-  if (kpisAlerta.length) {
-    L.push('## Señal de KPIs');
-    kpisAlerta.slice(-3).forEach(function (k) {
-      L.push('- ' + (k.kpi || '—') + ' = ' + k.valor +
-        ((k.objetivo !== '' && k.objetivo != null) ? ' (objetivo ' + k.objetivo + ')' : '') +
-        ' ⚠ ' + truncar_(String(k.alerta), 90) +
-        (k.fecha ? ' · ' + aFechaISO(k.fecha) : ''));
-    });
-    L.push('');
-  }
-  L.push('— generado por briefDiario(\'' + id + '\')');
-  return L.join('\n');
+  else apertura.push('- (sin tareas abiertas para ' + c.nombre + ')');
+
+  // 3 · Métricas core vs North Star CON tendencia real: el cliente SÍ tiene serie (hoja KPIs con
+  // fecha+valor por kpi) ⇒ _tendencia_ compara los 2 últimos puntos del mismo KPI. Sin 2 puntos, lo dice.
+  var metricas = [];
+  if (ns) metricas.push('- North Star: [' + (ns.horizonte || '—') + '] ' + (ns.descripcion || '—') + (ns.metrica ? ' · meta ' + ns.metrica + '=' + ns.valor_objetivo : ''));
+  else metricas.push('- ' + c.nombre + ' sin North Star definido (hoja objetivos) — sin norte no hay tendencia que medir.');
+  var porKpi = {};
+  kpisCli.forEach(function (k) { var n = String(k.kpi || ''); if (!n) return; (porKpi[n] || (porKpi[n] = [])).push(k); });
+  var nombresKpi = Object.keys(porKpi).slice(0, 4);
+  if (nombresKpi.length) nombresKpi.forEach(function (n) {
+    var serie = porKpi[n];
+    var ult = serie[serie.length - 1];
+    var t = _tendencia_(serie);
+    metricas.push('- ' + n + ' = ' + ult.valor + ((ult.objetivo !== '' && ult.objetivo != null) ? ' (objetivo ' + ult.objetivo + ')' : '') +
+      ' · ' + (t ? t.palabra + ': ' + t.detalle : 'sin serie previa — es foto, no película'));
+  });
+  else metricas.push('- Sin KPIs cargados para ' + c.nombre + '.');
+  metricas.push('- Proyectos: ' + dc.proyectos.length + ' · Tareas abiertas: ' + abiertas.length + ' (' + vencidas.length + ' vencidas) · Aprobaciones: ' + aprob.length);
+
+  // 4 · Se auto-resolvió + qué aprendí y ya ajusté (feed de este cliente).
+  var feedCli = feedReciente_(30).filter(function (f) { return String(f.id_cliente) === String(id); }).slice(0, 5);
+  var autoresuelto = [];
+  if (feedCli.length) feedCli.forEach(function (f) { autoresuelto.push('- ' + f.ts + ' · ' + f.agente + ': ' + truncar_(f.texto, 120)); });
+  else autoresuelto.push('- (sin actividad de agentes para ' + c.nombre + ')');
+  var autoAprobCli = feedCli.filter(function (f) { return String(f.tipo) === 'auto_aprobacion'; });
+  autoresuelto.push(autoAprobCli.length
+    ? '- Aprendí y ya ajusté: ' + autoAprobCli.length + ' acción(es) auto-aprobadas por dirección vigente de ' + c.nombre + '.'
+    : '- Aprendí y ya ajusté: nada esta vez — ningún micro-ajuste entró dentro de mandato.');
+
+  // 5 · Espera tu decisión.
+  var espera = [];
+  espera.push('- ' + aprob.length + ' aprobación(es) pendiente(s) de ' + c.nombre);
+  aprob.slice(0, 3).forEach(function (a) { espera.push('- [' + (a.patron || '—') + '] ' + truncar_(a.descripcion || a.tipo_accion || '', 100)); });
+
+  // 6 · Recomendación priorizada: MISMA regla única (T2), anclada a este cliente vía kpiAlerta.
+  var k0 = kpisAlerta.length ? kpisAlerta[kpisAlerta.length - 1] : null;
+  var recCli = k0
+    ? { texto: 'Atender ' + (k0.kpi || 'el KPI en alerta') + ' de ' + c.nombre + ' — ' + truncar_(String(k0.alerta), 80),
+        kpi: 'kpi_cliente', id_cliente: id, dato: (k0.kpi || 'kpi') + '=' + k0.valor + ((k0.objetivo !== '' && k0.objetivo != null) ? ' vs objetivo ' + k0.objetivo : '') }
+    : (vencidas.length
+        ? { texto: 'Cerrar las ' + vencidas.length + ' tarea(s) vencida(s) de ' + c.nombre + '.', kpi: 'tareas_vencidas', id_cliente: id, dato: vencidas.length + ' vencida(s)' }
+        : { texto: 'Sin urgencias en ' + c.nombre + ' — avanzá el North Star.', kpi: 'north_star', id_cliente: id, dato: ns ? String(ns.descripcion || ns.metrica || '') : 'sin North Star' });
+
+  // 7 · Cierre acción→métrica: solo el lazo de ESTE cliente.
+  var cierreAccion = _cierreAccionMetrica_(id);
+
+  // 8 · Insumos requeridos.
+  var insumos = [];
+  if (!ns) insumos.push('- Definí el North Star de ' + c.nombre + ' (hoja objetivos) — sin eso no puedo medir avance.');
+  if (!kpisCli.length) insumos.push('- Cargá al menos 1 KPI de ' + c.nombre + ' — hoy no hay nada que medir.');
+  if (!insumos.length) insumos.push('- Nada bloqueado: tengo todo lo que necesito para seguir.');
+
+  // 9 · Señal de instrumentación: qué NO estamos midiendo de este cliente.
+  var instrumentacion = [];
+  var conKpiSinObjetivo = kpisCli.filter(function (k) { return String(k.objetivo || '') === ''; }).length;
+  if (conKpiSinObjetivo) instrumentacion.push('- ' + conKpiSinObjetivo + ' KPI(s) sin objetivo cargado: se miden pero nadie sabe contra qué.');
+  instrumentacion.push(String(id) === 'CLI-002'
+    ? '- Ventas vienen de la fuente viva (conector), pero caja, cobranza y reseñas siguen a ciegas.'
+    : '- ' + c.nombre + ' no tiene conector: todos sus datos entran a mano — lo que no se carga, no existe para el sistema.');
+
+  // 10 · Cierre.
+  var cierre = [];
+  cierre.push('- ¿Qué manejo primero?');
+  cierre.push('- ¿Sirvió este brief? 👍/👎 con 1 clic en el Centro de Mando (alimenta el lazo de resultados).');
+  cierre.push('');
+  cierre.push('— generado por briefDiario(\'' + id + '\') · contrato v1');
+
+  return contratoStatusReport_({
+    titulo: 'Brief — ' + c.nombre + ' (' + id + ') — ' + hoyISO(),
+    bluf: bluf,
+    apertura: apertura,
+    metricas: metricas,
+    autoresuelto: autoresuelto,
+    espera: espera,
+    recomendaciones: _recContractual_(recCli),
+    cierre_accion: cierreAccion,
+    insumos: insumos,
+    instrumentacion: instrumentacion,
+    cierre: cierre
+  });
 }
 
 // ── MUST #3 — North Star de Satori (nivel sistema, en Config) ─────────────────

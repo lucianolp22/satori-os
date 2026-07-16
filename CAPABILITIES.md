@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-16 11:35 · commit: 5e4a097
+> Generado: 2026-07-16 12:50 · commit: ae43a37
 
 ## Módulos
 
@@ -18,14 +18,14 @@
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 47 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 4 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
-| `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 11 |
+| `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 13 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 12 |
 | `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 7 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 27 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 32 |
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
@@ -73,7 +73,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Pestañas
 
-**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Recomendaciones, Agenda, Config
+**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Cola_archivo, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Recomendaciones, Agenda, Direcciones, Config
 
 **Cliente:** Datos_operativos, KPIs, Aprobaciones, Excepciones, Umbrales, Costos_API, Reglas, nodos, aristas, cerebro_log, estado_actual, objetivos
 
@@ -131,7 +131,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **10_bootstrap.js:** bootstrap 
 
-**11_aprobaciones.js:** clasificarAccion umbralPara crearAprobacion resolverAprobacion ejecutarAprobada ejecutarEmail_ ejecutarActivarRegla_ crearReglaDesdeExcepcion expirarPendientes parsearPayload_ autorActual_ 
+**11_aprobaciones.js:** clasificarAccion direccionVigente_ _dirActiva_ umbralPara crearAprobacion resolverAprobacion ejecutarAprobada ejecutarEmail_ ejecutarActivarRegla_ crearReglaDesdeExcepcion expirarPendientes parsearPayload_ autorActual_ 
 
 **12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ aFechaHora_ 
 
@@ -145,7 +145,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **17_bandeja.js:** capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ _diasDesde_ recomendacionDelDia_ clienteKpiEnAlerta_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ contratoStatusReport_ _tendencia_ _contrapeso_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ _diasDesde_ recomendacionDelDia_ clienteKpiEnAlerta_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
 
 **19_conectores.js:** sincronizarVehemence sincronizarConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ 
 

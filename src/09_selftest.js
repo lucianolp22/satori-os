@@ -433,6 +433,63 @@ function selfTest() {
       });
     }
 
+    // ── D14 (16-jul) F2: contrato de status report v1 + direcciones pre-aprobadas ──
+    // (a) el contrato renderiza las 10 secciones en orden con datos inyectados (renderer PURO).
+    var d14ctx = { titulo: 'T', bluf: 'B' };
+    CONTRATO_ORDEN.forEach(function (k) { if (k !== 'bluf') d14ctx[k] = ['- x']; });
+    var d14md = contratoStatusReport_(d14ctx);
+    // OJO: buscar por línea EXACTA ('\n## X\n'), no por substring: '## Cierre' matchearía primero
+    // '## Cierre acción→métrica' (sección 7) y el chequeo de orden daría un falso fallo.
+    var d14pos = CONTRATO_ORDEN.filter(function (k) { return k !== 'bluf'; })
+      .map(function (k) { return d14md.indexOf('\n## ' + CONTRATO_TITULOS[k] + '\n'); });
+    chk(d14pos.every(function (p) { return p > 0; }), 'D14a contrato renderiza las 9 secciones con encabezado + BLUF (10 del contrato)');
+    chk(d14pos.every(function (p, i) { return i === 0 || p > d14pos[i - 1]; }), 'D14b el ORDEN contractual se respeta (posiciones crecientes)');
+    // (c) una sección sin dato NO se omite: emite el fallback honesto (el hueco silencioso miente).
+    var d14vacio = contratoStatusReport_({ titulo: 'T', bluf: 'B', metricas: [] });
+    chk(d14vacio.indexOf('\n## ' + CONTRATO_TITULOS.metricas + '\n') > 0 && d14vacio.indexOf('(sin dato)') > 0, 'D14c sección vacía → encabezado + "(sin dato)", no se omite');
+    // (d) tendencia REAL con serie; sin 2 puntos comparables → null (no se estima).
+    var d14t = _tendencia_([{ fecha: '2026-07-01', valor: 10 }, { fecha: '2026-07-15', valor: 25 }]);
+    chk(d14t && d14t.palabra === 'acelerando' && d14t.detalle.indexOf('+15') >= 0, 'D14d tendencia acelerando con delta real (+15)');
+    chk(_tendencia_([{ fecha: '2026-07-01', valor: 10 }]) === null, 'D14e sin 2 puntos NO hay tendencia (null, no estimación)');
+    chk(_tendencia_([{ fecha: '2026-07-01', valor: 30 }, { fecha: '2026-07-15', valor: 12 }]).palabra === 'frenando', 'D14f tendencia frenando con delta negativo');
+    // (g) toda rec contractual trae dato + contrapeso + acción (el contrapeso nunca es vacío).
+    var d14r = _recContractual_({ texto: 'x', kpi: 'kpi_desconocido_xyz', id_cliente: '', dato: 'd=1' });
+    chk(d14r.length === 4 && d14r[1].indexOf('d=1') > 0 && d14r[2].indexOf('Contrapeso:') > 0 && d14r[2].length > 18 && d14r[3].indexOf('Acción:') > 0, 'D14g rec contractual = dato + contrapeso (fallback no vacío) + acción');
+
+    // ── D14 direcciones: la superficie de AUTO-aprobación. Default-deny debe sobrevivir intacto. ──
+    var shDir = getMaestro().getSheetByName('Direcciones');
+    chk(!!shDir, 'D14h setup() reconcilió la hoja Direcciones');
+    var d14cli = crearCliente({ nombre: '__TEST__ dir ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+    var manana = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
+    var ayer = Utilities.formatDate(new Date(Date.now() - 86400000), TZ, 'yyyy-MM-dd');
+    // (i) SIN dirección → pendiente (default-deny intacto: es el assert que más importa).
+    var apSin = crearAprobacion(d14cli.id_cliente, '__TEST__mod', '__TEST__accion', { x: 1 });
+    chk(apSin.auto === false, 'D14i sin dirección vigente → NO auto-aprueba (default-deny intacto)');
+    // (j) dirección VIGENTE + match exacto → auto-aprueba, cita la dirección y deja rastro en el feed.
+    appendFila(shDir, { id: 'DIR-TEST-1', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manana, activa: 'si', notas: '__TEST__' });
+    var apCon = crearAprobacion(d14cli.id_cliente, '__TEST__mod', '__TEST__accion', { x: 2 });
+    var filaCon = leerTabla(abrirCliente(d14cli.id_cliente).ss.getSheetByName('Aprobaciones')).filter(function (a) { return String(a.id) === String(apCon.id); })[0];
+    chk(apCon.auto === true && apCon.direccion === 'DIR-TEST-1', 'D14j dirección vigente → auto-aprueba citando DIR-TEST-1');
+    chk(filaCon && String(filaCon.estado) === 'aprobada' && String(filaCon.decidido_por) === 'direccion:DIR-TEST-1' && String(filaCon.notas).indexOf('DIR-TEST-1') >= 0, 'D14k la fila nace aprobada + LOGUEA la dirección (trazable)');
+    var feedDir = leerTabla(getMaestro().getSheetByName('Actividad')).filter(function (f) { return String(f.tipo) === 'auto_aprobacion' && String(f.aprobacion_id) === String(apCon.id); });
+    chk(feedDir.length === 1, 'D14l la auto-aprobación deja rastro en Actividad (nunca silenciosa)');
+    // (m) VENCIDA → no matchea. (n) activa=false → no matchea. (o) otro tenant → no matchea (sin wildcard).
+    borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-1'; });
+    appendFila(shDir, { id: 'DIR-TEST-2', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: ayer, vigencia: ayer, activa: 'si', notas: '__TEST__' });
+    chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14m dirección VENCIDA no matchea');
+    borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-2'; });
+    appendFila(shDir, { id: 'DIR-TEST-3', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manana, activa: 'no', notas: '__TEST__' });
+    chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14n dirección activa=false no matchea (revocable)');
+    borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-3'; });
+    appendFila(shDir, { id: 'DIR-TEST-4', tipo_accion: '__TEST__accion', alcance: '*', aprobada_fecha: hoyISO(), vigencia: manana, activa: 'si', notas: '__TEST__' });
+    chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14o alcance wildcard "*" NO matchea (sin wildcard de tenant)');
+    chk(direccionVigente_(d14cli.id_cliente, '__TEST__otra') === null, 'D14p tipo_accion distinto no matchea (match exacto)');
+    borrarFilasDonde(shDir, function (f) { return String(f.id).indexOf('DIR-TEST') === 0; });
+    // (q) feedback del contrato escribe en Feedback (P2.1, patrón reusado — no duplicado).
+    var d14fb = registrarFeedback('brief', '__TEST__f2', 'si', 'assert D14');
+    var d14fbRow = leerTabla(getMaestro().getSheetByName('Feedback')).filter(function (f) { return String(f.id) === String(d14fb); })[0];
+    chk(!!d14fbRow && String(d14fbRow.origen_tipo) === 'brief' && String(d14fbRow.util) === 'si', 'D14q feedback del brief escribe en la hoja Feedback');
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de
@@ -566,7 +623,20 @@ function limpiarTodoTest() {
   if (shBan) borrarFilasDonde(shBan, function (f) { return String(f.fuente) === '__TEST__' || String(f.texto).indexOf('__TEST__') === 0; });
   // P2 F1/F4 + Agenda (07-jul): filas de prueba de las hojas nuevas (asserts D5/D6/D7).
   var shFbk = ss.getSheetByName('Feedback');
-  if (shFbk) borrarFilasDonde(shFbk, function (f) { return String(f.origen_id) === '__TEST__'; });
+  // D14 (16-jul): el assert del contrato usa origen_id '__TEST__f2' → barrer por prefijo, no por igualdad.
+  if (shFbk) borrarFilasDonde(shFbk, function (f) { return String(f.origen_id).indexOf('__TEST__') === 0; });
+  // F2 (16-jul): direcciones de prueba (DIR-TEST-*). Es una superficie de auto-aprobación:
+  // una fila de test olvidada acá auto-aprobaría de verdad → barrer siempre.
+  var shDirL = ss.getSheetByName('Direcciones');
+  if (shDirL) borrarFilasDonde(shDirL, function (f) { return String(f.id).indexOf('DIR-TEST') === 0; });
+  // F2 (16-jul): archivo de cola — mismo criterio que Cola_tareas (noop / worker de test).
+  var shColaArch = ss.getSheetByName('Cola_archivo');
+  if (shColaArch) borrarFilasDonde(shColaArch, function (f) {
+    if (String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__') return true;
+    var p = String(f.payload || '');
+    for (var idA in idsTest) { if (idsTest[idA] && p.indexOf('"id_cliente":"' + idA + '"') >= 0) return true; }
+    return false;
+  });
   var shRecL = ss.getSheetByName('Recomendaciones');
   if (shRecL) borrarFilasDonde(shRecL, function (f) { return String(f.id).indexOf('REC-TEST') === 0 || String(f.texto).indexOf('__TEST__') === 0; });
   var shAge = ss.getSheetByName('Agenda');

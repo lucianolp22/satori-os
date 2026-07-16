@@ -41,11 +41,19 @@ var MAESTRO_SHEETS = {
   Recomendaciones: ['id', 'fecha', 'texto', 'kpi_objetivo', 'se_hizo', 'kpi_movio', 'estado', 'cerrada_en', 'id_cliente'],
   // Norte v9 §3.5 (07-jul, decisión Luciano: opción A) — agenda semanal SIN scope de Calendar.
   Agenda: ['id', 'fecha', 'hora', 'titulo', 'id_cliente', 'notas', 'estado'],
+  // F2 (16-jul) — dieta de Cola_tareas, opción A: mismo schema que Cola_tareas. Las filas
+  // TERMINALES (completada/fallida) y viejas se mudan acá para que estadoAgentes/telemetría
+  // sigan leyendo una Cola_tareas chica. Es archivo histórico: NADIE lo lee en el poll del CM.
+  Cola_archivo: ['id', 'worker', 'tipo', 'payload', 'estado', 'resultado', 'error', 'tomada_por', 'creada_en', 'tomada_en', 'completada_en'],
+  // F2 P2.8 (16-jul) — direcciones pre-aprobadas: superficie de AUTO-aprobación, default-deny
+  // intacto para todo lo demás. Matcheo EXACTO (tipo_accion + alcance) y vigencia OBLIGATORIA;
+  // sin wildcard de tenant. Una dirección vencida o activa=false NO matchea (ver direccionVigente_).
+  Direcciones: ['id', 'tipo_accion', 'alcance', 'aprobada_fecha', 'vigencia', 'activa', 'notas'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {

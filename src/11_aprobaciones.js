@@ -33,6 +33,45 @@ function clasificarAccion(idCliente, tipoAccion, monto) {
   return { patron: 'P1', motivo: 'tipo no registrado (default deny)' };
 }
 
+/**
+ * F2 P2.8 (16-jul) — Direcciones pre-aprobadas. Devuelve la fila de `Direcciones` que
+ * habilita auto-aprobar (idCliente, tipoAccion), o null. TODO lo demás sigue default-deny.
+ *
+ * Bastión (restricciones DURAS del encargo, cada una es un rechazo, no un warning):
+ *  - matcheo EXACTO de tipo_accion Y de alcance (el tenant). SIN wildcard: un alcance ''
+ *    o '*' NO matchea nunca (si lo hiciera, una fila suelta auto-aprobaría toda la cartera).
+ *  - vigencia OBLIGATORIA: sin fecha de vigencia → no matchea. Vencida (< hoy) → no matchea.
+ *  - activa=false → no matchea (revocable sin borrar historia).
+ * Fail-closed entero: si la hoja no existe o algo tira, devuelve null (= aprobación humana).
+ */
+function direccionVigente_(idCliente, tipoAccion) {
+  try {
+    var sh = getMaestro().getSheetByName('Direcciones');
+    if (!sh) return null;                       // sin hoja → default-deny (no es un error)
+    var hoy = hoyISO();
+    var filas = leerTabla(sh).filter(function (d) {
+      if (String(d.tipo_accion) !== String(tipoAccion)) return false;   // exacto
+      var alcance = String(d.alcance == null ? '' : d.alcance).trim();
+      if (!alcance || alcance === '*') return false;                    // sin wildcard de tenant
+      if (alcance !== String(idCliente)) return false;                  // exacto
+      if (!_dirActiva_(d.activa)) return false;
+      var vig = String(aFechaISO(d.vigencia) || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(vig)) return false;               // vigencia obligatoria
+      return vig >= hoy;                                                // vencida → no matchea
+    });
+    return filas[0] || null;
+  } catch (e) {
+    try { Logger.log('direccionVigente_ fail-closed: ' + e); } catch (_e) {}
+    return null;
+  }
+}
+
+/** `activa` puede venir como boolean de Sheets o como texto ('si'/'sí'/'true'/'1'). Default: NO activa. */
+function _dirActiva_(v) {
+  if (v === true) return true;
+  return ['si', 'sí', 'true', '1', 'x'].indexOf(String(v == null ? '' : v).trim().toLowerCase()) >= 0;
+}
+
 /** Fila de Umbrales del cliente para un tipo de acción, o null. */
 function umbralPara(idCliente, tipoAccion) {
   var sh = abrirCliente(idCliente).ss.getSheetByName('Umbrales');
@@ -59,6 +98,12 @@ function crearAprobacion(idCliente, modulo, tipoAccion, payload, opts) {
   var patron = opts.patron || clasificarAccion(idCliente, tipoAccion, monto).patron;
   var payloadStr = (typeof payload === 'string') ? payload : JSON.stringify(payload || {});
 
+  // F2 P2.8: ¿hay una dirección pre-aprobada vigente para (tenant, tipo_accion)? Si la hay, la fila
+  // nace 'aprobada' con la dirección citada en decidido_por/notas (trazable y revocable: se apaga la
+  // dirección y la próxima vuelve a ser pendiente). Auto-aprobar NO auto-ejecuta: la ejecución sigue
+  // pasando por ejecutarAprobada() como siempre. Sin dirección → 'pendiente' (default-deny intacto).
+  var dir = direccionVigente_(idCliente, tipoAccion);
+
   return conLock(function () { // serializa nextId + append (PURGA #4)
     var id = nextId(shAp, 'id', 'APR', 4);
     appendFila(shAp, {
@@ -72,14 +117,17 @@ function crearAprobacion(idCliente, modulo, tipoAccion, payload, opts) {
       payload: payloadStr,
       monto: monto,
       'confianza_%': (opts.confianza === undefined ? '' : opts.confianza),
-      estado: 'pendiente',
-      decidido_por: '',
-      fecha_decision: '',
+      estado: dir ? 'aprobada' : 'pendiente',
+      decidido_por: dir ? ('direccion:' + dir.id) : '',
+      fecha_decision: dir ? ahoraISO() : '',
       resultado_ejecucion: '',
-      notas: ''
+      notas: dir ? ('auto-aprobada por dirección ' + dir.id + ' (vigente hasta ' + aFechaISO(dir.vigencia) + ')') : ''
     });
     SpreadsheetApp.flush(); // durabilidad: la pendiente queda escrita antes de soltar el lock / completar la tarea
-    return { id: id, patron: patron };
+    if (dir) { // rastro visible en el feed: una auto-aprobación jamás es silenciosa
+      try { feed_('Director', 'auto_aprobacion', idCliente, id + ' auto-aprobada por dirección ' + dir.id + ' · ' + tipoAccion, '', id); } catch (e) {}
+    }
+    return { id: id, patron: patron, auto: !!dir, direccion: dir ? String(dir.id) : '' };
   });
 }
 
