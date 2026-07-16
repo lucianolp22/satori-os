@@ -556,30 +556,70 @@ function selfTest() {
     // Estados terminales: los del encargo ('hecha'/'error'/'cancelada') NO son los de la cola.
     chk(COLA_TERMINALES.join(',') === 'completada,fallida', 'D15i los terminales de la COLA son completada/fallida (no los de Tareas)');
 
-    // Avisos agrupados: 5 estancadas → 1 resumen; 2 → individuales.
+    // ── Avisos agrupados. OJO: selfTest corre sobre PRODUCCIÓN, que ya tiene estancadas REALES.
+    // Todo esperado se COMPUTA de los datos vivos con el MISMO criterio que detectarTareasEstancadas
+    // (activa + no terminal + fecha_creacion < límite). Hardcodear un conteo acá es un assert que
+    // depende del día en que corra: falló así el 16-jul (esperaba "5" y prod tenía 18 reales → 23).
     var _avPre = {}; leerTabla(getMaestro().getSheetByName('Avisos')).forEach(function (f) { _avPre[String(f.id_aviso)] = true; });
-    var _mkTarea = function (n) {
-      return crearTarea({ descripcion: '__TEST__ estancada ' + n, prioridad: 'C', tipo: 'personal' });
-    };
     var shT = getMaestro().getSheetByName('Tareas');
     var hT = shT.getRange(1, 1, 1, shT.getLastColumn()).getValues()[0];
     var cFC = hT.indexOf('fecha_creacion') + 1;
-    var _viejas = [];
+    // El MISMO predicado que la función (si allá cambia, este assert debe cambiar con él).
+    var _diasEst = parseInt(getConfig('dias_estancamiento_tarea') || '7', 10);
+    var _limEst = hace(_diasEst);
+    var _esEstancada = function (t) {
+      var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
+      var activa = ['en_curso', 'pendiente', 'en curso', ''].indexOf(String(t.estado).toLowerCase()) >= 0;
+      var fc = aFechaISO(t.fecha_creacion);
+      return !term && activa && fc && fc < _limEst;
+    };
+    var _viejaISO = Utilities.formatDate(new Date(Date.now() - 60 * 86400000), TZ, 'yyyy-MM-dd');
     for (var iT = 1; iT <= 5; iT++) {
-      var tt = _mkTarea(iT);
-      _viejas.push(tt);
+      var tt = crearTarea({ descripcion: '__TEST__ estancada ' + iT, prioridad: 'C', tipo: 'personal' });
       var fila = leerTabla(shT).filter(function (f) { return String(f.id_tarea) === String(tt.id_tarea); })[0];
-      shT.getRange(fila._fila, cFC).setValue(Utilities.formatDate(new Date(Date.now() - 60 * 86400000), TZ, 'yyyy-MM-dd'));
+      shT.getRange(fila._fila, cFC).setValue(_viejaISO);
     }
     SpreadsheetApp.flush();
+    // Esperado = lo que hay AHORA (reales + las 5 de test), contado igual que la función.
+    var _estVivas = leerTabla(shT).filter(_esEstancada);
+    var _espN = _estVivas.length;
+    var _esp3 = _estVivas.slice().sort(function (a, b) {
+      return String(aFechaISO(a.fecha_creacion)) < String(aFechaISO(b.fecha_creacion)) ? -1 : 1;
+    }).slice(0, 3).map(function (t) { return String(t.id_tarea); });
+    chk(_espN > ESTANCADAS_MAX, 'D15j0 el escenario es el de agrupación (' + _espN + ' > ' + ESTANCADAS_MAX + ')');
+
     var nEst = detectarTareasEstancadas();
-    var avNuevos = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
-      return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
+    // Invariante REAL: exactamente 1 aviso tarea_estancada ACTIVO (no "1 nuevo"): si el conteo no
+    // cambió desde la corrida anterior, crearAviso reusa el aviso existente y no nace ninguno nuevo.
+    var _avAct = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
+      return String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
     });
-    chk(nEst === 1 && avNuevos.length === 1, 'D15j con 5 estancadas → 1 aviso resumen, no 5');
-    chk(avNuevos[0] && String(avNuevos[0].mensaje).indexOf('5 tareas estancadas') === 0, 'D15k el resumen cita el conteo real');
-    chk(avNuevos[0] && (String(avNuevos[0].mensaje).match(/TAR-/g) || []).length === 3, 'D15l el resumen cita las 3 más viejas');
-    borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) { return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada'; });
+    chk(nEst === 1 && _avAct.length === 1, 'D15j con >' + ESTANCADAS_MAX + ' estancadas queda 1 SOLO aviso resumen activo (ni N individuales ni resúmenes viejos apilados)');
+    var _m = String(_avAct[0] && _avAct[0].mensaje);
+    var _cap = _m.match(/^(\d+) tareas estancadas/);
+    chk(!!_cap && Number(_cap[1]) === _espN, 'D15k el resumen abre con el conteo real de estancadas vivas (esperado ' + _espN + ', dijo ' + (_cap ? _cap[1] : '—') + ')');
+    // Las 3 más viejas pueden ser REALES (más antiguas que las de test): se comparan contra las
+    // computadas de los datos vivos, no contra las de test.
+    chk(_esp3.every(function (id) { return _m.indexOf(id) > 0; }) && (_m.match(/TAR-/g) || []).length === 3,
+        'D15l el resumen cita exactamente las 3 más viejas por fecha (' + _esp3.join(', ') + ')');
+    // Que un resumen viejo NO sobreviva: se re-corre con otro conteo y debe seguir habiendo 1 solo.
+    borrarFilasDonde(shT, function (f) { return String(f.descripcion) === '__TEST__ estancada 5'; });
+    SpreadsheetApp.flush();
+    detectarTareasEstancadas();
+    var _avAct2 = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
+      return String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
+    });
+    chk(_avAct2.length === 1 && Number(String(_avAct2[0].mensaje).match(/^(\d+)/)[1]) === _espN - 1,
+        'D15m al cambiar el conteo, el resumen viejo se resuelve y queda 1 solo (no se apilan)');
+    // Los resúmenes que creó ESTE test citan un conteo que incluye las 5 tareas de prueba (que
+    // limpiarTodoTest borra a continuación) → borrarlos por baseline, o el CM mostraría un número
+    // falso. Los avisos REALES que la corrida resolvió quedan 'resuelto': eso NO se revierte, es el
+    // comportamiento diseñado (el encargo pide resolver los individuales viejos por baseline).
+    // Efecto: hasta la próxima corridaDiaria no hay ningún tarea_estancada activo. Es correcto, no
+    // es pérdida de datos: la corrida de las 07:00 lo recrea con el conteo real.
+    borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) {
+      return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada';
+    });
 
     // ── D16 (16-jul) Voz-acciones: la voz ESCRIBE, con gate. La frontera de confianza es lo que se prueba. ──
     var d16cli = crearCliente({ nombre: '__TEST__ accion ' + ahoraISO(), rubro: 'test', estado: 'potencial' });

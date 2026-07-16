@@ -222,17 +222,20 @@ function detectarTareasEstancadas() {
   var viejas = estancadas.slice().sort(function (a, b) {
     return String(aFechaISO(a.fecha_creacion)) < String(aFechaISO(b.fecha_creacion)) ? -1 : 1;
   }).slice(0, 3);
-  crearAviso({
-    id_cliente: '',                                   // es de sistema: cruza clientes
-    tipo: 'tarea_estancada',
-    mensaje: estancadas.length + ' tareas estancadas > ' + dias + 'd (las 3 más viejas: ' +
-             viejas.map(function (t) { return String(t.id_tarea); }).join(', ') + ')'
-  });
-  // Los individuales de corridas anteriores quedan obsoletos: resolverlos por baseline (patrón del
-  // bonus SGIC). Se identifican por el prefijo del mensaje que escribía la versión vieja.
+  var msg = estancadas.length + ' tareas estancadas > ' + dias + 'd (las 3 más viejas: ' +
+            viejas.map(function (t) { return String(t.id_tarea); }).join(', ') + ')';
+  // Baseline ANTES de crear: se resuelve TODO aviso tarea_estancada activo que no sea exactamente este
+  // resumen. Cubre dos cosas: (a) los individuales de la versión vieja ('Tarea estancada > …'), y
+  // (b) — el punto fino — los RESÚMENES de corridas anteriores. El dedupe de crearAviso es por mensaje
+  // EXACTO y el mensaje lleva el conteo: sin esto, cada día que cambia el número nace un resumen nuevo
+  // y el viejo queda activo → se acumula 1 aviso/día, justo el ruido que este cambio venía a matar
+  // (misma trampa que cazó la purga del 08-jul con las recomendaciones: dedupear por texto exacto un
+  // texto que muta). Resolver ANTES de crear, y por !== msg, mantiene el invariante "exactamente 1
+  // resumen activo" sin churn: si el conteo no cambió, crearAviso reusa el mismo aviso y no toca nada.
   resolverAvisosDonde_(function (f) {
-    return String(f.tipo) === 'tarea_estancada' && String(f.mensaje).indexOf('Tarea estancada > ') === 0;
+    return String(f.tipo) === 'tarea_estancada' && String(f.mensaje) !== msg;
   });
+  crearAviso({ id_cliente: '', tipo: 'tarea_estancada', mensaje: msg }); // de sistema: cruza clientes
   return 1;
 }
 
