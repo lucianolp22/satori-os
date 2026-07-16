@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# _ui_pulido3_code.sh — UI 14-jul RONDA 3 (fix del HORRIBLE): revert TOTAL de la esfera (caja completa,
+# _ui_pulido3_code.sh — UI RONDA 3 + ajuste 16-jul (aro FINO + franja apagada): revert TOTAL de la esfera (caja completa,
 # camara z=3.0, fallback 2D .34 => esfera identica a la original), el halo-anillo lejano de la caja
 # queda APAGADO (solo luz interna), y el aro dorado con glow ahora es .oring.a a MITAD del gap original
 # (.43 del orbe) con los avatares centrados sobre el, orbita externa +90px. Pestana nueva de voz intacta.
@@ -15,7 +15,8 @@ echo "== PRE-CONDICIONES =="
 grep -qF 'position:relative; width:var(--orbe); height:var(--orbe);' src/index.html || { echo "ABORT: la caja del orbe no volvio al original"; exit 1; }
 grep -qF 'cam.position.z=3.0' src/index.html || { echo "ABORT: camara no revertida"; exit 1; }
 grep -qF 'R0=w*.34,' src/index.html || { echo "ABORT: fallback 2D no revertido"; exit 1; }
-grep -qF 'box-shadow:inset 0 0 70px -16px' src/index.html || { echo "ABORT: halo de la caja no apagado"; exit 1; }
+grep -qF 'inset de la caja APAGADO' src/index.html || { echo "ABORT: falta la franja apagada"; exit 1; }
+grep -qF 'trazo FINO como /exec' src/index.html || { echo "ABORT: falta el aro fino"; exit 1; }
 grep -qF 'calc(var(--orbe)*.86)' src/index.html || { echo "ABORT: falta aro .86"; exit 1; }
 grep -qF -e '--r:calc(var(--orbe)*.43)' src/index.html || { echo "ABORT: faltan orbitas .43"; exit 1; }
 grep -qF '[data-orb="listen"] .oring.a' src/index.html || { echo "ABORT: falta estado listen del aro"; exit 1; }
@@ -63,7 +64,7 @@ fi
 echo "== EJECUTANDO --go =="
 git add src/index.html HANDOFF.md _ui_pulido3_code.sh
 if git diff --cached --quiet; then echo "nada para commitear"; else
-  git commit -m "UI 14-jul ronda 3: revert esfera exacta (caja/camara/2D) + halo-anillo lejano APAGADO + oring.a = aro dorado glow a mitad de gap (.43) con avatares centrados + orbita externa +90" || { echo "ABORT: commit"; exit 3; }
+  git commit -m "UI ronda 3 + ajuste 16-jul: esfera original exacta + UNA linea FINA (estilo /exec) a .43 del orbe con avatares centrados + franja clara (inset de la caja) APAGADA + orbita externa +90" || { echo "ABORT: commit"; exit 3; }
   echo "commit OK"
 fi
 clasp push -f || { echo "ABORT: clasp push"; exit 4; }
