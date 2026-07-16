@@ -10,7 +10,13 @@
  * reparto de modelos (modelo barato para el triaje de alta frecuencia). NO el stack (Obsidian/cron).
  */
 
-var BANDEJA_BINS = ['proyecto', 'tarea', 'idea', 'referencia', 'cliente', 'lead', 'escalate'];
+// 'research' (16-jul, voz-acciones P4): encargo de investigación dictado por voz. NO lo decide el
+// clasificador Haiku: entra por el prefijo literal [RESEARCH] que escribe el agente (ver esResearch_).
+var BANDEJA_BINS = ['proyecto', 'tarea', 'idea', 'referencia', 'cliente', 'lead', 'research', 'escalate'];
+
+/** Prefijo estructurado que pone el agente de voz cuando Luciano pide investigar algo. */
+var RESEARCH_PREFIJO = '[RESEARCH]';
+function esResearch_(texto) { return String(texto || '').trim().indexOf(RESEARCH_PREFIJO) === 0; }
 var BANDEJA_MAX_POR_CORRIDA = 25; // Purga F3: tope de items clasificados por corrida (anti-timeout 6min / quota UrlFetch)
 
 /** Captura un input crudo en la Bandeja (estado 'pendiente'). Lo dispara la UI o vos. @return {{id}} */
@@ -60,6 +66,17 @@ function clasificarBandeja() {
       return true;
     });
     if (!tomada) return;
+    // P4 (16-jul): un encargo de research entra con prefijo LITERAL → se rutea sin gastar Haiku
+    // (es determinista: el bin ya lo dice el prefijo). Queda 'clasificado' con confianza 10 y NO
+    // escala: no es una duda, es un encargo a ejecutar. Lo levanta el CM y el brief del día siguiente.
+    if (esResearch_(f.texto)) {
+      var enc = limpiarHostilTexto_(String(f.texto).trim().slice(RESEARCH_PREFIJO.length), 160);
+      setCol(f._fila, 'bin', 'research'); setCol(f._fila, 'confianza', 10); setCol(f._fila, 'slug', 'research');
+      setCol(f._fila, 'tags', 'research'); setCol(f._fila, 'resumen', enc); setCol(f._fila, 'id_cliente', '');
+      setCol(f._fila, 'procesado_en', ahoraISO()); setCol(f._fila, 'estado', 'clasificado');
+      feed_('Clasificador', 'exito', '', 'Bandeja [' + f.id + '] → research: ' + enc, '', '');
+      procesados++; return;
+    }
     var r = llamadaClasificador_(promptClasificador_(f.texto, clientes), 400);
     var c = r.ok ? parseClasificacion_(r.texto) : null;
     if (!c) { // el clasificador falló → escalá honesto, no adivines

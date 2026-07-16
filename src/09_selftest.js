@@ -562,6 +562,62 @@ function selfTest() {
     chk(avNuevos[0] && (String(avNuevos[0].mensaje).match(/TAR-/g) || []).length === 3, 'D15l el resumen cita las 3 más viejas');
     borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) { return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada'; });
 
+    // ── D16 (16-jul) Voz-acciones: la voz ESCRIBE, con gate. La frontera de confianza es lo que se prueba. ──
+    var d16cli = crearCliente({ nombre: '__TEST__ accion ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+    var d16obj = abrirCliente(d16cli.id_cliente).ss.getSheetByName('objetivos');
+    chk(!!d16obj, 'D16a el tenant de prueba tiene hoja objetivos');
+    // (b) whitelist dura de acciones + (c) tenant fuera del roster.
+    chk(accionVoz_('borrar_todo', { titulo: 'x' }, d16cli.id_cliente).error === 'accion_no_permitida', 'D16b acción fuera de ACCIONES_VOZ → rechazo (whitelist dura)');
+    chk(accionVoz_('crear_objetivo', { titulo: 'x' }, 'CLI-INVENTADO').error === 'tenant_desconocido', 'D16c tenant que no está en el roster → rechazo (nunca un id del LLM)');
+    chk(accionVoz_('crear_objetivo', 'no soy objeto', d16cli.id_cliente).error === 'payload_invalido', 'D16d payload no-objeto → rechazo');
+    // (e) SIN Dirección: crea aprobación PENDIENTE y NO escribe el objetivo (default-deny).
+    var objAntes = leerTabla(d16obj).length;
+    var d16r = accionVoz_('crear_objetivo', { titulo: 'Subir la recompra', meta: '30', deadline: '2026-12-31' }, d16cli.id_cliente);
+    chk(d16r.ok === true && d16r.estado === 'pendiente_aprobacion' && d16r.auto === false, 'D16e sin Dirección → deja aprobación pendiente (no dice "registrado")');
+    chk(leerTabla(d16obj).length === objAntes, 'D16f sin el clic humano NO se escribió el objetivo (default-deny)');
+    // (g) al aprobar, se materializa.
+    resolverAprobacion(d16cli.id_cliente, d16r.id_aprobacion, 'aprobada');
+    var objDespues = leerTabla(d16obj);
+    var creado = objDespues.filter(function (o) { return String(o.descripcion) === 'Subir la recompra'; })[0];
+    chk(!!creado, 'D16g tras aprobar, el objetivo se materializa en la hoja objetivos del tenant');
+    chk(String(creado.valor_objetivo) === '30' && String(creado.fecha_objetivo) === '2026-12-31' && String(creado.estado) === 'activo', 'D16h meta/deadline/estado se materializan bien');
+    // (i) LA FRONTERA DE CONFIANZA: metrica SIEMPRE vacía → la voz nunca alcanza correrAgente_.
+    chk(String(creado.metrica) === '', 'D16i metrica nace VACÍA → un objetivo de voz NUNCA dispara al Analista (14_director.js:48)');
+    // (j) enforcement SERVER-SIDE: aunque el payload traiga metrica, se descarta (no se confía en el agente).
+    var d16m = accionVoz_('crear_objetivo', { titulo: 'Con metrica colada', metrica: 'ventas_ars', meta: '5' }, d16cli.id_cliente);
+    resolverAprobacion(d16cli.id_cliente, d16m.id_aprobacion, 'aprobada');
+    var colado = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Con metrica colada'; })[0];
+    chk(!!colado && String(colado.metrica) === '', 'D16j payload con metrica incluida → se DESCARTA server-side (metrica sigue vacía)');
+    // (k) payload hostil saneado + truncado en la fila.
+    var hostil = 'Objetivo\thostil\ncon saltos ' + new Array(5000).join('z');
+    var d16h = accionVoz_('crear_objetivo', { titulo: hostil }, d16cli.id_cliente);
+    resolverAprobacion(d16cli.id_cliente, d16h.id_aprobacion, 'aprobada');
+    var filaH = leerTabla(d16obj).filter(function (o) { return String(o.descripcion).indexOf('Objetivo hostil') === 0; })[0];
+    chk(!!filaH && String(filaH.descripcion).indexOf('\n') < 0 && String(filaH.descripcion).indexOf('\t') < 0 && String(filaH.descripcion).length <= 201, 'D16k descripcion hostil (\\n\\t + 5000 chars) → saneada y truncada en la fila');
+    // (l) el North Star de SISTEMA no se crea por voz (fuente única = Config).
+    chk(accionVoz_('crear_objetivo', { titulo: 'Mi north star: 6 clientes pagos' }, d16cli.id_cliente).error === 'north_star_no_por_voz', 'D16l un título que pretende ser el North Star de sistema → rechazo (fuente única en Config)');
+    chk(_hueleANorthStar_('north star') && _hueleANorthStar_('el objetivo de Satori') && !_hueleANorthStar_('subir el AOV'), 'D16m el detector de North Star no marca objetivos operativos normales');
+    // (n) velocidad 2: con Dirección vigente → auto-aprueba Y ejecuta en el mismo turno.
+    var shDir16 = getMaestro().getSheetByName('Direcciones');
+    var man16 = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
+    appendFila(shDir16, { id: 'DIR-TEST-9', tipo_accion: 'crear_objetivo', alcance: d16cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: man16, activa: 'si', notas: '__TEST__' });
+    var d16v2 = accionVoz_('crear_objetivo', { titulo: 'Objetivo por dirección' }, d16cli.id_cliente);
+    chk(d16v2.ok === true && d16v2.estado === 'registrado' && d16v2.auto === true && d16v2.direccion === 'DIR-TEST-9', 'D16n con Dirección vigente → registrado en el mismo turno, citando la dirección');
+    var porDir = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Objetivo por dirección'; })[0];
+    chk(!!porDir && String(porDir.id_objetivo) === String(d16v2.id_objetivo), 'D16o la velocidad 2 devuelve el id real creado (evidencia, no promesa)');
+    chk(String(porDir.metrica) === '', 'D16p ni siquiera por Dirección se cuela metrica (el camino sin gate humano tampoco)');
+    borrarFilasDonde(shDir16, function (f) { return String(f.id) === 'DIR-TEST-9'; });
+    // (q) P4 research: el prefijo rutea sin gastar Haiku.
+    chk(esResearch_('[RESEARCH] competidores de X') === true && esResearch_('nota normal') === false, 'D16q el prefijo [RESEARCH] se detecta literal');
+    chk(BANDEJA_BINS.indexOf('research') >= 0, 'D16r "research" es un bin válido de la Bandeja');
+    // (s) P1 North Star: siembra idempotente en Config (fuente única).
+    var nsB = getConfig('ns_satori_desc');
+    var s1 = sembrarNorthStarSatori_();
+    var s2 = sembrarNorthStarSatori_();
+    chk(s2.sembrado === false, 'D16s sembrarNorthStarSatori_ es idempotente (la 2a vez no pisa)');
+    chk(!!northStarSatori_() && northStarSatori_().meta === 6, 'D16t el North Star queda en Config con meta 6');
+    if (!nsB) { ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte'].forEach(function (k) { setConfig(k, ''); }); } // restaurar baseline
+
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de

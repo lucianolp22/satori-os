@@ -89,6 +89,26 @@ INSTRUCCIONES = (
     "La Oficina Virtual es un negocio paralelo de Luciano: productos digitales y dropshipping físico. "
     "Cuando cuentes qué encontró o cómo va la Oficina, distinguí SIEMPRE lo digital de lo físico (dropshipping): "
     "un hallazgo 'oportunidad' es digital, 'oportunidad_fisica' es físico dropshipping, 'tendencia' es una tendencia del nicho. "
+    # ── N6 (16-jul) — norte de Satori vs objetivos de tenant. Gap 1 del log: preguntado por el objetivo
+    # PROPIO de Luciano, Sato devolvió el de Vehemence (AOV 120k) como si fuera suyo, dos veces.
+    "REGLA N6 (de quién es el objetivo): el North Star de Luciano / de Satori / 'mi objetivo propio' es UNO solo y NO es "
+    "el de ningún cliente. Vive en la configuración del sistema y te llega en el brief (tool 'brief' sin id), en su sección "
+    "'Métricas core vs North Star'. Si te preguntan por el objetivo propio, MIRÁ AHÍ — jamás respondas con el objetivo de un "
+    "cliente. Si el brief dice que no está definido, decilo tal cual (N4): no lo sustituyas por el de un cliente. "
+    "Los objetivos de los clientes (hoja 'objetivos' de cada tenant, vía sgic_consulta) son otra cosa: son operativos, de ESE "
+    "cliente. Al citar cualquier objetivo, decí SIEMPRE de quién es: 'el tuyo' o 'el de Vehemence'. Nunca los mezcles. "
+    "El North Star de Satori NO se cambia por voz: se edita desde el editor. Si te piden cambiarlo, decilo y ofrecé anotarlo. "
+    # ── N7 (16-jul) — research diferido. Gap 4 del log: Sato dijo "no puedo" seco, sin camino alternativo.
+    "REGLA N7 (research): vos no navegás la web, y está bien — no es una limitación que haya que disculpar, es cómo funciona. "
+    "Si Luciano pide investigar algo, NO digas sólo 'no puedo': decí que se lo encargás al equipo y que le llega el informe, y "
+    "llamá 'capturar' con el texto prefijado exactamente con [RESEARCH]. Si preguntan '¿podés investigar la web?', la respuesta "
+    "honesta es: 'yo no directamente; lo encargo al equipo y te llega el informe'. Prometer que lo investigás vos = mentira. "
+    # ── N8 (16-jul) — anti-fantasma. En el log el STT transcribió mal un término ("Pigmento") y Sato
+    # construyó toda la respuesta sobre el error, sin dudar.
+    "REGLA N8 (nombres que no reconocés): si en el pedido aparece un nombre propio que NO matchea ninguna entidad conocida "
+    "(un cliente del roster, un agente, una parte del sistema), NO asumas qué quiso decir ni construyas la respuesta encima: "
+    "preguntá. '¿Dijiste X? No lo tengo registrado.' El audio se transcribe mal a veces; una repregunta corta cuesta menos que "
+    "una respuesta entera sobre un dato que no existe. "
     # Regla N4 — anti-alucinación numérica (cierra pendiente anotado).
     "REGLA N4 (números): todo número del negocio (ventas, saldos, vencimientos, porcentajes, cantidades) sale de un tool "
     "llamado EN ESTE turno. Citalo exacto, sin redondear ni estimar. Si el tool falla o el dato no existe, decilo tal cual: "
@@ -317,8 +337,46 @@ class SatoriVoz(Agent):
         return await _llamar_backend("sgic", {"idCliente": id_cliente, "hoja": hoja, "mes": mes})
 
     @function_tool()
+    async def accion(self, context: RunContext, tipo: str, id_cliente: str, titulo: str,
+                     meta: str = "", deadline: str = "") -> str:
+        """Registra una ESTRUCTURA en el sistema (no es una nota: queda como dato real).
+
+        ANTES de llamarla, REPETÍ en voz alta qué vas a registrar y para qué cliente, y esperá el "sí"
+        explícito de Luciano. Sin confirmación verbal, NO la llames (confirmation-pattern, regla N5).
+
+        No escribe directo: deja una aprobación en el Centro de Mando para que Luciano la confirme con
+        1 clic. Si hay una dirección pre-aprobada vigente, queda registrada en el momento. Decilo como
+        vuelva la respuesta — NUNCA digas "ya lo registré" si la respuesta dice que quedó pendiente.
+
+        Tipos disponibles: 'crear_objetivo' (objetivo OPERATIVO de un cliente).
+
+        OJO: esto NO sirve para el North Star de Satori (el objetivo propio de Luciano). Ese vive en la
+        configuración del sistema y se edita desde el editor — si te lo piden, decilo, no lo registres
+        como objetivo de un cliente.
+
+        Args:
+            tipo: 'crear_objetivo'.
+            id_cliente: id del cliente dueño del objetivo, ej. CLI-002 (requerido).
+            titulo: el objetivo en palabras de Luciano (requerido).
+            meta: opcional, el valor a alcanzar (ej. '120000').
+            deadline: opcional, fecha límite 'YYYY-MM-DD'.
+        """
+        context.disallow_interruptions()  # escritura: no dejarla a medias por una interrupción
+        payload = {"titulo": titulo, "meta": meta, "deadline": deadline}
+        res = await _llamar_backend("accion", {"tipo": tipo, "idCliente": id_cliente, "payload": payload})
+        # Timeout en una ESCRITURA: NO afirmar que quedó registrado (N5, no inventar acción).
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardó demasiado y no puedo confirmar si quedó registrado. "
+                    "Volvé a intentarlo cuando quieras y lo verifico.")
+        return res
+
+    @function_tool()
     async def capturar(self, context: RunContext, texto: str) -> str:
         """Captura una idea, tarea o nota a la Bandeja de Satori para clasificar después.
+
+        Si Luciano pide INVESTIGAR algo (research), usá esta tool con el texto prefijado exactamente
+        con [RESEARCH] — así el encargo queda diferenciado y el equipo lo ejecuta. Ejemplo:
+        texto="[RESEARCH] competidores de Vehemence en velas artesanales".
 
         Args:
             texto: lo que Luciano quiere anotar.
@@ -464,7 +522,20 @@ async def entrypoint(ctx: agents.JobContext):
         stt=deepgram.STT(
             model="nova-3",
             language="es-419",
-            keyterm=["Sato", "Satori", "Vehemence", "FRANFLACA", "SIP", "brief", "cerebro", "bandeja"],
+            # 16-jul: lista ampliada al léxico real del dominio (roster de clientes + vocabulario del
+            # sistema). Motivo: en el log del 16-jul el STT inventó "Pigmento" por un término del dominio
+            # y Sato construyó la respuesta entera sobre el error. Capa 1 (que el STT lo oiga bien);
+            # la capa 2 es la regla N8 del prompt (si no lo reconozco, pregunto en vez de asumir).
+            # `keyterm` verificado contra livekit-plugins-deepgram 1.6.4 instalado (soporta keyterm y
+            # keyterms; nova-3 lo acepta) — no asumido.
+            keyterm=[
+                # sistema y agentes
+                "Sato", "Satori", "SGIC", "brief", "cerebro", "bandeja", "Centro de Mando",
+                "north star", "tenant", "AOV", "retención", "aprobación", "dirección",
+                # clientes / entidades del roster
+                "Vehemence", "FRANFLACA", "KAIROS", "EJF", "Elías", "SIP", "Noor", "Fresha",
+                "Pipol", "Crocante", "Oxaca", "Sando", "Couleur", "LC Travel", "DAM Barbers", "MesaQuince",
+            ],
         ),
         llm=openai.LLM(model="gpt-4o-mini"),
         tts=elevenlabs.TTS(voice_id=os.environ.get("ELEVENLABS_VOICE_ID", ""), model="eleven_turbo_v2_5", language="es"),

@@ -72,6 +72,41 @@ function _dirActiva_(v) {
   return ['si', 'sí', 'true', '1', 'x'].indexOf(String(v == null ? '' : v).trim().toLowerCase()) >= 0;
 }
 
+/**
+ * Voz-acciones P2 — materializa un objetivo OPERATIVO en la hoja `objetivos` del tenant. Lo llama
+ * SOLO ejecutarAprobada (o sea: tras el clic de Luciano, o tras una auto-aprobación por Dirección).
+ *
+ * `metrica` se escribe SIEMPRE VACÍA, y esto es el enforcement server-side de la frontera de confianza
+ * (decisión 16-jul): el Director solo encola al Analista para objetivos CON metrica (14_director.js:48),
+ * pasándole `descripcion` como `pregunta` cruda al LLM. Con metrica vacía, un objetivo dictado por voz
+ * jamás alcanza correrAgente_. Se fuerza acá —y no solo en la whitelist de campos del doPost— porque
+ * este ejecutor también corre sobre el payload de una aprobación que pudo editarse a mano.
+ * Completar `metrica` a mano es el acto humano que restaura el first-party.
+ */
+function ejecutarCrearObjetivo_(idCliente, payload) {
+  var ss = abrirCliente(idCliente).ss;
+  var sh = ss.getSheetByName('objetivos');
+  if (!sh) return { ok: false, error: 'el tenant ' + idCliente + ' no tiene hoja objetivos' };
+  var titulo = limpiarHostilTexto_(payload && payload.titulo, 200);
+  if (!titulo) return { ok: false, error: 'falta titulo' };
+  return conLock(function () {
+    var id = nextId(sh, 'id_objetivo', 'OBJ', 4);
+    appendFila(sh, {
+      id_objetivo: id,
+      horizonte: limpiarHostilTexto_((payload && payload.horizonte) || '12m', 20),
+      descripcion: titulo,
+      metrica: '',                                  // ← frontera de confianza (ver docstring). NO quitar.
+      valor_objetivo: (payload && payload.meta !== undefined && payload.meta !== '') ? payload.meta : '',
+      estado: 'activo',
+      prioridad: limpiarHostilTexto_((payload && payload.prioridad) || 'B', 5),
+      fecha_objetivo: String(aFechaISO(payload && payload.deadline) || '')
+    });
+    SpreadsheetApp.flush();
+    try { feed_('Director', 'objetivo_creado', idCliente, id + ' · ' + truncar_(titulo, 90), '', ''); } catch (e) {}
+    return { ok: true, id_objetivo: id, detalle: 'objetivo ' + id + ' registrado en ' + idCliente + ' (metrica vacía: la completa un humano)' };
+  });
+}
+
 /** Fila de Umbrales del cliente para un tipo de acción, o null. */
 function umbralPara(idCliente, tipoAccion) {
   var sh = abrirCliente(idCliente).ss.getSheetByName('Umbrales');
@@ -207,6 +242,9 @@ function ejecutarAprobada(idCliente, id) {
         break;
       case 'activar_regla':
         res = ejecutarActivarRegla_(idCliente, payload);
+        break;
+      case 'crear_objetivo':
+        res = ejecutarCrearObjetivo_(idCliente, payload);
         break;
       default:
         // Sin sistema externo cableado todavía (Etapa 3): se registra como ejecutada.

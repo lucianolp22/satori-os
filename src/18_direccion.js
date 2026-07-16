@@ -390,6 +390,12 @@ function briefDiarioSistema_() {
   // 5 · Qué espera TU decisión.
   var espera = [];
   espera.push('- ' + ap + ' aprobación(es) · ' + av + ' aviso(s) activo(s) · ' + banEsc + ' escalado(s) de Bandeja');
+  // P4 (16-jul): los encargos de research dictados por voz esperan a que Cowork los ejecute en sesión.
+  var research = ban.filter(function (b) { return String(b.bin) === 'research' && String(b.estado) === 'clasificado'; });
+  if (research.length) {
+    espera.push('- ' + research.length + ' encargo(s) de research pendiente(s):');
+    research.slice(0, 3).forEach(function (b) { espera.push('  - ' + truncar_(b.resumen || b.texto, 100)); });
+  }
   d.avisos.slice(0, 3).forEach(function (a) { espera.push('- [' + (a.tipo || 'aviso') + '] ' + truncar_(a.mensaje || '', 110)); });
 
   // 8 · Insumos requeridos: SOLO huecos reales y baratos de detectar (nada de abrir Sheets cliente).
@@ -582,6 +588,31 @@ function _hzLimpio_(v) {
   v = String(v == null ? '' : v);
   if (v.indexOf('GMT') >= 0) { var d = new Date(v); if (!isNaN(d.getTime())) return Utilities.formatDate(d, TZ, 'yyyy-MM-dd'); }
   return v;
+}
+
+/**
+ * Voz-acciones P1 (16-jul) — siembra IDEMPOTENTE del North Star propio de Satori.
+ *
+ * FUENTE ÚNICA: el North Star de sistema vive en Config (acá), NO en la hoja `objetivos` de ningún
+ * tenant. Decisión de Luciano 16-jul: `crear_objetivo` (la tool de voz) escribe objetivos OPERATIVOS
+ * de tenant — es otro dato, no otro lugar para el mismo dato. Duplicarlo acá y en CLI-000 haría
+ * derivar las dos copias. `northStarSatori_()` ya computa el avance (clientes pagos vs meta) y el
+ * contrato F2 ya lo renderiza en la sección "Métricas core vs North Star" del brief.
+ *
+ * Idempotente: si ya está sembrado NO lo pisa (para cambiarlo a propósito está cargarNorthStarSatori).
+ * Deadline 31/12/2026 = lo que Luciano dictó por voz. (El PAQUETE del 10-jul sugería 31/10/2026, más
+ * agresivo; se siembra lo que él dijo — cambiarlo es una celda de Config: ns_satori_horizonte.)
+ */
+function sembrarNorthStarSatori_() {
+  if (getConfig('ns_satori_desc')) {
+    var ya = northStarSatori_();
+    Logger.log('North Star ya sembrado (no se pisa): ' + JSON.stringify(ya));
+    return { sembrado: false, north_star: ya };
+  }
+  cargarNorthStarSatori();
+  var ns = northStarSatori_();
+  Logger.log('North Star Satori sembrado: ' + JSON.stringify(ns));
+  return { sembrado: true, north_star: ns };
 }
 
 /** Puesta en marcha — EDITAR y correr desde el editor para fijar/cambiar el North Star de Satori. */

@@ -44,7 +44,27 @@ function doGet(e) {
  * Router whitelist a funciones existentes (cero reinvención). Least-privilege: solo lectura
  * + capturar — nada de aprobaciones / email / borrados por este canal. Responde JSON.
  */
-var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1 };
+var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1, accion: 1 };
+
+// ── Voz-acciones P2 (16-jul) — la voz ESCRIBE estructuras, con gate ──────────
+//
+// Whitelist DURA de acciones. v1 = UN solo tipo probado (escalera de maduración 0→1: un tipo
+// probado > cuatro a medias). Para sumar 'crear_tarea'/'actualizar_objetivo' hay que agregarlos acá
+// Y darles un ejecutor en ejecutarAprobada — sin las dos cosas, la acción se rechaza.
+var ACCIONES_VOZ = { crear_objetivo: 1 };
+
+// Campos que la voz PUEDE mandar por acción. Todo lo demás del payload se DESCARTA server-side.
+//
+// `metrica` NO está en la lista, y es a propósito (decisión de Luciano 16-jul — frontera de confianza):
+// el Director encola al Analista SOLO para objetivos con `metrica` no vacía (14_director.js:48), y le
+// pasa `descripcion` como `pregunta` CRUDA, sin blindar, al prompt del LLM (13_agentes.js:173-177) —
+// y GUARDIA_INYECCION encima bendice como legítimo todo "pedido fuera de los marcadores". O sea: si la
+// voz pudiera setear `metrica`, un texto dictado llegaría privilegiado al LLM sin lectura humana (el
+// camino auto-aprobado por Dirección no tiene gate). Dejando `metrica` vacía, un objetivo creado por
+// voz NUNCA alcanza correrAgente_. Completar `metrica` a mano es el acto humano que restaura el
+// first-party. Si algún día se quiere `metrica` desde voz, el PREREQUISITO es sanear la pregunta y
+// de-privilegiarla en GUARDIA_INYECCION (diseño anotado para Etapa 3) — no se improvisa.
+var CAMPOS_ACCION = { crear_objetivo: ['titulo', 'meta', 'deadline', 'horizonte', 'prioridad'] };
 
 function doPost(e) {
   var tool = '';
@@ -78,6 +98,7 @@ function doPost(e) {
       case 'cliente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = datosCliente(id); break;
       case 'cerebro':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = leerEstado(id); break;
       case 'capturar':  data = capturar(vozStr_(args.texto, 4000), 'voz'); break;
+      case 'accion':    data = accionVoz_(vozStr_(args.tipo, 40), args.payload, id); break;
       case 'sgic': {    // SGIC 14-jul: consulta read-only de una hoja whitelisted del cliente (o ventas de la fuente viva)
         if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' });
         var sres = sgicConsulta_(id, vozStr_(args.hoja, 40), vozStr_(args.mes, 7), args.limite);
@@ -290,6 +311,74 @@ function oficinaSync_(payload) {
     appendFila(shK, { fecha: fecha, kpi: KPI, valor: n_(ns.autonomia_pct), objetivo: '', alerta: '' });
     return { ok: true, tenant: id, filas: filas.length };
   });
+}
+
+/**
+ * Voz-acciones P2 — ÚNICO camino por el que la voz escribe una estructura. NO escribe directo:
+ * crea una Aprobación P1 tipada que cae en la cola del CM con botón. Al aprobar (1 clic),
+ * ejecutarAprobada() la materializa. Si hay una Dirección vigente (F2) que matchea la acción + el
+ * tenant, crearAprobacion la auto-aprueba y acá se ejecuta EN EL MISMO TURNO (velocidad 2).
+ *
+ * Bastión, en orden (todo fail-closed):
+ *  - tipo contra ACCIONES_VOZ (whitelist dura) · payload objeto, cap de tamaño
+ *  - tenant SOLO del roster (nunca un id del LLM: se valida contra Clientes)
+ *  - whitelist de CAMPOS server-side: lo que no está en CAMPOS_ACCION se descarta aunque venga en el
+ *    payload (no se confía en que el agente no lo mande; un payload manipulado no debe colar `metrica`)
+ *  - todo texto por limpiarHostilTexto_ (defensa en profundidad; appendFila además sanitizarCelda)
+ *  - el North Star de SISTEMA no se toca por acá (fuente única = Config): se rechaza explícitamente
+ * @return {{ok, estado, id_aprobacion, auto, direccion, id_objetivo, mensaje}}
+ */
+function accionVoz_(tipo, payload, idCliente) {
+  if (!ACCIONES_VOZ[tipo]) return { ok: false, error: 'accion_no_permitida', mensaje: 'No tengo esa acción registrada.' };
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, error: 'payload_invalido' };
+  if (JSON.stringify(payload).length > 4000) return { ok: false, error: 'payload_grande' };
+
+  // Tenant SOLO del roster. Sin tenant válido no se escribe nada (default-deny).
+  var id = String(idCliente || '').trim();
+  var cli = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === id; })[0];
+  if (!cli) return { ok: false, error: 'tenant_desconocido', mensaje: 'No tengo ese cliente en el roster.' };
+
+  // Whitelist de campos: se construye un payload NUEVO solo con lo permitido (descarta el resto).
+  var limpio = {};
+  CAMPOS_ACCION[tipo].forEach(function (k) {
+    if (payload[k] === undefined || payload[k] === null || payload[k] === '') return;
+    limpio[k] = (typeof payload[k] === 'number') ? payload[k] : limpiarHostilTexto_(payload[k], 200);
+  });
+
+  if (tipo === 'crear_objetivo') {
+    if (!limpio.titulo) return { ok: false, error: 'falta_titulo', mensaje: 'Necesito el título del objetivo.' };
+    // Guarda dura (decisión 16-jul): el North Star de SISTEMA tiene UNA fuente (Config). Nadie puede
+    // crear una segunda por voz — ni apuntando a CLI-000 ni con un título que huela a norte.
+    if (_hueleANorthStar_(limpio.titulo)) {
+      return { ok: false, error: 'north_star_no_por_voz',
+               mensaje: 'El North Star de Satori no se cambia por voz: vive en la configuración del sistema y se edita desde el editor. Esto sí puedo registrarlo como objetivo operativo si le cambiás el título.' };
+    }
+    var desc = limpio.titulo;
+    var apPayload = { accion: 'crear_objetivo', tenant: id, titulo: desc,
+                      meta: (limpio.meta === undefined ? '' : limpio.meta),
+                      deadline: (limpio.deadline || ''), horizonte: (limpio.horizonte || '12m'),
+                      prioridad: (limpio.prioridad || 'B') };
+    var r = crearAprobacion(id, 'voz', 'crear_objetivo', apPayload, {
+      descripcion: 'Registrar objetivo de ' + cli.nombre + ': ' + truncar_(desc, 90),
+      confianza: '', patron: 'P1'
+    });
+    // Velocidad 2: si una Dirección vigente la auto-aprobó, se ejecuta en el mismo turno.
+    if (r.auto) {
+      var ej = ejecutarAprobada(id, r.id);
+      return { ok: true, estado: 'registrado', id_aprobacion: r.id, auto: true, direccion: r.direccion,
+               id_objetivo: (ej && ej.id_objetivo) || '',
+               mensaje: 'Registrado' + ((ej && ej.id_objetivo) ? ' como ' + ej.id_objetivo : '') + ' (por dirección ' + r.direccion + ').' };
+    }
+    return { ok: true, estado: 'pendiente_aprobacion', id_aprobacion: r.id, auto: false,
+             mensaje: 'Te dejé la aprobación ' + r.id + ' lista en el Centro de Mando — un clic y queda registrado.' };
+  }
+  return { ok: false, error: 'accion_sin_ejecutor' };
+}
+
+/** ¿El título pretende ser el North Star de sistema? (fuente única = Config, ver accionVoz_). */
+function _hueleANorthStar_(t) {
+  var s = String(t || '').toLowerCase();
+  return /north\s*star|norte\s+de\s+satori|objetivo\s+de\s+satori|mi\s+objetivo\s+propio/.test(s);
 }
 
 /** Comparación en tiempo constante vía digests de largo fijo (PURGA #6: no filtra el largo del secreto). */
@@ -628,6 +717,10 @@ function estadoAgentes() {
       // 16-jul: avatares propios de los nodos nav del CM (Config avatar_bandeja / avatar_cerebro;
       // vacías => el CM conserva el glifo SVG, fail-closed en cmAvataresOrbita)
       avatar_bandeja: getConfig('avatar_bandeja'), avatar_cerebro: getConfig('avatar_cerebro') },
+    // Voz-acciones P3 (16-jul): North Star propio de Satori para la card del CM. Fuente ÚNICA = Config
+    // (northStarSatori_ ya computa el avance: clientes activos pagos vs meta). null => el CM oculta la
+    // card (fail-closed, mismo patrón que el botón Oficina). NO es el objetivo de ningún tenant.
+    north_star: northStarSatori_(),
     presupuesto: { gastoUsd: c.gasto, topeUsd: tope },
     aprobaciones: inboxAprobaciones_(),
     clientes_activos: listaClientes().filter(function (x) {

@@ -599,6 +599,15 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
 
       <div class="col-right">
+        <!-- Voz-acciones P3 (16-jul): North Star propio de Satori. Fuente ÚNICA = Config
+             (northStarSatori_). Nace oculta y solo la muestra cmNorthStar si hay dato
+             (fail-closed, mismo patrón que el botón Oficina). NO es el objetivo de un cliente. -->
+        <section class="card" id="cmNS" style="display:none">
+          <h2><span class="eyebrow">North Star · Satori</span></h2>
+          <div class="ns-desc" id="cmNSDesc"></div>
+          <div class="stat"><div class="l" id="cmNSHz"></div><div class="v" id="cmNSVal"></div></div>
+        </section>
+
         <section class="card">
           <h2><span class="eyebrow">Cartera · semáforo</span></h2>
           <div class="client"><div><div class="n">Vehemence</div><div class="ns">NS $120k · AOV $104k</div></div><span class="rt"><span class="chip c-warn">Online −83%</span></span></div>
@@ -1095,6 +1104,17 @@ function cmAvataresOrbita(agentes,cfg){
     node.appendChild(img);
   });
 }
+/* Voz-acciones P3 (16-jul): card del North Star propio. Sin objetivo => card OCULTA (fail-closed:
+   no se inventa un norte ni se muestra un placeholder). El avance ya viene computado del backend
+   (northStarSatori_: clientes activos pagos vs meta) — acá no se calcula nada. textContent = sin XSS. */
+function cmNorthStar(ns){
+  var card=document.getElementById('cmNS'); if(!card)return;
+  if(!ns||!ns.desc){card.style.display='none';return;}
+  card.style.display='';
+  document.getElementById('cmNSDesc').textContent=ns.desc;
+  document.getElementById('cmNSHz').textContent=ns.horizonte?('hasta '+ns.horizonte):'sin horizonte';
+  document.getElementById('cmNSVal').textContent=(ns.meta!=null&&ns.meta!=='')?(ns.actual+' / '+ns.meta):String(ns.actual);
+}
 function cmAplicarCfg(cfg){
   cfg=cfg||{};
   var voz=document.getElementById('cmVoz');
@@ -1119,7 +1139,7 @@ function cmAplicarEstado(est,esSnapshot){
     cmAplicarCfg(est.cfg); // E1.1: voz_url + oficina_url desde Config (botón Oficina se muestra solo si hay url)
     cmAvataresOrbita(est.agentes,est.cfg); // FIX órbita: avatares en nodos agentes + Cerebro/Bandeja vía Config
     CM.agentes=est.agentes;CM.aprobaciones=est.aprobaciones||[];CC.est=est;try{ccAgentes(est.agentes);ccFeed(est.feed);ccAprob();ccBrief();ccEstado();}catch(_e){}
-    cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();
+    cmClientes(est.clientes_activos);cmAgentes();cmFeed(est.feed);cmBudget(est.presupuesto);cmInbox();cmNorthStar(est.north_star);
     cmTelem(est.telemetria);cmDirectiva(est.feed);
     var work=est.agentes.filter(function(a){return a.estado==='work';});
     CM.work=work.length; // a4.2: alimenta la vivacidad del orbe
