@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-16 16:33 · commit: 0844b03
+> Generado: 2026-07-16 16:44 · commit: a062197
 
 ## Módulos
 
@@ -19,13 +19,13 @@
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 11 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 14 |
-| `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 16 |
+| `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
 | `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 8 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 34 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 36 |
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
@@ -133,7 +133,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **11_aprobaciones.js:** clasificarAccion direccionVigente_ _dirActiva_ ejecutarCrearObjetivo_ umbralPara crearAprobacion resolverAprobacion ejecutarAprobada ejecutarEmail_ ejecutarActivarRegla_ crearReglaDesdeExcepcion expirarPendientes parsearPayload_ autorActual_ 
 
-**12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ archivarColaVieja_ _colaArchivable_ verifArchivoCola_ verifArchivoCola aFechaHora_ 
+**12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ archivarColaVieja_ _colaArchivable_ verifArchivoCola_ verifArchivoCola archivarColaVieja aFechaHora_ 
 
 **13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
 
@@ -145,7 +145,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **17_bandeja.js:** esResearch_ capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ contratoStatusReport_ _tendencia_ _contrapeso_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ sembrarNorthStarSatori_ sembrarNorthStarSatori cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ _diasDesde_ recomendacionDelDia_ clienteKpiEnAlerta_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ calentarBriefCache verifBriefCache contratoStatusReport_ _tendencia_ _contrapeso_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ _hzLimpio_ sembrarNorthStarSatori_ sembrarNorthStarSatori cargarNorthStarSatori cargarNorthStarVehemence verVehemence truncar_ _diasDesde_ recomendacionDelDia_ clienteKpiEnAlerta_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
 
 **19_conectores.js:** sincronizarVehemence sincronizarConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ 
 
