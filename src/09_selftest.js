@@ -184,12 +184,31 @@ function selfTest() {
     var mdCli = estadoVigente(r.id_cliente);
     chk(mdCli.indexOf(r.id_cliente) >= 0 && /## Objetivo \(North Star\)/.test(mdCli), 'D1 estadoVigente(cliente) trae el id + sección North Star (' + r.id_cliente + ')');
 
-    // ── Fase D · MUST #2 — briefDiario (BLUF + 3 cosas, sin API) ───────────────
+    // ── Fase D · MUST #2 — briefDiario = CONTRATO v1 (F2, 16-jul), sin API ─────
+    // El brief era "BLUF + Las 3 cosas + Números + Qué primero"; F2 lo reemplazó por el contrato de
+    // 10 secciones fijas (contratoStatusReport_). Estos asserts verifican EL CONTRATO, no la prosa:
+    // lo que no puede romperse es que estén las 10 y en orden. D14 prueba el renderer con datos
+    // inyectados; esto prueba que los DOS briefs reales (sistema y cliente) salen por él.
+    // Línea EXACTA ('\n## X\n'), nunca substring: '## Cierre' matchea antes '## Cierre acción→métrica'.
+    var _secs = CONTRATO_ORDEN.filter(function (k) { return k !== 'bluf'; });
+    var _posDe = function (md) { return _secs.map(function (k) { return md.indexOf('\n## ' + CONTRATO_TITULOS[k] + '\n'); }); };
+
     var brSys = briefDiario();
     chk(typeof brSys === 'string' && brSys.indexOf('# Brief — Satori') === 0, 'D2 briefDiario() devuelve el brief de sistema');
-    chk(/## Las 3 cosas de hoy/.test(brSys) && /\*\*/.test(brSys), 'D2 el brief trae BLUF + "Las 3 cosas de hoy"');
+    chk(/\n\*\*.+\*\*\n/.test(brSys), 'D2b el brief abre con el BLUF en negrita');
+    chk(brSys.indexOf('\n## Hoy\n') > 0, 'D2c el contrato emite la apertura humana (## Hoy)');
+    chk(brSys.indexOf('· contrato v1') > 0, 'D2d el brief de sistema declara el contrato v1');
+    var _pSys = _posDe(brSys);
+    chk(_pSys.every(function (p) { return p > 0; }), 'D2e el brief de SISTEMA trae las 10 secciones del contrato');
+    chk(_pSys.every(function (p, i) { return i === 0 || p > _pSys[i - 1]; }), 'D2f el brief de SISTEMA las trae en el ORDEN contractual');
+
     var brCli = briefDiario(r.id_cliente);
-    chk(brCli.indexOf(r.id_cliente) >= 0, 'D2 briefDiario(cliente) trae el id del cliente (' + r.id_cliente + ')');
+    chk(brCli.indexOf(r.id_cliente) >= 0, 'D2g briefDiario(cliente) trae el id del cliente (' + r.id_cliente + ')');
+    chk(/\n\*\*.+\*\*\n/.test(brCli), 'D2h el brief de CLIENTE abre con el BLUF en negrita');
+    chk(brCli.indexOf('· contrato v1') > 0, 'D2i el brief de cliente declara el contrato v1');
+    var _pCli = _posDe(brCli);
+    chk(_pCli.every(function (p) { return p > 0; }), 'D2j el brief de CLIENTE también trae las 10 secciones (mismo renderer)');
+    chk(_pCli.every(function (p, i) { return i === 0 || p > _pCli[i - 1]; }), 'D2k el brief de CLIENTE las trae en el ORDEN contractual');
 
     // ── Fase D · MUST #3 — North Star de Satori (Config + progreso; restaura prod) ──
     var nsB = { d: getConfig('ns_satori_desc'), m: getConfig('ns_satori_metrica'), v: getConfig('ns_satori_valor') };
