@@ -142,6 +142,12 @@ function corridaDiaria() {
   try { calentarBriefCacheSistema_(); }
   catch (e) { try { Logger.log('calentarBriefCache fallo: ' + e.message); } catch (_e) {} }
 
+  // 16-jul: dieta de Cola_tareas al FINAL de la corrida (después del warm del brief) — mueve las
+  // filas terminales viejas a Cola_archivo para que el poll del CM (15s) y el doPost de voz sigan
+  // leyendo una hoja chica. Falla-silenciosa: archivar es higiene, jamás rompe la corrida diaria.
+  try { resumen.cola_archivada = archivarColaVieja_(); }
+  catch (e) { try { Logger.log('archivarColaVieja_ falló: ' + e.message); } catch (_e) {} }
+
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));
   return resumen;
@@ -177,26 +183,74 @@ function detectarVencimientos() {
   return n;
 }
 
-/** Tareas creadas hace > N días sin pasar a estado terminal. */
+/**
+ * Tareas creadas hace > N días sin pasar a estado terminal.
+ *
+ * 16-jul — AGRUPADO: 18 avisos individuales saturaban la bandeja y el resumen por email. Con
+ * MÁS de ESTANCADAS_MAX estancadas emite UN aviso resumen (citando las 3 más viejas) en vez de N;
+ * con ESTANCADAS_MAX o menos siguen individuales (con pocas, el detalle es útil, no ruido).
+ * El dedupe por mensaje de crearAviso hace de baseline: mientras el conteo y las 3 más viejas no
+ * cambien, la corrida diaria reusa el aviso existente en lugar de acumular uno nuevo por día.
+ * Los individuales que quedaron de corridas viejas se resuelven en esta misma corrida (abajo).
+ */
+var ESTANCADAS_MAX = 3;
+
 function detectarTareasEstancadas() {
   var dias = parseInt(getConfig('dias_estancamiento_tarea') || '7', 10);
   var sh = getMaestro().getSheetByName('Tareas');
   var limite = hace(dias);
-  var n = 0;
-  leerTabla(sh).forEach(function (t) {
+  var estancadas = leerTabla(sh).filter(function (t) {
     var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
     var activa = ['en_curso', 'pendiente', 'en curso', ''].indexOf(String(t.estado).toLowerCase()) >= 0;
     var fc = aFechaISO(t.fecha_creacion);
-    if (!term && activa && fc && fc < limite) {
+    return !term && activa && fc && fc < limite;
+  });
+  if (!estancadas.length) return 0;
+
+  if (estancadas.length <= ESTANCADAS_MAX) {          // pocas → detalle individual (como siempre)
+    estancadas.forEach(function (t) {
       crearAviso({
         id_cliente: clienteDeProyecto(t.id_proyecto),
         tipo: 'tarea_estancada',
         mensaje: 'Tarea estancada > ' + dias + 'd: ' + t.descripcion + ' [' + t.id_tarea + ']'
       });
-      n++;
-    }
+    });
+    return estancadas.length;
+  }
+
+  // Muchas → 1 resumen. Las 3 más viejas POR FECHA DE CREACIÓN (no por orden de hoja).
+  var viejas = estancadas.slice().sort(function (a, b) {
+    return String(aFechaISO(a.fecha_creacion)) < String(aFechaISO(b.fecha_creacion)) ? -1 : 1;
+  }).slice(0, 3);
+  crearAviso({
+    id_cliente: '',                                   // es de sistema: cruza clientes
+    tipo: 'tarea_estancada',
+    mensaje: estancadas.length + ' tareas estancadas > ' + dias + 'd (las 3 más viejas: ' +
+             viejas.map(function (t) { return String(t.id_tarea); }).join(', ') + ')'
   });
-  return n;
+  // Los individuales de corridas anteriores quedan obsoletos: resolverlos por baseline (patrón del
+  // bonus SGIC). Se identifican por el prefijo del mensaje que escribía la versión vieja.
+  resolverAvisosDonde_(function (f) {
+    return String(f.tipo) === 'tarea_estancada' && String(f.mensaje).indexOf('Tarea estancada > ') === 0;
+  });
+  return 1;
+}
+
+/** Marca 'resuelto' los avisos activos que matchean pred. Devuelve cuántos. (No borra: append-only.) */
+function resolverAvisosDonde_(pred) {
+  var sh = getMaestro().getSheetByName('Avisos');
+  return conLock(function () {
+    var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    var cEstado = H.indexOf('estado') + 1;
+    if (cEstado < 1) return 0;
+    var n = 0;
+    leerTabla(sh).forEach(function (f) {
+      if (String(f.estado) !== 'activo' || !pred(f)) return;
+      sh.getRange(f._fila, cEstado).setValue('resuelto');
+      n++;
+    });
+    return n;
+  });
 }
 
 /** Proyectos sin movimiento > N días (fecha_ultimo_movimiento). */

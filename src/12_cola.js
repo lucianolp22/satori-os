@@ -147,6 +147,100 @@ function ejecutarTarea_(tarea) {
   }
 }
 
+// ── Dieta de la cola (16-jul · SPEC-GAS "PROPUESTA APARTE", opción A: archivar) ──
+//
+// Problema medido el 14-jul: estadoAgentes hace leerTabla(Cola_tareas) SIN poda (~857 filas y
+// creciendo) en CADA poll del CM (15s) y en el doPost de voz → costo fijo que crece sin techo.
+// Solución: las filas TERMINALES y viejas se mudan a 'Cola_archivo' (mismo schema). Nadie lee el
+// archivo en el poll: es historia consultable desde el editor.
+//
+// OJO — los estados terminales de la COLA son 'completada'/'fallida' (12_cola.js), NO
+// 'hecha'/'cancelada': esos son de la hoja Tareas (el kanban). El encargo los nombraba mal;
+// con los nombres del encargo esta función no archivaría NADA. (Lección del 08-jul: todo
+// marcador literal se valida contra el archivo real.)
+var COLA_ARCHIVO_HOJA = 'Cola_archivo';
+var COLA_ARCHIVO_DIAS = 30;
+var COLA_TERMINALES = ['completada', 'fallida'];
+
+/**
+ * Mueve filas terminales y viejas de Cola_tareas → Cola_archivo. Bajo conLock, bottom-up y
+ * en batch. Idempotente (una segunda corrida no tiene nada que mover).
+ *
+ * DOS PROTECCIONES OBLIGATORIAS (los riesgos que detectó el diseño). Ninguna es opcional:
+ *  1. ÚLTIMO-ESTADO-POR-AGENTE: estadosAgentesCola_ deriva el estado de cada agente de su
+ *     ÚLTIMA fila en la cola. Archivar la última fila de un agente quieto lo dejaría "idle"
+ *     sin serlo → la fila más reciente de cada agente NUNCA se archiva, aunque sea vieja y terminal.
+ *  2. CONTEO DE ERRORES: telemetriaMaestro_ cuenta los errores del MES en curso desde esta hoja
+ *     → jamás se archiva una fila del mes en curso, aunque supere los 30 días (puede pasar el
+ *     día 31). Así el horizonte de archivo es SIEMPRE ≥ la ventana de conteo y el número no baja.
+ *
+ * @param {Object} [opts] {dias, dryRun} — dryRun cuenta sin mover (verificación de editor).
+ * @return {{archivadas:number, protegidas_por_agente:number, dry_run:boolean}}
+ */
+function archivarColaVieja_(opts) {
+  opts = opts || {};
+  var dias = opts.dias || COLA_ARCHIVO_DIAS;
+  return conLock(function () {
+    var sh = hojaCola_();
+    var shArch = getMaestro().getSheetByName(COLA_ARCHIVO_HOJA);
+    if (!shArch) { Logger.log('archivarColaVieja_: falta ' + COLA_ARCHIVO_HOJA + ' — correr setup()'); return { archivadas: 0, protegidas_por_agente: 0, dry_run: !!opts.dryRun }; }
+    var filas = leerTabla(sh);
+    if (!filas.length) return { archivadas: 0, protegidas_por_agente: 0, dry_run: !!opts.dryRun };
+
+    var limite = Utilities.formatDate(new Date(Date.now() - dias * 86400000), TZ, 'yyyy-MM-dd');
+    var inicioMes = mesISO() + '-01';
+
+    // Protección 1: la fila más reciente de cada agente (mismo criterio que estadosAgentesCola_:
+    // recorre en orden de hoja y la última gana).
+    var ultimaDe = {};
+    filas.forEach(function (f) {
+      if (String(f.tipo) !== 'agente') return;
+      var p = parsearPayload_(f.payload);
+      if (p && p.agente) ultimaDe[p.agente] = f._fila;
+    });
+    var protegida = {}, nProt = 0;
+    Object.keys(ultimaDe).forEach(function (k) { protegida[ultimaDe[k]] = true; nProt++; });
+
+    var mover = filas.filter(function (f) { return _colaArchivable_(f, limite, inicioMes, protegida[f._fila]); });
+    if (!mover.length || opts.dryRun) return { archivadas: mover.length, protegidas_por_agente: nProt, dry_run: !!opts.dryRun };
+
+    // ORDEN CRÍTICO (es una operación destructiva-móvil): escribir en el archivo, FLUSH, y recién
+    // ahí borrar del origen. Al revés, un corte entre borrar y escribir perdería las filas.
+    var H = shArch.getRange(1, 1, 1, shArch.getLastColumn()).getValues()[0];
+    var matriz = mover.map(function (f) { return H.map(function (h) { return (f[h] === undefined || f[h] === null) ? '' : f[h]; }); });
+    shArch.getRange(shArch.getLastRow() + 1, 1, matriz.length, H.length).setValues(matriz);
+    SpreadsheetApp.flush();
+    borrarFilasBatch_(sh, mover.map(function (f) { return f._fila; }));  // ya ordena desc internamente
+    Logger.log('archivarColaVieja_: ' + mover.length + ' fila(s) → ' + COLA_ARCHIVO_HOJA + ' (protegidas por agente: ' + nProt + ')');
+    return { archivadas: mover.length, protegidas_por_agente: nProt, dry_run: false };
+  });
+}
+
+/**
+ * ¿Esta fila se archiva? PURA (sin I/O) a propósito: es la decisión de una operación destructiva-móvil
+ * y así se puede probar cada guarda de verdad, sin depender de la fecha en que corra el test.
+ * @param {Object} f          fila de la cola (leerTabla)
+ * @param {string} limite     'YYYY-MM-DD' = hoy − horizonte. Más nueva que esto → se queda.
+ * @param {string} inicioMes  'YYYY-MM-01' del mes en curso. Igual o posterior → se queda (protección 2).
+ * @param {boolean} esUltimaDelAgente  → se queda (protección 1).
+ */
+function _colaArchivable_(f, limite, inicioMes, esUltimaDelAgente) {
+  if (COLA_TERMINALES.indexOf(String(f.estado)) < 0) return false;  // pendiente/tomada NUNCA
+  if (esUltimaDelAgente) return false;                              // protección 1: último-estado-por-agente
+  var fc = aFechaISO(f.creada_en);
+  if (!fc) return false;                    // sin fecha no sabemos la edad → no se toca
+  if (fc > limite) return false;            // más nueva que el horizonte
+  if (fc >= inicioMes) return false;        // protección 2: el mes en curso lo cuenta la telemetría
+  return true;
+}
+
+/** Verificación de editor: cuenta qué se archivaría HOY sin mover nada. */
+function verifArchivoCola_() {
+  var r = archivarColaVieja_({ dryRun: true });
+  Logger.log('dry-run archivo de cola: ' + JSON.stringify(r));
+  return r;
+}
+
 // ── helpers locales ─────────────────────────────────────────────────────────
 
 /** Date desde una celda 'yyyy-MM-ddTHH:mm:ss' (ahoraISO) o un Date de Sheets. */

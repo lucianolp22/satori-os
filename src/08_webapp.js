@@ -266,7 +266,11 @@ function oficinaSync_(payload) {
     { concepto: 'Aprobaciones pendientes', valor: n_(ap.n), notas: resApr },
     { concepto: 'Hallazgos top', valor: (payload.hallazgos_top || []).length, notas: titulos },
     { concepto: 'Agentes', valor: n_(ags.n), notas: limpiarHostilTexto_(ags.estados, 100) },
-    { concepto: 'Negocio paralelo pausado', valor: payload.np_pausado ? 'sí' : 'no', notas: '' },
+    // 16-jul: se llamaba 'Negocio paralelo pausado' y con valor 'no' se leía como si la Oficina
+    // ESTUVIERA pausada (causó un falso diagnóstico el 14-jul). El nombre nuevo dice qué es.
+    // Sin migración: el reemplazo idempotente de abajo borra por FUENTE (no por concepto), así que
+    // la fila vieja se va sola en el primer sync — no pueden convivir vieja y nueva.
+    { concepto: 'Oficina Virtual — kill-switch (np_pausado)', valor: payload.np_pausado ? 'sí' : 'no', notas: '' },
     { concepto: 'Modo de fuentes', valor: limpiarHostilTexto_(payload.fuentes_modo, 20), notas: '' }
   ];
   return conLock(function () {
@@ -652,7 +656,14 @@ function telemetriaMaestro_(c, cola, tope) {
     if (String(f.mes) !== mes) return;
     llamadas += Number(f.llamadas) || 0; tokens += Number(f.tokens) || 0;
   });
-  var errores = cola.filter(function (f) { return String(f.estado) === 'fallida'; }).length;
+  // Errores del MES (16-jul). Antes contaba `estado === 'fallida'` sobre la cola ENTERA, sin ventana:
+  // era un contador histórico disfrazado de mensual (el docstring de acá arriba ya decía "del mes").
+  // Con la dieta de Cola_tareas (archivarColaVieja_) un contador all-time además se iría comiendo los
+  // errores viejos al archivarlos. Acotarlo al mes arregla las dos cosas a la vez: el número es el que
+  // el docstring prometía, y archivar no puede alterarlo (archivarColaVieja_ nunca toca el mes en curso).
+  var errores = cola.filter(function (f) {
+    return String(f.estado) === 'fallida' && String(aFechaISO(f.creada_en) || '').indexOf(mes) === 0;
+  }).length;
   return { llamadas: llamadas, tokens: tokens, gasto_usd: c.gasto, tope_usd: tope, errores: errores };
 }
 

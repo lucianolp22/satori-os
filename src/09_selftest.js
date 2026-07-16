@@ -344,8 +344,10 @@ function selfTest() {
     chk(rSyncD12.ok === true && rSyncD12.tenant === 'CLI-000', 'D12 oficina_sync escribe en CLI-000 (ok + tenant)');
     var _doD12 = leerTabla(abrirCliente('CLI-000').ss.getSheetByName('Datos_operativos'))
       .filter(function (f) { return String(f.fuente) === 'Oficina Virtual · sync'; });
-    var _pausaD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Negocio paralelo pausado'; })[0];
+    // 16-jul: el concepto se renombró (el viejo 'Negocio paralelo pausado' + valor 'no' se leía al revés).
+    var _pausaD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Oficina Virtual — kill-switch (np_pausado)'; })[0];
     chk(_pausaD12 && String(_pausaD12.valor) === 'sí', 'D12 el sync refleja np_pausado (sí)');
+    chk(!_doD12.filter(function (f) { return String(f.concepto) === 'Negocio paralelo pausado'; })[0], 'D12b el concepto viejo no sobrevive al sync (reemplazo por fuente)');
     var _autoD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Autonomía (North Star) %'; })[0];
     chk(_autoD12 && Number(_autoD12.valor) === 42.9, 'D12 el sync escribe los números reales (autonomía 42.9)');
     var _hallD12 = _doD12.filter(function (f) { return String(f.concepto) === 'Hallazgos top'; })[0];
@@ -489,6 +491,76 @@ function selfTest() {
     var d14fb = registrarFeedback('brief', '__TEST__f2', 'si', 'assert D14');
     var d14fbRow = leerTabla(getMaestro().getSheetByName('Feedback')).filter(function (f) { return String(f.id) === String(d14fb); })[0];
     chk(!!d14fbRow && String(d14fbRow.origen_tipo) === 'brief' && String(d14fbRow.util) === 'si', 'D14q feedback del brief escribe en la hoja Feedback');
+
+    // ── D15 (16-jul) Mantenimiento: dieta de Cola_tareas + avisos agrupados ──
+    var shCola = getMaestro().getSheetByName('Cola_tareas');
+    var shArch = getMaestro().getSheetByName('Cola_archivo');
+    chk(!!shArch, 'D15a setup() reconcilió la hoja Cola_archivo');
+    var viejo = Utilities.formatDate(new Date(Date.now() - 90 * 86400000), TZ, 'yyyy-MM-dd') + 'T10:00:00';
+    var reciente = ahoraISO();
+    var _mkCola = function (id, estado, agente, creada) {
+      appendFila(shCola, { id: id, worker: '__TESTWORKER__', tipo: 'agente', payload: JSON.stringify({ agente: agente }),
+                           estado: estado, resultado: '', error: '', tomada_por: '', creada_en: creada, tomada_en: '', completada_en: '' });
+    };
+    // 2 terminales viejas del mismo agente ficticio + 1 pendiente vieja + 1 terminal reciente.
+    _mkCola('COLA-TEST-1', 'completada', '__testagente__', viejo);
+    _mkCola('COLA-TEST-2', 'fallida', '__testagente__', viejo);
+    _mkCola('COLA-TEST-3', 'pendiente', '__testagente2__', viejo);
+    _mkCola('COLA-TEST-4', 'completada', '__testagente3__', reciente);
+    SpreadsheetApp.flush();
+    var errAntes = telemetriaMaestro_().errores;
+    var d15 = archivarColaVieja_();
+    var idsCola = leerTabla(shCola).map(function (f) { return String(f.id); });
+    var idsArch = leerTabla(shArch).map(function (f) { return String(f.id); });
+    // De las 2 filas de __testagente__, la ÚLTIMA en la hoja es COLA-TEST-2 → esa queda protegida
+    // (es la que le da su estado al agente); COLA-TEST-1 sí se archiva.
+    chk(idsArch.indexOf('COLA-TEST-1') >= 0, 'D15b archiva la terminal vieja que NO es la última del agente');
+    chk(idsCola.indexOf('COLA-TEST-2') >= 0 && idsArch.indexOf('COLA-TEST-2') < 0, 'D15c NUNCA archiva la fila más reciente de un agente (último-estado)');
+    chk(idsCola.indexOf('COLA-TEST-3') >= 0 && idsArch.indexOf('COLA-TEST-3') < 0, 'D15d NUNCA archiva una pendiente (aunque sea vieja)');
+    chk(idsCola.indexOf('COLA-TEST-4') >= 0 && idsArch.indexOf('COLA-TEST-4') < 0, 'D15e NO archiva una terminal reciente (dentro del horizonte)');
+    chk(telemetriaMaestro_().errores === errAntes, 'D15f el conteo de errores del MES queda intacto pre/post archivo');
+    // La guarda del mes en curso solo es alcanzable con fechas reales el día 31 → se prueba sobre el
+    // predicado PURO, que es donde vive la decisión (determinista, no depende de cuándo corra el test).
+    var _pf = function (estado, creada, ultima) { return _colaArchivable_({ estado: estado, creada_en: creada }, '2026-06-16', '2026-07-01', ultima); };
+    chk(_pf('completada', '2026-05-01', false) === true, 'D15f2 terminal vieja y fuera del mes en curso → archivable');
+    chk(_pf('completada', '2026-07-10', false) === false, 'D15f3 fila del MES EN CURSO nunca se archiva (protege el conteo de errores)');
+    chk(_pf('fallida', '2026-07-05', false) === false, 'D15f4 error del mes en curso nunca se archiva (el contador no puede bajar)');
+    chk(_pf('pendiente', '2026-05-01', false) === false && _pf('tomada', '2026-05-01', false) === false, 'D15f5 pendiente/tomada nunca se archivan');
+    chk(_pf('completada', '2026-05-01', true) === false, 'D15f6 la última fila del agente nunca se archiva aunque sea vieja y terminal');
+    chk(_pf('completada', '', false) === false, 'D15f7 sin fecha de creación no se archiva (no sabemos la edad)');
+    chk(_pf('hecha', '2026-05-01', false) === false, 'D15f8 "hecha" NO es terminal de la cola (es de Tareas) → no archiva');
+    chk(archivarColaVieja_().archivadas === 0, 'D15g idempotente: una segunda corrida no mueve nada');
+    // El estado derivado del agente sobrevive al archivo (esa es la razón de la protección).
+    chk(estadosAgentesCola_(leerTabla(shCola))['__testagente__'] === 'fail', 'D15h el último-estado-por-agente sobrevive al archivo');
+    borrarFilasDonde(shCola, function (f) { return String(f.id).indexOf('COLA-TEST') === 0; });
+    borrarFilasDonde(shArch, function (f) { return String(f.id).indexOf('COLA-TEST') === 0; });
+    // Estados terminales: los del encargo ('hecha'/'error'/'cancelada') NO son los de la cola.
+    chk(COLA_TERMINALES.join(',') === 'completada,fallida', 'D15i los terminales de la COLA son completada/fallida (no los de Tareas)');
+
+    // Avisos agrupados: 5 estancadas → 1 resumen; 2 → individuales.
+    var _avPre = {}; leerTabla(getMaestro().getSheetByName('Avisos')).forEach(function (f) { _avPre[String(f.id_aviso)] = true; });
+    var _mkTarea = function (n) {
+      return crearTarea({ descripcion: '__TEST__ estancada ' + n, prioridad: 'C', tipo: 'personal' });
+    };
+    var shT = getMaestro().getSheetByName('Tareas');
+    var hT = shT.getRange(1, 1, 1, shT.getLastColumn()).getValues()[0];
+    var cFC = hT.indexOf('fecha_creacion') + 1;
+    var _viejas = [];
+    for (var iT = 1; iT <= 5; iT++) {
+      var tt = _mkTarea(iT);
+      _viejas.push(tt);
+      var fila = leerTabla(shT).filter(function (f) { return String(f.id_tarea) === String(tt.id_tarea); })[0];
+      shT.getRange(fila._fila, cFC).setValue(Utilities.formatDate(new Date(Date.now() - 60 * 86400000), TZ, 'yyyy-MM-dd'));
+    }
+    SpreadsheetApp.flush();
+    var nEst = detectarTareasEstancadas();
+    var avNuevos = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
+      return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
+    });
+    chk(nEst === 1 && avNuevos.length === 1, 'D15j con 5 estancadas → 1 aviso resumen, no 5');
+    chk(avNuevos[0] && String(avNuevos[0].mensaje).indexOf('5 tareas estancadas') === 0, 'D15k el resumen cita el conteo real');
+    chk(avNuevos[0] && (String(avNuevos[0].mensaje).match(/TAR-/g) || []).length === 3, 'D15l el resumen cita las 3 más viejas');
+    borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) { return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada'; });
 
     log.push('— TODO OK —');
   } finally {

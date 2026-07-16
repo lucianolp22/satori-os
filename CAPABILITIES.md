@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-16 12:50 · commit: ae43a37
+> Generado: 2026-07-16 12:58 · commit: fa88049
 
 ## Módulos
 
@@ -13,13 +13,13 @@
 | `03_cliente.js` | Alta de clientes y plantilla de Sheet cliente | 2 |
 | `04_sync.js` | Agregación MAESTRO ← Sheets cliente (vía GAS, NO IMPORTRANGE) | 1 |
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
-| `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 16 |
+| `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 17 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 17 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 47 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 4 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 13 |
-| `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 12 |
+| `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 15 |
 | `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 15 |
@@ -121,7 +121,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **05_costos.js:** modeloDeModulo_ llamadaAPI costearUSD_ logCostoCliente anonimizar desanonimizar consolidarCostosMes 
 
-**06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush crearAviso corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
+**06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush crearAviso corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas resolverAvisosDonde_ detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig configPrefijo_ setConfig nextId protegerSheet 
 
@@ -133,7 +133,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **11_aprobaciones.js:** clasificarAccion direccionVigente_ _dirActiva_ umbralPara crearAprobacion resolverAprobacion ejecutarAprobada ejecutarEmail_ ejecutarActivarRegla_ crearReglaDesdeExcepcion expirarPendientes parsearPayload_ autorActual_ 
 
-**12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ aFechaHora_ 
+**12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ archivarColaVieja_ _colaArchivable_ verifArchivoCola_ aFechaHora_ 
 
 **13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
 
