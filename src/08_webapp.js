@@ -620,7 +620,10 @@ function estadoAgentes() {
     feed: feed,
     // E1.1: URLs de servicios locales que el CM abre. voz_url cae al hardcode histórico si Config
     // aún no se sembró; oficina_url va CRUDA (vacía => el CM oculta el botón, por diseño B1).
-    cfg: { voz_url: getConfig('voz_url') || 'http://127.0.0.1:8787', oficina_url: getConfig('oficina_url') },
+    cfg: { voz_url: getConfig('voz_url') || 'http://127.0.0.1:8787', oficina_url: getConfig('oficina_url'),
+      // 16-jul: avatares propios de los nodos nav del CM (Config avatar_bandeja / avatar_cerebro;
+      // vacías => el CM conserva el glifo SVG, fail-closed en cmAvataresOrbita)
+      avatar_bandeja: getConfig('avatar_bandeja'), avatar_cerebro: getConfig('avatar_cerebro') },
     presupuesto: { gastoUsd: c.gasto, topeUsd: tope },
     aprobaciones: inboxAprobaciones_(),
     clientes_activos: listaClientes().filter(function (x) {
