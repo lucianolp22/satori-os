@@ -137,10 +137,12 @@ function selfTest() {
     var ceMat = materializarEstado(r.id_cliente);
     chk(ceMat.nodos === 2 && ceMat.aristas === 1, 'E8a-1 materializarEstado cuenta nodos/aristas');
     var ceEst = leerEstado(r.id_cliente);
-    chk(ceEst.resumen && String(ceEst.resumen.nodos) === '2', 'E8a-1 leerEstado devuelve el snapshot materializado');
-    chk(ceEst.nodos_por_dimension && String(ceEst.nodos_por_dimension.sistema) === '1' && String(ceEst.nodos_por_dimension.negocio) === '1', 'E8a-1 snapshot agrupa por eje (tarea→sistema, objetivo→negocio · tesis Satori)');
+    // Sheets coacciona: estos valores vuelven como NÚMERO, no como el string que se escribió.
+    // String(2)==='2' pasaba por suerte; Number() es lo que la comparación quiere decir de verdad.
+    chk(ceEst.resumen && Number(ceEst.resumen.nodos) === 2, 'E8a-1 leerEstado devuelve el snapshot materializado');
+    chk(ceEst.nodos_por_dimension && Number(ceEst.nodos_por_dimension.sistema) === 1 && Number(ceEst.nodos_por_dimension.negocio) === 1, 'E8a-1 snapshot agrupa por eje (tarea→sistema, objetivo→negocio · tesis Satori)');
     var ceIdx = leerTabla(getMaestro().getSheetByName('Cerebro_index')).filter(function (f) { return f.id_cliente === r.id_cliente; })[0];
-    chk(!!ceIdx && String(ceIdx.nodos) === '2', 'E8a-1 Cerebro_index agrega conteos en el MAESTRO (sin PII)');
+    chk(!!ceIdx && Number(ceIdx.nodos) === 2, 'E8a-1 Cerebro_index agrega conteos en el MAESTRO (sin PII)');
 
     // ── ETAPA 8a · a2 — Director (orquestación dirigida por objetivos) ─────────
     appendFila(SpreadsheetApp.openByUrl(r.url).getSheetByName('objetivos'), {
@@ -259,7 +261,9 @@ function selfTest() {
     chk(!!recMid && String(recMid.estado) === 'abierta', 'D6 un solo juicio NO cierra el lazo');
     var recFin = marcarRecomendacion('REC-TEST-1', 'kpi_movio', 'no');
     var recRow = leerTabla(getMaestro().getSheetByName('Recomendaciones')).filter(function (f) { return String(f.id) === 'REC-TEST-1'; })[0];
-    chk(recFin.cerrada === true && !!recRow && String(recRow.estado) === 'cerrada' && String(recRow.cerrada_en) !== '', 'D6 dos juicios cierran el lazo (estado+cerrada_en)');
+    // cerrada_en es un ahoraISO() que Sheets puede devolver como Date → normalizar (String(Date) !== ''
+    // pasaba igual, pero por accidente: la comparación no decía lo que quería decir).
+    chk(recFin.cerrada === true && !!recRow && String(recRow.estado) === 'cerrada' && aFechaISO(recRow.cerrada_en) !== '', 'D6 dos juicios cierran el lazo (estado+cerrada_en)');
 
     // D7 Agenda: alta rápida + la vista semanal la incluye (hoy ∈ [hoy, hoy+7]).
     var ageId = agendarEvento(hoyISO(), '09:00', '__TEST__ evento selfTest', '', 'assert selfTest');
@@ -454,228 +458,7 @@ function selfTest() {
       });
     }
 
-    // ── D14 (16-jul) F2: contrato de status report v1 + direcciones pre-aprobadas ──
-    // (a) el contrato renderiza las 10 secciones en orden con datos inyectados (renderer PURO).
-    var d14ctx = { titulo: 'T', bluf: 'B' };
-    CONTRATO_ORDEN.forEach(function (k) { if (k !== 'bluf') d14ctx[k] = ['- x']; });
-    var d14md = contratoStatusReport_(d14ctx);
-    // OJO: buscar por línea EXACTA ('\n## X\n'), no por substring: '## Cierre' matchearía primero
-    // '## Cierre acción→métrica' (sección 7) y el chequeo de orden daría un falso fallo.
-    var d14pos = CONTRATO_ORDEN.filter(function (k) { return k !== 'bluf'; })
-      .map(function (k) { return d14md.indexOf('\n## ' + CONTRATO_TITULOS[k] + '\n'); });
-    chk(d14pos.every(function (p) { return p > 0; }), 'D14a contrato renderiza las 9 secciones con encabezado + BLUF (10 del contrato)');
-    chk(d14pos.every(function (p, i) { return i === 0 || p > d14pos[i - 1]; }), 'D14b el ORDEN contractual se respeta (posiciones crecientes)');
-    // (c) una sección sin dato NO se omite: emite el fallback honesto (el hueco silencioso miente).
-    var d14vacio = contratoStatusReport_({ titulo: 'T', bluf: 'B', metricas: [] });
-    chk(d14vacio.indexOf('\n## ' + CONTRATO_TITULOS.metricas + '\n') > 0 && d14vacio.indexOf('(sin dato)') > 0, 'D14c sección vacía → encabezado + "(sin dato)", no se omite');
-    // (d) tendencia REAL con serie; sin 2 puntos comparables → null (no se estima).
-    var d14t = _tendencia_([{ fecha: '2026-07-01', valor: 10 }, { fecha: '2026-07-15', valor: 25 }]);
-    chk(d14t && d14t.palabra === 'acelerando' && d14t.detalle.indexOf('+15') >= 0, 'D14d tendencia acelerando con delta real (+15)');
-    chk(_tendencia_([{ fecha: '2026-07-01', valor: 10 }]) === null, 'D14e sin 2 puntos NO hay tendencia (null, no estimación)');
-    chk(_tendencia_([{ fecha: '2026-07-01', valor: 30 }, { fecha: '2026-07-15', valor: 12 }]).palabra === 'frenando', 'D14f tendencia frenando con delta negativo');
-    // (g) toda rec contractual trae dato + contrapeso + acción (el contrapeso nunca es vacío).
-    var d14r = _recContractual_({ texto: 'x', kpi: 'kpi_desconocido_xyz', id_cliente: '', dato: 'd=1' });
-    chk(d14r.length === 4 && d14r[1].indexOf('d=1') > 0 && d14r[2].indexOf('Contrapeso:') > 0 && d14r[2].length > 18 && d14r[3].indexOf('Acción:') > 0, 'D14g rec contractual = dato + contrapeso (fallback no vacío) + acción');
-
-    // ── D14 direcciones: la superficie de AUTO-aprobación. Default-deny debe sobrevivir intacto. ──
-    var shDir = getMaestro().getSheetByName('Direcciones');
-    chk(!!shDir, 'D14h setup() reconcilió la hoja Direcciones');
-    var d14cli = crearCliente({ nombre: '__TEST__ dir ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
-    var manana = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
-    var ayer = Utilities.formatDate(new Date(Date.now() - 86400000), TZ, 'yyyy-MM-dd');
-    // (i) SIN dirección → pendiente (default-deny intacto: es el assert que más importa).
-    var apSin = crearAprobacion(d14cli.id_cliente, '__TEST__mod', '__TEST__accion', { x: 1 });
-    chk(apSin.auto === false, 'D14i sin dirección vigente → NO auto-aprueba (default-deny intacto)');
-    // (j) dirección VIGENTE + match exacto → auto-aprueba, cita la dirección y deja rastro en el feed.
-    appendFila(shDir, { id: 'DIR-TEST-1', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manana, activa: 'si', notas: '__TEST__' });
-    var apCon = crearAprobacion(d14cli.id_cliente, '__TEST__mod', '__TEST__accion', { x: 2 });
-    var filaCon = leerTabla(abrirCliente(d14cli.id_cliente).ss.getSheetByName('Aprobaciones')).filter(function (a) { return String(a.id) === String(apCon.id); })[0];
-    chk(apCon.auto === true && apCon.direccion === 'DIR-TEST-1', 'D14j dirección vigente → auto-aprueba citando DIR-TEST-1');
-    chk(filaCon && String(filaCon.estado) === 'aprobada' && String(filaCon.decidido_por) === 'direccion:DIR-TEST-1' && String(filaCon.notas).indexOf('DIR-TEST-1') >= 0, 'D14k la fila nace aprobada + LOGUEA la dirección (trazable)');
-    var feedDir = leerTabla(getMaestro().getSheetByName('Actividad')).filter(function (f) { return String(f.tipo) === 'auto_aprobacion' && String(f.aprobacion_id) === String(apCon.id); });
-    chk(feedDir.length === 1, 'D14l la auto-aprobación deja rastro en Actividad (nunca silenciosa)');
-    // (m) VENCIDA → no matchea. (n) activa=false → no matchea. (o) otro tenant → no matchea (sin wildcard).
-    borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-1'; });
-    appendFila(shDir, { id: 'DIR-TEST-2', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: ayer, vigencia: ayer, activa: 'si', notas: '__TEST__' });
-    chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14m dirección VENCIDA no matchea');
-    borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-2'; });
-    appendFila(shDir, { id: 'DIR-TEST-3', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manana, activa: 'no', notas: '__TEST__' });
-    chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14n dirección activa=false no matchea (revocable)');
-    borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-3'; });
-    appendFila(shDir, { id: 'DIR-TEST-4', tipo_accion: '__TEST__accion', alcance: '*', aprobada_fecha: hoyISO(), vigencia: manana, activa: 'si', notas: '__TEST__' });
-    chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14o alcance wildcard "*" NO matchea (sin wildcard de tenant)');
-    chk(direccionVigente_(d14cli.id_cliente, '__TEST__otra') === null, 'D14p tipo_accion distinto no matchea (match exacto)');
-    borrarFilasDonde(shDir, function (f) { return String(f.id).indexOf('DIR-TEST') === 0; });
-    // (q) feedback del contrato escribe en Feedback (P2.1, patrón reusado — no duplicado).
-    var d14fb = registrarFeedback('brief', '__TEST__f2', 'si', 'assert D14');
-    var d14fbRow = leerTabla(getMaestro().getSheetByName('Feedback')).filter(function (f) { return String(f.id) === String(d14fb); })[0];
-    chk(!!d14fbRow && String(d14fbRow.origen_tipo) === 'brief' && String(d14fbRow.util) === 'si', 'D14q feedback del brief escribe en la hoja Feedback');
-
-    // ── D15 (16-jul) Mantenimiento: dieta de Cola_tareas + avisos agrupados ──
-    var shCola = getMaestro().getSheetByName('Cola_tareas');
-    var shArch = getMaestro().getSheetByName('Cola_archivo');
-    chk(!!shArch, 'D15a setup() reconcilió la hoja Cola_archivo');
-    var viejo = Utilities.formatDate(new Date(Date.now() - 90 * 86400000), TZ, 'yyyy-MM-dd') + 'T10:00:00';
-    var reciente = ahoraISO();
-    var _mkCola = function (id, estado, agente, creada) {
-      appendFila(shCola, { id: id, worker: '__TESTWORKER__', tipo: 'agente', payload: JSON.stringify({ agente: agente }),
-                           estado: estado, resultado: '', error: '', tomada_por: '', creada_en: creada, tomada_en: '', completada_en: '' });
-    };
-    // 2 terminales viejas del mismo agente ficticio + 1 pendiente vieja + 1 terminal reciente.
-    _mkCola('COLA-TEST-1', 'completada', '__testagente__', viejo);
-    _mkCola('COLA-TEST-2', 'fallida', '__testagente__', viejo);
-    _mkCola('COLA-TEST-3', 'pendiente', '__testagente2__', viejo);
-    _mkCola('COLA-TEST-4', 'completada', '__testagente3__', reciente);
-    SpreadsheetApp.flush();
-    var errAntes = telemetriaMaestro_().errores;
-    var d15 = archivarColaVieja_();
-    var idsCola = leerTabla(shCola).map(function (f) { return String(f.id); });
-    var idsArch = leerTabla(shArch).map(function (f) { return String(f.id); });
-    // De las 2 filas de __testagente__, la ÚLTIMA en la hoja es COLA-TEST-2 → esa queda protegida
-    // (es la que le da su estado al agente); COLA-TEST-1 sí se archiva.
-    chk(idsArch.indexOf('COLA-TEST-1') >= 0, 'D15b archiva la terminal vieja que NO es la última del agente');
-    chk(idsCola.indexOf('COLA-TEST-2') >= 0 && idsArch.indexOf('COLA-TEST-2') < 0, 'D15c NUNCA archiva la fila más reciente de un agente (último-estado)');
-    chk(idsCola.indexOf('COLA-TEST-3') >= 0 && idsArch.indexOf('COLA-TEST-3') < 0, 'D15d NUNCA archiva una pendiente (aunque sea vieja)');
-    chk(idsCola.indexOf('COLA-TEST-4') >= 0 && idsArch.indexOf('COLA-TEST-4') < 0, 'D15e NO archiva una terminal reciente (dentro del horizonte)');
-    chk(telemetriaMaestro_().errores === errAntes, 'D15f el conteo de errores del MES queda intacto pre/post archivo');
-    // La guarda del mes en curso solo es alcanzable con fechas reales el día 31 → se prueba sobre el
-    // predicado PURO, que es donde vive la decisión (determinista, no depende de cuándo corra el test).
-    var _pf = function (estado, creada, ultima) { return _colaArchivable_({ estado: estado, creada_en: creada }, '2026-06-16', '2026-07-01', ultima); };
-    chk(_pf('completada', '2026-05-01', false) === true, 'D15f2 terminal vieja y fuera del mes en curso → archivable');
-    chk(_pf('completada', '2026-07-10', false) === false, 'D15f3 fila del MES EN CURSO nunca se archiva (protege el conteo de errores)');
-    chk(_pf('fallida', '2026-07-05', false) === false, 'D15f4 error del mes en curso nunca se archiva (el contador no puede bajar)');
-    chk(_pf('pendiente', '2026-05-01', false) === false && _pf('tomada', '2026-05-01', false) === false, 'D15f5 pendiente/tomada nunca se archivan');
-    chk(_pf('completada', '2026-05-01', true) === false, 'D15f6 la última fila del agente nunca se archiva aunque sea vieja y terminal');
-    chk(_pf('completada', '', false) === false, 'D15f7 sin fecha de creación no se archiva (no sabemos la edad)');
-    chk(_pf('hecha', '2026-05-01', false) === false, 'D15f8 "hecha" NO es terminal de la cola (es de Tareas) → no archiva');
-    chk(archivarColaVieja_().archivadas === 0, 'D15g idempotente: una segunda corrida no mueve nada');
-    // El estado derivado del agente sobrevive al archivo (esa es la razón de la protección).
-    chk(estadosAgentesCola_(leerTabla(shCola))['__testagente__'] === 'fail', 'D15h el último-estado-por-agente sobrevive al archivo');
-    borrarFilasDonde(shCola, function (f) { return String(f.id).indexOf('COLA-TEST') === 0; });
-    borrarFilasDonde(shArch, function (f) { return String(f.id).indexOf('COLA-TEST') === 0; });
-    // Estados terminales: los del encargo ('hecha'/'error'/'cancelada') NO son los de la cola.
-    chk(COLA_TERMINALES.join(',') === 'completada,fallida', 'D15i los terminales de la COLA son completada/fallida (no los de Tareas)');
-
-    // ── Avisos agrupados. OJO: selfTest corre sobre PRODUCCIÓN, que ya tiene estancadas REALES.
-    // Todo esperado se COMPUTA de los datos vivos con el MISMO criterio que detectarTareasEstancadas
-    // (activa + no terminal + fecha_creacion < límite). Hardcodear un conteo acá es un assert que
-    // depende del día en que corra: falló así el 16-jul (esperaba "5" y prod tenía 18 reales → 23).
-    var _avPre = {}; leerTabla(getMaestro().getSheetByName('Avisos')).forEach(function (f) { _avPre[String(f.id_aviso)] = true; });
-    var shT = getMaestro().getSheetByName('Tareas');
-    var hT = shT.getRange(1, 1, 1, shT.getLastColumn()).getValues()[0];
-    var cFC = hT.indexOf('fecha_creacion') + 1;
-    // El MISMO predicado que la función (si allá cambia, este assert debe cambiar con él).
-    var _diasEst = parseInt(getConfig('dias_estancamiento_tarea') || '7', 10);
-    var _limEst = hace(_diasEst);
-    var _esEstancada = function (t) {
-      var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
-      var activa = ['en_curso', 'pendiente', 'en curso', ''].indexOf(String(t.estado).toLowerCase()) >= 0;
-      var fc = aFechaISO(t.fecha_creacion);
-      return !term && activa && fc && fc < _limEst;
-    };
-    var _viejaISO = Utilities.formatDate(new Date(Date.now() - 60 * 86400000), TZ, 'yyyy-MM-dd');
-    for (var iT = 1; iT <= 5; iT++) {
-      var tt = crearTarea({ descripcion: '__TEST__ estancada ' + iT, prioridad: 'C', tipo: 'personal' });
-      var fila = leerTabla(shT).filter(function (f) { return String(f.id_tarea) === String(tt.id_tarea); })[0];
-      shT.getRange(fila._fila, cFC).setValue(_viejaISO);
-    }
-    SpreadsheetApp.flush();
-    // Esperado = lo que hay AHORA (reales + las 5 de test), contado igual que la función.
-    var _estVivas = leerTabla(shT).filter(_esEstancada);
-    var _espN = _estVivas.length;
-    var _esp3 = _estVivas.slice().sort(function (a, b) {
-      return String(aFechaISO(a.fecha_creacion)) < String(aFechaISO(b.fecha_creacion)) ? -1 : 1;
-    }).slice(0, 3).map(function (t) { return String(t.id_tarea); });
-    chk(_espN > ESTANCADAS_MAX, 'D15j0 el escenario es el de agrupación (' + _espN + ' > ' + ESTANCADAS_MAX + ')');
-
-    var nEst = detectarTareasEstancadas();
-    // Invariante REAL: exactamente 1 aviso tarea_estancada ACTIVO (no "1 nuevo"): si el conteo no
-    // cambió desde la corrida anterior, crearAviso reusa el aviso existente y no nace ninguno nuevo.
-    var _avAct = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
-      return String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
-    });
-    chk(nEst === 1 && _avAct.length === 1, 'D15j con >' + ESTANCADAS_MAX + ' estancadas queda 1 SOLO aviso resumen activo (ni N individuales ni resúmenes viejos apilados)');
-    var _m = String(_avAct[0] && _avAct[0].mensaje);
-    var _cap = _m.match(/^(\d+) tareas estancadas/);
-    chk(!!_cap && Number(_cap[1]) === _espN, 'D15k el resumen abre con el conteo real de estancadas vivas (esperado ' + _espN + ', dijo ' + (_cap ? _cap[1] : '—') + ')');
-    // Las 3 más viejas pueden ser REALES (más antiguas que las de test): se comparan contra las
-    // computadas de los datos vivos, no contra las de test.
-    chk(_esp3.every(function (id) { return _m.indexOf(id) > 0; }) && (_m.match(/TAR-/g) || []).length === 3,
-        'D15l el resumen cita exactamente las 3 más viejas por fecha (' + _esp3.join(', ') + ')');
-    // Que un resumen viejo NO sobreviva: se re-corre con otro conteo y debe seguir habiendo 1 solo.
-    borrarFilasDonde(shT, function (f) { return String(f.descripcion) === '__TEST__ estancada 5'; });
-    SpreadsheetApp.flush();
-    detectarTareasEstancadas();
-    var _avAct2 = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
-      return String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
-    });
-    chk(_avAct2.length === 1 && Number(String(_avAct2[0].mensaje).match(/^(\d+)/)[1]) === _espN - 1,
-        'D15m al cambiar el conteo, el resumen viejo se resuelve y queda 1 solo (no se apilan)');
-    // Los resúmenes que creó ESTE test citan un conteo que incluye las 5 tareas de prueba (que
-    // limpiarTodoTest borra a continuación) → borrarlos por baseline, o el CM mostraría un número
-    // falso. Los avisos REALES que la corrida resolvió quedan 'resuelto': eso NO se revierte, es el
-    // comportamiento diseñado (el encargo pide resolver los individuales viejos por baseline).
-    // Efecto: hasta la próxima corridaDiaria no hay ningún tarea_estancada activo. Es correcto, no
-    // es pérdida de datos: la corrida de las 07:00 lo recrea con el conteo real.
-    borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) {
-      return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada';
-    });
-
-    // ── D16 (16-jul) Voz-acciones: la voz ESCRIBE, con gate. La frontera de confianza es lo que se prueba. ──
-    var d16cli = crearCliente({ nombre: '__TEST__ accion ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
-    var d16obj = abrirCliente(d16cli.id_cliente).ss.getSheetByName('objetivos');
-    chk(!!d16obj, 'D16a el tenant de prueba tiene hoja objetivos');
-    // (b) whitelist dura de acciones + (c) tenant fuera del roster.
-    chk(accionVoz_('borrar_todo', { titulo: 'x' }, d16cli.id_cliente).error === 'accion_no_permitida', 'D16b acción fuera de ACCIONES_VOZ → rechazo (whitelist dura)');
-    chk(accionVoz_('crear_objetivo', { titulo: 'x' }, 'CLI-INVENTADO').error === 'tenant_desconocido', 'D16c tenant que no está en el roster → rechazo (nunca un id del LLM)');
-    chk(accionVoz_('crear_objetivo', 'no soy objeto', d16cli.id_cliente).error === 'payload_invalido', 'D16d payload no-objeto → rechazo');
-    // (e) SIN Dirección: crea aprobación PENDIENTE y NO escribe el objetivo (default-deny).
-    var objAntes = leerTabla(d16obj).length;
-    var d16r = accionVoz_('crear_objetivo', { titulo: 'Subir la recompra', meta: '30', deadline: '2026-12-31' }, d16cli.id_cliente);
-    chk(d16r.ok === true && d16r.estado === 'pendiente_aprobacion' && d16r.auto === false, 'D16e sin Dirección → deja aprobación pendiente (no dice "registrado")');
-    chk(leerTabla(d16obj).length === objAntes, 'D16f sin el clic humano NO se escribió el objetivo (default-deny)');
-    // (g) al aprobar, se materializa.
-    resolverAprobacion(d16cli.id_cliente, d16r.id_aprobacion, 'aprobada');
-    var objDespues = leerTabla(d16obj);
-    var creado = objDespues.filter(function (o) { return String(o.descripcion) === 'Subir la recompra'; })[0];
-    chk(!!creado, 'D16g tras aprobar, el objetivo se materializa en la hoja objetivos del tenant');
-    chk(String(creado.valor_objetivo) === '30' && String(creado.fecha_objetivo) === '2026-12-31' && String(creado.estado) === 'activo', 'D16h meta/deadline/estado se materializan bien');
-    // (i) LA FRONTERA DE CONFIANZA: metrica SIEMPRE vacía → la voz nunca alcanza correrAgente_.
-    chk(String(creado.metrica) === '', 'D16i metrica nace VACÍA → un objetivo de voz NUNCA dispara al Analista (14_director.js:48)');
-    // (j) enforcement SERVER-SIDE: aunque el payload traiga metrica, se descarta (no se confía en el agente).
-    var d16m = accionVoz_('crear_objetivo', { titulo: 'Con metrica colada', metrica: 'ventas_ars', meta: '5' }, d16cli.id_cliente);
-    resolverAprobacion(d16cli.id_cliente, d16m.id_aprobacion, 'aprobada');
-    var colado = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Con metrica colada'; })[0];
-    chk(!!colado && String(colado.metrica) === '', 'D16j payload con metrica incluida → se DESCARTA server-side (metrica sigue vacía)');
-    // (k) payload hostil saneado + truncado en la fila.
-    var hostil = 'Objetivo\thostil\ncon saltos ' + new Array(5000).join('z');
-    var d16h = accionVoz_('crear_objetivo', { titulo: hostil }, d16cli.id_cliente);
-    resolverAprobacion(d16cli.id_cliente, d16h.id_aprobacion, 'aprobada');
-    var filaH = leerTabla(d16obj).filter(function (o) { return String(o.descripcion).indexOf('Objetivo hostil') === 0; })[0];
-    chk(!!filaH && String(filaH.descripcion).indexOf('\n') < 0 && String(filaH.descripcion).indexOf('\t') < 0 && String(filaH.descripcion).length <= 201, 'D16k descripcion hostil (\\n\\t + 5000 chars) → saneada y truncada en la fila');
-    // (l) el North Star de SISTEMA no se crea por voz (fuente única = Config).
-    chk(accionVoz_('crear_objetivo', { titulo: 'Mi north star: 6 clientes pagos' }, d16cli.id_cliente).error === 'north_star_no_por_voz', 'D16l un título que pretende ser el North Star de sistema → rechazo (fuente única en Config)');
-    chk(_hueleANorthStar_('north star') && _hueleANorthStar_('el objetivo de Satori') && !_hueleANorthStar_('subir el AOV'), 'D16m el detector de North Star no marca objetivos operativos normales');
-    // (n) velocidad 2: con Dirección vigente → auto-aprueba Y ejecuta en el mismo turno.
-    var shDir16 = getMaestro().getSheetByName('Direcciones');
-    var man16 = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
-    appendFila(shDir16, { id: 'DIR-TEST-9', tipo_accion: 'crear_objetivo', alcance: d16cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: man16, activa: 'si', notas: '__TEST__' });
-    var d16v2 = accionVoz_('crear_objetivo', { titulo: 'Objetivo por dirección' }, d16cli.id_cliente);
-    chk(d16v2.ok === true && d16v2.estado === 'registrado' && d16v2.auto === true && d16v2.direccion === 'DIR-TEST-9', 'D16n con Dirección vigente → registrado en el mismo turno, citando la dirección');
-    var porDir = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Objetivo por dirección'; })[0];
-    chk(!!porDir && String(porDir.id_objetivo) === String(d16v2.id_objetivo), 'D16o la velocidad 2 devuelve el id real creado (evidencia, no promesa)');
-    chk(String(porDir.metrica) === '', 'D16p ni siquiera por Dirección se cuela metrica (el camino sin gate humano tampoco)');
-    borrarFilasDonde(shDir16, function (f) { return String(f.id) === 'DIR-TEST-9'; });
-    // (q) P4 research: el prefijo rutea sin gastar Haiku.
-    chk(esResearch_('[RESEARCH] competidores de X') === true && esResearch_('nota normal') === false, 'D16q el prefijo [RESEARCH] se detecta literal');
-    chk(BANDEJA_BINS.indexOf('research') >= 0, 'D16r "research" es un bin válido de la Bandeja');
-    // (s) P1 North Star: siembra idempotente en Config (fuente única).
-    var nsB = getConfig('ns_satori_desc');
-    var s1 = sembrarNorthStarSatori_();
-    var s2 = sembrarNorthStarSatori_();
-    chk(s2.sembrado === false, 'D16s sembrarNorthStarSatori_ es idempotente (la 2a vez no pisa)');
-    chk(!!northStarSatori_() && northStarSatori_().meta === 6, 'D16t el North Star queda en Config con meta 6');
-    if (!nsB) { ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte'].forEach(function (k) { setConfig(k, ''); }); } // restaurar baseline
+    _asertsF2_(chk, log);   // D14 contrato F2 · D15 mantenimiento · D16 voz-acciones (cuerpo compartido con selfTestF2_)
 
     log.push('— TODO OK —');
   } finally {
@@ -685,6 +468,267 @@ function selfTest() {
     log.push('🧹 limpieza: ' + limpiados.clientes + ' cliente(s) __TEST__ a papelera, filas TEST removidas');
   }
 
+  var salida = log.join('\n');
+  Logger.log(salida);
+  return salida;
+}
+
+
+/**
+ * Cuerpo COMPARTIDO de las tandas nuevas (D14 contrato F2 · D15 mantenimiento · D16 voz-acciones).
+ * Vive acá y no dentro de selfTest para que los DOS runners corran EXACTAMENTE los mismos asserts:
+ * selfTest() (certificación completa, lenta) y selfTestF2_() (iteración, segundos). Duplicarlos
+ * garantizaría que diverjan.
+ * @param {function} chk  aserción del runner (tira en el primer fallo)
+ * @param {Array} log     el log del runner
+ */
+function _asertsF2_(chk, log) {
+  // ── D14 (16-jul) F2: contrato de status report v1 + direcciones pre-aprobadas ──
+  // (a) el contrato renderiza las 10 secciones en orden con datos inyectados (renderer PURO).
+  var d14ctx = { titulo: 'T', bluf: 'B' };
+  CONTRATO_ORDEN.forEach(function (k) { if (k !== 'bluf') d14ctx[k] = ['- x']; });
+  var d14md = contratoStatusReport_(d14ctx);
+  // OJO: buscar por línea EXACTA ('\n## X\n'), no por substring: '## Cierre' matchearía primero
+  // '## Cierre acción→métrica' (sección 7) y el chequeo de orden daría un falso fallo.
+  var d14pos = CONTRATO_ORDEN.filter(function (k) { return k !== 'bluf'; })
+    .map(function (k) { return d14md.indexOf('\n## ' + CONTRATO_TITULOS[k] + '\n'); });
+  chk(d14pos.every(function (p) { return p > 0; }), 'D14a contrato renderiza las 9 secciones con encabezado + BLUF (10 del contrato)');
+  chk(d14pos.every(function (p, i) { return i === 0 || p > d14pos[i - 1]; }), 'D14b el ORDEN contractual se respeta (posiciones crecientes)');
+  // (c) una sección sin dato NO se omite: emite el fallback honesto (el hueco silencioso miente).
+  var d14vacio = contratoStatusReport_({ titulo: 'T', bluf: 'B', metricas: [] });
+  chk(d14vacio.indexOf('\n## ' + CONTRATO_TITULOS.metricas + '\n') > 0 && d14vacio.indexOf('(sin dato)') > 0, 'D14c sección vacía → encabezado + "(sin dato)", no se omite');
+  // (d) tendencia REAL con serie; sin 2 puntos comparables → null (no se estima).
+  var d14t = _tendencia_([{ fecha: '2026-07-01', valor: 10 }, { fecha: '2026-07-15', valor: 25 }]);
+  chk(d14t && d14t.palabra === 'acelerando' && d14t.detalle.indexOf('+15') >= 0, 'D14d tendencia acelerando con delta real (+15)');
+  chk(_tendencia_([{ fecha: '2026-07-01', valor: 10 }]) === null, 'D14e sin 2 puntos NO hay tendencia (null, no estimación)');
+  chk(_tendencia_([{ fecha: '2026-07-01', valor: 30 }, { fecha: '2026-07-15', valor: 12 }]).palabra === 'frenando', 'D14f tendencia frenando con delta negativo');
+  // (g) toda rec contractual trae dato + contrapeso + acción (el contrapeso nunca es vacío).
+  var d14r = _recContractual_({ texto: 'x', kpi: 'kpi_desconocido_xyz', id_cliente: '', dato: 'd=1' });
+  chk(d14r.length === 4 && d14r[1].indexOf('d=1') > 0 && d14r[2].indexOf('Contrapeso:') > 0 && d14r[2].length > 18 && d14r[3].indexOf('Acción:') > 0, 'D14g rec contractual = dato + contrapeso (fallback no vacío) + acción');
+
+  // ── D14 direcciones: la superficie de AUTO-aprobación. Default-deny debe sobrevivir intacto. ──
+  var shDir = getMaestro().getSheetByName('Direcciones');
+  chk(!!shDir, 'D14h setup() reconcilió la hoja Direcciones');
+  var d14cli = crearCliente({ nombre: '__TEST__ dir ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var manana = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
+  var ayer = Utilities.formatDate(new Date(Date.now() - 86400000), TZ, 'yyyy-MM-dd');
+  // (i) SIN dirección → pendiente (default-deny intacto: es el assert que más importa).
+  var apSin = crearAprobacion(d14cli.id_cliente, '__TEST__mod', '__TEST__accion', { x: 1 });
+  chk(apSin.auto === false, 'D14i sin dirección vigente → NO auto-aprueba (default-deny intacto)');
+  // (j) dirección VIGENTE + match exacto → auto-aprueba, cita la dirección y deja rastro en el feed.
+  appendFila(shDir, { id: 'DIR-TEST-1', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manana, activa: 'si', notas: '__TEST__' });
+  var apCon = crearAprobacion(d14cli.id_cliente, '__TEST__mod', '__TEST__accion', { x: 2 });
+  var filaCon = leerTabla(abrirCliente(d14cli.id_cliente).ss.getSheetByName('Aprobaciones')).filter(function (a) { return String(a.id) === String(apCon.id); })[0];
+  chk(apCon.auto === true && apCon.direccion === 'DIR-TEST-1', 'D14j dirección vigente → auto-aprueba citando DIR-TEST-1');
+  chk(filaCon && String(filaCon.estado) === 'aprobada' && String(filaCon.decidido_por) === 'direccion:DIR-TEST-1' && String(filaCon.notas).indexOf('DIR-TEST-1') >= 0, 'D14k la fila nace aprobada + LOGUEA la dirección (trazable)');
+  var feedDir = leerTabla(getMaestro().getSheetByName('Actividad')).filter(function (f) { return String(f.tipo) === 'auto_aprobacion' && String(f.aprobacion_id) === String(apCon.id); });
+  chk(feedDir.length === 1, 'D14l la auto-aprobación deja rastro en Actividad (nunca silenciosa)');
+  // (m) VENCIDA → no matchea. (n) activa=false → no matchea. (o) otro tenant → no matchea (sin wildcard).
+  borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-1'; });
+  appendFila(shDir, { id: 'DIR-TEST-2', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: ayer, vigencia: ayer, activa: 'si', notas: '__TEST__' });
+  chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14m dirección VENCIDA no matchea');
+  borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-2'; });
+  appendFila(shDir, { id: 'DIR-TEST-3', tipo_accion: '__TEST__accion', alcance: d14cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: manana, activa: 'no', notas: '__TEST__' });
+  chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14n dirección activa=false no matchea (revocable)');
+  borrarFilasDonde(shDir, function (f) { return String(f.id) === 'DIR-TEST-3'; });
+  appendFila(shDir, { id: 'DIR-TEST-4', tipo_accion: '__TEST__accion', alcance: '*', aprobada_fecha: hoyISO(), vigencia: manana, activa: 'si', notas: '__TEST__' });
+  chk(direccionVigente_(d14cli.id_cliente, '__TEST__accion') === null, 'D14o alcance wildcard "*" NO matchea (sin wildcard de tenant)');
+  chk(direccionVigente_(d14cli.id_cliente, '__TEST__otra') === null, 'D14p tipo_accion distinto no matchea (match exacto)');
+  borrarFilasDonde(shDir, function (f) { return String(f.id).indexOf('DIR-TEST') === 0; });
+  // (q) feedback del contrato escribe en Feedback (P2.1, patrón reusado — no duplicado).
+  var d14fb = registrarFeedback('brief', '__TEST__f2', 'si', 'assert D14');
+  var d14fbRow = leerTabla(getMaestro().getSheetByName('Feedback')).filter(function (f) { return String(f.id) === String(d14fb); })[0];
+  chk(!!d14fbRow && String(d14fbRow.origen_tipo) === 'brief' && String(d14fbRow.util) === 'si', 'D14q feedback del brief escribe en la hoja Feedback');
+
+  // ── D15 (16-jul) Mantenimiento: dieta de Cola_tareas + avisos agrupados ──
+  var shCola = getMaestro().getSheetByName('Cola_tareas');
+  var shArch = getMaestro().getSheetByName('Cola_archivo');
+  chk(!!shArch, 'D15a setup() reconcilió la hoja Cola_archivo');
+  var viejo = Utilities.formatDate(new Date(Date.now() - 90 * 86400000), TZ, 'yyyy-MM-dd') + 'T10:00:00';
+  var reciente = ahoraISO();
+  var _mkCola = function (id, estado, agente, creada) {
+    appendFila(shCola, { id: id, worker: '__TESTWORKER__', tipo: 'agente', payload: JSON.stringify({ agente: agente }),
+                         estado: estado, resultado: '', error: '', tomada_por: '', creada_en: creada, tomada_en: '', completada_en: '' });
+  };
+  // 2 terminales viejas del mismo agente ficticio + 1 pendiente vieja + 1 terminal reciente.
+  _mkCola('COLA-TEST-1', 'completada', '__testagente__', viejo);
+  _mkCola('COLA-TEST-2', 'fallida', '__testagente__', viejo);
+  _mkCola('COLA-TEST-3', 'pendiente', '__testagente2__', viejo);
+  _mkCola('COLA-TEST-4', 'completada', '__testagente3__', reciente);
+  SpreadsheetApp.flush();
+  var errAntes = telemetriaMaestro_().errores;
+  var d15 = archivarColaVieja_();
+  var idsCola = leerTabla(shCola).map(function (f) { return String(f.id); });
+  var idsArch = leerTabla(shArch).map(function (f) { return String(f.id); });
+  // De las 2 filas de __testagente__, la ÚLTIMA en la hoja es COLA-TEST-2 → esa queda protegida
+  // (es la que le da su estado al agente); COLA-TEST-1 sí se archiva.
+  chk(idsArch.indexOf('COLA-TEST-1') >= 0, 'D15b archiva la terminal vieja que NO es la última del agente');
+  chk(idsCola.indexOf('COLA-TEST-2') >= 0 && idsArch.indexOf('COLA-TEST-2') < 0, 'D15c NUNCA archiva la fila más reciente de un agente (último-estado)');
+  chk(idsCola.indexOf('COLA-TEST-3') >= 0 && idsArch.indexOf('COLA-TEST-3') < 0, 'D15d NUNCA archiva una pendiente (aunque sea vieja)');
+  chk(idsCola.indexOf('COLA-TEST-4') >= 0 && idsArch.indexOf('COLA-TEST-4') < 0, 'D15e NO archiva una terminal reciente (dentro del horizonte)');
+  chk(telemetriaMaestro_().errores === errAntes, 'D15f el conteo de errores del MES queda intacto pre/post archivo');
+  // La guarda del mes en curso solo es alcanzable con fechas reales el día 31 → se prueba sobre el
+  // predicado PURO, que es donde vive la decisión (determinista, no depende de cuándo corra el test).
+  var _pf = function (estado, creada, ultima) { return _colaArchivable_({ estado: estado, creada_en: creada }, '2026-06-16', '2026-07-01', ultima); };
+  chk(_pf('completada', '2026-05-01', false) === true, 'D15f2 terminal vieja y fuera del mes en curso → archivable');
+  chk(_pf('completada', '2026-07-10', false) === false, 'D15f3 fila del MES EN CURSO nunca se archiva (protege el conteo de errores)');
+  chk(_pf('fallida', '2026-07-05', false) === false, 'D15f4 error del mes en curso nunca se archiva (el contador no puede bajar)');
+  chk(_pf('pendiente', '2026-05-01', false) === false && _pf('tomada', '2026-05-01', false) === false, 'D15f5 pendiente/tomada nunca se archivan');
+  chk(_pf('completada', '2026-05-01', true) === false, 'D15f6 la última fila del agente nunca se archiva aunque sea vieja y terminal');
+  chk(_pf('completada', '', false) === false, 'D15f7 sin fecha de creación no se archiva (no sabemos la edad)');
+  chk(_pf('hecha', '2026-05-01', false) === false, 'D15f8 "hecha" NO es terminal de la cola (es de Tareas) → no archiva');
+  chk(archivarColaVieja_().archivadas === 0, 'D15g idempotente: una segunda corrida no mueve nada');
+  // El estado derivado del agente sobrevive al archivo (esa es la razón de la protección).
+  chk(estadosAgentesCola_(leerTabla(shCola))['__testagente__'] === 'fail', 'D15h el último-estado-por-agente sobrevive al archivo');
+  borrarFilasDonde(shCola, function (f) { return String(f.id).indexOf('COLA-TEST') === 0; });
+  borrarFilasDonde(shArch, function (f) { return String(f.id).indexOf('COLA-TEST') === 0; });
+  // Estados terminales: los del encargo ('hecha'/'error'/'cancelada') NO son los de la cola.
+  chk(COLA_TERMINALES.join(',') === 'completada,fallida', 'D15i los terminales de la COLA son completada/fallida (no los de Tareas)');
+
+  // ── Avisos agrupados. OJO: selfTest corre sobre PRODUCCIÓN, que ya tiene estancadas REALES.
+  // Todo esperado se COMPUTA de los datos vivos con el MISMO criterio que detectarTareasEstancadas
+  // (activa + no terminal + fecha_creacion < límite). Hardcodear un conteo acá es un assert que
+  // depende del día en que corra: falló así el 16-jul (esperaba "5" y prod tenía 18 reales → 23).
+  var _avPre = {}; leerTabla(getMaestro().getSheetByName('Avisos')).forEach(function (f) { _avPre[String(f.id_aviso)] = true; });
+  var shT = getMaestro().getSheetByName('Tareas');
+  var hT = shT.getRange(1, 1, 1, shT.getLastColumn()).getValues()[0];
+  var cFC = hT.indexOf('fecha_creacion') + 1;
+  // El MISMO predicado que la función (si allá cambia, este assert debe cambiar con él).
+  var _diasEst = parseInt(getConfig('dias_estancamiento_tarea') || '7', 10);
+  var _limEst = hace(_diasEst);
+  var _esEstancada = function (t) {
+    var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
+    var activa = ['en_curso', 'pendiente', 'en curso', ''].indexOf(String(t.estado).toLowerCase()) >= 0;
+    var fc = aFechaISO(t.fecha_creacion);
+    return !term && activa && fc && fc < _limEst;
+  };
+  var _viejaISO = Utilities.formatDate(new Date(Date.now() - 60 * 86400000), TZ, 'yyyy-MM-dd');
+  for (var iT = 1; iT <= 5; iT++) {
+    var tt = crearTarea({ descripcion: '__TEST__ estancada ' + iT, prioridad: 'C', tipo: 'personal' });
+    var fila = leerTabla(shT).filter(function (f) { return String(f.id_tarea) === String(tt.id_tarea); })[0];
+    shT.getRange(fila._fila, cFC).setValue(_viejaISO);
+  }
+  SpreadsheetApp.flush();
+  // Esperado = lo que hay AHORA (reales + las 5 de test), contado igual que la función.
+  var _estVivas = leerTabla(shT).filter(_esEstancada);
+  var _espN = _estVivas.length;
+  var _esp3 = _estVivas.slice().sort(function (a, b) {
+    return String(aFechaISO(a.fecha_creacion)) < String(aFechaISO(b.fecha_creacion)) ? -1 : 1;
+  }).slice(0, 3).map(function (t) { return String(t.id_tarea); });
+  chk(_espN > ESTANCADAS_MAX, 'D15j0 el escenario es el de agrupación (' + _espN + ' > ' + ESTANCADAS_MAX + ')');
+
+  var nEst = detectarTareasEstancadas();
+  // Invariante REAL: exactamente 1 aviso tarea_estancada ACTIVO (no "1 nuevo"): si el conteo no
+  // cambió desde la corrida anterior, crearAviso reusa el aviso existente y no nace ninguno nuevo.
+  var _avAct = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
+    return String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
+  });
+  chk(nEst === 1 && _avAct.length === 1, 'D15j con >' + ESTANCADAS_MAX + ' estancadas queda 1 SOLO aviso resumen activo (ni N individuales ni resúmenes viejos apilados)');
+  var _m = String(_avAct[0] && _avAct[0].mensaje);
+  var _cap = _m.match(/^(\d+) tareas estancadas/);
+  chk(!!_cap && Number(_cap[1]) === _espN, 'D15k el resumen abre con el conteo real de estancadas vivas (esperado ' + _espN + ', dijo ' + (_cap ? _cap[1] : '—') + ')');
+  // Las 3 más viejas pueden ser REALES (más antiguas que las de test): se comparan contra las
+  // computadas de los datos vivos, no contra las de test.
+  chk(_esp3.every(function (id) { return _m.indexOf(id) > 0; }) && (_m.match(/TAR-/g) || []).length === 3,
+      'D15l el resumen cita exactamente las 3 más viejas por fecha (' + _esp3.join(', ') + ')');
+  // Que un resumen viejo NO sobreviva: se re-corre con otro conteo y debe seguir habiendo 1 solo.
+  borrarFilasDonde(shT, function (f) { return String(f.descripcion) === '__TEST__ estancada 5'; });
+  SpreadsheetApp.flush();
+  detectarTareasEstancadas();
+  var _avAct2 = leerTabla(getMaestro().getSheetByName('Avisos')).filter(function (f) {
+    return String(f.tipo) === 'tarea_estancada' && String(f.estado) === 'activo';
+  });
+  chk(_avAct2.length === 1 && Number(String(_avAct2[0].mensaje).match(/^(\d+)/)[1]) === _espN - 1,
+      'D15m al cambiar el conteo, el resumen viejo se resuelve y queda 1 solo (no se apilan)');
+  // Los resúmenes que creó ESTE test citan un conteo que incluye las 5 tareas de prueba (que
+  // limpiarTodoTest borra a continuación) → borrarlos por baseline, o el CM mostraría un número
+  // falso. Los avisos REALES que la corrida resolvió quedan 'resuelto': eso NO se revierte, es el
+  // comportamiento diseñado (el encargo pide resolver los individuales viejos por baseline).
+  // Efecto: hasta la próxima corridaDiaria no hay ningún tarea_estancada activo. Es correcto, no
+  // es pérdida de datos: la corrida de las 07:00 lo recrea con el conteo real.
+  borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) {
+    return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada';
+  });
+
+  // ── D16 (16-jul) Voz-acciones: la voz ESCRIBE, con gate. La frontera de confianza es lo que se prueba. ──
+  var d16cli = crearCliente({ nombre: '__TEST__ accion ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d16obj = abrirCliente(d16cli.id_cliente).ss.getSheetByName('objetivos');
+  chk(!!d16obj, 'D16a el tenant de prueba tiene hoja objetivos');
+  // (b) whitelist dura de acciones + (c) tenant fuera del roster.
+  chk(accionVoz_('borrar_todo', { titulo: 'x' }, d16cli.id_cliente).error === 'accion_no_permitida', 'D16b acción fuera de ACCIONES_VOZ → rechazo (whitelist dura)');
+  chk(accionVoz_('crear_objetivo', { titulo: 'x' }, 'CLI-INVENTADO').error === 'tenant_desconocido', 'D16c tenant que no está en el roster → rechazo (nunca un id del LLM)');
+  chk(accionVoz_('crear_objetivo', 'no soy objeto', d16cli.id_cliente).error === 'payload_invalido', 'D16d payload no-objeto → rechazo');
+  // (e) SIN Dirección: crea aprobación PENDIENTE y NO escribe el objetivo (default-deny).
+  var objAntes = leerTabla(d16obj).length;
+  var d16r = accionVoz_('crear_objetivo', { titulo: 'Subir la recompra', meta: '30', deadline: '2026-12-31' }, d16cli.id_cliente);
+  chk(d16r.ok === true && d16r.estado === 'pendiente_aprobacion' && d16r.auto === false, 'D16e sin Dirección → deja aprobación pendiente (no dice "registrado")');
+  chk(leerTabla(d16obj).length === objAntes, 'D16f sin el clic humano NO se escribió el objetivo (default-deny)');
+  // (g) al aprobar, se materializa.
+  resolverAprobacion(d16cli.id_cliente, d16r.id_aprobacion, 'aprobada');
+  var objDespues = leerTabla(d16obj);
+  var creado = objDespues.filter(function (o) { return String(o.descripcion) === 'Subir la recompra'; })[0];
+  chk(!!creado, 'D16g tras aprobar, el objetivo se materializa en la hoja objetivos del tenant');
+  // ROUND-TRIP DE SHEETS: se escribe '30' y '2026-12-31' (strings) pero la hoja los devuelve como
+  // NÚMERO y como DATE — fecha_objetivo NO está en COLUMNAS_TEXTO, así que Sheets la tipa. Comparar
+  // String(celda) contra el literal escrito es el bug que rompió D16h: normalizar SIEMPRE
+  // (fechas con aFechaISO, números con Number). `estado` sí es texto y se compara tal cual.
+  chk(Number(creado.valor_objetivo) === 30 && aFechaISO(creado.fecha_objetivo) === '2026-12-31' && String(creado.estado) === 'activo', 'D16h meta/deadline/estado se materializan bien');
+  // (i) LA FRONTERA DE CONFIANZA: metrica SIEMPRE vacía → la voz nunca alcanza correrAgente_.
+  chk(String(creado.metrica) === '', 'D16i metrica nace VACÍA → un objetivo de voz NUNCA dispara al Analista (14_director.js:48)');
+  // (j) enforcement SERVER-SIDE: aunque el payload traiga metrica, se descarta (no se confía en el agente).
+  var d16m = accionVoz_('crear_objetivo', { titulo: 'Con metrica colada', metrica: 'ventas_ars', meta: '5' }, d16cli.id_cliente);
+  resolverAprobacion(d16cli.id_cliente, d16m.id_aprobacion, 'aprobada');
+  var colado = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Con metrica colada'; })[0];
+  chk(!!colado && String(colado.metrica) === '', 'D16j payload con metrica incluida → se DESCARTA server-side (metrica sigue vacía)');
+  // (k) payload hostil saneado + truncado en la fila.
+  var hostil = 'Objetivo\thostil\ncon saltos ' + new Array(5000).join('z');
+  var d16h = accionVoz_('crear_objetivo', { titulo: hostil }, d16cli.id_cliente);
+  resolverAprobacion(d16cli.id_cliente, d16h.id_aprobacion, 'aprobada');
+  var filaH = leerTabla(d16obj).filter(function (o) { return String(o.descripcion).indexOf('Objetivo hostil') === 0; })[0];
+  chk(!!filaH && String(filaH.descripcion).indexOf('\n') < 0 && String(filaH.descripcion).indexOf('\t') < 0 && String(filaH.descripcion).length <= 201, 'D16k descripcion hostil (\\n\\t + 5000 chars) → saneada y truncada en la fila');
+  // (l) el North Star de SISTEMA no se crea por voz (fuente única = Config).
+  chk(accionVoz_('crear_objetivo', { titulo: 'Mi north star: 6 clientes pagos' }, d16cli.id_cliente).error === 'north_star_no_por_voz', 'D16l un título que pretende ser el North Star de sistema → rechazo (fuente única en Config)');
+  chk(_hueleANorthStar_('north star') && _hueleANorthStar_('el objetivo de Satori') && !_hueleANorthStar_('subir el AOV'), 'D16m el detector de North Star no marca objetivos operativos normales');
+  // (n) velocidad 2: con Dirección vigente → auto-aprueba Y ejecuta en el mismo turno.
+  var shDir16 = getMaestro().getSheetByName('Direcciones');
+  var man16 = Utilities.formatDate(new Date(Date.now() + 86400000), TZ, 'yyyy-MM-dd');
+  appendFila(shDir16, { id: 'DIR-TEST-9', tipo_accion: 'crear_objetivo', alcance: d16cli.id_cliente, aprobada_fecha: hoyISO(), vigencia: man16, activa: 'si', notas: '__TEST__' });
+  var d16v2 = accionVoz_('crear_objetivo', { titulo: 'Objetivo por dirección' }, d16cli.id_cliente);
+  chk(d16v2.ok === true && d16v2.estado === 'registrado' && d16v2.auto === true && d16v2.direccion === 'DIR-TEST-9', 'D16n con Dirección vigente → registrado en el mismo turno, citando la dirección');
+  var porDir = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Objetivo por dirección'; })[0];
+  chk(!!porDir && String(porDir.id_objetivo) === String(d16v2.id_objetivo), 'D16o la velocidad 2 devuelve el id real creado (evidencia, no promesa)');
+  chk(String(porDir.metrica) === '', 'D16p ni siquiera por Dirección se cuela metrica (el camino sin gate humano tampoco)');
+  borrarFilasDonde(shDir16, function (f) { return String(f.id) === 'DIR-TEST-9'; });
+  // (q) P4 research: el prefijo rutea sin gastar Haiku.
+  chk(esResearch_('[RESEARCH] competidores de X') === true && esResearch_('nota normal') === false, 'D16q el prefijo [RESEARCH] se detecta literal');
+  chk(BANDEJA_BINS.indexOf('research') >= 0, 'D16r "research" es un bin válido de la Bandeja');
+  // (s) P1 North Star: siembra idempotente en Config (fuente única).
+  var nsB = getConfig('ns_satori_desc');
+  var s1 = sembrarNorthStarSatori_();
+  var s2 = sembrarNorthStarSatori_();
+  chk(s2.sembrado === false, 'D16s sembrarNorthStarSatori_ es idempotente (la 2a vez no pisa)');
+  chk(!!northStarSatori_() && northStarSatori_().meta === 6, 'D16t el North Star queda en Config con meta 6');
+  if (!nsB) { ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte'].forEach(function (k) { setConfig(k, ''); }); } // restaurar baseline
+}
+
+/**
+ * Runner ACOTADO (16-jul): corre SOLO D14+D15+D16 con su propia limpieza. NO corre el pipeline
+ * pesado de selfTest() (correrDirector / correrSalud / briefs / sync ≈ 7 min). Iterar un assert
+ * nuevo tiene que costar segundos, no una corrida entera.
+ * selfTest() completo sigue siendo la certificación final: correr UNA vez al cerrar.
+ */
+function selfTestF2_() {
+  var log = [];
+  function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) throw new Error('FALLO: ' + msg); }
+  try {
+    setup();            // reconcilia Direcciones + Cola_archivo (idempotente)
+    limpiarTodoTest();  // pre-clean: restos de una corrida que falló a mitad
+    _asertsF2_(chk, log);
+    log.push('— F2 TODO OK: D14 contrato + D15 mantenimiento + D16 voz-acciones —');
+  } finally {
+    var l = limpiarTodoTest();
+    log.push('🧹 limpieza: ' + l.clientes + ' cliente(s) __TEST__ a papelera, filas TEST removidas');
+  }
   var salida = log.join('\n');
   Logger.log(salida);
   return salida;
