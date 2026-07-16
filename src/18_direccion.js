@@ -615,6 +615,13 @@ function sembrarNorthStarSatori_() {
   return { sembrado: true, north_star: ns };
 }
 
+/**
+ * Wrapper PÚBLICO de sembrarNorthStarSatori_ — el desplegable del editor NO lista las funciones que
+ * terminan en guión bajo. Es un paso de puesta en marcha que corre Luciano a mano: tiene que verla.
+ * (Lección del 14-jul con sgicConsulta_.)
+ */
+function sembrarNorthStarSatori() { return sembrarNorthStarSatori_(); }
+
 /** Puesta en marcha — EDITAR y correr desde el editor para fijar/cambiar el North Star de Satori. */
 function cargarNorthStarSatori() {
   setConfig('ns_satori_desc', 'Gestionar 6 clientes pagos en paralelo, cada mes, entre servicios (resto de 2026)');

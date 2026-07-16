@@ -475,14 +475,43 @@ function selfTest() {
 
 
 /**
+ * Aprueba una acción de voz SOLO si la acción realmente creó la aprobación. Si la superficie rechazó
+ * (whitelist, cap de tamaño, tenant, North Star…), lo registra como fallo del TEST y devuelve false
+ * en vez de llamar a resolverAprobacion con undefined. Ver la "REGLA DEL FLUJO" en D16.
+ */
+function _aprobarSiOk_(chk, idCliente, res, etiqueta) {
+  if (!res || res.ok !== true || !res.id_aprobacion) {
+    chk(false, etiqueta + ': se esperaba una aprobación creada y accionVoz_ devolvió ' + JSON.stringify(res));
+    return false;
+  }
+  resolverAprobacion(idCliente, res.id_aprobacion, 'aprobada');
+  return true;
+}
+
+/**
  * Cuerpo COMPARTIDO de las tandas nuevas (D14 contrato F2 · D15 mantenimiento · D16 voz-acciones).
  * Vive acá y no dentro de selfTest para que los DOS runners corran EXACTAMENTE los mismos asserts:
  * selfTest() (certificación completa, lenta) y selfTestF2_() (iteración, segundos). Duplicarlos
  * garantizaría que diverjan.
- * @param {function} chk  aserción del runner (tira en el primer fallo)
+ *
+ * Cada tanda va AISLADA en su try/catch: una que reviente (una excepción inesperada, o una variable
+ * que quedó undefined tras un rojo cuando chk acumula) NO puede llevarse puestas a las otras dos —
+ * ese es justo el punto de acumular. Con el chk FATAL de selfTest() el catch re-lanza y la corrida
+ * corta igual (es certificación); con el chk acumulativo de selfTestF2_() sigue a la tanda siguiente.
+ * @param {function} chk  aserción del runner
  * @param {Array} log     el log del runner
  */
 function _asertsF2_(chk, log) {
+  [{ n: 'D14 contrato F2', f: _asertsD14_ },
+   { n: 'D15 mantenimiento', f: _asertsD15_ },
+   { n: 'D16 voz-acciones', f: _asertsD16_ }].forEach(function (t) {
+    try { t.f(chk, log); }
+    catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
+  });
+}
+
+/** D14 — contrato de status report v1 + direcciones pre-aprobadas (F2). Tanda aislada: la corre _asertsF2_. */
+function _asertsD14_(chk, log) {
   // ── D14 (16-jul) F2: contrato de status report v1 + direcciones pre-aprobadas ──
   // (a) el contrato renderiza las 10 secciones en orden con datos inyectados (renderer PURO).
   var d14ctx = { titulo: 'T', bluf: 'B' };
@@ -539,7 +568,10 @@ function _asertsF2_(chk, log) {
   var d14fb = registrarFeedback('brief', '__TEST__f2', 'si', 'assert D14');
   var d14fbRow = leerTabla(getMaestro().getSheetByName('Feedback')).filter(function (f) { return String(f.id) === String(d14fb); })[0];
   chk(!!d14fbRow && String(d14fbRow.origen_tipo) === 'brief' && String(d14fbRow.util) === 'si', 'D14q feedback del brief escribe en la hoja Feedback');
+}
 
+/** D15 — dieta de Cola_tareas + avisos de estancadas agrupados. Tanda aislada: la corre _asertsF2_. */
+function _asertsD15_(chk, log) {
   // ── D15 (16-jul) Mantenimiento: dieta de Cola_tareas + avisos agrupados ──
   var shCola = getMaestro().getSheetByName('Cola_tareas');
   var shArch = getMaestro().getSheetByName('Cola_archivo');
@@ -649,8 +681,17 @@ function _asertsF2_(chk, log) {
   borrarFilasDonde(getMaestro().getSheetByName('Avisos'), function (f) {
     return !_avPre[String(f.id_aviso)] && String(f.tipo) === 'tarea_estancada';
   });
+}
 
+/** D16 — voz-acciones: la voz escribe con gate + la frontera de confianza. Tanda aislada: la corre _asertsF2_. */
+function _asertsD16_(chk, log) {
   // ── D16 (16-jul) Voz-acciones: la voz ESCRIBE, con gate. La frontera de confianza es lo que se prueba. ──
+  //
+  // REGLA DEL FLUJO (16-jul, la 4ª realidad): accionVoz_ es una superficie CON DEFENSAS. Su retorno de
+  // RECHAZO ({ok:false, error}) es un resultado ESPERADO, no un camino imposible. Jamás se llama a
+  // resolverAprobacion con res.id_aprobacion sin verificar res.ok antes: si la defensa saltó, se asserta
+  // el error y se corta esa rama. (Con chk NO fatal, avanzar con undefined es un crash garantizado —
+  // así reventó D16k: mandaba 5000 chars, el cap de 4KB hizo su trabajo y el test no lo contemplaba.)
   var d16cli = crearCliente({ nombre: '__TEST__ accion ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
   var d16obj = abrirCliente(d16cli.id_cliente).ss.getSheetByName('objetivos');
   chk(!!d16obj, 'D16a el tenant de prueba tiene hoja objetivos');
@@ -664,10 +705,11 @@ function _asertsF2_(chk, log) {
   chk(d16r.ok === true && d16r.estado === 'pendiente_aprobacion' && d16r.auto === false, 'D16e sin Dirección → deja aprobación pendiente (no dice "registrado")');
   chk(leerTabla(d16obj).length === objAntes, 'D16f sin el clic humano NO se escribió el objetivo (default-deny)');
   // (g) al aprobar, se materializa.
-  resolverAprobacion(d16cli.id_cliente, d16r.id_aprobacion, 'aprobada');
+  _aprobarSiOk_(chk, d16cli.id_cliente, d16r, 'D16g');
   var objDespues = leerTabla(d16obj);
   var creado = objDespues.filter(function (o) { return String(o.descripcion) === 'Subir la recompra'; })[0];
   chk(!!creado, 'D16g tras aprobar, el objetivo se materializa en la hoja objetivos del tenant');
+  creado = creado || {};   // sin esto, un D16g rojo se lleva puestos D16h/D16i con un TypeError
   // ROUND-TRIP DE SHEETS: se escribe '30' y '2026-12-31' (strings) pero la hoja los devuelve como
   // NÚMERO y como DATE — fecha_objetivo NO está en COLUMNAS_TEXTO, así que Sheets la tipa. Comparar
   // String(celda) contra el literal escrito es el bug que rompió D16h: normalizar SIEMPRE
@@ -677,15 +719,21 @@ function _asertsF2_(chk, log) {
   chk(String(creado.metrica) === '', 'D16i metrica nace VACÍA → un objetivo de voz NUNCA dispara al Analista (14_director.js:48)');
   // (j) enforcement SERVER-SIDE: aunque el payload traiga metrica, se descarta (no se confía en el agente).
   var d16m = accionVoz_('crear_objetivo', { titulo: 'Con metrica colada', metrica: 'ventas_ars', meta: '5' }, d16cli.id_cliente);
-  resolverAprobacion(d16cli.id_cliente, d16m.id_aprobacion, 'aprobada');
+  _aprobarSiOk_(chk, d16cli.id_cliente, d16m, 'D16j');
   var colado = leerTabla(d16obj).filter(function (o) { return String(o.descripcion) === 'Con metrica colada'; })[0];
   chk(!!colado && String(colado.metrica) === '', 'D16j payload con metrica incluida → se DESCARTA server-side (metrica sigue vacía)');
-  // (k) payload hostil saneado + truncado en la fila.
-  var hostil = 'Objetivo\thostil\ncon saltos ' + new Array(5000).join('z');
+  // (k) payload hostil saneado + truncado en la fila. El título va POR DEBAJO del cap de 4KB a
+  // propósito: con 5000 chars saltaba el cap (payload_grande) y este assert no llegaba a ejercitar
+  // lo que quiere probar (saneo de \n\t + truncado a 200). El cap se prueba aparte, en D16k2.
+  var hostil = 'Objetivo\thostil\ncon saltos ' + new Array(1500).join('z');
   var d16h = accionVoz_('crear_objetivo', { titulo: hostil }, d16cli.id_cliente);
-  resolverAprobacion(d16cli.id_cliente, d16h.id_aprobacion, 'aprobada');
+  _aprobarSiOk_(chk, d16cli.id_cliente, d16h, 'D16k');
   var filaH = leerTabla(d16obj).filter(function (o) { return String(o.descripcion).indexOf('Objetivo hostil') === 0; })[0];
-  chk(!!filaH && String(filaH.descripcion).indexOf('\n') < 0 && String(filaH.descripcion).indexOf('\t') < 0 && String(filaH.descripcion).length <= 201, 'D16k descripcion hostil (\\n\\t + 5000 chars) → saneada y truncada en la fila');
+  chk(!!filaH && String(filaH.descripcion).indexOf('\n') < 0 && String(filaH.descripcion).indexOf('\t') < 0 && String(filaH.descripcion).length <= 201, 'D16k descripcion hostil (\\n\\t + ~1500 chars) → saneada y truncada a 200 en la fila');
+  // (k2) el cap de tamaño es una DEFENSA y debe saltar: se asserta el rechazo, no se avanza.
+  var d16big = accionVoz_('crear_objetivo', { titulo: new Array(5000).join('z') }, d16cli.id_cliente);
+  chk(d16big && d16big.ok === false && d16big.error === 'payload_grande', 'D16k2 payload > 4KB → rechazo payload_grande (la defensa salta, sin crash)');
+  chk(!leerTabla(d16obj).filter(function (o) { return String(o.descripcion).indexOf('zzz') === 0; })[0], 'D16k3 el payload rechazado NO escribió nada');
   // (l) el North Star de SISTEMA no se crea por voz (fuente única = Config).
   chk(accionVoz_('crear_objetivo', { titulo: 'Mi north star: 6 clientes pagos' }, d16cli.id_cliente).error === 'north_star_no_por_voz', 'D16l un título que pretende ser el North Star de sistema → rechazo (fuente única en Config)');
   chk(_hueleANorthStar_('north star') && _hueleANorthStar_('el objetivo de Satori') && !_hueleANorthStar_('subir el AOV'), 'D16m el detector de North Star no marca objetivos operativos normales');
@@ -711,6 +759,7 @@ function _asertsF2_(chk, log) {
   if (!nsB) { ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte'].forEach(function (k) { setConfig(k, ''); }); } // restaurar baseline
 }
 
+
 /**
  * Runner ACOTADO (16-jul): corre SOLO D14+D15+D16 con su propia limpieza. NO corre el pipeline
  * pesado de selfTest() (correrDirector / correrSalud / briefs / sync ≈ 7 min). Iterar un assert
@@ -718,21 +767,35 @@ function _asertsF2_(chk, log) {
  * selfTest() completo sigue siendo la certificación final: correr UNA vez al cerrar.
  */
 function selfTestF2_() {
-  var log = [];
-  function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) throw new Error('FALLO: ' + msg); }
+  var log = [], fallos = [];
+  // chk ACUMULATIVO (16-jul): registra y SIGUE. El chk fatal de selfTest() devolvía UN rojo por
+  // corrida — con D14-D16 iterándose, eso es un fallo por vuelta. Acá una corrida = TODOS los rojos.
+  // Las tandas van aisladas en _asertsF2_, así que un undefined encadenado no se lleva las otras dos.
+  function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) fallos.push(msg); }
   try {
     setup();            // reconcilia Direcciones + Cola_archivo (idempotente)
     limpiarTodoTest();  // pre-clean: restos de una corrida que falló a mitad
     _asertsF2_(chk, log);
-    log.push('— F2 TODO OK: D14 contrato + D15 mantenimiento + D16 voz-acciones —');
   } finally {
-    var l = limpiarTodoTest();
+    var l = limpiarTodoTest();   // la limpieza corre SIEMPRE, pase o falle
     log.push('🧹 limpieza: ' + l.clientes + ' cliente(s) __TEST__ a papelera, filas TEST removidas');
   }
+  log.push(fallos.length
+    ? '— ' + fallos.length + ' FALLO(S) —'
+    : '— F2 TODO OK: D14 contrato + D15 mantenimiento + D16 voz-acciones —');
   var salida = log.join('\n');
   Logger.log(salida);
+  // Tirar al final con la lista COMPLETA: el log ya quedó impreso arriba (no se pierde nada).
+  if (fallos.length) throw new Error('FALLOS (' + fallos.length + '):\n- ' + fallos.join('\n- '));
   return salida;
 }
+
+/**
+ * Wrapper PÚBLICO de selfTestF2_ — el desplegable del editor de Apps Script NO lista las funciones
+ * que terminan en guión bajo (son privadas por convención GAS). Sin esto, Luciano no la puede correr.
+ * Misma lección que el 14-jul con sgicConsulta_, ya anotada en el HANDOFF.
+ */
+function selfTestF2() { return selfTestF2_(); }
 
 /**
  * Diagnóstico aislado de E2-1 (correr a mano en el editor). NO es un fix: instrumenta

@@ -241,6 +241,13 @@ function verifArchivoCola_() {
   return r;
 }
 
+/**
+ * Wrapper PÚBLICO de verifArchivoCola_ — el desplegable del editor NO lista las funciones que
+ * terminan en guión bajo, y ESTA es la que hay que poder correr ANTES de dejar que el archivo
+ * corra solo (dice cuántas filas movería, sin mover nada). (Lección del 14-jul con sgicConsulta_.)
+ */
+function verifArchivoCola() { return verifArchivoCola_(); }
+
 // ── helpers locales ─────────────────────────────────────────────────────────
 
 /** Date desde una celda 'yyyy-MM-ddTHH:mm:ss' (ahoraISO) o un Date de Sheets. */
