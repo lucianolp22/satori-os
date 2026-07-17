@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-17 07:36 · commit: 33fe083
+> Generado: 2026-07-17 08:28 · commit: cd7b947
 
 ## Módulos
 
@@ -29,7 +29,6 @@
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
-| `99_tmp_tipos.js` | TEMPORAL: puebla tipo/recurrencia en las 23 tareas migradas de Trello | 1 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -152,6 +151,4 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **20_killswitch.js:** _sistemaPausado_ pausarSistema reanudarSistema estadoPausa smokeKill 
 
 **21_backup.js:** _stampBackup_ _nombreSeguro_ _backupRootFolder_ _retencionSemanas_ _copiarSpreadsheet_ _ejecutarBackup_ backupSemanal backupAhora instalarTriggerBackup estadoTriggerBackup smokeBackup backupListar drillRestore _drillRestore_ 
-
-**99_tmp_tipos.js:** tmp_poblarTipos 
 

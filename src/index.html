@@ -164,6 +164,19 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 /* E1.1: botón Oficina Virtual — acento jade (distinto del terracota de voz); mismo chrome que .cm-btn */
 .cm-btn.oficina{display:inline-flex;align-items:center;gap:6px;text-decoration:none;border-color:rgba(108,221,186,.5);color:#6cddba}
 .cm-btn.oficina:hover{background:rgba(108,221,186,.10)}
+/* E2 · AKASHA — puerta (pill) + overlay del spike. Acento lider (#F2C893), distinto de voz/oficina. */
+.cm-btn.akasha{display:inline-flex;align-items:center;gap:6px;border-color:rgba(242,200,147,.5);color:#f2c893}
+.cm-btn.akasha:hover{background:rgba(242,200,147,.10)}
+#akasha{position:fixed;inset:0;z-index:200;background:#0d0a10;display:none}
+#akasha.on{display:block}
+#akGl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#akHud{position:absolute;top:14px;left:16px;z-index:2;font-size:11px;letter-spacing:.06em;color:#B8AD96;
+  background:rgba(13,10,16,.55);border:1px solid rgba(242,200,147,.25);border-radius:999px;padding:6px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:none}
+#akHud b{color:#f2c893;font-weight:600}
+#akSalir{position:absolute;top:12px;right:16px;z-index:2;cursor:pointer;font-size:12px;letter-spacing:.06em;
+  color:#B8AD96;background:rgba(13,10,16,.55);border:1px solid rgba(242,200,147,.25);border-radius:999px;padding:7px 16px}
+#akSalir:hover{color:#f2c893;border-color:rgba(242,200,147,.55)}
 /* E1.1: avatares con imagen (arte IA). Sin url => el div queda con inicial (placeholder). La img llena el
    medallón circular ya existente; onerror en JS revierte al placeholder. Aplica a órbita, chips y roster. */
 .ag .av.has-img,.agm-av.has-img,#centro .ag-av.has-img{padding:0;overflow:hidden}
@@ -532,6 +545,13 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div id="cmVeil" aria-live="polite"><div class="cvbox"><span class="cvspin"></span>Cargando el Centro de Mando…</div></div>
   <div id="cmPill">Actualizando datos…</div><div class="veil"></div>
 
+  <!-- E2 · AKASHA spike: overlay propio (canvas #akGl con su PROPIO renderer; nunca comparte el del orbe). -->
+  <div id="akasha" aria-hidden="true">
+    <canvas id="akGl" aria-label="Oficina Universo Akasha — spike de convivencia Three (núcleo + 1 estación)"></canvas>
+    <div id="akHud" aria-live="off">AKASHA · spike E2 — <b id="akFps">—</b> fps · toggles <b id="akTog">0</b> · r<b id="akRev">—</b></div>
+    <button id="akSalir" aria-label="Volver al Despacho">⟵ Despacho</button>
+  </div>
+
   <header class="topbar">
     <div class="brand">
       <img class="isolog" src="data:image/png;base64,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" alt="Satori" height="30">
@@ -546,6 +566,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
       <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_blank" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
       <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
+      <button class="cm-btn akasha" id="cmAkasha" title="Entrar a la Oficina Universo (spike E2)">⟶ Akasha</button>
       <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
       <button class="icon-btn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
@@ -1531,7 +1552,9 @@ function cmSetCalidad(q){
 }
 function cmLoop(t){
   if(!CM.open)return; // se corta al cerrar
-  if(!document.hidden&&!CM.calma&&!REDUCED){cmDrawSpace(t);if(cm3D.on){cmRender3D(t);}else{cmDrawOrb(t);}cmOrbitar(t);}
+  // E2 · AKASHA: mientras Akasha está abierto, el loop del CM NO dibuja (jamás dos loops de render a la vez).
+  // Se saltea el CUERPO en vez de cortar la cadena de rAF: evita cadenas dobles al entrar/salir N veces.
+  if(!document.hidden&&!CM.calma&&!REDUCED&&!(AK&&AK.on)){cmDrawSpace(t);if(cm3D.on){cmRender3D(t);}else{cmDrawOrb(t);}cmOrbitar(t);}
   requestAnimationFrame(cmLoop);
 }
 // Órbita por JS: mueve el contenedor y contra-rota cada nodo el mismo ángulo → labels SIEMPRE derechos.
@@ -2094,6 +2117,136 @@ function ccKanbanDnD(){
 }
 // abrir tablero → cargar datos frescos (además del openB que muestra el modal)
 (function(){ var ob=document.getElementById('openBoard'); if(ob)ob.addEventListener('click',ccKanbanLoad); })();
+
+/* ══ AKASHA · SPIKE E2 — convivencia Three ═══════════════════════════════════════════════════
+ * DECISIÓN E2 = OPCIÓN A: Akasha reusa el `window.THREE` r128 (UMD, CDN+SRI) que YA carga el CM.
+ * Evidencia (verificada 17-jul contra el build real del CDN, SRI idéntico al del <script> de arriba):
+ *   · las 30 APIs THREE.* del prototipo E113 existen TODAS en r128 (MathUtils.damp incluido, ≥r113);
+ *   · el motor es 100% unlit (MeshBasic/Points/Sprite/Line) → la divergencia grande r128↔r184
+ *     (iluminación / useLegacyLights) NO aplica;
+ *   · el prototipo no toca NINGUNA API de color-space (la otra ruptura r128↔r184).
+ *   → No hace falta la Opción B (subir el CM a r184 ESM). Un solo Three por página, siempre.
+ * INVARIANTES QUE ESTE SPIKE PRUEBA (gate E2):
+ *   1. renderer PROPIO por escena: cm3D.renderer (orbe) y akEng.r (Akasha) jamás se comparten.
+ *   2. un solo loop de render a la vez: cmLoop saltea su cuerpo mientras AK.on (ver cmLoop).
+ *   3. salida limpia: dispose + forceContextLoss + canvas.replaceWith (patrón del motor E113, iOS).
+ * ALCANCE: núcleo + 1 estación. E3 reemplaza este motor por el del prototipo (mismo contrato).
+ * OJO r128 vs r184: el additive blending compone en sRGB (r128) vs linear (r184) → el glow se ve
+ * algo distinto al prototipo. No es un bug: es ítem de eyeball, igual que el orbe actual del CM.
+ */
+var AK={on:false,eng:null,toggles:0};
+function akMovil_(){return window.matchMedia&&window.matchMedia('(max-width:820px)').matches;}
+function akDisp_(){ // fail-closed: sin Three (CDN caído/SRI roto) o reduced-motion → la puerta no entra
+  return (typeof THREE!=='undefined')&&!REDUCED;
+}
+function akLabel_(txt,color){ // sprite de texto (patrón del prototipo: canvas → CanvasTexture, aniso)
+  var c=document.createElement('canvas'),d=c.getContext('2d'),F=44;
+  d.font='600 '+F+'px ui-sans-serif,system-ui,sans-serif';
+  c.width=Math.ceil(d.measureText(txt).width)+24; c.height=F+20;
+  d=c.getContext('2d'); d.font='600 '+F+'px ui-sans-serif,system-ui,sans-serif';
+  d.textBaseline='middle'; d.fillStyle=color; d.shadowColor=color; d.shadowBlur=10;
+  d.fillText(txt,12,c.height/2);
+  var t=new THREE.CanvasTexture(c); t.anisotropy=8; return {tex:t,ar:c.width/c.height};
+}
+function akBuild_(){
+  var COL={fogc:0x0d0a10,terra:0xD5824F,terraSoft:0xE6A87E,lider:0xF2C893,jade:0x3E9B82,ink:0xB8AD96};
+  var isM=akMovil_(), cv=document.getElementById('akGl'), disp=[];
+  function track(o){disp.push(o);return o;}
+  var r=new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:!isM,powerPreference:'high-performance'});
+  r.setPixelRatio(Math.min(window.devicePixelRatio||1,isM?1.5:2)); // presupuesto perf (nota de Cowork)
+  r.setClearColor(0x000000,0);
+  var sc=new THREE.Scene(); sc.fog=new THREE.FogExp2(COL.fogc,0.0022);
+  var cam=new THREE.PerspectiveCamera(55,1,0.1,600); cam.position.set(0,1.4,7.4); cam.lookAt(0,0,0);
+  var raf=0,running=false,fr=0,fpsT=0;
+  var add=function(g,m){var o=new THREE.Mesh(track(g),track(m));sc.add(o);return o;};
+  var bas=function(col,op){return new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending});};
+
+  /* ── Núcleo: geodésico + core + eclipse (tilt .35 / spin .15, E1.9) ── */
+  var nuc=new THREE.Group(); nuc.rotation.x=0.35; sc.add(nuc);
+  var wire=new THREE.Mesh(track(new THREE.IcosahedronGeometry(1.5,isM?2:3)),
+    track(new THREE.MeshBasicMaterial({color:COL.terra,wireframe:true,transparent:true,opacity:0.42,depthWrite:false,blending:THREE.AdditiveBlending})));
+  nuc.add(wire);
+  var core=new THREE.Mesh(track(new THREE.SphereGeometry(0.78,28,28)),track(bas(COL.terraSoft,0.10))); nuc.add(core);
+  nuc.add(new THREE.Mesh(track(new THREE.SphereGeometry(1.9,24,24)),track(bas(COL.terraSoft,0.03))));
+  var ecl=new THREE.Mesh(track(new THREE.RingGeometry(2.0,2.06,96)),track(bas(COL.lider,0.5))); ecl.rotation.x=Math.PI/2.6; nuc.add(ecl);
+
+  /* ── Starfield (Points + dPR, patrón del prototipo) ── */
+  var N=isM?900:1800,pos=new Float32Array(N*3);
+  for(var i=0;i<N;i++){var rr=40+Math.random()*160,th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+    pos[i*3]=rr*Math.sin(ph)*Math.cos(th);pos[i*3+1]=rr*Math.sin(ph)*Math.sin(th);pos[i*3+2]=rr*Math.cos(ph);}
+  var sg=track(new THREE.BufferGeometry()); sg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  sc.add(new THREE.Points(sg,track(new THREE.PointsMaterial({color:COL.ink,size:0.5,sizeAttenuation:true,transparent:true,opacity:0.55,depthWrite:false}))));
+
+  /* ── 1 estación: anillo que GIRA (spin 95s, E1.9) + spoke al núcleo + label ── */
+  var ring=new THREE.Group(); sc.add(ring);
+  var est=new THREE.Group(); est.position.set(4.2,0,0); ring.add(est);
+  est.add(new THREE.Mesh(track(new THREE.SphereGeometry(0.34,20,20)),track(bas(COL.jade,0.9))));
+  est.add(new THREE.Mesh(track(new THREE.SphereGeometry(0.62,20,20)),track(bas(COL.jade,0.12)))); // halo de estado
+  var L=akLabel_('Analista',"#6FC2A8"),sp=new THREE.Sprite(track(new THREE.SpriteMaterial({map:track(L.tex),transparent:true,depthWrite:false})));
+  sp.scale.set(L.ar*0.42,0.42,1); sp.position.set(0,0.95,0); est.add(sp);
+  var spg=track(new THREE.BufferGeometry()); spg.setAttribute('position',new THREE.BufferAttribute(new Float32Array([0,0,0, 4.2,0,0]),3));
+  ring.add(new THREE.LineSegments(spg,track(new THREE.LineBasicMaterial({color:COL.terraSoft,transparent:true,opacity:0.22,depthWrite:false,blending:THREE.AdditiveBlending}))));
+
+  function resize(){var w=cv.clientWidth||window.innerWidth,h=cv.clientHeight||window.innerHeight;
+    r.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix();}
+  var onRz=function(){resize();}; window.addEventListener('resize',onRz);
+  // context-loss (iOS): frena el loop y avisa — no deja pantalla negra muda
+  var onLost=function(e){e.preventDefault();running=false;cancelAnimationFrame(raf);
+    cmToast('Akasha: el dispositivo liberó el contexto gráfico');};
+  cv.addEventListener('webglcontextlost',onLost);
+
+  function loop(t){
+    raf=requestAnimationFrame(loop);
+    if(document.hidden)return;
+    var energy=Math.min(1,(CM.work||0)/3);           // E1.9: la energía la modula la actividad real
+    nuc.rotation.y=t*0.00015;                         // spin 0.15
+    core.material.opacity=0.08+0.06*energy+0.02*Math.sin(t*0.0015);
+    wire.material.opacity=0.34+0.18*energy+0.06*Math.sin(t*0.0016);
+    ecl.material.opacity=0.34+0.22*Math.abs(Math.sin(t*0.0007));  // banda de energía (sweep .7 rad/s)
+    ring.rotation.y=(t*0.001*(2*Math.PI/95))%(Math.PI*2);         // anillo: 95s/vuelta (spin del CSS del CM)
+    sp.material.rotation=0;                                        // label siempre derecho (sprite)
+    r.render(sc,cam);
+    fr++; if(t-fpsT>=500){var f=document.getElementById('akFps'); if(f)f.textContent=Math.round(fr*1000/(t-fpsT)); fr=0; fpsT=t;}
+  }
+  return {
+    start:function(){resize();running=true;fr=0;fpsT=performance.now();raf=requestAnimationFrame(loop);},
+    destroy:function(){
+      running=false;cancelAnimationFrame(raf);
+      window.removeEventListener('resize',onRz); cv.removeEventListener('webglcontextlost',onLost);
+      sc.traverse(function(o){if(o.geometry&&o.geometry.dispose)o.geometry.dispose();
+        var ms=Array.isArray(o.material)?o.material:[o.material];
+        ms.forEach(function(m){if(!m)return; if(m.map&&m.map.dispose)m.map.dispose(); if(m.dispose)m.dispose();});});
+      disp.forEach(function(d){if(d&&d.dispose)d.dispose();});
+      r.dispose(); r.forceContextLoss();
+      cv.replaceWith(cv.cloneNode(false)); // iOS: sin esto el canvas queda con el contexto muerto
+    }
+  };
+}
+function akEntrar(){
+  if(AK.on)return;
+  if(!akDisp_()){cmToast(REDUCED?'Akasha: respetando tu preferencia de movimiento reducido':'Akasha: el motor 3D no está disponible (Three.js no cargó)');return;}
+  try{
+    AK.on=true; // ANTES de construir: cmLoop deja de dibujar ya en el próximo frame
+    var a=document.getElementById('akasha'); a.classList.add('on'); a.setAttribute('aria-hidden','false');
+    AK.eng=akBuild_(); AK.eng.start();
+    AK.toggles++; var tg=document.getElementById('akTog'); if(tg)tg.textContent=AK.toggles;
+    var rv=document.getElementById('akRev'); if(rv)rv.textContent=THREE.REVISION;
+    document.getElementById('akSalir').focus();
+  }catch(e){ // cualquier fallo → volver al Despacho, nunca dejar el CM congelado con Akasha encima
+    console.error('[AKASHA] no se pudo iniciar el motor:',e); akSalir(); cmToast('Akasha: no se pudo iniciar el motor 3D');
+  }
+}
+function akSalir(){
+  if(AK.eng){try{AK.eng.destroy();}catch(e){console.error('[AKASHA] destroy:',e);} AK.eng=null;}
+  var a=document.getElementById('akasha'); a.classList.remove('on'); a.setAttribute('aria-hidden','true');
+  AK.on=false; // el orbe del CM retoma el dibujo en el próximo frame (la cadena de rAF nunca se cortó)
+  var b=document.getElementById('cmAkasha'); if(b)b.focus();
+}
+(function(){
+  var b=document.getElementById('cmAkasha'); if(b)b.addEventListener('click',akEntrar);
+  var s=document.getElementById('akSalir'); if(s)s.addEventListener('click',akSalir);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&AK.on){e.stopPropagation();akSalir();}},true);
+})();
 
 window.addEventListener('DOMContentLoaded', init);
 </script>
