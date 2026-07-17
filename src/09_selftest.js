@@ -504,7 +504,8 @@ function _aprobarSiOk_(chk, idCliente, res, etiqueta) {
 function _asertsF2_(chk, log, opts) {
   [{ n: 'D14 contrato F2', f: _asertsD14_ },
    { n: 'D15 mantenimiento', f: _asertsD15_ },
-   { n: 'D16 voz-acciones', f: _asertsD16_ }].forEach(function (t) {
+   { n: 'D16 voz-acciones', f: _asertsD16_ },
+   { n: 'D17h boot único', f: _asertsD17h_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -812,6 +813,42 @@ function _asertsD16_(chk, log, opts) {
  * nuevo tiene que costar segundos, no una corrida entera.
  * selfTest() completo sigue siendo la certificación final: correr UNA vez al cerrar.
  */
+/** D17h — bootUnico(): agregador fail-closed POR SECCIÓN. Devuelve las 6 claves;
+ *  si una fuente revienta, esa clave viaja null y las otras 5 viven (nunca todo-o-nada).
+ *  No toca datos: fuerza el fallo reemplazando temporalmente una función global y la
+ *  restaura en finally. Tanda aislada: la corre _asertsF2_. */
+function _asertsD17h_(chk, log, opts) {
+  var CLAVES = ['agentes', 'hoy', 'salud', 'recs', 'agenda', 'clientes'];
+
+  // (a) camino feliz: las 6 claves presentes.
+  var ok = bootUnico();
+  chk(!!ok && typeof ok === 'object', 'D17h-a bootUnico() devuelve un objeto');
+  CLAVES.forEach(function (k) {
+    chk(ok.hasOwnProperty(k), 'D17h-a bootUnico trae la clave ' + k);
+  });
+
+  // (b) fail-closed por sección: si datosHoy revienta, hoy=null y las otras 5 sobreviven.
+  //     Se pisa la global datosHoy con una que tira y se restaura pase lo que pase.
+  var real = datosHoy;
+  try {
+    datosHoy = function () { throw new Error('D17h fallo simulado'); };
+    var deg = bootUnico();
+    chk(deg.hoy === null, 'D17h-b la sección que falla viaja null');
+    var vivas = CLAVES.filter(function (k) { return k !== 'hoy'; })
+                      .filter(function (k) { return deg[k] !== null; });
+    chk(vivas.length === 5, 'D17h-b las otras 5 secciones viven pese al fallo (vivas: ' + vivas.length + ')');
+  } finally {
+    datosHoy = real;   // sin esto, todo test posterior que use datosHoy quedaría envenenado
+  }
+
+  // (c) el rango mal formado cae al lunes→domingo del script (no rompe, no viaja el basura).
+  var r1 = _bootRangoSemana_('no-es-fecha', 'tampoco');
+  chk(/^\d{4}-\d{2}-\d{2}$/.test(r1.desde) && /^\d{4}-\d{2}-\d{2}$/.test(r1.hasta),
+      'D17h-c rango inválido → fallback lunes→domingo válido');
+  var r2 = _bootRangoSemana_('2026-07-13', '2026-07-19');
+  chk(r2.desde === '2026-07-13' && r2.hasta === '2026-07-19', 'D17h-c rango válido del cliente se respeta');
+}
+
 function selfTestF2_() {
   var log = [], fallos = [];
   // chk ACUMULATIVO (16-jul): registra y SIGUE. El chk fatal de selfTest() devolvía UN rojo por

@@ -761,6 +761,67 @@ function telemetriaMaestro_(c, cola, tope) {
 }
 
 /**
+ * E3.4 — BOOT ÚNICO: las 6 fuentes del primer paint en UNA sola ejecución server.
+ *
+ * Por qué: el boot disparaba ~10 google.script.run (Akasha 6 + CM 4) y 5 de ellas
+ * eran LA MISMA función pedida dos veces (estadoAgentes/datosHoy/estadoSalud/
+ * recomendacionesAbiertas/agendaRango). Cada round-trip GAS cuesta 0.5-2s: el
+ * costo era la ida y vuelta, no el trabajo. Acá se paga UNA sola ida.
+ *
+ * Cero lógica nueva: llama a las funciones existentes tal cual. Cero endpoints de
+ * datos nuevos (esto es un agregador), cero scopes nuevos, cero secretos.
+ *
+ * FAIL-CLOSED POR SECCIÓN (paridad con el `pedir()` de Akasha): cada fuente va en
+ * su propio try/catch — la que falla viaja `null` y las otras 5 viven. Jamás
+ * todo-o-nada: una hoja rota no puede dejar la Oficina en negro.
+ *
+ * La agenda toma el rango del cliente (desdeISO/hastaISO) para no cambiarle el
+ * significado a la grilla: Akasha y el CM piden lunes→domingo y lo calculan en el
+ * huso del browser. Sin rango, cae al lunes→domingo del huso del script.
+ *
+ * NO usa CacheService a propósito (decisión 17-jul): datos viejos en el primer
+ * paint es exactamente lo que Bastión no quiere.
+ *
+ * @param {string=} desdeISO  YYYY-MM-DD (opcional)
+ * @param {string=} hastaISO  YYYY-MM-DD (opcional)
+ * @return {{agentes:Object, hoy:Object, salud:Object, recs:Array, agenda:Array, clientes:Array}}
+ *         cada clave es el retorno de su función, o null si esa fuente falló.
+ */
+function bootUnico(desdeISO, hastaISO) {
+  function seccion_(nombre, fn) {
+    try { return fn(); }
+    catch (e) {
+      // Se traga la excepción A PROPÓSITO: el cliente ya sabe pintar `null` como
+      // "sección vacía con aviso". Queda registrada para no fallar en silencio.
+      console.error('[bootUnico] ' + nombre + ': ' + ((e && e.message) || e));
+      return null;
+    }
+  }
+  var rango = _bootRangoSemana_(desdeISO, hastaISO);
+  return {
+    agentes:  seccion_('agentes',  function () { return estadoAgentes(); }),
+    hoy:      seccion_('hoy',      function () { return datosHoy(); }),
+    salud:    seccion_('salud',    function () { return estadoSalud(); }),
+    recs:     seccion_('recs',     function () { return recomendacionesAbiertas(); }),
+    agenda:   seccion_('agenda',   function () { return agendaRango(rango.desde, rango.hasta); }),
+    clientes: seccion_('clientes', function () { return listaClientes(); })
+  };
+}
+
+/** Rango del cliente si vino bien formado; si no, lunes→domingo en el huso del script. */
+function _bootRangoSemana_(desdeISO, hastaISO) {
+  var re = /^\d{4}-\d{2}-\d{2}$/;
+  if (re.test(String(desdeISO)) && re.test(String(hastaISO)) && String(hastaISO) >= String(desdeISO)) {
+    return { desde: String(desdeISO), hasta: String(hastaISO) };
+  }
+  var d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));   // lunes
+  var l = new Date(d.getTime()), dom = new Date(d.getTime());
+  dom.setDate(dom.getDate() + 6);
+  return { desde: aFechaISO(l), hasta: aFechaISO(dom) };
+}
+
+/**
  * Estado de Salud para el panel del Command Center (E8a4): los 6 chequeos + integridad%.
  * dryRun → NO escribe a producción (no ensucia feed/avisos en cada refresh de la UI).
  */

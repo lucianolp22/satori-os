@@ -1478,7 +1478,7 @@ function centroAbrir(){
     ccLimpiarManiquies();      // Bastión: los maniquíes se van ANTES del primer fetch
     cmRestaurarSnapshot();     // si hay snapshot real cacheado, repinta encima
     if(EN_GAS&&!CMBOOT.done)setTimeout(function(){cmBootMark('est');cmBootMark('salud');cmBootMark('hoy');},12000); }
-  refrescarCentro();refrescarSalud();ccHoy();
+  cmPrimerPaint();   // E3.4: el primer paint sale del bootUnico compartido (1 ida, no 4)
   if(CM.timer)clearInterval(CM.timer);
   CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
   if(CM.timerS)clearInterval(CM.timerS);
@@ -1568,6 +1568,49 @@ function cmAplicarCfg(cfg){
     else{of.style.display='none';}
   }
 }
+/* E3.4 — Primer paint del cockpit desde el payload compartido (window.BOOT1).
+ * Reemplaza SOLO la primera vuelta de refrescarCentro()+refrescarSalud()+ccHoy():
+ * esas 4 llamadas ya viajaron dentro de bootUnico(), junto con las de Akasha.
+ * Los timers (5s/30s/60s) siguen llamando a las funciones de siempre, así que el
+ * refresco en vivo no cambia. Si bootUnico falla o no hay backend, cae al camino
+ * viejo: nadie se queda sin datos por esta optimización.
+ * ccLimpiarManiquies() y cmRestaurarSnapshot() NO se tocan: corren antes, en
+ * centroAbrir(), y este paint pinta encima. */
+function cmPrimerPaint(){
+  if(!EN_GAS) return;
+  bootPayload().then(function(b){
+    if(!b){ refrescarCentro(); refrescarSalud(); ccHoy(); return; }   // fallback al camino de siempre
+    if(window.AK_T) AK_T.marca('cm:paint');
+
+    if(b.agentes){ try{ cmAplicarEstado(b.agentes,false); }catch(e){ console.error('[boot1] cmAplicarEstado:',e); } }
+    else { cmBootMark('est'); refrescarCentro(); }                     // sección caída: reintento puntual
+
+    if(b.salud){ try{ cmSalud(b.salud); cmSnapGuardar('cm_salud',b.salud); cmBootMark('salud'); }catch(e){ console.error('[boot1] cmSalud:',e); } }
+    else { refrescarSalud(); }
+
+    if(b.hoy){
+      CC.hoy=b.hoy; cmSnapGuardar('cm_hoy',b.hoy); cmBootMark('hoy');
+      try{ ccEstado();ccCartera();ccTareas();ccBrief(); }catch(e){ console.error('[boot1] cards:',e); }
+    } else {
+      cmBootMark('hoy');
+      if(!CC.hoy) ccAvisoFuente('No se pudo leer el MAESTRO — reintentando…');   // Bastión: vacío honesto, nunca el maniquí
+    }
+
+    CC.recs = b.recs || [];
+    try{ ccBrief(); }catch(_e){}
+
+    /* La agenda ya vino: se siembra el caché de calFetch con la MISMA clave que
+       usa ccCalSemana (lunes|domingo) para que no la vuelva a pedir. */
+    if(b.agenda){
+      try{
+        var hoyD=new Date(), lun=calLunes(hoyD), dom=calAdd(lun,6);
+        CAL.cache[calISO(lun)+'|'+calISO(dom)] = b.agenda;
+      }catch(_e){}
+    }
+    ccCalSemana();   // pinta; con el caché sembrado no dispara otra llamada
+  });
+}
+
 function refrescarCentro(){
   if(!EN_GAS){return;} // sin backend no hay datos reales
   if(CM.busy)return;   // guard in-flight: estadoAgentes() puede tardar >5s, no apilar llamadas
@@ -1646,6 +1689,47 @@ function cmClientes(cs){
 function clienteObjetivo(){var s=document.getElementById('cmCliente');return s&&s.value?s.value:'';}
 
 var EN_GAS=(typeof google!=='undefined')&&google.script&&google.script.run;
+
+/* ══ E3.4 · BOOT ÚNICO (cliente) ═════════════════════════════════════════════
+ * UNA sola llamada a bootUnico() alimenta el primer paint de LOS DOS: Akasha y
+ * el cockpit del CM. Antes cada uno pedía lo suyo y 5 funciones viajaban dos
+ * veces (estadoAgentes/datosHoy/estadoSalud/recomendacionesAbiertas/agendaRango).
+ *
+ * Es una promesa compartida, no un caché: se resuelve UNA vez por carga de página
+ * y ahí muere. Los timers de refresh (5s/30s/60s) siguen llamando a sus funciones
+ * de siempre — esto NO los toca, así que no hay riesgo de dato viejo.
+ * Sin CacheService a propósito (decisión 17-jul): dato viejo en el primer paint
+ * es lo que Bastión no quiere.
+ * ══════════════════════════════════════════════════════════════════════════ */
+var BOOT1 = null;
+function bootPayload(){
+  if (BOOT1) return BOOT1;
+  BOOT1 = new Promise(function(res){
+    if(!EN_GAS){ res(null); return; }
+    // El rango de la agenda lo manda el cliente: la grilla es lunes→domingo del
+    // huso del browser. Si no viaja, el server cae a su propio lunes→domingo.
+    var d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7));
+    var lun=new Date(d.getTime()), dom=new Date(d.getTime()); dom.setDate(dom.getDate()+6);
+    var f=function(x){return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
+    google.script.run
+      .withSuccessHandler(function(b){ res(b||null); })
+      .withFailureHandler(function(e){ console.error('[bootUnico]',e); res(null); })   // fail-closed: cada consumidor pinta su vacío
+      .bootUnico(f(lun), f(dom));
+  });
+  return BOOT1;
+}
+
+/* Cronómetro del boot (E3.4). Se lee con AK_T.tabla() en la consola de /exec. */
+var AK_T = (function(){
+  var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+  var m = {};
+  return {
+    marca: function(k){ if(m[k]==null) m[k] = Math.round(((window.performance&&performance.now)?performance.now():Date.now()) - t0); },
+    tabla: function(){ console.table(m); return m; },
+    ms: function(){ return m; }
+  };
+})();
+window.AK_T = AK_T;
 /* ── 14-jul boot limpio: velo hasta el primer payload real (est+salud+hoy) + snapshot de sesión para re-entrada instantánea (p. ej. al volver de la Voz). Failsafe 12s: nunca velo infinito. ── */
 var CMBOOT={est:false,salud:false,hoy:false,done:false};
 function cmBootMark(k){ if(CMBOOT.done)return; CMBOOT[k]=true;
@@ -4104,17 +4188,23 @@ window.AKASHA = (function () {
   }
 
   /* ---------- carga ---------- */
-  /* PRIMERA OLA: lo barato (6 llamadas al MAESTRO). Con esto ya se construye el
-     universo entero — estaciones, Espacios, Muelle, Núcleo geodésico vacío.
-     El Cerebro NO se espera acá: abre el Sheet de CADA Espacio y es lo caro. */
+  /* PRIMERA OLA (E3.4): UNA sola ida al server. Antes eran 6 round-trips desde
+     Akasha + 4 del CM, con 5 funciones pedidas DOS veces. El costo era la ida y
+     vuelta (0.5-2s cada una), no el trabajo: ahora `bootUnico()` las corre juntas
+     server-side y el CM se cuelga del MISMO payload (ver window.BOOT1).
+     El Cerebro NO viaja acá: abre el Sheet de CADA Espacio y es lo caro (2ª ola). */
   function cargar(cb) {
     var st = $('hud-status'); if (st) st.textContent = 'Leyendo el MAESTRO…';
-    Promise.all([
-      pedir('estadoAgentes'), pedir('datosHoy'), pedir('estadoSalud'),
-      pedir('recomendacionesAbiertas'), pedir('listaClientes'),
-      pedir('agendaRango', [iso(lunesDeEstaSemana()), iso(new Date(lunesDeEstaSemana().getTime() + 6 * 864e5))])
-    ]).then(function (r) {
-      DATA = construirDATA({ agentes: r[0], hoy: r[1], salud: r[2], recs: r[3], clientes: r[4], agenda: r[5] });
+    if (window.AK_T) window.AK_T.marca('boot1:pedido');
+    bootPayload().then(function (b) {
+      if (window.AK_T) window.AK_T.marca('boot1:llegó');
+      /* bootUnico manda null por sección caída; el adaptador espera {ok,v}. */
+      var sec = function (v) { return v == null ? { ok: false } : { ok: true, v: v }; };
+      if (!b) b = {};
+      DATA = construirDATA({
+        agentes: sec(b.agentes), hoy: sec(b.hoy), salud: sec(b.salud),
+        recs: sec(b.recs), clientes: sec(b.clientes), agenda: sec(b.agenda)
+      });
       S.alerta = DATA.salud != null && DATA.salud < 90;
       if (DATA._fallas.length) {
         console.warn('[AKASHA] fuentes caídas:', DATA._fallas);

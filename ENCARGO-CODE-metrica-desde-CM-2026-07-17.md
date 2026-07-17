@@ -1,5 +1,5 @@
-# ENCARGO CODE — Métrica desde el CM + números SIEMPRE en cifras — 17/07/2026 (v2, EN COLA)
-**Origen:** decisiones de Luciano 17-jul: (1) "nada manual en un Sheet fuera del Satori OS — que se haga al ejecutar comandos desde el Sistema"; (2) "las cifras siempre escritas en números: $130.000, no 'ciento treinta mil pesos' — aplicar para todo el sistema". **Cuándo correrlo: DESPUÉS del gate E2 de AKASHA y ANTES de E3** (E3 y esto tocan `index.html`; en serie no hay rebase). v2 reemplaza a la v1: se retiró el ítem heredado del flag `{completo:true}` (ya estaba en `b74d665` — verificado por `git log -S` 17-jul; el "omitido" observado fue el log de selfTestF2 en el panel, no un gap).
+# ENCARGO CODE — Métrica desde el CM + números SIEMPRE en cifras + tenant en encolarAgente — 17/07/2026 (v3, EN COLA)
+**Origen:** decisiones de Luciano 17-jul: (1) "nada manual en un Sheet fuera del Satori OS — que se haga al ejecutar comandos desde el Sistema"; (2) "las cifras siempre escritas en números: $130.000, no 'ciento treinta mil pesos' — aplicar para todo el sistema". **Cuándo correrlo: DESPUÉS del cierre de E3.4** (tocan los mismos archivos; en serie, sin rebase). v2 reemplaza a la v1: se retiró el ítem heredado del flag `{completo:true}` (ya estaba en `b74d665` — verificado por `git log -S` 17-jul; el "omitido" observado fue el log de selfTestF2 en el panel, no un gap).
 
 ## PARTE A — Métrica de objetivos desde el CM (fin de la celda manual)
 
@@ -20,6 +20,11 @@ El STT transcribe dictados en palabras ("ciento treinta mil pesos") y eso termin
 1. **agent.py (prompt de Sato):** instrucción explícita de normalizar toda cifra dictada a dígitos ANTES de armar payloads de `accion` y `capturar` (ej.: "ciento treinta mil pesos" → `$130.000`). Complementa (no reemplaza) la regla A1 de números HABLADOS agrupados — hablar natural, escribir en cifras.
 2. **Server-side best-effort (07_util.js):** en `accionVoz_`, normalizador acotado para montos en palabras frecuentes es-AR (mil/millones) sobre `titulo`/`descripcion` — determinista, sin LLM; si no matchea patrón conocido, deja el texto tal cual (jamás inventa). Assert D17f: "ciento treinta mil pesos" en título → la fila queda con "$130.000".
 3. NO tocar los formatters de LECTURA de la voz (A1/A3 ya resuelven el habla).
+
+## PARTE C — Defensa de tenant en encolarAgente (hallazgo TERCERA PRUEBA AKASHA, 17-jul)
+En la prueba real, "Despertar a Analista" con el selector de Akasha en "Todos los Espacios" viajó con `idCliente = "Todos los Espacios"` (el option nacía sin value; ya fixeado en UI por Cowork, E3.2) y `encolarAgente` (13_agentes.js:238) lo aceptó: valida agente y no-vacío, pero NO que el tenant EXISTA. El Analista corrió contra un tenant fantasma → Errores: 1 en telemetría. La UI ya corta el vector conocido; falta la capa server (defensa en profundidad, patrón de la casa).
+1. **`encolarAgente`**: validar `idCliente` contra el roster ANTES de encolar (mismo criterio fail-closed que `aprobacionDesdeRecomendacion`: tenant real o rechazo claro). Usar el helper de roster EXISTENTE (no inventar uno); mensaje: `tenant desconocido: <id>`.
+2. **Assert D17g** en `_asertsF2_`: `encolarAgente('CLI-NOEXISTE', 'analista', {})` → throw con mensaje claro · el caso feliz (CLI-000) sigue encolando.
 
 ## Gates
 `node --check` por archivo tocado · selfTestF2 verde (con D17) · selfTest completo UNA vez · eyeball de Luciano en /dev · promoción SOLO Luciano · cero scopes/endpoints externos nuevos.
