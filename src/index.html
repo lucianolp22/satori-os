@@ -2702,8 +2702,16 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     window.AKASHA.renderFlat('el dispositivo liberó el contexto gráfico'); }, sig);
 
   function resize(){
+    // E3.6 — re-aplica el DPR en CADA resize/cambio de pantalla. Estaba SOLO en el init:
+    // mover la ventana de la Retina (DPR 2) al monitor externo (DPR 1) o al revés dejaba
+    // el buffer a la densidad vieja → toda la escena borrosa ("no enfocaba el Núcleo").
+    renderer.setPixelRatio(Math.min(devicePixelRatio, isM?1.5:2));
     renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    // Cambiar de pantalla cambia devicePixelRatio SIN cambiar innerWidth/Height, así que
+    // 'resize' no siempre dispara. El listener de resolución (one-shot, se re-arma solo para
+    // el dppx nuevo) cierra ese hueco. try/catch: navegadores viejos sin addEventListener en MQL.
+    try{ matchMedia('(resolution:'+devicePixelRatio+'dppx)').addEventListener('change', resize, {once:true, signal:sig}); }catch(_e){}
   }
   addEventListener('resize', resize, sig); resize();
 
