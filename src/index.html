@@ -4285,6 +4285,14 @@ window.AKASHA = (function () {
       if (S.engine) S.engine.setVisible(!document.hidden);
       if (document.hidden) starsOff(); else if (AK.on) starsDraw(performance.now());
     });
+
+    /* AKASHA-HOME (pedido Luciano 17-jul): el OS abre DIRECTO en la Oficina.
+       Misma ruta que el click de la pill «⟶ Akasha» (paridad total, cero rama nueva).
+       Fail-closed: sin Three/WebGL o con movimiento reducido queda el Despacho de siempre
+       (el botón «⟵ Despacho» del HUD es la vuelta fija). El init del CM corre después
+       (registro DOMContentLoaded posterior) y respeta AK.on en cmLoop, así sus datos
+       cargan EN PARALELO debajo mientras la Oficina abre. */
+    if (akDisp_()) entrar();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
