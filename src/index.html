@@ -1478,8 +1478,11 @@ function centroAbrir(){
   if(!CM.bootRestaurado){ CM.bootRestaurado=true;
     ccLimpiarManiquies();      // Bastión: los maniquíes se van ANTES del primer fetch
     cmRestaurarSnapshot();     // si hay snapshot real cacheado, repinta encima
-    if(EN_GAS&&!CMBOOT.done)setTimeout(function(){cmBootMark('est');cmBootMark('salud');cmBootMark('hoy');},12000); }
-  cmPrimerPaint();   // E3.4: el primer paint sale del bootUnico compartido (1 ida, no 4)
+    // E3.7 (D): failsafe 12s→4s. El velo no debe tapar la Oficina 12s si el boot
+    // cuelga; con Akasha-home veloFade() ya lo saca al haber esqueleto, esto es el
+    // respaldo para el camino sin Akasha (flat/sin-webgl).
+    if(EN_GAS&&!CMBOOT.done)setTimeout(function(){cmBootMark('est');cmBootMark('salud');cmBootMark('hoy');},4000); }
+  cmPrimerPaint();   // E3.7: el primer paint sale de las 2 olas compartidas (universo + resto)
   if(CM.timer)clearInterval(CM.timer);
   CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
   if(CM.timerS)clearInterval(CM.timerS);
@@ -1569,29 +1572,33 @@ function cmAplicarCfg(cfg){
     else{of.style.display='none';}
   }
 }
-/* E3.4 — Primer paint del cockpit desde el payload compartido (window.BOOT1).
- * Reemplaza SOLO la primera vuelta de refrescarCentro()+refrescarSalud()+ccHoy():
- * esas 4 llamadas ya viajaron dentro de bootUnico(), junto con las de Akasha.
+/* E3.7 — Primer paint del cockpit desde las 2 olas compartidas (bootUniversoP +
+ * bootRestoP). Reemplaza SOLO la primera vuelta de refrescarCentro()+refrescarSalud()
+ * +ccHoy(): esas llamadas ya viajan dentro de las 2 olas, compartidas con Akasha.
  * Los timers (5s/30s/60s) siguen llamando a las funciones de siempre, así que el
- * refresco en vivo no cambia. Si bootUnico falla o no hay backend, cae al camino
+ * refresco en vivo no cambia. Si una ola falla o no hay backend, cae al camino
  * viejo: nadie se queda sin datos por esta optimización.
  * ccLimpiarManiquies() y cmRestaurarSnapshot() NO se tocan: corren antes, en
  * centroAbrir(), y este paint pinta encima. */
 function cmPrimerPaint(){
   if(!EN_GAS) return;
-  bootPayload().then(function(b){
-    if(!b){ refrescarCentro(); refrescarSalud(); ccHoy(); return; }   // fallback al camino de siempre
-    if(window.AK_T) AK_T.marca('cm:paint');
-
-    if(b.agentes){ try{ cmAplicarEstado(b.agentes,false); }catch(e){ console.error('[boot1] cmAplicarEstado:',e); } }
+  // Universo (agentes): pinta el orbe + roster APENAS llega, sin esperar salud.
+  bootUniversoP().then(function(u){
+    if(window.AK_T) AK_T.marca('cm:universo');
+    if(u && u.agentes){ try{ cmAplicarEstado(u.agentes,false); }catch(e){ console.error('[boot] cmAplicarEstado:',e); } }
     else { cmBootMark('est'); refrescarCentro(); }                     // sección caída: reintento puntual
+  });
+  // Resto (hoy/salud/recs/agenda): las cards + el clima, cuando llegan.
+  bootRestoP().then(function(b){
+    if(window.AK_T) AK_T.marca('cm:resto');
+    if(!b){ refrescarSalud(); ccHoy(); return; }                        // fallback al camino de siempre
 
-    if(b.salud){ try{ cmSalud(b.salud); cmSnapGuardar('cm_salud',b.salud); cmBootMark('salud'); }catch(e){ console.error('[boot1] cmSalud:',e); } }
+    if(b.salud){ try{ cmSalud(b.salud); cmSnapGuardar('cm_salud',b.salud); cmBootMark('salud'); }catch(e){ console.error('[boot] cmSalud:',e); } }
     else { refrescarSalud(); }
 
     if(b.hoy){
       CC.hoy=b.hoy; cmSnapGuardar('cm_hoy',b.hoy); cmBootMark('hoy');
-      try{ ccEstado();ccCartera();ccTareas();ccBrief(); }catch(e){ console.error('[boot1] cards:',e); }
+      try{ ccEstado();ccCartera();ccTareas();ccBrief(); }catch(e){ console.error('[boot] cards:',e); }
     } else {
       cmBootMark('hoy');
       if(!CC.hoy) ccAvisoFuente('No se pudo leer el MAESTRO — reintentando…');   // Bastión: vacío honesto, nunca el maniquí
@@ -1691,33 +1698,49 @@ function clienteObjetivo(){var s=document.getElementById('cmCliente');return s&&
 
 var EN_GAS=(typeof google!=='undefined')&&google.script&&google.script.run;
 
-/* ══ E3.4 · BOOT ÚNICO (cliente) ═════════════════════════════════════════════
- * UNA sola llamada a bootUnico() alimenta el primer paint de LOS DOS: Akasha y
- * el cockpit del CM. Antes cada uno pedía lo suyo y 5 funciones viajaban dos
- * veces (estadoAgentes/datosHoy/estadoSalud/recomendacionesAbiertas/agendaRango).
+/* ══ E3.7 · BOOT EN 2 LLAMADAS PARALELAS (cliente) ═══════════════════════════
+ * DOS google.script.run concurrentes, compartidos por Akasha Y el cockpit del CM:
+ *   · bootUniversoP → estadoAgentes + listaClientes  (lo que puebla la escena 3D)
+ *   · bootRestoP    → datosHoy + recomendaciones + agenda + estadoSalud (docks+clima)
+ * estadoSalud (lo más caro) queda en la 2ª: NO frena el universo. El wall-clock es
+ * el más lento de las dos, no la suma; y ambos consumidores usan las MISMAS 2
+ * promesas (sin duplicar el estadoAgentes/datosHoy/etc que antes viajaba 2 veces).
  *
- * Es una promesa compartida, no un caché: se resuelve UNA vez por carga de página
- * y ahí muere. Los timers de refresh (5s/30s/60s) siguen llamando a sus funciones
- * de siempre — esto NO los toca, así que no hay riesgo de dato viejo.
- * Sin CacheService a propósito (decisión 17-jul): dato viejo en el primer paint
- * es lo que Bastión no quiere.
+ * Promesas compartidas, no caché: una vez por carga y mueren. Los timers de
+ * refresh (5s/30s/60s) siguen llamando a sus funciones de siempre → sin dato viejo.
+ * (El snapshot warm SÍ es caché, con TTL — vive en Akasha, ver leerSnapshot.)
  * ══════════════════════════════════════════════════════════════════════════ */
-var BOOT1 = null;
-function bootPayload(){
-  if (BOOT1) return BOOT1;
-  BOOT1 = new Promise(function(res){
+function _rangoSemanaISO(){
+  var d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7));
+  var lun=new Date(d.getTime()), dom=new Date(d.getTime()); dom.setDate(dom.getDate()+6);
+  var f=function(x){return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
+  return [f(lun), f(dom)];
+}
+var _BOOT_UNI=null, _BOOT_RESTO=null;
+function bootUniversoP(){
+  if(_BOOT_UNI) return _BOOT_UNI;
+  _BOOT_UNI = new Promise(function(res){
     if(!EN_GAS){ res(null); return; }
-    // El rango de la agenda lo manda el cliente: la grilla es lunes→domingo del
-    // huso del browser. Si no viaja, el server cae a su propio lunes→domingo.
-    var d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7));
-    var lun=new Date(d.getTime()), dom=new Date(d.getTime()); dom.setDate(dom.getDate()+6);
-    var f=function(x){return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2);};
+    if(window.AK_T) AK_T.marca('universo:pedido');
     google.script.run
-      .withSuccessHandler(function(b){ res(b||null); })
-      .withFailureHandler(function(e){ console.error('[bootUnico]',e); res(null); })   // fail-closed: cada consumidor pinta su vacío
-      .bootUnico(f(lun), f(dom));
+      .withSuccessHandler(function(b){ if(window.AK_T)AK_T.marca('universo:llegó'); res(b||null); })
+      .withFailureHandler(function(e){ console.error('[bootUniverso]',e); res(null); })
+      .bootUniverso();
   });
-  return BOOT1;
+  return _BOOT_UNI;
+}
+function bootRestoP(){
+  if(_BOOT_RESTO) return _BOOT_RESTO;
+  _BOOT_RESTO = new Promise(function(res){
+    if(!EN_GAS){ res(null); return; }
+    if(window.AK_T) AK_T.marca('resto:pedido');
+    var r=_rangoSemanaISO();
+    google.script.run
+      .withSuccessHandler(function(b){ if(window.AK_T)AK_T.marca('resto:llegó'); res(b||null); })
+      .withFailureHandler(function(e){ console.error('[bootResto]',e); res(null); })
+      .bootResto(r[0], r[1]);
+  });
+  return _BOOT_RESTO;
 }
 
 /* Cronómetro del boot (E3.4). Se lee con AK_T.tabla() en la consola de /exec. */
@@ -2870,44 +2893,63 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
   const R=22, hits=[], estaciones={};
   const anillo=new THREE.Group(); world.add(anillo);      // el anillo gira; los clientes residen fijos
   const ORBITA_W=(Math.PI*2)/95;
-  DATA.agentes.forEach((a,i)=>{
-    const th=(i/DATA.agentes.length)*Math.PI*2;
-    const px=Math.sin(th)*R, pz=Math.cos(th)*R;
-    const g=new THREE.Group(); g.position.set(px,0,pz);
-    // spoke al centro (gradiente hacia el color del agente, como el CM)
-    {
-      const aroC=new THREE.Color(a.aro);
-      const lg=track(new THREE.BufferGeometry());
-      lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array([0,9.5,0, px,2.5,pz]),3));
-      lg.setAttribute('color',new THREE.BufferAttribute(new Float32Array([0.08,0.06,0.05, aroC.r,aroC.g,aroC.b]),3));
-      const ln=new THREE.Line(lg, track(new THREE.LineBasicMaterial({vertexColors:true, transparent:true, opacity:0.34})));
-      anillo.add(ln);
-    }
-    const esMayor=!!a.director;
-    const aroHex=parseInt(a.aro.slice(1),16);
 
-    const haloCols = a.estado==='wait' ? [COL.amber,COL.lider,aroHex] : a.estado==='run' ? [aroHex,COL.lider,COL.terraSoft] : [aroHex,COL.terra];
-    /* polvillo en cáscara (bias alto = sin apilamiento central) — nada de bola saturada */
-    const halo=cloud({n:esMayor?240:170, radius:esMayor?2.9:2.3, bias:0.85,
-      colors:haloCols, size:esMayor?0.44:0.38, opacity:a.estado==='idle'?0.31:0.61});
-    halo.position.y=2.5+(esMayor?0.6:0); g.add(halo);
+  /* E3.7 — POBLAR EN 2 TIEMPOS: el engine se construye con un DATA ESQUELETO
+     (arrays vacíos) → el fondo, el umbral, los anillos y el Núcleo vacío aparecen
+     desde el TTFP, sin esperar al server. Cuando bootUniverso/bootResto/snapshot
+     vuelven, poblar(DATA) agrega estaciones/Espacios/Muelle/constelación SOBRE el
+     esqueleto ya montado. Idempotente: cada poblar* limpia LO SUYO antes de
+     reconstruir (llamarlo 2× — snapshot y luego fresh — no duplica meshes ni deja
+     hits colgados en el raycaster). Mantiene el MISMO objeto estaciones/clientes/
+     streams/tarjetas (el loop los lee por referencia): solo cambia su contenido. */
+  function _quitarHit(o){ o.traverse(x=>{ if(x.userData&&x.userData.tipo){ const i=hits.indexOf(x); if(i>=0) hits.splice(i,1); } }); }
+  function _disponer(o){ o.traverse(x=>{ if(x.geometry&&x.geometry.dispose)x.geometry.dispose(); const m=x.material; if(m)(Array.isArray(m)?m:[m]).forEach(mm=>{ if(mm){ if(mm.map&&mm.map.dispose)mm.map.dispose(); if(mm.dispose)mm.dispose(); } }); }); }
+  function _limpiar(store){ store.forEach(o=>{ _quitarHit(o); if(o.parent)o.parent.remove(o); _disponer(o); }); store.length=0; }
 
-    const badge=sprite(texBadge(a.glifo, a.aro, {dim:a.estado==='idle'}), esMayor?4.0:3.2, esMayor?4.0:3.2);
-    badge.position.y=2.5+(esMayor?0.6:0); g.add(badge);
+  const _obEst=[];
+  function poblarEstaciones(){
+    _limpiar(_obEst);
+    for(const k in estaciones) delete estaciones[k];
+    DATA.agentes.forEach((a,i)=>{
+      const th=(i/DATA.agentes.length)*Math.PI*2;
+      const px=Math.sin(th)*R, pz=Math.cos(th)*R;
+      const g=new THREE.Group(); g.position.set(px,0,pz);
+      // spoke al centro (gradiente hacia el color del agente, como el CM)
+      {
+        const aroC=new THREE.Color(a.aro);
+        const lg=track(new THREE.BufferGeometry());
+        lg.setAttribute('position',new THREE.BufferAttribute(new Float32Array([0,9.5,0, px,2.5,pz]),3));
+        lg.setAttribute('color',new THREE.BufferAttribute(new Float32Array([0.08,0.06,0.05, aroC.r,aroC.g,aroC.b]),3));
+        const ln=new THREE.Line(lg, track(new THREE.LineBasicMaterial({vertexColors:true, transparent:true, opacity:0.34})));
+        anillo.add(ln); _obEst.push(ln);
+      }
+      const esMayor=!!a.director;
+      const aroHex=parseInt(a.aro.slice(1),16);
 
-    const lb=texLabel(a.nombre, null, {size:14, tracking:true, color:'rgba(184,173,150,.95)'});
-    const ls=sprite(lb.tex, 6.6, 6.6/lb.ar); ls.position.y=-0.7; g.add(ls);
+      const haloCols = a.estado==='wait' ? [COL.amber,COL.lider,aroHex] : a.estado==='run' ? [aroHex,COL.lider,COL.terraSoft] : [aroHex,COL.terra];
+      /* polvillo en cáscara (bias alto = sin apilamiento central) — nada de bola saturada */
+      const halo=cloud({n:esMayor?240:170, radius:esMayor?2.9:2.3, bias:0.85,
+        colors:haloCols, size:esMayor?0.44:0.38, opacity:a.estado==='idle'?0.31:0.61});
+      halo.position.y=2.5+(esMayor?0.6:0); g.add(halo);
 
-    if(a.aprob>0){
-      const sat=sprite(GLOW,0.9,0.9); sat.material.color=new THREE.Color(COL.amber);
-      sat.position.set(1.8,4.6,0);
-      sat.userData.orbita={c:new THREE.Vector3(0,4.3+(esMayor?0.6:0),0), r:2.3, sp:1.3, ph:Math.random()*6};
-      g.add(sat); (g.userData.sats??=[]).push(sat);
-    }
-    const hs=hitSphere(esMayor?4.0:3.3,{tipo:'estacion', id:a.id}); hs.position.y=2.5; g.add(hs); hits.push(hs);
-    anillo.add(g);
-    estaciones[a.id]={grupo:g, agente:a, halo, ang:th, pos:new THREE.Vector3(px,0,pz)};
-  });
+      const badge=sprite(texBadge(a.glifo, a.aro, {dim:a.estado==='idle'}), esMayor?4.0:3.2, esMayor?4.0:3.2);
+      badge.position.y=2.5+(esMayor?0.6:0); g.add(badge);
+
+      const lb=texLabel(a.nombre, null, {size:14, tracking:true, color:'rgba(184,173,150,.95)'});
+      const ls=sprite(lb.tex, 6.6, 6.6/lb.ar); ls.position.y=-0.7; g.add(ls);
+
+      if(a.aprob>0){
+        const sat=sprite(GLOW,0.9,0.9); sat.material.color=new THREE.Color(COL.amber);
+        sat.position.set(1.8,4.6,0);
+        sat.userData.orbita={c:new THREE.Vector3(0,4.3+(esMayor?0.6:0),0), r:2.3, sp:1.3, ph:Math.random()*6};
+        g.add(sat); (g.userData.sats??=[]).push(sat);
+      }
+      const hs=hitSphere(esMayor?4.0:3.3,{tipo:'estacion', id:a.id}); hs.position.y=2.5; g.add(hs); hits.push(hs);
+      anillo.add(g); _obEst.push(g);
+      estaciones[a.id]={grupo:g, agente:a, halo, ang:th, pos:new THREE.Vector3(px,0,pz)};
+    });
+  }
+  poblarEstaciones();
   const wpTmp=new THREE.Vector3();
   function estacionWorld(id){ return estaciones[id].grupo.getWorldPosition(wpTmp); }
 
@@ -2993,24 +3035,33 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
 
   /* ============ LABORATORIO (anillo alto — incubacion) ============ */
   const lab=new THREE.Group(); lab.position.y=15;
-  DATA.lab.forEach((n,i)=>{
-    const th=(i/DATA.lab.length)*Math.PI*2+0.4, r=31;
-    const g=new THREE.Group(); g.position.set(Math.sin(th)*r,(i%2)*1.6,Math.cos(th)*r);
-    const badge=sprite(texBadge('incub','rgba(184,173,150,.45)',{dim:true}), 2.2, 2.2, {opacity:0.67});
-    g.add(badge);
-    const lb=texLabel(n, null, {size:12, tracking:true, color:'rgba(147,136,114,.75)'});
-    const ls=sprite(lb.tex, 4.6, 4.6/lb.ar, {opacity:0.6}); ls.position.y=-1.8; g.add(ls);
-    lab.add(g);
-  });
+  const _obLab=[];
+  function poblarLab(){
+    _limpiar(_obLab);
+    DATA.lab.forEach((n,i)=>{
+      const th=(i/DATA.lab.length)*Math.PI*2+0.4, r=31;
+      const g=new THREE.Group(); g.position.set(Math.sin(th)*r,(i%2)*1.6,Math.cos(th)*r);
+      const badge=sprite(texBadge('incub','rgba(184,173,150,.45)',{dim:true}), 2.2, 2.2, {opacity:0.67});
+      g.add(badge);
+      const lb=texLabel(n, null, {size:12, tracking:true, color:'rgba(147,136,114,.75)'});
+      const ls=sprite(lb.tex, 4.6, 4.6/lb.ar, {opacity:0.6}); ls.position.y=-1.8; g.add(ls);
+      lab.add(g); _obLab.push(g);
+    });
+  }
+  poblarLab();
   world.add(circleLine(31,15,0x938872,0.12));
   world.add(lab);
   const lbLab=texLabel('Laboratorio', 'ocho agentes incubándose', {size:14, tracking:true, color:'rgba(147,136,114,.8)', subTracking:true});
   const lsLab=sprite(lbLab.tex, 7.6, 7.6/lbLab.ar, {opacity:0.7}); lsLab.position.set(0,19.5,-31); world.add(lsLab);
 
   /* ============ ESPACIOS DE CLIENTE (anillo exterior bajo — el mundo servido) ============ */
-  const NC=DATA.clientes.length, RC=40, clientes={};
+  const RC=40, clientes={}, _obCli=[];
   world.add(circleLine(RC,-7.4,COL.cremaLinea,0.15));
-  DATA.clientes.forEach((c,i)=>{
+  function poblarClientes(){
+    _limpiar(_obCli);
+    for(const k in clientes) delete clientes[k];
+    const NC=Math.max(1,DATA.clientes.length);
+    DATA.clientes.forEach((c,i)=>{
     const th=(i/NC)*Math.PI*2+0.32;
     const px=Math.sin(th)*RC, pz=Math.cos(th)*RC;
     const g=new THREE.Group(); g.position.set(px,-7,pz);
@@ -3047,9 +3098,11 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       g.add(sat); (g.userData.sats??=[]).push(sat);
     }
     const hs=hitSphere(3.4,{tipo:'cliente', id:c.id}); hs.position.y=1.6; g.add(hs); hits.push(hs);
-    world.add(g);
+    world.add(g); _obCli.push(g);
     clientes[c.id]={grupo:g, cliente:c, torre, toff, torreN, tg, ang:th, pos:new THREE.Vector3(px,-7,pz)};
-  });
+    });
+  }
+  poblarClientes();
   const lbC=texLabel('Espacios de Cliente', 'la cartera — cada cliente, su espacio', {size:15, tracking:true, color:'rgba(184,173,150,.85)', subTracking:true});
   const lsC=sprite(lbC.tex, 10.5, 10.5/lbC.ar, {opacity:0.8}); lsC.position.set(0,-10.6,RC); world.add(lsC);
 
@@ -3070,22 +3123,25 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     x.fillText('Tocar para revisar y decidir', 26, 106);
     return track(new THREE.CanvasTexture(c));
   }
-  const muelle=new THREE.Group();
-  const agDir = DATA.agentes.find(a=>a.director) || DATA.agentes[0];
-  const anclaMuelle = (agDir && estaciones[agDir.id]) ? estaciones[agDir.id].pos : new THREE.Vector3(0,0,26);
-  muelle.position.copy(anclaMuelle).add(new THREE.Vector3(7.5,3.4,3.5));
-  const tarjetas=[];
-  DATA.aprobaciones.forEach((ap,i)=>{
-    const s=sprite(texTarjeta(ap.titulo, ap.de), 6.6, 6.6*132/560); tarjetas.push(s);
-    s.userData.orbita={r:2.7+i*1.2, sp:0.42-i*0.08, ph:i*2.2};
-    const hs=hitSphere(1.5,{tipo:'aprobacion', idx:i}); hs.userData.sigue=s;
-    muelle.add(hs); hits.push(hs);
-    muelle.add(s);
-  });
-  const tarjetaHits=hits.filter(h=>h.userData.tipo==='aprobacion');
-  const lbM=texLabel('Muelle de Decisiones', DATA.aprobaciones.length+' esperan tu palabra',{size:26, serif:true, color:'#E6A87E', subTracking:true});
-  const lsM=sprite(lbM.tex, 7.8, 7.8/lbM.ar); lsM.position.y=-3.4; muelle.add(lsM);
-  world.add(muelle);
+  const muelle=new THREE.Group(); world.add(muelle);
+  const tarjetas=[], tarjetaHits=[], _obMue=[];
+  function poblarMuelle(){
+    _limpiar(_obMue); tarjetas.length=0; tarjetaHits.length=0;
+    // ancla al director real; corre DESPUÉS de poblarEstaciones (necesita su pos).
+    const agDir = DATA.agentes.find(a=>a.director) || DATA.agentes[0];
+    const anclaMuelle = (agDir && estaciones[agDir.id]) ? estaciones[agDir.id].pos : new THREE.Vector3(0,0,26);
+    muelle.position.copy(anclaMuelle).add(new THREE.Vector3(7.5,3.4,3.5));
+    DATA.aprobaciones.forEach((ap,i)=>{
+      const s=sprite(texTarjeta(ap.titulo, ap.de), 6.6, 6.6*132/560); tarjetas.push(s);
+      s.userData.orbita={r:2.7+i*1.2, sp:0.42-i*0.08, ph:i*2.2};
+      const hs=hitSphere(1.5,{tipo:'aprobacion', idx:i}); hs.userData.sigue=s;
+      muelle.add(hs); hits.push(hs); tarjetaHits.push(hs);
+      muelle.add(s); _obMue.push(hs); _obMue.push(s);
+    });
+    const lbM=texLabel('Muelle de Decisiones', DATA.aprobaciones.length+' esperan tu palabra',{size:26, serif:true, color:'#E6A87E', subTracking:true});
+    const lsM=sprite(lbM.tex, 7.8, 7.8/lbM.ar); lsM.position.y=-3.4; muelle.add(lsM); _obMue.push(lsM);
+  }
+  poblarMuelle();
 
   /* ============ STREAMS (actividad real: agente→nucleo y agente→cliente) ============ */
   const streams=[];
@@ -3101,12 +3157,33 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     const pts=new THREE.Points(g,m); world.add(pts);
     streams.push({pts, curve, off, n, g, m, _c:hex, srcId, lift});
   }
-  DATA.agentes.filter(a=>a.estado==='run').forEach(a=>{
-    addStream(estaciones[a.id].pos.clone().setY(2.6), new THREE.Vector3(0,10,0), COL.lider, 6, a.id);
-    (a.atiende||[]).slice(0,2).forEach(cid=>{
-      if(clientes[cid]) addStream(estaciones[a.id].pos.clone().setY(2.2), clientes[cid].pos.clone().setY(-5), COL.jadeSoft, 2, a.id);
+  function poblarStreams(){
+    // corre DESPUÉS de estaciones+clientes (los streams van de una a otra).
+    streams.forEach(s=>{ if(s.pts.parent)s.pts.parent.remove(s.pts); s.g.dispose(); s.m.dispose(); });
+    streams.length=0;
+    DATA.agentes.filter(a=>a.estado==='run').forEach(a=>{
+      if(!estaciones[a.id]) return;
+      addStream(estaciones[a.id].pos.clone().setY(2.6), new THREE.Vector3(0,10,0), COL.lider, 6, a.id);
+      (a.atiende||[]).slice(0,2).forEach(cid=>{
+        if(clientes[cid]) addStream(estaciones[a.id].pos.clone().setY(2.2), clientes[cid].pos.clone().setY(-5), COL.jadeSoft, 2, a.id);
+      });
     });
-  });
+  }
+  poblarStreams();
+
+  /* poblar(DATA): la 2ª mano. Reasigna el DATA del engine (todas las clausuras lo
+     ven) y reconstruye SOLO lo data-dependiente, en orden de dependencia
+     (estaciones → clientes → lab → constelación → muelle → streams). El esqueleto
+     (fondo, umbral, anillos, Núcleo) queda intacto. Idempotente por _limpiar. */
+  function poblar(nd){
+    if(nd) DATA=nd;
+    poblarEstaciones();
+    poblarClientes();
+    poblarLab();
+    construirConstelacion();
+    poblarMuelle();
+    poblarStreams();
+  }
 
   /* ============ UMBRAL ============ */
   const umbral=new THREE.Group();
@@ -3627,6 +3704,12 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       if(!v){ cancelAnimationFrame(raf); }
       else if(running){ clock.getDelta(); raf=requestAnimationFrame(loop); } },
     setClima, setEco, onKey,
+    /* E3.7 — 2ª mano: poblar el universo cuando el server (o el snapshot) vuelve.
+       Idempotente: snapshot→fresh no duplica. Reaplica clima por si salud llegó.
+       (el `poblar` sin calificar resuelve a la función de la clausura, no a este método.) */
+    poblarUniverso(nd){ poblar(nd); setClima(S.alerta); },
+    /* hook de conteo (read-only): el harness verifica que poblar 2× no duplica (D17j). */
+    _counts(){ return { hits:hits.length, estaciones:Object.keys(estaciones).length, clientes:Object.keys(clientes).length, streams:streams.length, tarjetas:tarjetas.length, nodos:nodos.length }; },
     /* segunda ola: el boot llama esto cuando entra el cerebro de cada Espacio */
     refrescarNucleo(){ construirConstelacion(); if(panel2.classList.contains('show')) mostrarPanelNucleo(); },
     irACliente(id){ if(nav.modo!=='umbral') flyToCliente(id); },
@@ -4229,31 +4312,85 @@ window.AKASHA = (function () {
     $('flat').hidden = cual !== 'flat';
   }
 
-  /* ---------- carga ---------- */
-  /* PRIMERA OLA (E3.4): UNA sola ida al server. Antes eran 6 round-trips desde
-     Akasha + 4 del CM, con 5 funciones pedidas DOS veces. El costo era la ida y
-     vuelta (0.5-2s cada una), no el trabajo: ahora `bootUnico()` las corre juntas
-     server-side y el CM se cuelga del MISMO payload (ver window.BOOT1).
-     El Cerebro NO viaja acá: abre el Sheet de CADA Espacio y es lo caro (2ª ola). */
-  function cargar(cb) {
+  /* ---------- carga (E3.7: 2 olas paralelas, ver bootUniversoP/bootRestoP) ----------
+     Antes eran 6 round-trips desde Akasha + 4 del CM, con 5 funciones pedidas dos
+     veces. El costo era la ida y vuelta, no el trabajo. Ahora 2 ejecuciones GAS
+     concurrentes, compartidas con el CM; el universo puebla apenas vuelve la 1ª.
+     El Cerebro NO viaja acá: abre el Sheet de CADA Espacio y es lo caro (3ª ola). */
+  /* DATA esqueleto: mismo shape, arrays vacíos. El engine se construye con esto
+     ANTES del server → fondo + umbral + anillos + Núcleo vacío desde el TTFP. */
+  function datosEsqueleto() {
+    return {
+      salud: null, corridasHoy: 0, agentes: [], lab: [], clientes: [], aprobaciones: [],
+      akasha: [], hitos: HITOS, brief: [], lazo: null, sistema: [], tareas: {}, agenda: [],
+      presupuesto: null, _fallas: [], _esqueleto: true
+    };
+  }
+
+  /* ── SNAPSHOT WARM (C, decisión Luciano 17-jul: payload COMPLETO, TTL 10min) ──
+     Es dato REAL viejo del PROPIO usuario autenticado, marcado "actualizando…",
+     TTL corto, el fresh SIEMPRE pisa. Nunca maniquí, nunca de otro tenant. En una
+     2ª visita (misma máquina, incluso pestaña nueva) el universo+docks pintan al
+     instante y se refrescan cuando vuelven las 2 olas. */
+  var SNAP_KEY = 'ak_snap_v1', SNAP_TTL_MS = 10 * 60 * 1000;
+  function leerSnapshot() {
+    try {
+      var raw = localStorage.getItem(SNAP_KEY); if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !o.ts || (Date.now() - o.ts) > SNAP_TTL_MS) { localStorage.removeItem(SNAP_KEY); return null; }
+      if (!o.data || !Array.isArray(o.data.agentes)) return null;
+      return o.data;
+    } catch (e) { return null; }
+  }
+  function guardarSnapshot(d) {
+    try {
+      if (!d || d._esqueleto || !d.agentes.length) return;   // no guardar el esqueleto ni un vacío
+      localStorage.setItem(SNAP_KEY, JSON.stringify({ ts: Date.now(), data: d }));
+    } catch (e) { /* quota/incógnito: el snapshot es un lujo, no rompe nada */ }
+  }
+  function marcarActualizando(on) {
+    var st = $('hud-status'); if (!st) return;
+    if (on) st.textContent = 'Mostrando lo último guardado — actualizando…';
+  }
+
+  function _sec(v) { return v == null ? { ok: false } : { ok: true, v: v }; }
+  /* Arma el `r` que espera construirDATA a partir de las 2 olas (universo + resto). */
+  function _mezclaR(uni, resto) {
+    uni = uni || {}; resto = resto || {};
+    return {
+      agentes: _sec(uni.agentes), clientes: _sec(uni.clientes),
+      hoy: _sec(resto.hoy), recs: _sec(resto.recs),
+      agenda: _sec(resto.agenda), salud: _sec(resto.salud)
+    };
+  }
+
+  /* CARGA EN 2 OLAS (E3.7). onUni: apenas vuelve el universo (estaciones/Espacios/
+     Muelle) — se puebla YA, sin esperar salud. onFinal: cuando además llegan los
+     docks (hoy/recs/agenda/salud). DATA NO se reasigna después de onFinal, así los
+     cerebros (que arrancan en onFinal) no quedan huérfanos de su c.reg. */
+  function cargar(onUni, onFinal) {
     var st = $('hud-status'); if (st) st.textContent = 'Leyendo el MAESTRO…';
-    if (window.AK_T) window.AK_T.marca('boot1:pedido');
-    bootPayload().then(function (b) {
-      if (window.AK_T) window.AK_T.marca('boot1:llegó');
-      /* bootUnico manda null por sección caída; el adaptador espera {ok,v}. */
-      var sec = function (v) { return v == null ? { ok: false } : { ok: true, v: v }; };
-      if (!b) b = {};
-      DATA = construirDATA({
-        agentes: sec(b.agentes), hoy: sec(b.hoy), salud: sec(b.salud),
-        recs: sec(b.recs), clientes: sec(b.clientes), agenda: sec(b.agenda)
-      });
+    var got = { uni: undefined, resto: undefined }, uniHecho = false, finHecho = false;
+    function universo() {
+      if (got.uni === undefined || uniHecho) return;
+      uniHecho = true;
+      DATA = construirDATA(_mezclaR(got.uni, null));   // universo real + docks vacíos
+      if (window.AK_T) window.AK_T.marca('universo:poblado');
+      if (onUni) onUni();
+    }
+    function fin() {
+      if (got.uni === undefined || got.resto === undefined || finHecho) return;
+      finHecho = true;
+      DATA = construirDATA(_mezclaR(got.uni, got.resto));
       S.alerta = DATA.salud != null && DATA.salud < 90;
-      if (DATA._fallas.length) {
-        console.warn('[AKASHA] fuentes caídas:', DATA._fallas);
-        toast('Algunas fuentes no respondieron (' + DATA._fallas.join(', ') + ') — esas secciones quedan vacías');
-      }
-      cb();
-    }).catch(function (e) { console.error('[AKASHA] carga:', e); cb(e); });
+      if (window.AK_T) window.AK_T.marca('final:poblado');
+      if (DATA._fallas.length) console.warn('[AKASHA] fuentes caídas:', DATA._fallas);
+      if (onFinal) onFinal();
+    }
+    bootUniversoP().then(function (u) { got.uni = u || null; universo(); fin(); })
+                   .catch(function (e) { console.error('[AKASHA] universo:', e); got.uni = null; universo(); fin(); });
+    bootRestoP().then(function (r) { got.resto = r || null; fin(); })
+                .catch(function (e) { console.error('[AKASHA] resto:', e); got.resto = null; fin(); });
   }
 
   /* SEGUNDA OLA: el Cerebro de cada Espacio, por separado y sin bloquear nada.
@@ -4306,9 +4443,30 @@ window.AKASHA = (function () {
       });
     });
   }
+  /* Refresh post-acción (despertar/resolver): fresco DE VERDAD, sin las promesas
+     memoizadas del boot. Repuebla el universo y los docks. */
   function refrescar() {
-    if (!AK.on) return;
-    cargar(function () { renderDocks(); });
+    if (!AK.on || !EN_GAS) return;
+    var r = _rangoSemanaISO ? _rangoSemanaISO() : [iso(lunesDeEstaSemana()), iso(new Date(lunesDeEstaSemana().getTime() + 6 * 864e5))];
+    Promise.all([
+      pedir('estadoAgentes'), pedir('listaClientes'),
+      pedir('datosHoy'), pedir('recomendacionesAbiertas'), pedir('agendaRango', r), pedir('estadoSalud')
+    ]).then(function (x) {
+      if (!AK.on) return;
+      DATA = construirDATA({ agentes: x[0], clientes: x[1], hoy: x[2], recs: x[3], agenda: x[4], salud: x[5] });
+      S.alerta = DATA.salud != null && DATA.salud < 90;
+      if (S.engine && S.engine.poblarUniverso) S.engine.poblarUniverso(DATA);
+      renderDocks();
+      guardarSnapshot(DATA);
+    });
+  }
+
+  /* D — el velo dark "Cargando el CM…" (#cmVeil, z-80) se interpone entre el
+     photobg del CM y el overlay de Akasha: por eso la nebulosa tardaba ~18s. Se
+     desvanece APENAS hay esqueleto, no cuando termina el boot del CM. */
+  function veloFade() {
+    var v = document.getElementById('cmVeil');
+    if (v) { v.classList.add('off'); setTimeout(function () { if (v.parentNode) v.parentNode.removeChild(v); }, 400); }
   }
 
   /* ---------- entrar / salir ---------- */
@@ -4326,27 +4484,68 @@ window.AKASHA = (function () {
     mostrar('cosmos');
     starsOn();
 
-    cargar(function (err) {
-      AK.cargando = false;
-      if (!AK.on) return;                           // salió mientras cargaba
-      renderDocks();
-      if (innerWidth < 1100) toggleDocks(false);
-      ak.classList.toggle('clima-amber', !!S.alerta);
-      if (err && !DATA) { salir(); toast('No se pudo leer el MAESTRO — la Oficina no abre sin datos reales'); return; }
-
-      if (S.reducedMotion) { renderFlat('respetando tu preferencia de movimiento reducido'); cargarCerebros(); return; }
-      if (!window.THREE) { renderFlat('Three.js no cargó (CDN o SRI) — el CM sigue en su orbe 2D'); return; }
-      if (!hasWebGL()) { renderFlat('este dispositivo no dispone de WebGL'); return; }
+    if (akDisp_()) {
+      /* 1) ESQUELETO YA: engine con DATA vacío → fondo+umbral+anillos+Núcleo
+            vacío desde el TTFP, sin esperar al server (el pedido de Luciano). */
+      DATA = datosEsqueleto();
+      S.alerta = false;
       try {
         S.engine = window.__buildAkashaEngine(window.THREE, DATA, S, helpersMotor());
         AK.eng = S.engine;
         S.engine.start();
         AK.toggles++;
-        cargarCerebros();      // segunda ola: la memoria entra sola, sin frenar la escena
+        if (window.AK_T) window.AK_T.marca('umbral:visible');
+        veloFade();            // D: el velo se va con el esqueleto, no con los datos
       } catch (e) {
         console.error('[AKASHA] no se pudo iniciar el motor 3D:', e);
-        renderFlat('el motor 3D no está disponible ahora');
+        AK.cargando = false;
+        cargar(null, function () { if (AK.on) { renderFlat('el motor 3D no está disponible ahora'); cargarCerebros(); } });
+        return;
       }
+
+      /* 2) SNAPSHOT warm (C): el último-bueno de ESTA máquina, al instante. */
+      var snap = leerSnapshot();
+      if (snap) {
+        DATA = snap; S.alerta = DATA.salud != null && DATA.salud < 90;
+        S.engine.poblarUniverso(DATA);
+        renderDocks(); marcarActualizando(true);
+        ak.classList.toggle('clima-amber', !!S.alerta);
+        if (window.AK_T) window.AK_T.marca('snapshot:pintado');
+      }
+
+      /* 3) FRESH en 2 olas: universo apenas vuelve · docks cuando llega el resto. */
+      cargar(
+        function () {                                  // onUni: el universo real ya
+          if (!AK.on || !S.engine) return;
+          S.engine.poblarUniverso(DATA);
+        },
+        function () {                                  // onFinal: docks + clima + snapshot + cerebros
+          AK.cargando = false;
+          if (!AK.on) return;
+          if (S.engine) S.engine.poblarUniverso(DATA);
+          renderDocks();
+          if (innerWidth < 1100) toggleDocks(false);
+          ak.classList.toggle('clima-amber', !!S.alerta);
+          var st = $('hud-status'); if (st) st.textContent = '';   // limpia "actualizando…"
+          if (DATA._fallas.length) toast('Algunas fuentes no respondieron (' + DATA._fallas.join(', ') + ') — esas secciones quedan vacías');
+          guardarSnapshot(DATA);
+          cargarCerebros();
+        }
+      );
+      return;
+    }
+
+    /* NO inmersivo (reduced-motion / sin THREE / sin WebGL): Vista Plana, fail-closed. */
+    var motivo = S.reducedMotion ? 'respetando tu preferencia de movimiento reducido'
+      : !window.THREE ? 'Three.js no cargó (CDN o SRI) — el CM sigue en su orbe 2D'
+        : 'este dispositivo no dispone de WebGL';
+    DATA = datosEsqueleto();
+    cargar(null, function () {
+      AK.cargando = false;
+      if (!AK.on) return;
+      renderFlat(motivo);
+      veloFade();
+      cargarCerebros();
     });
   }
 

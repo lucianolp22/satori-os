@@ -787,24 +787,77 @@ function telemetriaMaestro_(c, cola, tope) {
  * @return {{agentes:Object, hoy:Object, salud:Object, recs:Array, agenda:Array, clientes:Array}}
  *         cada clave es el retorno de su función, o null si esa fuente falló.
  */
-function bootUnico(desdeISO, hastaISO) {
-  function seccion_(nombre, fn) {
-    try { return fn(); }
-    catch (e) {
-      // Se traga la excepción A PROPÓSITO: el cliente ya sabe pintar `null` como
-      // "sección vacía con aviso". Queda registrada para no fallar en silencio.
-      console.error('[bootUnico] ' + nombre + ': ' + ((e && e.message) || e));
-      return null;
-    }
+function _bootSeccion_(nombre, fn) {
+  try { return fn(); }
+  catch (e) {
+    // Se traga la excepción A PROPÓSITO: el cliente ya sabe pintar `null` como
+    // "sección vacía con aviso". Queda registrada para no fallar en silencio.
+    console.error('[boot] ' + nombre + ': ' + ((e && e.message) || e));
+    return null;
   }
+}
+
+/**
+ * E3.7 — BOOT UNIVERSO: SOLO lo que la escena 3D necesita para poblarse.
+ *
+ * `estadoAgentes()` ya trae agentes + feed + aprobaciones + clientes_activos: con
+ * eso el motor arma estaciones, Espacios y Muelle. Es la mitad BARATA del boot, y
+ * va en su PROPIA ejecución GAS para que corra en paralelo con `bootResto()`
+ * (dos google.script.run concurrentes → el wall-clock es el más lento, no la suma).
+ *
+ * `estadoSalud()` (lo más caro: 6 chequeos) queda FUERA de acá a propósito: el
+ * clima ámbar puede llegar tarde sin frenar el universo. Fail-closed por sección.
+ *
+ * Incluye `listaClientes()` (no solo el `clientes_activos` de estadoAgentes) para
+ * que el anillo de Espacios nazca COMPLETO: los potenciales/pausados (EJF, SIP)
+ * son semáforo real y no deben aparecer/desaparecer entre olas. Es un read barato
+ * en la misma ejecución.
+ *
+ * @return {{agentes:Object, clientes:Array}} cada clave es su retorno, o null si falló.
+ */
+function bootUniverso() {
+  return {
+    agentes:  _bootSeccion_('agentes',  function () { return estadoAgentes(); }),
+    clientes: _bootSeccion_('clientes', function () { return listaClientes(); })
+  };
+}
+
+/**
+ * E3.7 — BOOT RESTO: los docks + el clima. Corre EN PARALELO con bootUniverso().
+ * Acá vive `estadoSalud()`, lo más caro, fuera del camino de poblar el universo.
+ * Fail-closed por sección (paridad D17h): la que falla viaja null, las otras viven.
+ *
+ * @return {{hoy:Object, recs:Array, agenda:Array, salud:Object}}
+ */
+function bootResto(desdeISO, hastaISO) {
   var rango = _bootRangoSemana_(desdeISO, hastaISO);
   return {
-    agentes:  seccion_('agentes',  function () { return estadoAgentes(); }),
-    hoy:      seccion_('hoy',      function () { return datosHoy(); }),
-    salud:    seccion_('salud',    function () { return estadoSalud(); }),
-    recs:     seccion_('recs',     function () { return recomendacionesAbiertas(); }),
-    agenda:   seccion_('agenda',   function () { return agendaRango(rango.desde, rango.hasta); }),
-    clientes: seccion_('clientes', function () { return listaClientes(); })
+    hoy:    _bootSeccion_('hoy',    function () { return datosHoy(); }),
+    recs:   _bootSeccion_('recs',   function () { return recomendacionesAbiertas(); }),
+    agenda: _bootSeccion_('agenda', function () { return agendaRango(rango.desde, rango.hasta); }),
+    salud:  _bootSeccion_('salud',  function () { return estadoSalud(); })
+  };
+}
+
+/**
+ * E3.4/E3.7 — BOOT ÚNICO: las 6 fuentes en UNA ejecución. Ahora es la SUMA de
+ * bootUniverso() + bootResto() (+ listaClientes), para no duplicar lógica.
+ *
+ * Sigue existiendo para compat y para el assert D17i/j; el cliente E3.7 usa las
+ * dos mitades en paralelo, no esto. Cero endpoints/scopes/secretos nuevos: es un
+ * agregador de funciones que ya existen, cada sección con su try/catch.
+ *
+ * @return {{agentes,hoy,salud,recs,agenda,clientes:Object}} cada clave o null.
+ */
+function bootUnico(desdeISO, hastaISO) {
+  var u = bootUniverso(), r = bootResto(desdeISO, hastaISO);
+  return {
+    agentes:  u.agentes,
+    clientes: u.clientes,
+    hoy:      r.hoy,
+    salud:    r.salud,
+    recs:     r.recs,
+    agenda:   r.agenda
   };
 }
 

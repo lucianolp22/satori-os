@@ -4,6 +4,7 @@
  * No reemplaza el gate en /dev (fps/render son de Luciano): caza excepciones.
  */
 const fs = require('fs'), vm = require('vm'), path = require('path');
+const RESTO_MS = Number(process.env.RESTO_MS || 400);    // bootResto (con estadoSalud) más lento que bootUniverso
 const LENTO_MS = Number(process.env.LENTO_MS || 3000);   // latencia simulada de cerebroGrafo
 const SP = __dirname + '/';
 const IDX = '/Users/lucianopablolp/Documents/Claude/Projects/SatoriOS/src/index.html';
@@ -108,7 +109,11 @@ const GAS = {
   dispararAgenteUI: () => ({ tareaId: 'COLA-1' }),
   resolverAprobacionUI: () => ({ ok: true, estado: 'aprobada', ejecucion: {} }),
   registrarFeedback: () => 'FBK-0001',
-  aprobacionDesdeRecomendacion: () => ({ ok: true, id: 'APR-0003', patron: 'P1' })
+  aprobacionDesdeRecomendacion: () => ({ ok: true, id: 'APR-0003', patron: 'P1' }),
+  // E3.7 — las 2 olas: bootUniverso (barata) y bootResto (con estadoSalud, cara).
+  bootUniverso: () => ({ agentes: GAS.estadoAgentes(), clientes: GAS.listaClientes() }),
+  bootResto: () => ({ hoy: GAS.datosHoy(), recs: GAS.recomendacionesAbiertas(), agenda: GAS.agendaRango(), salud: GAS.estadoSalud() }),
+  bootUnico: () => ({ agentes: GAS.estadoAgentes(), clientes: GAS.listaClientes(), hoy: GAS.datosHoy(), recs: GAS.recomendacionesAbiertas(), agenda: GAS.agendaRango(), salud: GAS.estadoSalud() })
 };
 
 /* google.script.run: async como en GAS (los handlers vuelven en otro tick) */
@@ -119,9 +124,10 @@ function mkRun() {
       if (k === 'withSuccessHandler') return f => (st.ok = f, api);
       if (k === 'withFailureHandler') return f => (st.fail = f, api);
       return (...args) => {
-        // cerebroGrafo abre el Sheet de cada Espacio: es LENTO. Se simula así para
-        // probar que la escena NO lo espera (BUG B).
-        const lento = (k === 'cerebroGrafo') ? LENTO_MS : 0;
+        // cerebroGrafo abre el Sheet de cada Espacio: es LENTO (BUG B).
+        // bootResto lleva estadoSalud (caro): más lento que bootUniverso, para
+        // probar que el universo puebla ANTES que los docks (E3.7 B).
+        const lento = (k === 'cerebroGrafo') ? LENTO_MS : (k === 'bootResto') ? RESTO_MS : 0;
         setTimeout(() => {
           try {
             if (!GAS[k]) throw new Error('función GAS inexistente: ' + k);
@@ -158,7 +164,9 @@ const sandbox = {
   google: { script: { run: null } },
   EN_GAS: true,
   cmToast: noop, refrescarCentro: noop, calAbrir: noop,
-  location: { href: '' }, localStorage: { getItem: () => null, setItem: noop }, sessionStorage: { getItem: () => null, setItem: noop }
+  location: { href: '' },
+  localStorage: (() => { const s = {}; return { getItem: k => (k in s ? s[k] : null), setItem: (k, v) => { s[k] = String(v); }, removeItem: k => { delete s[k]; } }; })(),
+  sessionStorage: { getItem: () => null, setItem: noop, removeItem: noop }
 };
 sandbox.window = sandbox; sandbox.self = sandbox; sandbox.globalThis = sandbox;
 Object.defineProperty(sandbox.google.script, 'run', { get: mkRun });
@@ -183,8 +191,16 @@ sandbox.THREE.WebGLRenderer = function (o) {
   this.outputEncoding = 0; this.shadowMap = { enabled: false };
 };
 
-/* 3. el código REAL de Akasha, tal como quedó en index.html */
+/* 3a. el bloque de boot COMPARTIDO (top-level del CM): las 2 olas + AK_T. El IIFE
+      de Akasha las llama por nombre, así que van al sandbox ANTES. */
 const h = fs.readFileSync(IDX, 'utf8');
+const bs = h.indexOf('function _rangoSemanaISO(');
+const be = h.indexOf('window.AK_T = AK_T;', bs) + 'window.AK_T = AK_T;'.length;
+if (bs < 0 || be < 20) { console.error('✗ no encontré el bloque de boot compartido (bootUniversoP/AK_T)'); process.exit(1); }
+vm.runInContext(h.slice(bs, be), sandbox);
+console.log('· boot compartido evaluado (bootUniversoP/bootRestoP/AK_T)');
+
+/* 3b. el código REAL de Akasha, tal como quedó en index.html */
 const banner = h.indexOf('AKASHA · Motor 3D E3');
 if (banner < 0) { console.error('✗ no encontré el bloque de Akasha en index.html'); process.exit(1); }
 const i = h.lastIndexOf('/*', banner);          // arrancar en la apertura del comentario
@@ -202,25 +218,70 @@ console.log('· bloque Akasha evaluado (' + code.length + ' bytes)');
   if (!A) { console.error('✗ window.AKASHA no quedó definido'); process.exit(1); }
   const wait = ms => new Promise(r => setTimeout(r, ms));
 
-  // ── BUG B: la escena NO debe esperar a los cerebros ──
+  // ── A: ESQUELETO-PRIMERO — el engine existe ANTES de que vuelva el server ──
   const t0 = Date.now();
   A.entrar();
-  let tEscena = null;
-  for (let i = 0; i < 200; i++) {          // poll hasta que el motor exista
-    if (A.S.engine) { tEscena = Date.now() - t0; break; }
-    await wait(25);
+  const tEsqueleto = Date.now() - t0;                 // síncrono: el motor se arma con DATA vacío
+  const engineYa = !!A.S.engine;
+  const akashaEsqueleto = engineYa ? A.DATA.agentes.length : -1;   // aún vacío (skeleton)
+  console.log('\n── A · ESQUELETO-PRIMERO (E3.7) ──');
+  console.log('  motor construido en        :', tEsqueleto + 'ms', engineYa && tEsqueleto < RESTO_MS ? '✓ (sin esperar al server)' : '✗');
+  console.log('  DATA al construir          :', akashaEsqueleto, 'agentes (0 = esqueleto ✓)');
+
+  // ── B: 2 OLAS — el universo puebla ANTES que los docks (resto es más lento) ──
+  let tUni = null, tDocks = null;
+  for (let i = 0; i < 400; i++) {                     // universo: agentes poblados
+    if (A.DATA && A.DATA.agentes.length > 0) { tUni = Date.now() - t0; break; }
+    await wait(15);
   }
-  console.log('\n── BUG B · SEGUNDA OLA ──');
-  console.log('  cerebroGrafo simulado en   :', LENTO_MS + 'ms por Espacio ×', A.DATA ? A.DATA.clientes.length : '?');
-  console.log('  universo construido en     :', tEscena + 'ms', tEscena !== null && tEscena < LENTO_MS ? '✓ (NO esperó la memoria)' : '✗ ESPERÓ');
-  console.log('  nodos al construir         :', A.DATA.akasha.length, '(0 = Núcleo nace vacío ✓)');
-  await wait(LENTO_MS + 900);             // dejar entrar la segunda ola
-  console.log('  nodos tras la segunda ola  :', A.DATA.akasha.length);
+  const docksVaciosEnUni = A.DATA.brief.length === 0; // al poblar universo, los docks aún no
+  for (let i = 0; i < 400; i++) {                     // docks: brief poblado (resto)
+    if (A.DATA && A.DATA.brief.length > 0) { tDocks = Date.now() - t0; break; }
+    await wait(15);
+  }
+  console.log('\n── B · 2 OLAS PARALELAS ──');
+  console.log('  universo poblado en        :', tUni + 'ms (agentes: ' + A.DATA.agentes.length + ')');
+  console.log('  docks poblados en          :', tDocks + 'ms (brief: ' + A.DATA.brief.length + ')');
+  console.log('  universo ANTES que docks   :', tUni !== null && tDocks !== null && tUni <= tDocks ? '✓' : '✗');
+
+  // ── 3ª ola: cerebros (la constelación entra sin frenar) ──
+  console.log('\n── 3ª OLA · CEREBROS ──');
+  console.log('  nodos antes de cerebros    :', A.DATA.akasha.length);
+  await wait(LENTO_MS + 900);
+  console.log('  nodos tras la 3ª ola       :', A.DATA.akasha.length);
   console.log('  nodos por Espacio          :', A.DATA.clientes.map(c => c.id + '=' + c.reg.length).join(' '));
-  const okB = tEscena !== null && tEscena < LENTO_MS && A.DATA.akasha.length === 11;
-  console.log('  ' + (okB ? '✓ segunda ola OK' : '✗ segunda ola MAL'));
+
+  // ── D17j: poblar(DATA) 2× NO duplica meshes (idempotencia) ──
+  const c1 = A.S.engine._counts();
+  A.S.engine.poblarUniverso(A.DATA);                  // 2ª vez, mismo DATA
+  const c2 = A.S.engine._counts();
+  A.S.engine.poblarUniverso(A.DATA);                  // 3ª vez
+  const c3 = A.S.engine._counts();
+  const idem = JSON.stringify(c1) === JSON.stringify(c2) && JSON.stringify(c2) === JSON.stringify(c3);
+  console.log('\n── D17j · poblar IDEMPOTENTE ──');
+  console.log('  counts 1ª:', JSON.stringify(c1));
+  console.log('  counts 3ª:', JSON.stringify(c3));
+  console.log('  ' + (idem ? '✓ poblar 2×/3× no duplica meshes' : '✗ DUPLICA'));
+
+  // ── C · SNAPSHOT: se escribió tras la carga; una 2ª entrada lo pinta al instante ──
+  const snapRaw = sandbox.localStorage.getItem('ak_snap_v1');
+  let snapOk = false;
+  try { const so = JSON.parse(snapRaw); snapOk = !!(so && so.ts && so.data && so.data.agentes.length === 6); } catch (e) {}
+  console.log('\n── C · SNAPSHOT WARM ──');
+  console.log('  snapshot escrito tras carga:', snapOk ? '✓ (6 agentes, con ts)' : '✗');
   A.salir();
   await wait(30);
+  // 2ª entrada: debe poblar del snapshot ANTES de que vuelva el server (warm).
+  A.entrar();
+  const warmAgentes = A.DATA && A.DATA.agentes.length;   // síncrono: viene del snapshot
+  console.log('  2ª entrada (warm) pobló ya :', warmAgentes === 6 ? '✓ ' + warmAgentes + ' agentes sin esperar server' : '✗ ' + warmAgentes);
+  const okC = snapOk && warmAgentes === 6;
+  await wait(RESTO_MS + LENTO_MS + 900);   // dejar completar la carga fresca de esta entrada
+  A.salir();
+  await wait(30);
+
+  const okA = engineYa && tEsqueleto < RESTO_MS;
+  const okB = tUni !== null && tDocks !== null && tUni <= tDocks && A.DATA.akasha.length === 11;
 
   for (let t = 1; t <= 5; t++) {
     A.entrar();
@@ -250,15 +311,17 @@ console.log('· bloque Akasha evaluado (' + code.length + ' bytes)');
   }
   console.log('── TOGGLES ──');
   console.log('  5 toggles Despacho↔Akasha:', 'sin excepción ✓');
-  console.log('  renderer.dispose()        :', disposed, '(esperado 6: 5 toggles + la corrida de BUG B)');
-  console.log('  forceContextLoss()        :', ctxLost, '(esperado 6)');
+  console.log('  renderer.dispose()        :', disposed, '(esperado 7: A/B + warm + 5 toggles)');
+  console.log('  forceContextLoss()        :', ctxLost, '(esperado 7)');
   console.log('  AK.on tras salir          :', sandbox.window.AK.on, '(esperado false → el orbe del CM retoma)');
 
   const graves = errores.filter(e => e[0] === 'error');
   console.log('\n── CONSOLA ──');
   if (!graves.length) console.log('  sin console.error ✓');
   else graves.forEach(e => console.log('  ✗', e[1].slice(0, 160)));
-  const ok = disposed === 6 && ctxLost === 6 && !graves.length && sandbox.window.AK.on === false && okB;
+  const teardownOk = disposed === 7 && ctxLost === 7;
+  const ok = teardownOk && !graves.length && sandbox.window.AK.on === false && okA && okB && okC && idem;
+  console.log('\n  A esqueleto:', okA ? '✓' : '✗', '· B 2 olas:', okB ? '✓' : '✗', '· C snapshot:', okC ? '✓' : '✗', '· D17j idempotente:', idem ? '✓' : '✗', '· teardown:', teardownOk ? '✓' : '✗');
   console.log('\n' + (ok ? '✓ HARNESS VERDE' : '✗ HARNESS EN ROJO'));
   process.exit(ok ? 0 : 1);
 })();

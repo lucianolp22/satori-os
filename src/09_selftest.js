@@ -505,7 +505,8 @@ function _asertsF2_(chk, log, opts) {
   [{ n: 'D14 contrato F2', f: _asertsD14_ },
    { n: 'D15 mantenimiento', f: _asertsD15_ },
    { n: 'D16 voz-acciones', f: _asertsD16_ },
-   { n: 'D17h boot único', f: _asertsD17h_ }].forEach(function (t) {
+   { n: 'D17h boot único', f: _asertsD17h_ },
+   { n: 'D17i boot 2 olas', f: _asertsD17i_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -847,6 +848,47 @@ function _asertsD17h_(chk, log, opts) {
       'D17h-c rango inválido → fallback lunes→domingo válido');
   var r2 = _bootRangoSemana_('2026-07-13', '2026-07-19');
   chk(r2.desde === '2026-07-13' && r2.hasta === '2026-07-19', 'D17h-c rango válido del cliente se respeta');
+}
+
+/** D17i — E3.7: bootUniverso()/bootResto() (las 2 olas paralelas) devuelven sus
+ *  claves con fail-closed POR SECCIÓN, igual que bootUnico (D17h). No tocan datos:
+ *  fuerzan el fallo pisando una global y la restauran en finally. Tanda aislada. */
+function _asertsD17i_(chk, log, opts) {
+  // (a) bootUniverso: agentes + clientes.
+  var u = bootUniverso();
+  chk(!!u && u.hasOwnProperty('agentes') && u.hasOwnProperty('clientes'),
+      'D17i-a bootUniverso trae agentes y clientes');
+
+  // (b) bootResto: hoy + recs + agenda + salud.
+  var r = bootResto('2026-07-13', '2026-07-19');
+  ['hoy', 'recs', 'agenda', 'salud'].forEach(function (k) {
+    chk(r.hasOwnProperty(k), 'D17i-b bootResto trae ' + k);
+  });
+
+  // (c) fail-closed por sección en bootUniverso: si estadoAgentes revienta,
+  //     agentes=null pero clientes vive.
+  var realEA = estadoAgentes;
+  try {
+    estadoAgentes = function () { throw new Error('D17i fallo simulado'); };
+    var ud = bootUniverso();
+    chk(ud.agentes === null, 'D17i-c bootUniverso: la sección que falla viaja null');
+    chk(ud.clientes !== null, 'D17i-c bootUniverso: la otra sección vive');
+  } finally {
+    estadoAgentes = realEA;
+  }
+
+  // (d) fail-closed por sección en bootResto: si estadoSalud revienta,
+  //     salud=null pero hoy/recs/agenda viven.
+  var realES = estadoSalud;
+  try {
+    estadoSalud = function () { throw new Error('D17i fallo simulado'); };
+    var rd = bootResto('2026-07-13', '2026-07-19');
+    chk(rd.salud === null, 'D17i-d bootResto: salud que falla viaja null');
+    var vivas = ['hoy', 'recs', 'agenda'].filter(function (k) { return rd[k] !== null; });
+    chk(vivas.length === 3, 'D17i-d bootResto: las otras 3 secciones viven (vivas: ' + vivas.length + ')');
+  } finally {
+    estadoSalud = realES;
+  }
 }
 
 function selfTestF2_() {

@@ -8,6 +8,17 @@ estos scripts, y por eso se puede **auditar y rehacer**. El injerto YA ESTÁ APL
 `AKASHA-prototipo-E113.html` (raíz) **es la spec**: se porta, no se rediseña.
 Contrato de integración: `ENCARGO-CODE-AKASHA-E2E3-2026-07-16.md` + `ADENDA-E3-2026-07-17.md`.
 
+## E3.7 — boot en 2 tiempos (esta tanda)
+
+El harness ahora también verifica E3.7 (lee `src/index.html` en vivo):
+- **A** esqueleto-primero: el motor se construye con DATA vacío ANTES del server (0ms).
+- **B** 2 olas paralelas: universo (`bootUniverso`) puebla ANTES que docks (`bootResto`); `RESTO_MS` simula que bootResto (con estadoSalud) es más lento.
+- **C** snapshot warm (localStorage, TTL 10min): 2ª entrada pinta sin esperar server.
+- **D17j** `engine.poblar` idempotente: 2×/3× no duplica meshes (hook `_counts()`).
+
+D17i (fail-closed de bootUniverso/bootResto) vive en `selfTestF2` (server). D17j vive
+ACÁ porque necesita Three+DOM. Correr: `node harness.js` (verde = A+B+C+D17j+toggles).
+
 ## ⚠️ El injerto ya ocurrió: `index.html` es la fuente de verdad
 
 `scope_css.py` / `patch_engine.py` / `splice.py` son el **registro histórico** de cómo
