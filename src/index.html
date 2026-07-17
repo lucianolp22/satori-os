@@ -444,7 +444,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 /* Akasha INVOCA los modales del CM (tablero, calendario): son hermanos de .wrap
  * (no los tapa el hide de arriba) pero viven en z-index 70/71 — por debajo del
  * overlay. Con Akasha abierto suben por encima. Un solo dueño por función. */
-#centro.ak-on .kscrim{z-index:210}
+#centro.ak-on .kscrim{z-index:210; background:rgba(8,6,10,.93); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px)}
 #centro.ak-on .kboard{z-index:211}
 
 /* E1.1: avatares con imagen (arte IA). Sin url => el div queda con inicial (placeholder). La img llena el
