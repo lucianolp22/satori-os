@@ -3684,7 +3684,7 @@ window.AKASHA = (function () {
     }) : [];
 
     var rec = recs[0] || null;
-    var lazo = rec ? { t: 'Arrancar por: ' + rec.texto, d: 'Lazo · ' + rec.fecha + ' · KPI: ' + (rec.kpi || '—'), id: rec.id } : null;
+    var lazo = rec ? { t: rec.texto, d: 'Lazo · ' + rec.fecha + ' · KPI: ' + (rec.kpi || '—'), id: rec.id, cli: String(rec.id_cliente || ''), hizo: String(rec.se_hizo || '') } : null;
 
     var tel = (ea && ea.telemetria) || null;
     var sistema = [];
@@ -3833,6 +3833,7 @@ window.AKASHA = (function () {
     /* T2: crear aprobación desde la recomendación del lazo (fail-closed). */
     aprobarRec: function () {
       if (!DATA || !DATA.lazo) return;
+      if (!DATA.lazo.cli) { toast('Recomendación global — se sigue por el lazo, no por aprobación'); return; }
       if (!confirm('¿Crear una aprobación a partir de esta recomendación?\n\n' + DATA.lazo.t)) return;
       gas('aprobacionDesdeRecomendacion', [DATA.lazo.id], function (res) {
         // ojo: el error viene en .motivo, no en .error
@@ -4003,7 +4004,9 @@ window.AKASHA = (function () {
       lz.innerHTML = '<div class="brief-b"><div class="t">' + esc(DATA.lazo.t) + '</div><div class="d mono" style="font-size:10px">' + esc(DATA.lazo.d) + '</div></div>' +
         '<div class="q">¿Se hizo? <button class="mini" data-fb="hizo-si">Sí</button><button class="mini" data-fb="hizo-no">No</button></div>' +
         '<div class="q">¿Movió el KPI? <button class="mini" data-fb="kpi-si">Sí</button><button class="mini" data-fb="kpi-no">No</button></div>' +
-        '<button class="mini" data-rec="1" style="margin-top:6px">＋ Crear aprobación desde esta recomendación</button>';
+        (DATA.lazo.cli && !DATA.lazo.hizo
+          ? '<button class="mini" data-rec="1" style="margin-top:6px" title="Crea una aprobación P1 (default-deny) en ' + esc(DATA.lazo.cli) + '">＋ Crear aprobación desde esta recomendación</button>'
+          : '<div class="d" style="margin-top:6px;font-size:10px;opacity:.75">Recomendación global — sin Espacio de Cliente no se vuelve aprobación; seguila con los dos juicios de arriba.</div>');
       lz.querySelectorAll('[data-fb]').forEach(function (b) {
         b.addEventListener('click', function () {
           var v = b.getAttribute('data-fb').split('-');
@@ -4083,7 +4086,7 @@ window.AKASHA = (function () {
     }
     if (sel) {
       sel.innerHTML = '';
-      sel.appendChild(el('option', null, 'Todos los Espacios'));
+      var oTodos = el('option', null, 'Todos los Espacios'); oTodos.value = ''; sel.appendChild(oTodos);
       DATA.clientes.forEach(function (c) { var o = el('option', null, c.nombre + ' (' + c.ns + ')'); o.value = c.id; sel.appendChild(o); });
     }
   }
