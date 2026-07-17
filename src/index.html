@@ -2710,7 +2710,15 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     // mover la ventana de la Retina (DPR 2) al monitor externo (DPR 1) o al revés dejaba
     // el buffer a la densidad vieja → toda la escena borrosa ("no enfocaba el Núcleo").
     renderer.setPixelRatio(Math.min(devicePixelRatio, isM?1.5:2));
+    // E3.12 — FIX RAÍZ del "de costado" (confirmado por el panel AK-DEBUG: display 3024 = 2× viewport 1512).
+    // El <canvas> es un elemento REEMPLAZADO: con inset:0 y width:auto, CSS usa su tamaño INTRÍNSECO
+    // (= el buffer). En Retina el buffer es 2× el viewport (3024 vs 1512) → el canvas se dibujaba al doble
+    // del ancho y solo se veía el cuarto superior-izquierdo (universo al fondo-derecha). En la LG FHD
+    // (DPR 1) buffer=viewport, por eso ahí encuadraba bien. Fijar el tamaño CSS al del viewport lo cierra
+    // en cualquier DPR/pantalla.
     renderer.setSize(innerWidth, innerHeight, false);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
     // E3.10 — encuadre CONSISTENTE por aspecto. El fov de Three es VERTICAL y fijo (55): en 16:9
     // (LG FHD) el universo entra completo, pero en la MacBook (más angosta, ~1.56) el fov horizontal
     // se achica y el anillo queda recortado/de canto = "de costado". Solución: derivar el fov vertical
