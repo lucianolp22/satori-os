@@ -2694,6 +2694,9 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(COL.fogc, 0.0022);
   const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 600);
+  // E3.10 — ancla de encuadre: FOV HORIZONTAL del 16:9 (la LG FHD, donde encuadra bien).
+  // resize() deriva el FOV vertical de acá según el aspecto real de la pantalla.
+  const _HFOV_REF = 2*Math.atan(Math.tan(55*Math.PI/360) * (16/9));
   const disposables = [];
   function track(o){ disposables.push(o); return o; }
 
@@ -2707,7 +2710,14 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     // el buffer a la densidad vieja → toda la escena borrosa ("no enfocaba el Núcleo").
     renderer.setPixelRatio(Math.min(devicePixelRatio, isM?1.5:2));
     renderer.setSize(innerWidth, innerHeight, false);
-    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    // E3.10 — encuadre CONSISTENTE por aspecto. El fov de Three es VERTICAL y fijo (55): en 16:9
+    // (LG FHD) el universo entra completo, pero en la MacBook (más angosta, ~1.56) el fov horizontal
+    // se achica y el anillo queda recortado/de canto = "de costado". Solución: derivar el fov vertical
+    // del fov HORIZONTAL de referencia, así todas las pantallas muestran el mismo encuadre horizontal.
+    var _asp = innerWidth/innerHeight;
+    camera.aspect = _asp;
+    camera.fov = Math.max(40, Math.min(68, 2*Math.atan(Math.tan(_HFOV_REF/2)/_asp) * 180/Math.PI));
+    camera.updateProjectionMatrix();
     // Cambiar de pantalla cambia devicePixelRatio SIN cambiar innerWidth/Height, así que
     // 'resize' no siempre dispara. El listener de resolución (one-shot, se re-arma solo para
     // el dppx nuevo) cierra ese hueco. try/catch: navegadores viejos sin addEventListener en MQL.
