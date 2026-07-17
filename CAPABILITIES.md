@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-17 20:23 · commit: 76d2f1a
+> Generado: 2026-07-17 21:28 · commit: fd3d3f9
 
 ## Módulos
 
