@@ -3131,9 +3131,21 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     new THREE.Vector3(0,5,152), new THREE.Vector3(5,6,122), new THREE.Vector3(-5.5,9,96),
     new THREE.Vector3(4,15,76), new THREE.Vector3(0,28,58)
   ]); riel.getLengths(200);
-  const nav={ modo:'umbral', t:0, az:0, azV:0, radio:58, radioV:58, alt:28,
+  const nav={ modo:'umbral', t:0, az:0, azV:0, radio:58, radioV:58, alt:18,
     look:new THREE.Vector3(0,4,60),
     dockId:null, camGoal:new THREE.Vector3(), lookGoal:new THREE.Vector3(0,4,0), idle:0 };
+  // E3.9 — encuadre del overview (pedido Luciano: se veia "de costado"). alt = altura de camara
+  // (antes 28 = muy picado/oblicuo, universo tirado abajo → 18 mas de frente). _ovLookY = a que
+  // altura APUNTA (antes fijo en 4; el Nucleo esta a y=10, asi que 7 centra mejor el universo).
+  // Afinador en vivo para no adivinar: en la consola del navegador -> akEncuadre(alt, radio, lookY).
+  var _ovLookY = 7;
+  window.akEncuadre = function(alt, radio, lookY){
+    if(alt!=null) nav.alt = +alt;
+    if(radio!=null) nav.radio = +radio;
+    if(lookY!=null) _ovLookY = +lookY;
+    console.log('[Akasha encuadre] alt='+nav.alt+'  radio='+nav.radio+'  lookY='+_ovLookY+'  <- pasame estos 3 numeros');
+    return {alt:nav.alt, radio:nav.radio, lookY:_ovLookY};
+  };
   camera.position.copy(riel.getPointAt(0)); camera.lookAt(0,4,0);
 
   function setStatus(txt){ const s=$('hud-status'); if(s) s.textContent=txt; }
@@ -3563,7 +3575,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       nav.radioV=D(nav.radioV,nav.radio,3,dt);
       const ty=D(camera.position.y, nav.alt, 2.5, dt);
       camera.position.set(Math.sin(nav.az)*nav.radioV, ty, Math.cos(nav.az)*nav.radioV);
-      nav.look.x=D(nav.look.x,0,3,dt); nav.look.y=D(nav.look.y,4,3,dt); nav.look.z=D(nav.look.z,0,3,dt);
+      nav.look.x=D(nav.look.x,0,3,dt); nav.look.y=D(nav.look.y,_ovLookY,3,dt); nav.look.z=D(nav.look.z,0,3,dt);
       camera.up.set(0,1,0); camera.lookAt(nav.look);
     } else {
       camera.position.x=D(camera.position.x,nav.camGoal.x,2.6,dt);
