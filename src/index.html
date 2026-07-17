@@ -3458,7 +3458,10 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     eclipse.material.opacity=alerta?0.85:1;
   }
   function setEco(on){
-    renderer.setPixelRatio(on?1:Math.min(devicePixelRatio,isM?1.5:2));
+    // E3.8 — eco YA NO baja el pixelRatio. Antes: on?1 → en una Retina (DPR 2) renderizaba a
+    // MITAD de resolución = BORROSO (el desenfoque que reportó Luciano, disparado por el auto-eco).
+    // La nitidez se mantiene SIEMPRE; el ahorro de FPS del eco viene de ocultar streams/halos/torres.
+    renderer.setPixelRatio(Math.min(devicePixelRatio,isM?1.5:2));
     streams.forEach(s=>s.pts.visible=!on);
     haloN.visible=!on;
     Object.values(clientes).forEach(c=>c.torre.visible=!on);
@@ -3468,7 +3471,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     fpsN++;
     if(now-fpsT>2200){
       const fps=fpsN*1000/(now-fpsT); fpsN=0; fpsT=now;
-      if(!autoEcoDone && !S.eco && fps<24 && nav.modo!=='umbral'){
+      if(!autoEcoDone && !S.eco && fps<18 && nav.modo!=='umbral'){   // E3.8 — umbral 24→18: el auto-eco (que ahora SOLO oculta decorativos, sin borronear) entra recién en equipos que de verdad no dan; una MacBook a 20-24fps se queda FULL y nítida
         autoEcoDone=true; S.eco=true; setEco(true);
         const b=$('btn-calidad'); b.setAttribute('aria-pressed','true'); b.textContent='◈ Eco';
         toast('Modo eco automático: priorizando fluidez en este dispositivo');
