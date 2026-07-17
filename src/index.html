@@ -4,6 +4,7 @@
 <base target="_top">
 <meta charset="utf-8">
 <meta name="color-scheme" content="dark">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>html{background:#0b0806}body.cm-boot-dark{background:#0b0806 !important}</style>
 <title>Satori OS</title>
 <style>
@@ -3156,6 +3157,27 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     console.log('[Akasha encuadre] alt='+nav.alt+'  radio='+nav.radio+'  lookY='+_ovLookY+'  <- pasame estos 3 numeros');
     return {alt:nav.alt, radio:nav.radio, lookY:_ovLookY};
   };
+  // ── DEBUG TEMPORAL (E3.11) — mide la pantalla REAL para diagnosticar el encuadre.
+  //    Se retira cuando el encuadre quede resuelto. Toggle con la tecla 'i'. ──
+  var _dbg = document.createElement('div');
+  _dbg.style.cssText='position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:99999;'
+    +'background:rgba(6,5,8,.85);color:#7fe3c8;font:11px/1.6 ui-monospace,monospace;padding:9px 15px;'
+    +'border-radius:9px;white-space:pre;pointer-events:none;text-align:center;border:1px solid rgba(127,227,200,.35)';
+  (document.getElementById('akasha')||document.body).appendChild(_dbg);
+  var _dbgN=0;
+  function _akDbg(){
+    if(_dbg.hidden || (_dbgN++ % 20)!==0) return;
+    var gl=$('gl');
+    _dbg.textContent =
+      'AK-DEBUG  ·  tecla i para ocultar\n'+
+      'ventana '+innerWidth+' x '+innerHeight+'   dpr '+devicePixelRatio+'   pixelRatio '+renderer.getPixelRatio()+'\n'+
+      'canvas buffer '+gl.width+' x '+gl.height+'   display '+gl.clientWidth+' x '+gl.clientHeight+'\n'+
+      'camera.aspect '+camera.aspect.toFixed(3)+'   camera.fov '+camera.fov.toFixed(1)+'\n'+
+      'nav.alt '+nav.alt.toFixed(1)+'   nav.radio '+nav.radioV.toFixed(1)+'   lookY '+_ovLookY+'   modo '+nav.modo;
+  }
+  document.addEventListener('keydown',function(e){
+    if((e.key==='i'||e.key==='I') && !/input|select|textarea/i.test((document.activeElement||{}).tagName||'')) _dbg.hidden=!_dbg.hidden;
+  });
   camera.position.copy(riel.getPointAt(0)); camera.lookAt(0,4,0);
 
   function setStatus(txt){ const s=$('hud-status'); if(s) s.textContent=txt; }
@@ -3598,7 +3620,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       nav.az=Math.atan2(camera.position.x,camera.position.z);
     }
 
-    anclarPanel(); drawMinimap(now); fpsCheck(now);
+    anclarPanel(); drawMinimap(now); fpsCheck(now); _akDbg();
     renderer.render(scene,camera);
   }
 
