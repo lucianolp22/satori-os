@@ -4,6 +4,7 @@
  * No reemplaza el gate en /dev (fps/render son de Luciano): caza excepciones.
  */
 const fs = require('fs'), vm = require('vm'), path = require('path');
+const LENTO_MS = Number(process.env.LENTO_MS || 3000);   // latencia simulada de cerebroGrafo
 const SP = __dirname + '/';
 const IDX = '/Users/lucianopablolp/Documents/Claude/Projects/SatoriOS/src/index.html';
 
@@ -118,13 +119,16 @@ function mkRun() {
       if (k === 'withSuccessHandler') return f => (st.ok = f, api);
       if (k === 'withFailureHandler') return f => (st.fail = f, api);
       return (...args) => {
+        // cerebroGrafo abre el Sheet de cada Espacio: es LENTO. Se simula así para
+        // probar que la escena NO lo espera (BUG B).
+        const lento = (k === 'cerebroGrafo') ? LENTO_MS : 0;
         setTimeout(() => {
           try {
             if (!GAS[k]) throw new Error('función GAS inexistente: ' + k);
             const v = GAS[k](...args);
             st.ok && st.ok(v);
           } catch (e) { st.fail ? st.fail(e) : (() => { throw e; })(); }
-        }, 0);
+        }, lento);
       };
     }
   });
@@ -198,6 +202,26 @@ console.log('· bloque Akasha evaluado (' + code.length + ' bytes)');
   if (!A) { console.error('✗ window.AKASHA no quedó definido'); process.exit(1); }
   const wait = ms => new Promise(r => setTimeout(r, ms));
 
+  // ── BUG B: la escena NO debe esperar a los cerebros ──
+  const t0 = Date.now();
+  A.entrar();
+  let tEscena = null;
+  for (let i = 0; i < 200; i++) {          // poll hasta que el motor exista
+    if (A.S.engine) { tEscena = Date.now() - t0; break; }
+    await wait(25);
+  }
+  console.log('\n── BUG B · SEGUNDA OLA ──');
+  console.log('  cerebroGrafo simulado en   :', LENTO_MS + 'ms por Espacio ×', A.DATA ? A.DATA.clientes.length : '?');
+  console.log('  universo construido en     :', tEscena + 'ms', tEscena !== null && tEscena < LENTO_MS ? '✓ (NO esperó la memoria)' : '✗ ESPERÓ');
+  console.log('  nodos al construir         :', A.DATA.akasha.length, '(0 = Núcleo nace vacío ✓)');
+  await wait(LENTO_MS + 900);             // dejar entrar la segunda ola
+  console.log('  nodos tras la segunda ola  :', A.DATA.akasha.length);
+  console.log('  nodos por Espacio          :', A.DATA.clientes.map(c => c.id + '=' + c.reg.length).join(' '));
+  const okB = tEscena !== null && tEscena < LENTO_MS && A.DATA.akasha.length === 11;
+  console.log('  ' + (okB ? '✓ segunda ola OK' : '✗ segunda ola MAL'));
+  A.salir();
+  await wait(30);
+
   for (let t = 1; t <= 5; t++) {
     A.entrar();
     await wait(60);                       // deja resolver las promesas de google.script.run
@@ -226,15 +250,15 @@ console.log('· bloque Akasha evaluado (' + code.length + ' bytes)');
   }
   console.log('── TOGGLES ──');
   console.log('  5 toggles Despacho↔Akasha:', 'sin excepción ✓');
-  console.log('  renderer.dispose()        :', disposed, '(esperado 5)');
-  console.log('  forceContextLoss()        :', ctxLost, '(esperado 5)');
+  console.log('  renderer.dispose()        :', disposed, '(esperado 6: 5 toggles + la corrida de BUG B)');
+  console.log('  forceContextLoss()        :', ctxLost, '(esperado 6)');
   console.log('  AK.on tras salir          :', sandbox.window.AK.on, '(esperado false → el orbe del CM retoma)');
 
   const graves = errores.filter(e => e[0] === 'error');
   console.log('\n── CONSOLA ──');
   if (!graves.length) console.log('  sin console.error ✓');
   else graves.forEach(e => console.log('  ✗', e[1].slice(0, 160)));
-  const ok = disposed === 5 && ctxLost === 5 && !graves.length && sandbox.window.AK.on === false;
+  const ok = disposed === 6 && ctxLost === 6 && !graves.length && sandbox.window.AK.on === false && okB;
   console.log('\n' + (ok ? '✓ HARNESS VERDE' : '✗ HARNESS EN ROJO'));
   process.exit(ok ? 0 : 1);
 })();

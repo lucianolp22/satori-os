@@ -8,7 +8,20 @@ estos scripts, y por eso se puede **auditar y rehacer**. El injerto YA ESTÁ APL
 `AKASHA-prototipo-E113.html` (raíz) **es la spec**: se porta, no se rediseña.
 Contrato de integración: `ENCARGO-CODE-AKASHA-E2E3-2026-07-16.md` + `ADENDA-E3-2026-07-17.md`.
 
-## El pipeline
+## ⚠️ El injerto ya ocurrió: `index.html` es la fuente de verdad
+
+`scope_css.py` / `patch_engine.py` / `splice.py` son el **registro histórico** de cómo
+entró el port (E3, commit `26f3e3a`). **NO los vuelvas a correr**: `splice.py` reconstruye
+desde el backup pre-E3 y te **borraría los fixes de E3.1** (que se aplicaron sobre
+`index.html`, no sobre las fuentes del scratchpad):
+
+- **BUG A** — `#akasha` se movió FUERA de `#centro` + la regla de maniquíes del boot.
+- **BUG B** — segunda ola del Cerebro (`cargarCerebros`, `refrescarNucleo`).
+- **BUG C** — el bloque de estilos tardío, reparado.
+
+Lo único vivo y re-corrible acá es **`harness.js`** (lee `index.html` en vivo).
+
+## El pipeline (histórico)
 1. **`scope_css.py`** — CSS del prototipo → scopeado bajo `#akasha`.
    `:root{}` → `#akasha{}` (los tokens quedan confinados: no se filtran al CM) ·
    `@keyframes pulse` → `akPulse` (**el CM ya define `pulse`; los keyframes son
@@ -31,9 +44,15 @@ Contrato de integración: `ENCARGO-CODE-AKASHA-E2E3-2026-07-16.md` + `ADENDA-E3-
 ## Correrlo
 ```bash
 cd _akasha_e3
-curl -sO https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js   # → three.r128.min.js
-node harness.js        # verde = adaptador y motor construyen; 5 toggles limpios
+curl -so three.r128.min.js https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
+node harness.js                  # verde = adaptador + motor + 5 toggles + segunda ola
+LENTO_MS=14000 node harness.js   # cerebroGrafo que nunca contesta: prueba el timeout
 ```
+`LENTO_MS` simula lo que tarda `cerebroGrafo` por Espacio (default 3000ms). El harness
+verifica que el universo se construya **sin esperarlo** (BUG B): si vuelve a bloquearse,
+el tiempo de construcción se dispara y da rojo. Con `LENTO_MS` por encima del timeout
+(12s) todos los cerebros fallan: la Oficina tiene que quedar entera igual, con el Núcleo
+sin constelación — ahí el rojo es de la aserción (espera 11 nodos), no del producto.
 El harness lee `src/index.html` en vivo: **corrélo después de tocar Akasha.**
 
 ## Lo que el harness NO prueba

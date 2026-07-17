@@ -237,6 +237,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #akasha #hud-bottom-left{bottom:calc(16px + env(safe-area-inset-bottom));left:18px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 #akasha #minimap{width:132px;height:132px;border-radius:50%;border:1px solid var(--color-border);background:rgba(12,9,10,.66);cursor:pointer;
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#akasha #ak-cerebros{font-size:10.5px;letter-spacing:.06em;color:var(--_ink-400);font-family:var(--font-mono);
+  background:rgba(13,10,16,.5);border:1px solid var(--color-border);border-radius:999px;padding:3px 10px;margin-top:6px;align-self:flex-start}
 #akasha #hud-status{font-size:11.5px;color:var(--color-text-muted);max-width:240px;text-shadow:0 1px 6px rgba(0,0,0,.85)}
 #akasha #hud-bottom-right{bottom:calc(16px + env(safe-area-inset-bottom));right:18px;display:flex;gap:8px}
 #akasha #skip-umbral{bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%)}
@@ -287,7 +289,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 @media (max-width:640px){
   #akasha .panel{left:50%!important;top:auto!important;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);width:calc(100vw - 20px)}
   #akasha #minimap{width:96px;height:96px}
-  #akasha #hud-status{display:none}
+  #akasha #hud-status,#akasha #ak-cerebros{display:none}
   #akasha .brand .sub{display:none}
 }
 #akasha #flat{position:fixed;inset:0;z-index:15;overflow-y:auto;padding:0 0 calc(40px + env(safe-area-inset-bottom))}
@@ -771,8 +773,14 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .tag{font-size:9px; letter-spacing:.05em; text-transform:uppercase; font-weight:700; padding:2px 7px; border-radius:999px; white-space:nowrap}
 #centro .t-acc{color:var(--color-info); background:var(--color-info-weak)}#centro .t-int{color:var(--_jade-300); background:rgba(111,194,168,.14)}#centro .t-asg{color:var(--color-warning); background:var(--color-warning-weak)}#centro .t-ent{color:var(--color-primary); background:var(--color-primary-weak)}#centro .t-cap{color:#C3A8E8; background:rgba(195,168,232,.14)}
 #centro .fe .acts{margin-top:7px; display:flex; gap:6px}
-</style>
 
+/* Overrides tardios: van al final de la hoja para ganarle por orden a las reglas
+   de arriba (misma especificidad). Vivian sueltos despues de un cierre de style
+   sobrante: eran texto plano en el head, el parser cerraba el head y los tiraba
+   como nodo de texto al body, asi que estas 2 reglas NO se aplicaban y el
+   starfield viejo del CM (#cmSpace) nunca se ocultaba.
+   OJO: dentro de un bloque de estilo, la secuencia de cierre literal termina el
+   elemento aunque este adentro de un comentario CSS. No escribirla aca. */
 #centro #cmSpace{display:none !important}
 #centro{overflow-y:auto; overflow-x:hidden}
 </style>
@@ -811,151 +819,6 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div class="galaxy"></div><div class="photobg"></div>
   <div id="cmVeil" aria-live="polite"><div class="cvbox"><span class="cvspin"></span>Cargando el Centro de Mando…</div></div>
   <div id="cmPill">Actualizando datos…</div><div class="veil"></div>
-
-  <!-- ══ AKASHA · La Oficina Universo (E3) ══════════════════════════════════
-   * Portado de AKASHA-prototipo-E113.html (la spec). Reusa el fondo del CM
-   * (.galaxy/.photobg/.veil) — por eso acá NO hay photobg. CSS scopeado bajo
-   * #akasha; motor sobre el window.THREE r128 que ya carga el CM (decisión E2/A).
-   * ═══════════════════════════════════════════════════════════════════════ -->
-  <div id="akasha" aria-hidden="true">
-    <!-- starfield propio: el #cmSpace del CM está display:none. Corre solo con Akasha abierto. -->
-    <canvas id="stars" aria-hidden="true"></canvas>
-<div id="cosmos" hidden>
-  <canvas id="gl" aria-label="Oficina Universo Akasha — escena tridimensional. Usá Tab para recorrer estaciones, clientes y núcleo."></canvas>
-
-  <div class="hud" id="hud-top">
-    <div class="topbar">
-      <span class="brand">
-        <svg class="enso" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M28.5 21.5A12.2 12.2 0 1 1 24 7.6" stroke="#F4EEE2" stroke-width="2.1" stroke-linecap="round" opacity=".92"/></svg>
-        <span><span class="wm"><i>Akasha</i></span><span class="sub" style="margin-left:10px">La Oficina · Satori OS</span></span>
-      </span>
-      <span class="sys">
-        <span id="hud-clock" class="sysitem mono"></span>
-        <button class="pill" id="btn-atril" aria-pressed="false" title="El Atril del Director — tus tableros (tecla D)">▤ Atril</button>
-        <select id="sel-cliente" class="cm-sel" aria-label="Cliente objetivo"></select>
-        <span class="budget" title="Consumo API del mes vs tope"><span class="t"><span>API del mes</span><span class="mono" id="budget-txt">—</span></span><span class="bar"><i id="budget-bar" style="width:0%"></i></span></span>
-        <button class="pill jade" id="btn-voz" title="Hablar con Sato (voz_url de Config)">🎙 Hablar con Sato</button>
-        <button class="pill" id="btn-ov" title="Abrir la Oficina Virtual (oficina_url de Config)">▦ Oficina Virtual</button>
-        <button class="pill" id="btn-capturar" title="Capturar a la Bandeja">＋ Capturar</button>
-        <button class="pill" id="btn-ayuda" aria-label="Ayuda y controles" style="min-width:38px;justify-content:center">?</button>
-        <button class="pill" id="btn-calidad" aria-pressed="false" title="Alternar calidad">◈ Full</button>
-        <button class="pill jade" id="btn-despacho">⟵ Despacho</button>
-      </span>
-    </div>
-  </div>
-
-  <!-- COCKPIT SUSPENDIDO — tableros del CM sobre el cosmos, como hoy -->
-  <aside class="hud dock" id="dock-left" aria-label="Tableros: brief, estado y actividad">
-    <div class="card">
-      <h2><span class="eyebrow">Brief de hoy</span></h2>
-      <div id="atril-brief"></div>
-      <div class="lazo" id="atril-lazo"></div>
-    </div>
-    <div class="card">
-      <h2><span class="eyebrow">Estado del sistema</span></h2>
-      <div class="sys-grid" id="atril-sys"></div>
-    </div>
-    <div class="card">
-      <h2><span class="eyebrow">Actividad de agentes</span><span class="mono">tocá → volás</span></h2>
-      <div id="atril-agentes"></div>
-    </div>
-  </aside>
-  <aside class="hud dock" id="dock-right" aria-label="Tableros: cartera, tareas, aprobaciones y calendario">
-    <div class="card">
-      <h2><span class="eyebrow">Cartera · semáforo</span><span class="mono">tocá → volás</span></h2>
-      <div id="atril-cartera"></div>
-    </div>
-    <div class="card">
-      <h2><span class="eyebrow">Tareas</span></h2>
-      <div class="tsum" id="atril-tareas"></div>
-      <button class="open-hint" id="atril-board">Abrir tablero →</button>
-    </div>
-    <div class="card">
-      <h2><span class="eyebrow">Aprobaciones · default-deny</span></h2>
-      <div id="atril-aprob"></div>
-    </div>
-    <div class="card">
-      <h2><span class="eyebrow">Calendario</span></h2>
-      <div class="cal-mini" id="atril-cal"></div>
-    </div>
-  </aside>
-  <div class="hud" id="hud-bottom-left">
-    <canvas id="minimap" width="264" height="264" aria-label="Minimapa de la Oficina. Click para volar directo."></canvas>
-    <div id="hud-status" aria-live="polite">Llegando a la Oficina…</div>
-  </div>
-  <button class="hud pill" id="skip-umbral" hidden>Saltar el Umbral <span class="kbd" style="margin-left:6px">ESC</span></button>
-
-  <!-- Panel de estación de agente -->
-  <aside class="panel" id="panel" role="dialog" aria-label="Detalle de estación">
-    <button class="p-close" id="panel-close" aria-label="Cerrar panel">✕</button>
-    <div class="p-head">
-      <div class="p-avatar" id="pa-avatar">S</div>
-      <div><div class="p-name" id="pa-name">—</div><div class="p-role" id="pa-role">—</div></div>
-    </div>
-    <span class="chip" id="pa-state"><span id="pa-state-t">—</span></span>
-    <div class="p-row"><div class="l">Tarea en curso</div><div id="pa-tarea">—</div></div>
-    <div class="p-row"><div class="l">Última corrida</div><div id="pa-corrida" class="mono" style="font-size:12px">—</div></div>
-    <div class="p-row"><div class="l">Hoy</div>
-      <div class="p-metrics">
-        <div class="stat"><span class="l">corridas</span><span class="v" id="pa-m1">—</span></div>
-        <div class="stat"><span class="l">eventos</span><span class="v" id="pa-m2">—</span></div>
-        <div class="stat"><span class="l">ok hoy</span><span class="v" id="pa-m3">—</span></div>
-      </div>
-    </div>
-    <div class="p-aprob" id="pa-aprob" hidden><b id="pa-aprob-n">1 aprobación</b> espera tu decisión en el Muelle</div>
-    <button class="btn btn-ghost" id="pa-btn-muelle" hidden>Ir al Muelle de Decisiones</button>
-  </aside>
-
-  <!-- Panel genérico (Núcleo / Muelle / nodo) -->
-  <aside class="panel" id="panel2" role="dialog" aria-label="Detalle">
-    <button class="p-close" id="panel2-close" aria-label="Cerrar panel">✕</button>
-    <div id="panel2-body"></div>
-  </aside>
-
-  <!-- Panel ESPACIO DE CLIENTE -->
-  <aside class="panel" id="panel3" role="dialog" aria-label="Espacio de Cliente" style="width:372px">
-    <button class="p-close" id="panel3-close" aria-label="Cerrar panel">✕</button>
-    <div id="panel3-body"></div>
-  </aside>
-</div>
-
-
-<!-- ============ VISTA PLANA ============ -->
-<section id="flat" hidden aria-label="Akasha — Vista Plana">
-  <header class="topbar">
-    <span class="brand">
-      <svg class="enso" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M28.5 21.5A12.2 12.2 0 1 1 24 7.6" stroke="#F4EEE2" stroke-width="2.1" stroke-linecap="round" opacity=".92"/></svg>
-      <span><span class="wm"><i>Akasha</i></span><span class="sub" style="margin-left:10px">Vista Plana</span></span>
-    </span>
-    <span class="sys"><span class="why" id="flat-why" style="font-size:var(--text-xs);color:var(--color-text-muted)">misma oficina, sin cámara</span></span>
-  </header>
-  <div class="flat-wrap">
-    <div class="flat-clima"><span class="dot" id="fc-dot"></span><span id="fc-txt">Leyendo el estado del sistema…</span></div>
-    <div id="flat-content"></div>
-    <button class="flat-try btn btn-ghost" id="flat-try">Intentar la vista inmersiva</button>
-  </div>
-</section>
-
-<div class="toast" id="toast" role="status"></div>
-
-<div id="ayuda" hidden>
-  <div class="box card">
-    <h2>Controles de Akasha</h2>
-    <ul>
-      <li><span class="kbd">Click / Tap</span> — volar a una estación, cliente o al Núcleo</li>
-      <li><span class="kbd">Arrastrar</span> — orbitar la Oficina</li>
-      <li><span class="kbd">Rueda / Pinch</span> — acercar · alejar</li>
-      <li><span class="kbd">Tab</span> — recorrer con teclado · <span class="kbd">Enter</span> acopla</li>
-      <li><span class="kbd">ESC</span> — cerrar panel · volver al plano general</li>
-      <li><span class="kbd">Minimapa</span> — click para volar directo</li>
-    </ul>
-    <button class="btn btn-primary" id="ayuda-close" style="margin-top:16px">Entendido</button>
-  </div>
-</div>
-
-<nav id="a11y-nav" aria-label="Zonas de la Oficina" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)"></nav>
-
-  </div>
 
   <header class="topbar">
     <div class="brand">
@@ -1164,6 +1027,158 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <div id="cmSalud"></div>
   </div>
 </div>
+
+<!-- AKASHA vive FUERA de #centro a propósito: el CM localiza sus cards por el
+     TEXTO de su .eyebrow (ccCard -> "#centro .card .eyebrow") y el Atril de Akasha
+     usa los MISMOS textos. Adentro de #centro y primero en el DOM, Akasha se robaba
+     las 6 cards y el CM escribía sus datos en paneles ocultos (bug del eyeball E3).
+     #centro es position:static (no crea stacking context), así que el fondo del CM
+     (.galaxy/.photobg/.veil, fixed y z-index negativo) se sigue viendo detrás. -->
+  <!-- ══ AKASHA · La Oficina Universo (E3) ══════════════════════════════════
+   * Portado de AKASHA-prototipo-E113.html (la spec). Reusa el fondo del CM
+   * (.galaxy/.photobg/.veil) — por eso acá NO hay photobg. CSS scopeado bajo
+   * #akasha; motor sobre el window.THREE r128 que ya carga el CM (decisión E2/A).
+   * ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="akasha" aria-hidden="true">
+    <!-- starfield propio: el #cmSpace del CM está display:none. Corre solo con Akasha abierto. -->
+    <canvas id="stars" aria-hidden="true"></canvas>
+<div id="cosmos" hidden>
+  <canvas id="gl" aria-label="Oficina Universo Akasha — escena tridimensional. Usá Tab para recorrer estaciones, clientes y núcleo."></canvas>
+
+  <div class="hud" id="hud-top">
+    <div class="topbar">
+      <span class="brand">
+        <svg class="enso" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M28.5 21.5A12.2 12.2 0 1 1 24 7.6" stroke="#F4EEE2" stroke-width="2.1" stroke-linecap="round" opacity=".92"/></svg>
+        <span><span class="wm"><i>Akasha</i></span><span class="sub" style="margin-left:10px">La Oficina · Satori OS</span></span>
+      </span>
+      <span class="sys">
+        <span id="hud-clock" class="sysitem mono"></span>
+        <button class="pill" id="btn-atril" aria-pressed="false" title="El Atril del Director — tus tableros (tecla D)">▤ Atril</button>
+        <select id="sel-cliente" class="cm-sel" aria-label="Cliente objetivo"></select>
+        <span class="budget" title="Consumo API del mes vs tope"><span class="t"><span>API del mes</span><span class="mono" id="budget-txt">—</span></span><span class="bar"><i id="budget-bar" style="width:0%"></i></span></span>
+        <button class="pill jade" id="btn-voz" title="Hablar con Sato (voz_url de Config)">🎙 Hablar con Sato</button>
+        <button class="pill" id="btn-ov" title="Abrir la Oficina Virtual (oficina_url de Config)">▦ Oficina Virtual</button>
+        <button class="pill" id="btn-capturar" title="Capturar a la Bandeja">＋ Capturar</button>
+        <button class="pill" id="btn-ayuda" aria-label="Ayuda y controles" style="min-width:38px;justify-content:center">?</button>
+        <button class="pill" id="btn-calidad" aria-pressed="false" title="Alternar calidad">◈ Full</button>
+        <button class="pill jade" id="btn-despacho">⟵ Despacho</button>
+      </span>
+    </div>
+  </div>
+
+  <!-- COCKPIT SUSPENDIDO — tableros del CM sobre el cosmos, como hoy -->
+  <aside class="hud dock" id="dock-left" aria-label="Tableros: brief, estado y actividad">
+    <div class="card">
+      <h2><span class="eyebrow">Brief de hoy</span></h2>
+      <div id="atril-brief"></div>
+      <div class="lazo" id="atril-lazo"></div>
+    </div>
+    <div class="card">
+      <h2><span class="eyebrow">Estado del sistema</span></h2>
+      <div class="sys-grid" id="atril-sys"></div>
+    </div>
+    <div class="card">
+      <h2><span class="eyebrow">Actividad de agentes</span><span class="mono">tocá → volás</span></h2>
+      <div id="atril-agentes"></div>
+    </div>
+  </aside>
+  <aside class="hud dock" id="dock-right" aria-label="Tableros: cartera, tareas, aprobaciones y calendario">
+    <div class="card">
+      <h2><span class="eyebrow">Cartera · semáforo</span><span class="mono">tocá → volás</span></h2>
+      <div id="atril-cartera"></div>
+    </div>
+    <div class="card">
+      <h2><span class="eyebrow">Tareas</span></h2>
+      <div class="tsum" id="atril-tareas"></div>
+      <button class="open-hint" id="atril-board">Abrir tablero →</button>
+    </div>
+    <div class="card">
+      <h2><span class="eyebrow">Aprobaciones · default-deny</span></h2>
+      <div id="atril-aprob"></div>
+    </div>
+    <div class="card">
+      <h2><span class="eyebrow">Calendario</span></h2>
+      <div class="cal-mini" id="atril-cal"></div>
+    </div>
+  </aside>
+  <div class="hud" id="hud-bottom-left">
+    <canvas id="minimap" width="264" height="264" aria-label="Minimapa de la Oficina. Click para volar directo."></canvas>
+    <div id="hud-status" aria-live="polite">Llegando a la Oficina…</div>
+    <div id="ak-cerebros" aria-live="polite" hidden></div>
+  </div>
+  <button class="hud pill" id="skip-umbral" hidden>Saltar el Umbral <span class="kbd" style="margin-left:6px">ESC</span></button>
+
+  <!-- Panel de estación de agente -->
+  <aside class="panel" id="panel" role="dialog" aria-label="Detalle de estación">
+    <button class="p-close" id="panel-close" aria-label="Cerrar panel">✕</button>
+    <div class="p-head">
+      <div class="p-avatar" id="pa-avatar">S</div>
+      <div><div class="p-name" id="pa-name">—</div><div class="p-role" id="pa-role">—</div></div>
+    </div>
+    <span class="chip" id="pa-state"><span id="pa-state-t">—</span></span>
+    <div class="p-row"><div class="l">Tarea en curso</div><div id="pa-tarea">—</div></div>
+    <div class="p-row"><div class="l">Última corrida</div><div id="pa-corrida" class="mono" style="font-size:12px">—</div></div>
+    <div class="p-row"><div class="l">Hoy</div>
+      <div class="p-metrics">
+        <div class="stat"><span class="l">corridas</span><span class="v" id="pa-m1">—</span></div>
+        <div class="stat"><span class="l">eventos</span><span class="v" id="pa-m2">—</span></div>
+        <div class="stat"><span class="l">ok hoy</span><span class="v" id="pa-m3">—</span></div>
+      </div>
+    </div>
+    <div class="p-aprob" id="pa-aprob" hidden><b id="pa-aprob-n">1 aprobación</b> espera tu decisión en el Muelle</div>
+    <button class="btn btn-ghost" id="pa-btn-muelle" hidden>Ir al Muelle de Decisiones</button>
+  </aside>
+
+  <!-- Panel genérico (Núcleo / Muelle / nodo) -->
+  <aside class="panel" id="panel2" role="dialog" aria-label="Detalle">
+    <button class="p-close" id="panel2-close" aria-label="Cerrar panel">✕</button>
+    <div id="panel2-body"></div>
+  </aside>
+
+  <!-- Panel ESPACIO DE CLIENTE -->
+  <aside class="panel" id="panel3" role="dialog" aria-label="Espacio de Cliente" style="width:372px">
+    <button class="p-close" id="panel3-close" aria-label="Cerrar panel">✕</button>
+    <div id="panel3-body"></div>
+  </aside>
+</div>
+
+
+<!-- ============ VISTA PLANA ============ -->
+<section id="flat" hidden aria-label="Akasha — Vista Plana">
+  <header class="topbar">
+    <span class="brand">
+      <svg class="enso" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M28.5 21.5A12.2 12.2 0 1 1 24 7.6" stroke="#F4EEE2" stroke-width="2.1" stroke-linecap="round" opacity=".92"/></svg>
+      <span><span class="wm"><i>Akasha</i></span><span class="sub" style="margin-left:10px">Vista Plana</span></span>
+    </span>
+    <span class="sys"><span class="why" id="flat-why" style="font-size:var(--text-xs);color:var(--color-text-muted)">misma oficina, sin cámara</span></span>
+  </header>
+  <div class="flat-wrap">
+    <div class="flat-clima"><span class="dot" id="fc-dot"></span><span id="fc-txt">Leyendo el estado del sistema…</span></div>
+    <div id="flat-content"></div>
+    <button class="flat-try btn btn-ghost" id="flat-try">Intentar la vista inmersiva</button>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<div id="ayuda" hidden>
+  <div class="box card">
+    <h2>Controles de Akasha</h2>
+    <ul>
+      <li><span class="kbd">Click / Tap</span> — volar a una estación, cliente o al Núcleo</li>
+      <li><span class="kbd">Arrastrar</span> — orbitar la Oficina</li>
+      <li><span class="kbd">Rueda / Pinch</span> — acercar · alejar</li>
+      <li><span class="kbd">Tab</span> — recorrer con teclado · <span class="kbd">Enter</span> acopla</li>
+      <li><span class="kbd">ESC</span> — cerrar panel · volver al plano general</li>
+      <li><span class="kbd">Minimapa</span> — click para volar directo</li>
+    </ul>
+    <button class="btn btn-primary" id="ayuda-close" style="margin-top:16px">Entendido</button>
+  </div>
+</div>
+
+<nav id="a11y-nav" aria-label="Zonas de la Oficina" style="position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)"></nav>
+
+  </div>
 
 <div class="cm-toast" id="cmToast"></div>
 
@@ -1459,7 +1474,9 @@ function centroAbrir(){
   var c=document.getElementById('centro');c.classList.add('open');c.setAttribute('aria-hidden','false');
   setActiveNav('centro');
   cmSize();
-  if(!CM.bootRestaurado){ CM.bootRestaurado=true; cmRestaurarSnapshot();
+  if(!CM.bootRestaurado){ CM.bootRestaurado=true;
+    ccLimpiarManiquies();      // Bastión: los maniquíes se van ANTES del primer fetch
+    cmRestaurarSnapshot();     // si hay snapshot real cacheado, repinta encima
     if(EN_GAS&&!CMBOOT.done)setTimeout(function(){cmBootMark('est');cmBootMark('salud');cmBootMark('hoy');},12000); }
   refrescarCentro();refrescarSalud();ccHoy();
   if(CM.timer)clearInterval(CM.timer);
@@ -2060,6 +2077,42 @@ function ccBody(card){ if(!card)return null;
   [].slice.call(card.children).forEach(function(k){ if(k.tagName!=='H2')card.removeChild(k); }); return card; }
 function ccChip(txt,kind){ return el('span','chip '+(kind||'c-idle'),txt); }
 
+/* ── Bastión (regla nueva, purga E3.1) ────────────────────────────────────────
+ * El markup trae maniquíes de diseño: números inventados ($1.240.000, MesaQuince)
+ * y botones de apariencia OPERATIVA ("Aprobar plan", pulgares Sí/No). El render
+ * real los reemplaza… si la fuente contesta. Si tarda o falla, el maniquí queda
+ * en pantalla haciéndose pasar por dato real — inaceptable.
+ * Regla: se limpian en el boot ANTES del primer fetch. Si una fuente falla, la
+ * card queda VACÍA con aviso discreto. Jamás un maniquí operativo visible.
+ *
+ * OJO: no todas las cards se pueden vaciar con ccBody(). ccEstado/ccTareas/
+ * ccAgentes buscan un contenedor propio (.sys-grid/.tsum/.ag-list) y hacen
+ * `if(!g)return` — si se lo borrás, esa card no vuelve a pintar NUNCA. A esas se
+ * les limpia el CONTENIDO del contenedor, no la card.
+ * ────────────────────────────────────────────────────────────────────────────*/
+var CC_CARDS_VACIABLES = ['Brief de hoy','Cartera · semáforo','Aprobaciones · default-deny'];
+var CC_CARDS_CONTENEDOR = [['Estado del sistema','.sys-grid'],['Tareas','.tsum'],['Actividad de agentes','.ag-list']];
+function ccLimpiarManiquies(txt){
+  txt = txt || 'Leyendo el MAESTRO…';
+  CC_CARDS_VACIABLES.forEach(function(t){
+    var c=ccCard(t); if(!c)return; ccBody(c); c.appendChild(el('div','served',txt));
+  });
+  CC_CARDS_CONTENEDOR.forEach(function(p){
+    var c=ccCard(p[0]); if(!c)return; var g=c.querySelector(p[1]); if(!g)return;
+    clear(g); g.appendChild(el('div','served',txt));
+  });
+}
+/* Fuente caída: aviso discreto SOLO si todavía no hay dato real (si ya pintamos
+   datos buenos, un fallo transitorio del refresh no los borra). */
+function ccAvisoFuente(txt){
+  CC_CARDS_CONTENEDOR.concat([['Cartera · semáforo',null]]).forEach(function(p){
+    var c=ccCard(p[0]); if(!c)return;
+    var g=p[1]?c.querySelector(p[1]):c; if(!g)return;
+    if(p[1]){ clear(g); g.appendChild(el('div','served',txt)); }
+    else { ccBody(c); c.appendChild(el('div','served',txt)); }
+  });
+}
+
 function ccEstado(){
   var card=ccCard('Estado del sistema'); if(!card)return;
   var g=card.querySelector('.sys-grid'); if(!g)return; clear(g);
@@ -2321,7 +2374,9 @@ function ccResolver(a,decision,node){
 function ccHoy(){
   if(!EN_GAS)return;
   google.script.run.withSuccessHandler(function(h){ CC.hoy=h; cmSnapGuardar('cm_hoy',h); cmBootMark('hoy'); try{ccEstado();ccCartera();ccTareas();ccBrief();}catch(_e){} })
-    .withFailureHandler(function(){ cmBootMark('hoy'); }).datosHoy();
+    .withFailureHandler(function(){ cmBootMark('hoy');
+      if(!CC.hoy) ccAvisoFuente('No se pudo leer el MAESTRO — reintentando…');   // Bastión: vacío honesto, nunca el maniquí
+    }).datosHoy();
   // P2 F4: recomendaciones abiertas del lazo (se pintan en la card del brief)
   google.script.run.withSuccessHandler(function(r){ CC.recs=r||[]; try{ccBrief();}catch(_e){} })
     .withFailureHandler(function(){}).recomendacionesAbiertas();
@@ -2790,22 +2845,36 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
   const stN=texLabel(H.statusNucleo(), null, {size:15, color:'rgba(244,238,226,.92)', w:620});
   const stS=sprite(stN.tex, 8.6, 8.6/stN.ar); esfera.add(stS);               // status central — dato real (salud + decisiones)
 
+  /* La constelación se (re)construye sola: el Núcleo nace VACÍO y cada Espacio
+     agrega sus nodos cuando su cerebroGrafo contesta (segunda ola, E3.1 BUG B).
+     Antes la escena entera esperaba los 7 Sheets: fondo pelado ~30s. */
   const nodos=[], nodeGeo=track(new THREE.SphereGeometry(0.3,10,10));
   const lineas=[];
-  DATA.akasha.forEach((n,i)=>{
-    const th=Math.acos(2*((i+0.5)/DATA.akasha.length)-1), ph=i*2.399963;
-    const r=7.0+(i%3)*1.5;
-    const p=new THREE.Vector3(r*Math.sin(th)*Math.cos(ph), r*Math.cos(th)*0.7, r*Math.sin(th)*Math.sin(ph));
-    const hex=parseInt(nodoColor(n).slice(1),16);
-    const mat=track(new THREE.MeshBasicMaterial({color:hex, transparent:true, opacity:1}));
-    const m=new THREE.Mesh(nodeGeo, mat); m.position.copy(p);
-    const glow=sprite(GLOW,1.1,1.1,{opacity:1}); glow.material.color=new THREE.Color(hex); m.add(glow);
-    const hs=hitSphere(1.5,{tipo:'nodo', idx:i}); m.add(hs); hits.push(hs);
-    nucleo.add(m); nodos.push({mesh:m, mat, glow, dato:n});
-    const lg=track(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), p]));
-    const lm=track(new THREE.LineBasicMaterial({color:COL.cremaLinea, transparent:true, opacity:0.14}));
-    const ln=new THREE.Line(lg, lm); nucleo.add(ln); lineas.push(ln);
-  });
+  function construirConstelacion(){
+    nodos.forEach(n=>{
+      nucleo.remove(n.mesh);
+      const hi=hits.indexOf(n.hs); if(hi>=0) hits.splice(hi,1);   // sacar del raycaster
+      n.mat.dispose();
+    });
+    lineas.forEach(l=>{ nucleo.remove(l); l.geometry.dispose(); l.material.dispose(); });
+    nodos.length=0; lineas.length=0;
+    const N=DATA.akasha.length;
+    DATA.akasha.forEach((n,i)=>{
+      const th=Math.acos(2*((i+0.5)/N)-1), ph=i*2.399963;
+      const r=7.0+(i%3)*1.5;
+      const p=new THREE.Vector3(r*Math.sin(th)*Math.cos(ph), r*Math.cos(th)*0.7, r*Math.sin(th)*Math.sin(ph));
+      const hex=parseInt(nodoColor(n).slice(1),16);
+      const mat=track(new THREE.MeshBasicMaterial({color:hex, transparent:true, opacity:1}));
+      const m=new THREE.Mesh(nodeGeo, mat); m.position.copy(p);
+      const glow=sprite(GLOW,1.1,1.1,{opacity:1}); glow.material.color=new THREE.Color(hex); m.add(glow);
+      const hs=hitSphere(1.5,{tipo:'nodo', idx:i}); m.add(hs); hits.push(hs);
+      nucleo.add(m); nodos.push({mesh:m, mat, glow, hs, dato:n});
+      const lg=track(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), p]));
+      const lm=track(new THREE.LineBasicMaterial({color:COL.cremaLinea, transparent:true, opacity:0.14}));
+      const ln=new THREE.Line(lg, lm); nucleo.add(ln); lineas.push(ln);
+    });
+  }
+  construirConstelacion();
   const hsN=hitSphere(5.6,{tipo:'nucleo'}); nucleo.add(hsN); hits.push(hsN);
   const lbN=texLabel('Núcleo Akasha','la memoria del sistema',{size:30, serif:true, subTracking:true});
   const lsN=sprite(lbN.tex, 9, 9/lbN.ar); lsN.position.y=-7.8; nucleo.add(lsN);
@@ -3101,6 +3170,9 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       <div><div class="p-name">Núcleo Akasha</div><div class="p-role">${sub||'El registro del sistema — todo lo que Satori sabe y recuerda'}</div></div></div>
       <div class="p-row"><div class="l">Constelación</div><div>${DATA.akasha.length} nodos · <span style="color:#D5824F">◆ negocio</span> · <span style="color:#3E9B82">◆ sistema</span> · <span style="color:#F2C893">◆ líder</span> · <span style="color:#E0795F">◆ alerta</span></div></div>
       <div class="p-row"><div class="l">Puntos ciegos</div><div>${DATA.akasha.filter(n=>n.alert).length} nodo(s) con cobertura &lt; 40</div></div>
+      ${(()=>{const c=H.cerebros?H.cerebros():null; return c&&c.cargando
+        ? `<div class="p-row"><div class="l">Memoria</div><div>Leyendo el Cerebro de los Espacios — ${c.listos}/${c.total}. La constelación se completa sola.</div></div>`
+        : (c&&c.fallidos.length ? `<div class="p-row"><div class="l">Memoria</div><div style="color:var(--_amber-400)">Sin constelación de ${c.fallidos.length} Espacio(s): su Cerebro no respondió.</div></div>` : '');})()}
       <div class="p-row" style="font-size:12.5px;color:var(--color-text-muted)">Tocá un nodo para aislar su dimensión. Las tres dimensiones del Cerebro: la estructura, el sistema y vos.</div>
       ${sub?'<button class="btn btn-ghost" id="p2-todo">Ver toda la constelación</button>':''}
       <div class="p-foot">Grafo real del Cerebro · <span class="mono" style="font-size:10px">cerebroGrafo()</span> por Espacio</div>`;
@@ -3429,6 +3501,8 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       if(!v){ cancelAnimationFrame(raf); }
       else if(running){ clock.getDelta(); raf=requestAnimationFrame(loop); } },
     setClima, setEco, onKey,
+    /* segunda ola: el boot llama esto cuando entra el cerebro de cada Espacio */
+    refrescarNucleo(){ construirConstelacion(); if(panel2.classList.contains('show')) mostrarPanelNucleo(); },
     irACliente(id){ if(nav.modo!=='umbral') flyToCliente(id); },
     irAEstacion(id){ if(nav.modo!=='umbral') flyToEstacion(id); },
     irAMuelle(){ if(nav.modo!=='umbral') flyToMuelle(); },
@@ -3465,7 +3539,7 @@ window.AKASHA = (function () {
   /* AK vive en window a propósito: la guardia de cmLoop (`!(AK&&AK.on)`) lo lee
      como global. Es el invariante 2 del gate E2 — si AK deja de ser global, el
      CM y Akasha dibujan a la vez. No encerrarlo en el closure. */
-  var AK = { on: false, eng: null, toggles: 0, cargando: false };
+  var AK = { on: false, eng: null, toggles: 0, cargando: false, gen: 0 };
   window.AK = AK;
   var DATA = null, CFG = { voz_url: '', oficina_url: '' };
 
@@ -3776,8 +3850,18 @@ window.AKASHA = (function () {
     return (c && c.value) || '';
   }
 
+  /* Un solo lugar donde se arma el H del motor: los dos call sites (entrada normal
+     y "intentar la inmersiva" desde la Vista Plana) tienen que pasar lo MISMO. */
+  function helpersMotor() {
+    return {
+      toast: toast, $: $, ESTADOS: ESTADOS, CLI_CHIP: CLI_CHIP, DIMCOL: DIMCOL,
+      nodoColor: nodoColor, el: el, abrirVoz: acc.abrirVoz, acc: acc,
+      statusNucleo: statusNucleo, cerebros: function () { return CEREBROS; }
+    };
+  }
   function statusNucleo() {
-    if (!DATA) return 'Leyendo el Cerebro…';
+    if (!DATA) return 'Leyendo la memoria…';
+    if (CEREBROS.cargando) return 'Leyendo la memoria de los Espacios…';
     var pend = DATA.aprobaciones.length, ciegos = DATA.akasha.filter(function (n) { return n.alert; }).length;
     if (pend) return pend + (pend > 1 ? ' decisiones esperan tu palabra.' : ' decisión espera tu palabra.');
     if (ciegos) return ciegos + (ciegos > 1 ? ' puntos ciegos en el Cerebro.' : ' punto ciego en el Cerebro.');
@@ -4017,6 +4101,9 @@ window.AKASHA = (function () {
   }
 
   /* ---------- carga ---------- */
+  /* PRIMERA OLA: lo barato (6 llamadas al MAESTRO). Con esto ya se construye el
+     universo entero — estaciones, Espacios, Muelle, Núcleo geodésico vacío.
+     El Cerebro NO se espera acá: abre el Sheet de CADA Espacio y es lo caro. */
   function cargar(cb) {
     var st = $('hud-status'); if (st) st.textContent = 'Leyendo el MAESTRO…';
     Promise.all([
@@ -4024,25 +4111,64 @@ window.AKASHA = (function () {
       pedir('recomendacionesAbiertas'), pedir('listaClientes'),
       pedir('agendaRango', [iso(lunesDeEstaSemana()), iso(new Date(lunesDeEstaSemana().getTime() + 6 * 864e5))])
     ]).then(function (r) {
-      var res = { agentes: r[0], hoy: r[1], salud: r[2], recs: r[3], clientes: r[4], agenda: r[5] };
-      DATA = construirDATA(res);
+      DATA = construirDATA({ agentes: r[0], hoy: r[1], salud: r[2], recs: r[3], clientes: r[4], agenda: r[5] });
       S.alerta = DATA.salud != null && DATA.salud < 90;
-      if (st) st.textContent = 'Leyendo el Cerebro de ' + DATA.clientes.length + ' Espacios…';
-      /* El Cerebro es la parte cara (abre el Sheet de cada Espacio): va en
-         paralelo y al final, para que el resto de la Oficina no lo espere de más. */
-      return Promise.all(DATA.clientes.map(function (c) {
-        return pedir('cerebroGrafo', [c.id]).then(function (res) { return { id: c.id, res: res }; });
-      }));
-    }).then(function (grafos) {
-      mergeCerebro(DATA, grafos);
       if (DATA._fallas.length) {
         console.warn('[AKASHA] fuentes caídas:', DATA._fallas);
         toast('Algunas fuentes no respondieron (' + DATA._fallas.join(', ') + ') — esas secciones quedan vacías');
       }
       cb();
-    }).catch(function (e) {
-      console.error('[AKASHA] carga:', e);
-      cb(e);
+    }).catch(function (e) { console.error('[AKASHA] carga:', e); cb(e); });
+  }
+
+  /* SEGUNDA OLA: el Cerebro de cada Espacio, por separado y sin bloquear nada.
+     Cada respuesta agrega sus nodos y repinta la constelación; el que tarda de
+     más o falla queda "sin constelación" (fail-closed) y NO frena al resto. */
+  var CEREBROS = { listos: 0, total: 0, cargando: false, fallidos: [] };
+  var CEREBRO_TIMEOUT_MS = 12000;
+  function pedirCerebro(id) {
+    return new Promise(function (res) {
+      var listo = false;
+      var t = setTimeout(function () {
+        if (listo) return; listo = true;
+        console.warn('[AKASHA] cerebroGrafo timeout: ' + id);
+        res({ ok: false });
+      }, CEREBRO_TIMEOUT_MS);
+      gas('cerebroGrafo', [id],
+        function (v) { if (listo) return; listo = true; clearTimeout(t); res({ ok: true, v: v }); },
+        function (e) { if (listo) return; listo = true; clearTimeout(t); console.error('[AKASHA] cerebroGrafo ' + id + ':', e); res({ ok: false }); });
+    });
+  }
+  function hudCerebros() {
+    var n = $('ak-cerebros'); if (!n) return;
+    if (!CEREBROS.cargando) { n.hidden = true; return; }
+    n.hidden = false;
+    n.textContent = 'Memoria: ' + CEREBROS.listos + '/' + CEREBROS.total + ' Espacios';
+  }
+  function cargarCerebros() {
+    if (!DATA || !DATA.clientes.length) return;
+    DATA.akasha = [];
+    DATA.clientes.forEach(function (c) { c.reg = []; });
+    CEREBROS = { listos: 0, total: DATA.clientes.length, cargando: true, fallidos: [] };
+    hudCerebros();
+    var gen = AK.gen;                       // si salís y volvés, la ola vieja se descarta
+    DATA.clientes.forEach(function (c) {
+      pedirCerebro(c.id).then(function (r) {
+        if (gen !== AK.gen || !DATA) return;
+        CEREBROS.listos++;
+        if (r.ok && r.v && r.v.nodos) {
+          r.v.nodos.forEach(function (n) {
+            var i = DATA.akasha.push({ dim: n.dim, alert: !!n.alert, cli: c.id }) - 1;
+            c.reg.push(i);
+          });
+        } else CEREBROS.fallidos.push(c.id);
+        if (CEREBROS.listos >= CEREBROS.total) CEREBROS.cargando = false;
+        hudCerebros();
+        if (S.engine && S.engine.refrescarNucleo) S.engine.refrescarNucleo();   // repinta con lo que haya
+        if (!CEREBROS.cargando && CEREBROS.fallidos.length) {
+          toast('Sin constelación de ' + CEREBROS.fallidos.length + ' Espacio(s) — el resto de la Oficina está entero');
+        }
+      });
     });
   }
   function refrescar() {
@@ -4057,6 +4183,7 @@ window.AKASHA = (function () {
     if (AK.on || AK.cargando) return;
     var centro = $('centro'), ak = $('akasha');
     AK.cargando = true;
+    AK.gen++;                  // invalida cualquier ola de cerebros de una entrada anterior
     AK.on = true;                                   // ANTES de construir: cmLoop deja de dibujar ya en el próximo frame
     centro.classList.add('ak-on');
     ak.classList.add('on'); ak.setAttribute('aria-hidden', 'false');
@@ -4072,17 +4199,15 @@ window.AKASHA = (function () {
       ak.classList.toggle('clima-amber', !!S.alerta);
       if (err && !DATA) { salir(); toast('No se pudo leer el MAESTRO — la Oficina no abre sin datos reales'); return; }
 
-      if (S.reducedMotion) { renderFlat('respetando tu preferencia de movimiento reducido'); return; }
+      if (S.reducedMotion) { renderFlat('respetando tu preferencia de movimiento reducido'); cargarCerebros(); return; }
       if (!window.THREE) { renderFlat('Three.js no cargó (CDN o SRI) — el CM sigue en su orbe 2D'); return; }
       if (!hasWebGL()) { renderFlat('este dispositivo no dispone de WebGL'); return; }
       try {
-        S.engine = window.__buildAkashaEngine(window.THREE, DATA, S, {
-          toast: toast, $: $, ESTADOS: ESTADOS, CLI_CHIP: CLI_CHIP, DIMCOL: DIMCOL,
-          nodoColor: nodoColor, el: el, abrirVoz: acc.abrirVoz, acc: acc, statusNucleo: statusNucleo
-        });
+        S.engine = window.__buildAkashaEngine(window.THREE, DATA, S, helpersMotor());
         AK.eng = S.engine;
         S.engine.start();
         AK.toggles++;
+        cargarCerebros();      // segunda ola: la memoria entra sola, sin frenar la escena
       } catch (e) {
         console.error('[AKASHA] no se pudo iniciar el motor 3D:', e);
         renderFlat('el motor 3D no está disponible ahora');
@@ -4097,6 +4222,8 @@ window.AKASHA = (function () {
     ak.classList.remove('on'); ak.setAttribute('aria-hidden', 'true');
     centro.classList.remove('ak-on');
     starsOff();
+    AK.gen++;                  // las respuestas de cerebroGrafo en vuelo se descartan
+    CEREBROS.cargando = false; hudCerebros();
     mostrar(null);
     S.modo = null;
     AK.on = false;   // el orbe del CM retoma el dibujo en el próximo frame (la cadena de rAF nunca se cortó)
@@ -4144,10 +4271,7 @@ window.AKASHA = (function () {
       if (S.reducedMotion) { toast('Tu sistema pide movimiento reducido — la Vista Plana es tu Akasha.'); return; }
       if (!S.engine && DATA) {
         try {
-          S.engine = window.__buildAkashaEngine(window.THREE, DATA, S, {
-            toast: toast, $: $, ESTADOS: ESTADOS, CLI_CHIP: CLI_CHIP, DIMCOL: DIMCOL,
-            nodoColor: nodoColor, el: el, abrirVoz: acc.abrirVoz, acc: acc, statusNucleo: statusNucleo
-          });
+          S.engine = window.__buildAkashaEngine(window.THREE, DATA, S, helpersMotor());
           AK.eng = S.engine; mostrar('cosmos'); S.engine.start();
         } catch (e) { toast('El motor 3D sigue sin estar disponible.'); }
       }

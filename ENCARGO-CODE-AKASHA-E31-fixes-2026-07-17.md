@@ -1,0 +1,17 @@
+# ENCARGO CODE — E3.1: los 3 fixes del eyeball — 17/07/2026
+**Origen: video `VIDEOS PRUEBA/EYEBALL THE AKASHA.mov` (Luciano, 17-jul) + purga de Cowork (parser HTML + carga en /dev). Veredicto del gate E3: NO PASA — dos bloqueantes + uno menor. La buena noticia verificada: el wiring de datos FUNCIONA (dentro de Akasha el cockpit muestra cartera/tareas/aprobaciones/brief REALES). Lo roto es el boot del CM y la construcción de la escena.**
+
+## BUG A (bloqueante) — el CM en /dev queda a medio bootear
+Síntoma (video 0:30-1:05): cards del Despacho con los PLACEHOLDERS del markup (MesaQuince · $8/25 · TRIGGERS 2 OK · "5 cobranzas $1.240.000" · aprobaciones "Publicar campaña") + "Cargando agentes…" congelado. La topbar SÍ actualiza (API $0.48 real) ⇒ el refresh arranca y muere después de la telemetría. En /exec (@28, index viejo) el mismo boot pinta todo real ⇒ la regresión está en el index nuevo. Sospechoso primario: el bloque E3 (adaptador/bridge) rompe algo del flujo de refresh del CM tras registrarse — cazar la excepción REAL con DevTools (F12) sobre /dev en tu máquina; en el iframe está el stack con línea.
+**Criterios de cierre:** (1) /dev lado a lado con /exec: MISMOS datos reales en todas las cards antes de entrar a Akasha. (2) REGLA NUEVA (Bastión, de esta purga): los placeholders del markup se LIMPIAN en el boot ANTES del primer fetch — si un fetch falla, card vacía con aviso discreto; el maniquí con botones Sí/No de apariencia operativa JAMÁS queda visible.
+
+## BUG B (bloqueante) — Akasha abre pero el universo no se construye
+Síntoma (video 1:20-1:39): cockpit de Akasha VIVO con datos reales, pero el cosmos = fondo pelado, clavado en "Leyendo el Cerebro de 7 Espacios…" — la escena espera TODOS los cerebroGrafo (7 Sheets en serie, la parte cara que vos mismo anotaste) antes de dibujar.
+**Fix (tu propia propuesta de "segunda ola", ahora mandatoria):** construir e iniciar la escena DE INMEDIATO con los datos rápidos ya disponibles (estaciones ← estadoAgentes · Espacios ← listaClientes/cartera · Muelle ← aprobaciones · starfield/Núcleo geodésico vacío con estado "memoria cargando" honesto) y poblar la constelación de cada Espacio ASÍNCRONO a medida que cada cerebroGrafo responde (por cliente, no all-or-nothing) con timeout por cliente y fail-closed a "sin constelación" — sin bloquear jamás el resto. El HUD de progreso ("Cerebros: 3/7") reemplaza al bloqueo.
+**Criterio de cierre:** al tocar la pill, el universo completo (estaciones + Espacios + Muelle + Núcleo) visible en <5s con datos reales; las constelaciones van apareciendo después sin frenar nada; 5 toggles limpios; el CM retoma al salir.
+
+## BUG C (menor) — CSS huérfano del splice
+`src/index.html` L774-778: tras el `</style>` real quedaron SUELTAS 2 reglas (`#centro #cmSpace{display:none !important}` y `#centro{overflow-y:auto; overflow-x:hidden}`) + un `</style>` huérfano ⇒ head roto (texto visible como primer nodo del body en local) y el starfield viejo del CM SIN ocultar. Fix: mover las 2 reglas DENTRO del bloque `<style>` y borrar el cierre extra. Verificar con un parser (html.parser balance limpio), no a ojo.
+
+## Cierre de esta tanda
+harness `_akasha_e3/` verde + carga real en /dev con DevTools sin errores + screenshots lado a lado (prototipo vs /dev) ANTES del eyeball · commit + push (GitHub) · HANDOFF actualizado · Cowork purga de nuevo contra el video de referencia antes de pedirle el ojo a Luciano.
