@@ -30,7 +30,23 @@ function doGet(e) {
       '<!doctype html><meta charset="utf-8"><title>Satori OS</title>' +
       '<p style="font:16px system-ui;padding:2rem">No autorizado.</p>');
   }
+  // FIX 3 (20-jul) — CONTRATO DE RETORNO desde la Voz. El CM se sirve dentro de un iframe
+  // sandbox en *.googleusercontent.com; la URL que el usuario tiene en la barra es la WRAPPER
+  // (script.google.com/…/exec). El cliente NO puede leer la wrapper (cross-origin), así que se
+  // la inyecta el server acá. Sin esto, voz.html volvía por document.referrer = la URL interna
+  // googleusercontent → GAS servía un error. `v` (vista) vuelve por query param de la wrapper.
+  // Se INYECTA con append() y NO con createTemplateFromFile: index.html pesa ~730KB (casi todo
+  // base64) y templatizarlo obligaría a GAS a escanear el archivo entero buscando scriptlets en
+  // CADA doGet — justo el TTFP que optimizó E3.7. append() no escanea: concatena y listo.
+  // Va al final del body, o sea DESPUÉS del script principal; no importa, porque los dos
+  // consumidores (init en DOMContentLoaded e irAVoz en el click) leen las vars mucho después.
+  var v = (e && e.parameter && String(e.parameter.v || '')) || '';
+  var vista = (v === 'despacho' || v === 'akasha') ? v : '';   // whitelist: nada más entra
+  var url = '';
+  try { url = ScriptApp.getService().getUrl() || ''; } catch (_u) { url = ''; }  // fail-safe: sin URL, la voz cae a sus fallbacks
   return HtmlService.createHtmlOutputFromFile('index')
+    .append('<script>var SATORI_WRAPPER_URL=' + JSON.stringify(url) +
+            ',SATORI_VISTA=' + JSON.stringify(vista) + ';<\/script>')
     .setTitle('Satori OS')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }

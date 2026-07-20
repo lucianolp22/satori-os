@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-20 18:30 · commit: 327f71a
+> Generado: 2026-07-20 19:55 · commit: c63369f
 
 ## Módulos
 
@@ -14,7 +14,7 @@
 | `04_sync.js` | Agregación MAESTRO ← Sheets cliente (vía GAS, NO IMPORTRANGE) | 1 |
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 17 |
-| `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 21 |
+| `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 56 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 15 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
@@ -122,7 +122,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush crearAviso corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas resolverAvisosDonde_ detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
 
-**07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
+**07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
 **08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 

@@ -17,3 +17,6 @@ voz/web/vendor/
 _*.txt
 _design-archivo/
 scratch-b4/
+
+# Config local de Claude Code (por maquina, nunca al repo)
+.claude/settings.local.json

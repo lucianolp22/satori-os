@@ -42,7 +42,7 @@ El estado vive en el índice raíz (`CLAUDE.md` / `HANDOFF.md`), no en la cabeza
 - **Regla de oro:** el nivel de cada proceso se ANOTA (en su SOP/skill y en la tabla de abajo). **Proceso sin nivel declarado = nivel 0.**
 - **Composición con Hermes (auto-skills):** el sistema puede PROPONER un SOP/skill tras una tarea multi-paso, pero solo como **borrador gateado** (cola de aprobación → sube por los gates de esta escalera). Jamás se auto-promueve. (Checkpoint D9, diseño; D4 criterio.)
 
-## Niveles vigentes por proceso (checkpoint D2 — PROPUESTA 14-jul, corregir Luciano)
+## Niveles vigentes por proceso (checkpoint D2 — FIRMADA por Luciano 20-jul-2026)
 
 | Proceso vivo | Nivel | Evidencia del gate |
 |---|---|---|
@@ -55,12 +55,15 @@ El estado vive en el índice raíz (`CLAUDE.md` / `HANDOFF.md`), no en la cabeza
 | Observatorio OV (KeepAlive) | 3 | kill→revive verificado 13-jul |
 | IG monitor (diario, USD 0) | 3 | 4 corridas consecutivas OK |
 | Voz Sato (consultas + capturar + oficina_decidir) | 2 | cadena con gate conversacional obligatorio (confirmación antes de decidir); no sube a 3 por diseño |
+| AKASHA / Oficina Universo 3D | 2 | cadena con eyeball obligatorio de Luciano antes de promover a `/exec`; no sube a 3 por diseño (20-jul) |
 | Aprobaciones / default-deny | 2 | gate humano POR DISEÑO — no sube |
 | selfTest + promote /exec | 1 | scripts `_promote_exec.sh` + selfTest; humano dispara |
 | Handoff de proyecto | 1 | skill corrida en cada cierre |
 | Cierre mensual LC Travel | 1 | skill; corre con documentos del mes |
 | Tablero de Reunión | 1 | chasis v1.0 verificado; smoke real pendiente → no sube |
-| Informe Mensual KAIROS | 0 | manual; A2 (contrato de status report) lo lleva a 1 |
+| Métrica de objetivos desde el CM | 0→1 | hoy la celda `metrica` es manual; la métrica v3 (T1) la lleva a 1 al cerrar |
+| Brief / status report (corridaDiaria) | 3 | `contratoStatusReport_` de 10 secciones, automatizado en corridaDiaria 07:00 |
+| Informe Mensual KAIROS (entregable a cliente) | 0 | manual, EN PAUSA (cliente); es pieza distinta del brief de arriba |
 | Pipeline comercial B7 (mensajes, seguimiento) | 0 | manual con guiones (PAQUETE-EJECUCION); B1 lo instrumenta |
 
 ## Implementación nativa (el "cómo", validado §8 del UNIFICADO)

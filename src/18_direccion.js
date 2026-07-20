@@ -75,7 +75,7 @@ function estadoVigenteSistema_() {
   else L.push('- (sin tareas abiertas)');
   L.push('');
 
-  L.push('— última sync: ' + (e.ultima_sync_ok || '—') + ' · generado por estadoVigente()');
+  L.push('— última sync: ' + (fechaHoraCorta_(e.ultima_sync_ok) || '—') + ' · generado por estadoVigente()');
   return L.join('\n');
 }
 

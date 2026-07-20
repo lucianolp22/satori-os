@@ -612,9 +612,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font
   // (el CM nunca se descargó: cero recarga, cero flash blanco del wrapper de Google).
   // Fallback si el navegador no deja cerrar (PWA standalone / apertura directa): history → referrer.
   var cmFx=document.createElement('div'); cmFx.id='cmFx'; document.body.appendChild(cmFx); // cortina de transición (fade-in por CSS al cargar)
+  /* FIX 3 (20-jul) — CONTRATO DE RETORNO. El CM nos pasa ?volver= con su URL WRAPPER completa
+     (script.google.com/…/exec?v=akasha|despacho). Si está, se vuelve SIEMPRE a esa y no se
+     adivina nunca más: el bug era que el CM navega en la MISMA pestaña (window.top.location),
+     así que window.close() no podía funcionar y el fallback usaba document.referrer = la URL
+     interna googleusercontent, que servida directo crashea a GAS.
+     Solo se acepta https://script.google.com/… — un ?volver= manipulado no puede redirigir a
+     cualquier lado (el parámetro viene de la barra de direcciones: es input hostil). */
+  function urlVolver_(){
+    try{
+      var v=new URLSearchParams(location.search).get('volver');
+      if(!v) return '';
+      var u=new URL(v, location.href);
+      if(u.protocol!=='https:') return '';
+      if(!/(^|\.)script\.google\.com$/.test(u.hostname)) return '';
+      return u.href;
+    }catch(_){ return ''; }
+  }
   document.getElementById('back').addEventListener('click',function(){
     try{room&&room.disconnect();}catch(_){}
     cmFx.classList.add('on'); // dissolve antes de volver al panel
+    var volver=urlVolver_();
+    if(volver){ setTimeout(function(){ location.href=volver; },320); return; }  // camino normal
+    // Sin contrato (apertura directa de la voz, PWA standalone): fallbacks de siempre.
     setTimeout(function(){ window.close(); },320); // pestaña _blank: se cierra sola y aparece el CM intacto
     setTimeout(function(){ // fallback SOLO si el navegador no permitió cerrar (PWA standalone / apertura directa)
       if(history.length>1) history.back();

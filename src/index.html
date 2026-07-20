@@ -447,6 +447,23 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro.ak-on .kscrim{z-index:210; background:rgba(8,6,10,.93); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px)}
 #centro.ak-on .kboard{z-index:211}
 
+/* ══ E3.15 (20-jul) — MODO MODAL: el arreglo de raíz del tablero/calendario en Akasha.
+ * E3.14 subió el scrim a z-210 con alpha .93 y quedó corto: contra un universo 3D animado,
+ * un 7% de transparencia sigue leyéndose como movimiento, y los paneles del HUD competían
+ * con el board. Perseguir alphas y z-index contra una escena entera es una carrera perdida.
+ *
+ * En su lugar Akasha se APAGA mientras el modal está abierto: display:none saca de la pintura
+ * el cosmos, el HUD, los paneles, los docks y los popups DE UNA, sin tocar sus z-index. El
+ * overlay queda exactamente en el mismo contexto visual que desde el Despacho — legibilidad
+ * idéntica POR CONSTRUCCIÓN, no por aproximación. El fondo (.galaxy/.photobg/.veil del CM,
+ * z-index negativo) queda, que es justo lo que se ve desde el Despacho.
+ *
+ * No se usa auto-switch a Despacho porque salir() DESTRUYE el engine 3D: volver del calendario
+ * te dejaría el universo reconstruido desde cero. Esto conserva el engine intacto (solo se le
+ * pausa el rAF con setVisible(false)) y la vuelta es instantánea, sin reboot.
+ * Las reglas de E3.14 quedan arriba como red: si display:none fallara, el scrim opaco sigue. */
+#centro.ak-modal #akasha{display:none}
+
 /* E1.1: avatares con imagen (arte IA). Sin url => el div queda con inicial (placeholder). La img llena el
    medallón circular ya existente; onerror en JS revierte al placeholder. Aplica a órbita, chips y roster. */
 .ag .av.has-img,.agm-av.has-img,#centro .ag-av.has-img{padding:0;overflow:hidden}
@@ -1201,9 +1218,12 @@ function thc(h){var t=el('th',null,h);t.setAttribute('scope','col');return t;}
 function montoEl(v){return el('span','mono','€'+v);}
 function clear(node){while(node.firstChild)node.removeChild(node.firstChild);}
 function fmtNum(n){n=Number(n)||0;return n.toLocaleString('es-ES');}
-function fechaHoraCorta(iso){iso=String(iso||'');var m=iso.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);if(m)return m[3]+'/'+m[2]+' '+m[4];
+/* Formato ÚNICO de fecha+hora de todo el sistema: dd/mm/aaaa hh:mm (decisión Luciano 20-jul).
+   Antes omitía el año; se agregó para que TODA superficie muestre lo mismo y ninguna quede
+   ambigua entre años. Nunca devolver el crudo de Sheets con GMT. */
+function fechaHoraCorta(iso){iso=String(iso||'');var m=iso.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);if(m)return m[3]+'/'+m[2]+'/'+m[1]+' '+m[4];
   // v11: los Date de Sheets llegan serializados ("Tue Jul 07 2026 17:23:57 GMT+0200 (…)") — parsear y acortar, jamás mostrar el crudo.
-  var d=new Date(iso);if(!isNaN(d.getTime()))return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+  var d=new Date(iso);if(!isNaN(d.getTime()))return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   return iso;}
 function saludoHora(){var h=new Date().getHours();return h<6?'Buenas noches':h<13?'Buenos días':h<20?'Buenas tardes':'Buenas noches';}
 // PURGA #10: solo aceptar http(s) en href; cualquier otro esquema (javascript:, data:) → ''.
@@ -2202,14 +2222,40 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
 (function(){
   var t=document.getElementById('cmTheme'); if(t)t.addEventListener('click',toggleTheme);
   var ob=document.getElementById('openBoard'), ks=document.getElementById('kscrim'), kb=document.getElementById('kboard');
-  function openB(){ if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open'); }
-  function closeB(){ if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open'); }
+  /* E3.15: akModal_ apaga Akasha mientras el modal está abierto (no-op desde el Despacho). */
+  function openB(){ akModal_(true); if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open'); }
+  function closeB(){ if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open'); akModal_(false); }
   if(ob){ ob.addEventListener('click',openB); ob.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openB();}}); }
   var kc=document.getElementById('kclose'); if(kc)kc.addEventListener('click',closeB); if(ks)ks.addEventListener('click',closeB);
+  /* E3.15: Escape cierra el modal abierto. Antes no existía (se cerraba por scrim o por la X);
+     ahora hace falta, porque en modo modal Akasha le cede el Escape a quien está arriba. */
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape')return;
+    var cb=document.getElementById('calboard');
+    if(cb&&cb.classList.contains('open')){ e.stopPropagation(); calCerrar(); return; }
+    if(kb&&kb.classList.contains('open')){ e.stopPropagation(); closeB(); }
+  },true);
   var orbe=document.getElementById('orbe'), voz=document.getElementById('cmVoz');
   // Transición dissolve CM->Voz: cortina cálida (#0b0806, igual que la voz) creada al vuelo; fade-in por CSS al cargar.
   var fx=document.createElement('div'); fx.id='cmFx'; fx.setAttribute('aria-hidden','true'); document.body.appendChild(fx);
-  function irAVoz(){ if(!voz)return; fx.classList.add('on'); setTimeout(function(){ (window.top||window).location.href=voz.href; }, 300); }
+  /* FIX 3 — CONTRATO DE RETORNO. irAVoz navega window.top (misma pestaña), así que el
+     window.close() de voz.html nunca podía funcionar y caía a document.referrer = la URL
+     interna googleusercontent → GAS crasheaba. Ahora se le pasa a la voz la URL WRAPPER
+     completa CON su vista; voz.html vuelve SIEMPRE a esa y nunca adivina.
+     Fail-safe: sin WRAPPER_URL (no inyectada) se va sin ?volver y voz.html usa sus fallbacks
+     de siempre — se degrada al comportamiento actual, no rompe. */
+  function urlVolver_(){
+    if(!window.SATORI_WRAPPER_URL) return '';
+    var vista = (window.AKASHA && window.AKASHA.AK && window.AKASHA.AK.on) ? 'akasha' : 'despacho';
+    return SATORI_WRAPPER_URL + (SATORI_WRAPPER_URL.indexOf('?')<0?'?':'&') + 'v=' + vista;
+  }
+  function irAVoz(){
+    if(!voz)return;
+    var destino = voz.href, volver = urlVolver_();
+    if(volver) destino += (destino.indexOf('?')<0?'?':'&') + 'volver=' + encodeURIComponent(volver);
+    fx.classList.add('on');
+    setTimeout(function(){ (window.top||window).location.href=destino; }, 300);
+  }
   if(voz){ voz.addEventListener('click',function(e){ if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return; e.preventDefault(); irAVoz(); }); }
   if(orbe&&voz){ orbe.addEventListener('click',irAVoz);
     orbe.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();irAVoz();}}); }
@@ -2579,8 +2625,15 @@ function ccCalSemana(){
     }
   },true);
 }
+/* E3.15: apagar Akasha mientras un modal del CM está abierto. Vive acá arriba (fuera del IIFE
+   de Akasha) porque lo llaman el tablero y el calendario, que son del CM. Fail-safe: si Akasha
+   todavía no se inicializó, es un no-op silencioso — el modal abre igual. */
+function akModal_(on){
+  try{ if(window.AKASHA && window.AKASHA.modal) window.AKASHA.modal(!!on); }catch(e){}
+}
 function calAbrir(d){
   var base=d||new Date(); CAL.y=base.getFullYear(); CAL.m=base.getMonth(); CAL.cache={};
+  akModal_(true);
   var ks=document.getElementById('calscrim'), kb=document.getElementById('calboard');
   if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open');
   calMes();
@@ -2588,6 +2641,7 @@ function calAbrir(d){
 function calCerrar(){
   var ks=document.getElementById('calscrim'), kb=document.getElementById('calboard');
   if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open');
+  akModal_(false);
 }
 function calMes(){
   var g=document.getElementById('mgrid'), t=document.getElementById('calTitulo'); if(!g)return;
@@ -3902,7 +3956,9 @@ window.AKASHA = (function () {
         id: a.clave, nombre: a.nombre, rol: a.rol, ini: iniciales(a.nombre),
         aro: pal.aro, glifo: pal.glifo, estado: estado,
         tarea: tareaDe(estado, apCount, mios),
-        corrida: a.ultimo || 'Sin corridas registradas',
+        /* FIX 1 (20-jul): a.ultimo llega como Date serializado de Sheets ("Mon Jul 20 2026
+           17:23:57 GMT+0200 (…)"). Jamás mostrar el crudo — fechaHoraCorta lo normaliza. */
+        corrida: a.ultimo ? fechaHoraCorta(a.ultimo) : 'Sin corridas registradas',
         m: [num(a.hoy && a.hoy.total), mios.length, num(a.hoy && a.hoy.ok)],
         aprob: apCount,
         director: a.clave === 'director',
@@ -4598,6 +4654,9 @@ window.AKASHA = (function () {
     var centro = $('centro'), ak = $('akasha');
     ak.classList.remove('on'); ak.setAttribute('aria-hidden', 'true');
     centro.classList.remove('ak-on');
+    /* E3.15: si se sale de Akasha con un modal abierto, la clase de modo modal NO puede quedar
+       pegada — en la próxima entrada dejaría #akasha en display:none (Oficina en negro). */
+    centro.classList.remove('ak-modal');
     starsOff();
     AK.gen++;                  // las respuestas de cerebroGrafo en vuelo se descartan
     CEREBROS.cargando = false; hudCerebros();
@@ -4619,6 +4678,9 @@ window.AKASHA = (function () {
     var bd = $('btn-despacho'); if (bd) bd.addEventListener('click', salir);
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && AK.on) {
+        /* E3.15: con un modal del CM abierto, Akasha está apagada y NO es la dueña del Escape —
+           lo maneja el modal (cierra el board), no esta rama (que saldría de la Oficina entera). */
+        if ($('centro').classList.contains('ak-modal')) return;
         if (!$('ayuda').hidden) { $('ayuda').hidden = true; return; }
         if (S.engine && S.modo === 'cosmos' && S.engine.onKey) { S.engine.onKey(e); return; }
         e.stopPropagation(); salir();
@@ -4665,14 +4727,42 @@ window.AKASHA = (function () {
        Fail-closed: sin Three/WebGL o con movimiento reducido queda el Despacho de siempre
        (el botón «⟵ Despacho» del HUD es la vuelta fija). El init del CM corre después
        (registro DOMContentLoaded posterior) y respeta AK.on en cmLoop, así sus datos
-       cargan EN PARALELO debajo mientras la Oficina abre. */
-    if (akDisp_()) entrar();
+       cargan EN PARALELO debajo mientras la Oficina abre.
+       FIX 3 (20-jul): si se vuelve de la Voz con ?v=despacho, se RESPETA esa vista y no se
+       auto-entra a Akasha — volvés donde estabas, que es la mitad del contrato de retorno. */
+    if (akDisp_() && window.SATORI_VISTA !== 'despacho') entrar();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  return { S: S, get DATA() { return DATA; }, AK: AK, entrar: entrar, salir: salir, renderFlat: renderFlat, toast: toast, refrescar: refrescar };
+  /* E3.15 — MODO MODAL. Lo llaman los modales del CM (tablero/calendario) al abrir y cerrar,
+     desde AFUERA de este IIFE (por eso va en la API pública). Idempotente y no-op desde el
+     Despacho: si Akasha no está abierta, no hay nada que apagar.
+     Apaga: pintura (clase ak-modal → display:none), rAF del engine, starfield y popups del HUD. */
+  function modal(on) {
+    var centro = $('centro');
+    if (!centro) return;
+    if (on) {
+      if (!AK.on || centro.classList.contains('ak-modal')) return;
+      centro.classList.add('ak-modal');
+      if (S.engine && S.engine.setVisible) { try { S.engine.setVisible(false); } catch (e) {} }
+      starsOff();
+      /* Popups del HUD CERRADOS, no solo ocultos: si volvieran abiertos al cerrar el modal,
+         Luciano se encontraría un panel colgado que él no dejó abierto. */
+      var ps = document.querySelectorAll('#akasha .panel.show');
+      for (var i = 0; i < ps.length; i++) ps[i].classList.remove('show');
+      var ay = $('ayuda'); if (ay) ay.hidden = true;
+    } else {
+      if (!centro.classList.contains('ak-modal')) return;
+      centro.classList.remove('ak-modal');
+      if (!AK.on) return;                       // se salió de Akasha con el modal abierto
+      if (S.engine && S.engine.setVisible) { try { S.engine.setVisible(true); } catch (e) {} }
+      starsOn();
+    }
+  }
+
+  return { S: S, get DATA() { return DATA; }, AK: AK, entrar: entrar, salir: salir, renderFlat: renderFlat, toast: toast, refrescar: refrescar, modal: modal };
 })();
 
 

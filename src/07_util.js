@@ -44,6 +44,25 @@ function aFechaISO(v) {
  * Garantiza una pestaña con encabezados. Idempotente: crea si falta,
  * escribe la fila de encabezados solo si está vacía. Devuelve el Sheet.
  */
+/**
+ * Fecha+hora legible para TODA superficie server-side (brief, logs, informes): dd/MM/yyyy HH:mm.
+ * Espejo exacto de `fechaHoraCorta` del cliente (index.html) — mismo formato en las dos capas
+ * (decisión Luciano 20-jul). Nunca devolver el Date crudo de Sheets ("Mon Jul 20 2026 … GMT+0200"),
+ * que es justo el bug que esto cierra. Si no parsea, devuelve el texto tal cual (jamás inventa).
+ */
+function fechaHoraCorta_(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var d = (v instanceof Date) ? v : null;
+  if (!d) {
+    var s = String(v);
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2})/);
+    if (m) return m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4];
+    d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+  }
+  return Utilities.formatDate(d, TZ, 'dd/MM/yyyy HH:mm');
+}
+
 function ensureSheet(ss, nombre, headers) {
   var sh = ss.getSheetByName(nombre);
   if (!sh) sh = ss.insertSheet(nombre);
