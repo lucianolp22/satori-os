@@ -390,7 +390,9 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   background-repeat:no-repeat;background-position:right 12px center}
 #akasha .cm-sel:hover{border-color:var(--color-primary)}
 #akasha .budget{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:118px}
-#akasha .budget .t{display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
+/* FIX 6: gap. Con space-between y min-width 118px, apenas el monto crecía el label y la cifra
+   quedaban pegados ("API DEL MES$0.27"). El gap garantiza aire aunque no sobre ancho. */
+#akasha .budget .t{display:flex;justify-content:space-between;gap:var(--space-2);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
 #akasha .budget .bar{width:100%;height:5px;border-radius:var(--radius-full);background:rgba(255,255,255,.12);overflow:hidden}
 #akasha .budget .bar i{display:block;height:100%;width:2%;background:var(--color-accent)}
 @media (max-width:1100px){
@@ -703,6 +705,10 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .thumb{width:28px;height:28px;border-radius:var(--radius-full); border:1px solid var(--color-border-strong); background:transparent; color:var(--color-text-muted); cursor:pointer; display:grid; place-items:center}#centro .thumb:hover{border-color:var(--color-primary); color:var(--color-primary)}#centro .thumb svg{width:14px;height:14px}
 #centro .sys-grid{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3)}
 #centro .stat{background:rgba(255,255,255,.05); border:1px solid var(--color-border); border-radius:var(--radius-md); padding:var(--space-3); min-height:64px; min-width:0; display:flex; flex-direction:column; justify-content:center}#centro .stat .l{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--color-text-subtle); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}#centro .stat .v{font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:var(--text-md); font-weight:600; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* Ronda 2: tile de fecha en DOS líneas (fecha / hora). Anula el nowrap+ellipsis de .stat .v,
+   que con el año truncaba el dato y se comía la hora. Aplica a las dos vistas. */
+#centro .stat .v.fh,#akasha .stat .v.fh{white-space:pre-line; overflow:visible; text-overflow:clip;
+  line-height:1.15; font-size:var(--text-sm)}
 #centro .client{display:flex; align-items:center; gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--color-border); cursor:pointer}#centro .client:last-child{border-bottom:0}
 #centro .client .n{font-family:var(--font-brand); font-size:var(--text-sm); font-weight:600}#centro .client .ns{font-family:var(--font-mono); font-size:11px; color:var(--color-text-subtle)}#centro .client .rt{margin-left:auto}
 #centro .li{display:flex; align-items:center; gap:var(--space-3); padding:var(--space-3) 0; border-bottom:1px solid var(--color-border)}#centro .li:last-child{border-bottom:0}
@@ -1225,11 +1231,42 @@ function fechaHoraCorta(iso){iso=String(iso||'');var m=iso.match(/^(\d{4})-(\d{2
   // v11: los Date de Sheets llegan serializados ("Tue Jul 07 2026 17:23:57 GMT+0200 (…)") — parsear y acortar, jamás mostrar el crudo.
   var d=new Date(iso);if(!isNaN(d.getTime()))return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear()+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
   return iso;}
+/* Ronda 2 (20-jul): con el año, "20/07/2026 17:23" ya no entra en el tile y .stat .v lo cortaba
+   con ellipsis, ocultando JUSTO la hora. Se parte en DOS líneas (fecha arriba, hora abajo) y el
+   tile las muestra completas — el dato nunca se trunca. El '\n' lo renderiza el CSS .v.fh con
+   white-space:pre-line, así funciona igual por textContent (Despacho) que por innerHTML (Akasha). */
+function fechaHoraDosLineas(iso){
+  var s=fechaHoraCorta(iso); var i=s.lastIndexOf(' ');
+  return (i>0 && /^\d{2}:\d{2}$/.test(s.slice(i+1))) ? (s.slice(0,i)+'\n'+s.slice(i+1)) : s;
+}
 function saludoHora(){var h=new Date().getHours();return h<6?'Buenas noches':h<13?'Buenos días':h<20?'Buenas tardes':'Buenas noches';}
 // PURGA #10: solo aceptar http(s) en href; cualquier otro esquema (javascript:, data:) → ''.
 function safeUrl(u){return /^https?:\/\//i.test(String(u||''))?String(u):'';}
 
 var ESTADO_KIND={activo:'success','activo-piloto':'info',potencial:'warning',pausado:''};
+
+/* ── Ronda 2 (FIX 5) · SEMÁFORO DE CARTERA — FUENTE ÚNICA para las dos vistas ──────────────
+ * Antes había dos reglas distintas y ninguna completa:
+ *   · el Despacho miraba SOLO vencidas/avisos/pausado → un cliente 'potencial' o de 'baja'
+ *     caía en el else y salía con chip verde "Al día", que es justo lo que no es;
+ *   · Akasha miraba SOLO el estado comercial → ignoraba que el cliente tuviera vencidas.
+ * Acá se combinan los dos ejes, en orden de urgencia: lo operativo (vencidas > avisos) pisa
+ * al estado comercial, porque una vencida importa más que la etiqueta del cliente.
+ * Devuelve las dos representaciones para que ninguna vista tenga que re-derivar nada:
+ *   kind = clase de chip del CSS (las dos vistas comparten c-ok/c-warn/c-danger/c-idle)
+ *   ak   = el estado corto que consumen CLI_CHIP y los colores del 3D de Akasha
+ */
+function semaforoCliente(estado, vencidas, avisos){
+  var e=String(estado==null?'':estado).toLowerCase().trim();
+  if((vencidas||0)>0) return {kind:'c-danger', ak:'danger', chip:vencidas+' vencida(s)'};
+  if((avisos||0)>0)   return {kind:'c-warn',   ak:'warn',   chip:avisos+' aviso(s)'};
+  if(e==='activo')        return {kind:'c-ok',   ak:'ok',   chip:'Al día'};
+  if(e==='activo-piloto') return {kind:'c-ok',   ak:'ok',   chip:'Piloto'};
+  if(e==='potencial')     return {kind:'c-warn', ak:'warn', chip:'Potencial'};
+  if(e==='pausado')       return {kind:'c-idle', ak:'idle', chip:'Standby'};
+  if(e==='baja')          return {kind:'c-idle', ak:'idle', chip:'Baja'};
+  return {kind:'c-warn', ak:'warn', chip:(estado||'—')};   // estado desconocido: nunca verde
+}
 var AVISO_KIND={tarea_vencida:'danger',aprobacion_expirada:'danger',sync_error:'danger',tarea_estancada:'warning',proyecto_sin_movimiento:'warning'};
 var PRIOR_KIND={A:'danger',B:'warning',C:''};
 
@@ -1504,7 +1541,18 @@ function centroAbrir(){
     if(EN_GAS&&!CMBOOT.done)setTimeout(function(){cmBootMark('est');cmBootMark('salud');cmBootMark('hoy');},4000); }
   cmPrimerPaint();   // E3.7: el primer paint sale de las 2 olas compartidas (universo + resto)
   if(CM.timer)clearInterval(CM.timer);
-  CM.timer=setInterval(function(){if(CM.open&&!document.hidden)refrescarCentro();},5000);
+  /* Ronda 2 (FIX 4) — ESPEJO: Despacho y Akasha son dos vistas de la MISMA verdad, con la MISMA
+     cadencia. Antes este timer solo refrescaba el Despacho: Akasha se quedaba con el DATA del
+     boot (o del snapshot warm) y por eso mostraba "Nada pendiente" y el Muelle en 0 mientras el
+     Despacho ya tenía las 2 aprobaciones de la voz.
+     Se refresca la vista ACTIVA (la oculta no gasta llamadas al server; al conmutar, entrar()
+     y cmAplicarEstado repintan con dato fresco). Cadencia 15s para las dos — antes el Despacho
+     iba a 5s, que con estadoAgentes() de por medio era innecesariamente agresivo. */
+  CM.timer=setInterval(function(){
+    if(!CM.open||document.hidden)return;
+    if(window.AK&&window.AK.on){ if(window.AKASHA&&window.AKASHA.refrescar)window.AKASHA.refrescar(); }
+    else refrescarCentro();
+  },15000);
   if(CM.timerS)clearInterval(CM.timerS);
   CM.timerS=setInterval(function(){if(CM.open&&!document.hidden)refrescarSalud();},60000);
   if(CM.timerH)clearInterval(CM.timerH);
@@ -2226,6 +2274,11 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
   function openB(){ akModal_(true); if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open'); }
   function closeB(){ if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open'); akModal_(false); }
   if(ob){ ob.addEventListener('click',openB); ob.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openB();}}); }
+  /* Ronda 2: openB/closeB expuestos para que Akasha ENTRE POR ACÁ y no por openBoard.click().
+     El .click() sintético sobre un nodo que está dentro de .wrap (display:none con Akasha
+     abierta) dependía de que el listener corriera igual; llamar la función es directo y no
+     depende del estado del DOM. Un solo dueño de la apertura del tablero. */
+  window.cmBoardOpen = openB; window.cmBoardClose = closeB;
   var kc=document.getElementById('kclose'); if(kc)kc.addEventListener('click',closeB); if(ks)ks.addEventListener('click',closeB);
   /* E3.15: Escape cierra el modal abierto. Antes no existía (se cerraba por scrim o por la X);
      ahora hace falta, porque en modo modal Akasha le cede el Escape a quien está arriba. */
@@ -2314,9 +2367,9 @@ function ccEstado(){
   var card=ccCard('Estado del sistema'); if(!card)return;
   var g=card.querySelector('.sys-grid'); if(!g)return; clear(g);
   var e=(CC.hoy&&CC.hoy.estado)||{}, tel=(CC.est&&CC.est.telemetria)||{}, sal=CC.salud||{};
-  function stat(l,v,color){ var s=el('div','stat'); s.appendChild(el('div','l',l));
-    var vv=el('div','v',v); if(color)vv.style.color='var(--color-'+color+')'; s.appendChild(vv); g.appendChild(s); }
-  stat('Última corrida',(e.ultima_corrida_avisos?fechaHoraCorta(e.ultima_corrida_avisos):'—'));
+  function stat(l,v,color,fh){ var s=el('div','stat'); s.appendChild(el('div','l',l));
+    var vv=el('div','v'+(fh?' fh':''),v); if(color)vv.style.color='var(--color-'+color+')'; s.appendChild(vv); g.appendChild(s); }
+  stat('Última corrida',(e.ultima_corrida_avisos?fechaHoraDosLineas(e.ultima_corrida_avisos):'—'),null,true);
   stat('Coste del mes',(tel.gasto_usd!=null?('$'+(Number(tel.gasto_usd)||0).toFixed(2)+' / '+tel.tope_usd):'—'));  // N3: toFixed(2) como el header (0.27, no 0) — misma fuente c.gasto, solo diferían por redondeo
   stat('Errores',fmtNum(tel.errores||0),(tel.errores>0?'warning':'success'));
   stat('Salud',(sal.global?String(sal.global).toUpperCase():'—')+(sal.integridad!=null?' '+sal.integridad+'%':''),
@@ -2331,12 +2384,9 @@ function ccCartera(){
   (state.clientes||[]).forEach(function(c){
     var row=el('div','client');
     var left=el('div'); left.appendChild(el('div','n',c.nombre)); left.appendChild(el('div','ns',c.estado||'')); row.appendChild(left);
-    var rt=el('span','rt'), kind,txt;
-    if((venc[c.id_cliente]||0)>0){kind='c-danger';txt=venc[c.id_cliente]+' vencida(s)';}
-    else if((avi[c.id_cliente]||0)>0){kind='c-warn';txt=avi[c.id_cliente]+' aviso(s)';}
-    else if(String(c.estado).toLowerCase()==='pausado'){kind='c-idle';txt='Standby';}
-    else {kind='c-ok';txt='Al día';}
-    rt.appendChild(ccChip(txt,kind)); row.appendChild(rt);
+    var rt=el('span','rt');
+    var sem=semaforoCliente(c.estado, venc[c.id_cliente]||0, avi[c.id_cliente]||0);  // FIX 5: fuente única
+    rt.appendChild(ccChip(sem.chip,sem.kind)); row.appendChild(rt);
     row.addEventListener('click',function(){ centroCerrar(); loadCliente(c.id_cliente); });
     card.appendChild(row);
   });
@@ -3094,6 +3144,19 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
   esfera.add(haloN);
   const stN=texLabel(H.statusNucleo(), null, {size:15, color:'rgba(244,238,226,.92)', w:620});
   const stS=sprite(stN.tex, 8.6, 8.6/stN.ar); esfera.add(stS);               // status central — dato real (salud + decisiones)
+  /* Ronda 2 (FIX 4): el status del Núcleo era un sprite construido UNA vez, así que decía
+     "Todo al día" para siempre aunque entraran decisiones nuevas. Se regenera su textura en
+     cada poblarUniverso (o sea, en cada vuelta del polling). Se descarta la textura vieja:
+     regenerar cada 15s sin dispose es una fuga de VRAM a lo largo de una sesión larga. */
+  function refrescarStatusNucleo(){
+    try{
+      const n=texLabel(H.statusNucleo(), null, {size:15, color:'rgba(244,238,226,.92)', w:620});
+      const vieja=stS.material.map;
+      stS.material.map=n.tex; stS.material.needsUpdate=true;
+      stS.scale.set(8.6, 8.6/n.ar, 1);
+      if(vieja&&vieja!==n.tex) vieja.dispose?.();
+    }catch(e){}
+  }
 
   /* La constelación se (re)construye sola: el Núcleo nace VACÍO y cada Espacio
      agrega sus nodos cuando su cerebroGrafo contesta (segunda ola, E3.1 BUG B).
@@ -3804,7 +3867,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     /* E3.7 — 2ª mano: poblar el universo cuando el server (o el snapshot) vuelve.
        Idempotente: snapshot→fresh no duplica. Reaplica clima por si salud llegó.
        (el `poblar` sin calificar resuelve a la función de la clausura, no a este método.) */
-    poblarUniverso(nd){ poblar(nd); setClima(S.alerta); },
+    poblarUniverso(nd){ poblar(nd); setClima(S.alerta); refrescarStatusNucleo(); },
     /* hook de conteo (read-only): el harness verifica que poblar 2× no duplica (D17j). */
     _counts(){ return { hits:hits.length, estaciones:Object.keys(estaciones).length, clientes:Object.keys(clientes).length, streams:streams.length, tarjetas:tarjetas.length, nodos:nodos.length }; },
     /* segunda ola: el boot llama esto cuando entra el cerebro de cada Espacio */
@@ -3879,7 +3942,9 @@ window.AKASHA = (function () {
     wait: { t: 'Espera tu decisión', cls: 'chip c-warn pulse' },
     fail: { t: 'Con error',         cls: 'chip c-danger pulse' }
   };
-  var CLI_CHIP = { ok: 'chip c-ok', warn: 'chip c-warn', danger: 'chip c-danger' };
+  /* FIX 5: 'idle' se agrega porque el semáforo unificado ya devuelve ese estado (pausado/baja);
+     sin la entrada, el chip quedaba con clase undefined y sin estilo. */
+  var CLI_CHIP = { ok: 'chip c-ok', warn: 'chip c-warn', danger: 'chip c-danger', idle: 'chip c-idle' };
   var DIMCOL = { negocio: '#D5824F', sistema: '#3E9B82', lider: '#F2C893', alerta: '#E0795F' };
   var nodoColor = function (n) { return n.alert ? DIMCOL.alerta : (DIMCOL[n.dim] || DIMCOL.negocio); };
 
@@ -3969,9 +4034,17 @@ window.AKASHA = (function () {
     var lab = rosterAll.filter(function (a) { return !a.activo; }).map(function (a) { return a.nombre; });
 
     /* — Espacios de Cliente — */
+    /* FIX 5: Akasha también cuenta vencidas/avisos por cliente (antes solo miraba el estado
+       comercial, así que un cliente con vencidas no se distinguía de uno al día). Mismas
+       fuentes que el Despacho: proximos_pasos vencidas + avisos de datosHoy. */
+    var venc = {}, avi = {};
+    if (hoy) {
+      (hoy.proximos_pasos || []).forEach(function (t) { if (t.vencida && t.id_cliente) venc[t.id_cliente] = (venc[t.id_cliente] || 0) + 1; });
+      (hoy.avisos || []).forEach(function (a) { if (a.id_cliente) avi[a.id_cliente] = (avi[a.id_cliente] || 0) + 1; });
+    }
     var clientes = lista.map(function (c) {
       var mios = feed.filter(function (f) { return f.id_cliente === c.id_cliente; });
-      var sem = semaforo(c.estado);
+      var sem = semaforo(c.estado, venc[c.id_cliente] || 0, avi[c.id_cliente] || 0);
       var flujo = mios.slice(0, 3).map(function (f) { return [hhmm(f.ts), f.texto]; });
       if (!flujo.length) flujo = [['—', 'Sin actividad registrada todavía']];
       return {
@@ -3996,7 +4069,9 @@ window.AKASHA = (function () {
 
     var tel = (ea && ea.telemetria) || null;
     var sistema = [];
-    if (hoy) sistema.push(['Última corrida', hoy.estado.ultima_sync_ok || '—']);
+    /* Ronda 2: ESTA es la superficie visible del atril de Akasha (la de ronda 1 era pa-corrida,
+       otro panel). Llegaba el Date crudo de Sheets con GMT. 3er elemento = clase del valor. */
+    if (hoy) sistema.push(['Última corrida', hoy.estado.ultima_sync_ok ? fechaHoraDosLineas(hoy.estado.ultima_sync_ok) : '—', 'fh']);
     if (tel) sistema.push(['Coste del mes', '$' + num(tel.gasto_usd).toFixed(2) + ' / ' + num(tel.tope_usd)]);
     if (tel) sistema.push(['Errores', String(num(tel.errores))]);
     if (salud) sistema.push(['Salud', (salud.global || '—').toUpperCase() + ' ' + num(salud.integridad) + '%']);
@@ -4024,13 +4099,11 @@ window.AKASHA = (function () {
     return 'En reposo — sin corrida en curso';
   }
 
-  function semaforo(estado) {
-    var e = String(estado || '').toLowerCase();
-    if (e === 'activo') return { estado: 'ok', chip: 'Al día' };
-    if (e === 'activo-piloto') return { estado: 'ok', chip: 'Piloto' };
-    if (e === 'potencial') return { estado: 'warn', chip: 'Potencial' };
-    if (e === 'pausado') return { estado: 'warn', chip: 'Pausado' };
-    return { estado: 'warn', chip: estado || '—' };
+  /* FIX 5: delega en semaforoCliente (fuente única global). Esta función queda solo como
+     adaptador de forma: Akasha consume {estado, chip} y el global devuelve {ak, chip}. */
+  function semaforo(estado, vencidas, avisos) {
+    var s = semaforoCliente(estado, vencidas, avisos);
+    return { estado: s.ak, chip: s.chip };
   }
 
   /* Agenda: 7 días desde el lunes; el color marca que ese día tiene algo. */
@@ -4119,10 +4192,14 @@ window.AKASHA = (function () {
       window.open(CFG.voz_url, '_blank', 'noopener');
     },
     /* Tablero y calendario: los del CM, tal cual. Un solo dueño por función. */
+    /* Ronda 2: se llama a openB DIRECTO (window.cmBoardOpen) en vez de sintetizar un click
+       sobre #openBoard, que vive dentro de .wrap y con Akasha abierta está display:none.
+       openB es quien apaga Akasha (akModal_), así que entrar por acá garantiza el modo modal.
+       ccKanbanLoad se llama aparte porque antes lo disparaba el 2º listener del .click(). */
     abrirTablero: function () {
-      var b = $('openBoard');
-      if (!b) { toast('El tablero no está disponible'); return; }
-      b.click();   // dispara los DOS listeners de la casa: abre el modal + ccKanbanLoad()
+      if (typeof window.cmBoardOpen !== 'function') { toast('El tablero no está disponible'); return; }
+      window.cmBoardOpen();
+      try { if (typeof ccKanbanLoad === 'function') ccKanbanLoad(); } catch (e) {}
     },
     abrirCalendario: function () {
       if (typeof calAbrir !== 'function') { toast('El calendario no está disponible'); return; }
@@ -4327,7 +4404,7 @@ window.AKASHA = (function () {
     var sy = $('atril-sys'); sy.innerHTML = '';
     if (!DATA.sistema.length) sy.appendChild(el('div', 'stat', '<span class="l">estado</span><span class="v" style="font-size:.9rem">—</span>'));
     DATA.sistema.forEach(function (s) {
-      sy.appendChild(el('div', 'stat', '<span class="l">' + esc(s[0]) + '</span><span class="v ' + (/^OK/.test(s[1]) ? 'ok' : '') + '" style="font-size:.9rem">' + esc(s[1]) + '</span>'));
+      sy.appendChild(el('div', 'stat', '<span class="l">' + esc(s[0]) + '</span><span class="v ' + (/^OK/.test(s[1]) ? 'ok' : '') + ' ' + (s[2] || '') + '" style="font-size:.9rem">' + esc(s[1]) + '</span>'));
     });
 
     var ag = $('atril-agentes'); ag.innerHTML = '';
@@ -4544,20 +4621,25 @@ window.AKASHA = (function () {
   }
   /* Refresh post-acción (despertar/resolver): fresco DE VERDAD, sin las promesas
      memoizadas del boot. Repuebla el universo y los docks. */
+  /* Ronda 2 (FIX 4): guard in-flight. Ahora esto lo llama el polling de 15s y son SEIS llamadas
+     al server por vuelta; sin guard, una vuelta lenta apila la siguiente y se pisan los DATA. */
+  var _refBusy = false;
   function refrescar() {
-    if (!AK.on || !EN_GAS) return;
+    if (!AK.on || !EN_GAS || _refBusy) return;
+    _refBusy = true;
     var r = _rangoSemanaISO ? _rangoSemanaISO() : [iso(lunesDeEstaSemana()), iso(new Date(lunesDeEstaSemana().getTime() + 6 * 864e5))];
     Promise.all([
       pedir('estadoAgentes'), pedir('listaClientes'),
       pedir('datosHoy'), pedir('recomendacionesAbiertas'), pedir('agendaRango', r), pedir('estadoSalud')
     ]).then(function (x) {
+      _refBusy = false;
       if (!AK.on) return;
       DATA = construirDATA({ agentes: x[0], clientes: x[1], hoy: x[2], recs: x[3], agenda: x[4], salud: x[5] });
       S.alerta = DATA.salud != null && DATA.salud < 90;
       if (S.engine && S.engine.poblarUniverso) S.engine.poblarUniverso(DATA);
       renderDocks();
       guardarSnapshot(DATA);
-    });
+    }, function () { _refBusy = false; });   // el rechazo TIENE que liberar el guard o no refresca nunca más
   }
 
   /* D — el velo dark "Cargando el CM…" (#cmVeil, z-80) se interpone entre el
@@ -4578,6 +4660,11 @@ window.AKASHA = (function () {
     AK.gen++;                  // invalida cualquier ola de cerebros de una entrada anterior
     AK.on = true;                                   // ANTES de construir: cmLoop deja de dibujar ya en el próximo frame
     centro.classList.add('ak-on');
+    /* Ronda 2 (FIX 3) — entrada AUTO-SANEADA: si por cualquier camino quedó `ak-modal` puesta
+       (salida con un modal abierto, un cierre que no pasó por closeB/calCerrar), #akasha estaría
+       en display:none y la Oficina abriría sin estrellas y sin cosmos. Limpiarla acá hace que
+       CUALQUIER entrada arranque siempre desde un estado sano, sin depender de quién cerró qué. */
+    centro.classList.remove('ak-modal');
     ak.classList.add('on'); ak.setAttribute('aria-hidden', 'false');
     ak.classList.toggle('clima-amber', !!S.alerta);
     mostrar('cosmos');
@@ -4758,7 +4845,10 @@ window.AKASHA = (function () {
       centro.classList.remove('ak-modal');
       if (!AK.on) return;                       // se salió de Akasha con el modal abierto
       if (S.engine && S.engine.setVisible) { try { S.engine.setVisible(true); } catch (e) {} }
-      starsOn();
+      /* starsOn re-siembra y REARRANCA el rAF (starsDraw solo se re-encola mientras AK.on).
+         Con movimiento reducido no hay starfield que reanudar: starsOn igual es no-op seguro,
+         pero se explicita para no reintroducir animación donde el usuario la desactivó. */
+      if (!S.reducedMotion) starsOn();
     }
   }
 
