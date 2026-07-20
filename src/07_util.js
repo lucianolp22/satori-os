@@ -241,3 +241,100 @@ function protegerSheet(sh, warningOnly) {
   }
   return p;
 }
+
+// ── T1-B · Cifras SIEMPRE en números (decisión Luciano 17-jul) ──────────────────────────────
+//
+// El STT transcribe dictados en palabras ("ciento treinta mil pesos") y eso terminó en la
+// `descripcion` de un objetivo real. Regla de sistema: al ESCRIBIR datos, las cifras van en
+// dígitos con formato es-AR ($130.000). La primera línea de defensa es el prompt de Sato
+// (agent.py, normaliza antes de armar el payload); esto es el best-effort SERVER-SIDE:
+// determinista, sin LLM, y ACOTADO A PROPÓSITO a montos con multiplicador (mil/millones).
+//
+// Por qué acotado: sin multiplicador habría que convertir "un"/"una"/"uno", que en castellano
+// son artículos ("un objetivo de ventas" → "1 objetivo de ventas"). Exigir mil/millón elimina
+// ese falso positivo entero. Si no matchea el patrón conocido, el texto queda TAL CUAL —
+// jamás inventa. Los formatters de LECTURA de la voz (A1/A3) no se tocan: se habla natural,
+// se escribe en cifras.
+
+/** Palabras-número es-AR (con y sin tilde: el dictado llega de las dos formas). */
+var _NUM_PALABRA_ = {
+  cero: 0, un: 1, uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9,
+  diez: 10, once: 11, doce: 12, trece: 13, catorce: 14, quince: 15,
+  dieciseis: 16, 'dieciséis': 16, diecisiete: 17, dieciocho: 18, diecinueve: 19,
+  veinte: 20, veintiuno: 21, veintiun: 21, 'veintiún': 21, veintidos: 22, 'veintidós': 22,
+  veintitres: 23, 'veintitrés': 23, veinticuatro: 24, veinticinco: 25, veintiseis: 26, 'veintiséis': 26,
+  veintisiete: 27, veintiocho: 28, veintinueve: 29,
+  treinta: 30, cuarenta: 40, cincuenta: 50, sesenta: 60, setenta: 70, ochenta: 80, noventa: 90,
+  cien: 100, ciento: 100, doscientos: 200, doscientas: 200, trescientos: 300, trescientas: 300,
+  cuatrocientos: 400, cuatrocientas: 400, quinientos: 500, quinientas: 500,
+  seiscientos: 600, seiscientas: 600, setecientos: 700, setecientas: 700,
+  ochocientos: 800, ochocientas: 800, novecientos: 900, novecientas: 900
+};
+
+/** Multiplicadores. Al menos UNO tiene que aparecer para que el run se convierta (ver docstring). */
+var _NUM_MULTIPLICADOR_ = { mil: 1000, millon: 1000000, 'millón': 1000000, millones: 1000000 };
+
+/**
+ * Quita tildes/diéresis para comparar texto escrito por humanos ("oficina física" vs "oficina
+ * fisica"). NO usa String.normalize: el runtime V8 de GAS la tiene, pero el set es acotado y
+ * explícito, que es lo que hace falta acá. Lo consume _pivotMuerto_ (18_direccion.js).
+ */
+function _sinTildes_(s) {
+  return String(s == null ? '' : s)
+    .replace(/[áàäâ]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o').replace(/[úùüû]/g, 'u').replace(/ñ/g, 'n');
+}
+
+/** Separador de miles es-AR: 130000 → "130.000". */
+function _fmtMiles_(n) {
+  return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+/** Valor de un run de palabras-número, o null si el run no tiene ninguna. */
+function _valorPalabras_(tokens) {
+  var total = 0, actual = 0, hubo = false;
+  for (var i = 0; i < tokens.length; i++) {
+    var t = tokens[i];
+    if (_NUM_PALABRA_.hasOwnProperty(t)) { actual += _NUM_PALABRA_[t]; hubo = true; }
+    else if (_NUM_MULTIPLICADOR_.hasOwnProperty(t)) {
+      actual = (actual || 1) * _NUM_MULTIPLICADOR_[t];
+      total += actual; actual = 0; hubo = true;
+    }
+    // 'y' es enlace ("treinta y cinco"): no aporta valor.
+  }
+  return hubo ? (total + actual) : null;
+}
+
+/**
+ * Convierte montos dictados en palabras a cifras es-AR. Solo toca runs que incluyan un
+ * multiplicador (mil/millón/millones); todo lo demás queda intacto.
+ *   "Alcanzar un ticket promedio de ciento treinta mil pesos" → "… de $130.000"
+ *   "un objetivo de ventas"                                   → sin cambios (no hay multiplicador)
+ * @param {string} texto
+ * @return {string}
+ */
+function normalizarCifrasTexto_(texto) {
+  var t = String(texto == null ? '' : texto);
+  if (!t) return t;
+  // Alternación ordenada por largo DESC: así "millones" gana sobre "mil" y "ciento" sobre "cien".
+  var palabras = Object.keys(_NUM_PALABRA_).concat(Object.keys(_NUM_MULTIPLICADOR_)).concat(['y'])
+    .sort(function (a, b) { return b.length - a.length; });
+  var alt = palabras.join('|');
+  var re = new RegExp('(?:' + alt + ')(?:\\s+(?:' + alt + '))*(?:\\s+pesos?)?', 'gi');
+  return t.replace(re, function (match) {
+    var toks = match.toLowerCase().split(/\s+/).filter(String);
+    // ¿Termina en "pesos"/"peso"? → es un monto: sale con $.
+    var moneda = false;
+    if (toks.length && (toks[toks.length - 1] === 'pesos' || toks[toks.length - 1] === 'peso')) {
+      moneda = true; toks.pop();
+    }
+    // "y" colgando al final ("… mil y pico") no es parte del número: se devuelve tal cual.
+    var cola = '';
+    while (toks.length && toks[toks.length - 1] === 'y') { toks.pop(); cola = ' y' + cola; }
+    var tieneMult = toks.some(function (x) { return _NUM_MULTIPLICADOR_.hasOwnProperty(x); });
+    if (!tieneMult) return match;                       // fuera del alcance acotado → intacto
+    var v = _valorPalabras_(toks);
+    if (v === null || !isFinite(v) || v <= 0) return match;
+    return (moneda ? '$' : '') + _fmtMiles_(v) + cola;
+  });
+}

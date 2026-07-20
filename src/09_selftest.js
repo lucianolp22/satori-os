@@ -506,7 +506,9 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D15 mantenimiento', f: _asertsD15_ },
    { n: 'D16 voz-acciones', f: _asertsD16_ },
    { n: 'D17h boot único', f: _asertsD17h_ },
-   { n: 'D17i boot 2 olas', f: _asertsD17i_ }].forEach(function (t) {
+   { n: 'D17i boot 2 olas', f: _asertsD17i_ },
+   { n: 'D17j métrica CM v3', f: _asertsD17j_ },
+   { n: 'D18 north star + reset', f: _asertsD18_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -804,7 +806,243 @@ function _asertsD16_(chk, log, opts) {
   var s2 = sembrarNorthStarSatori_();
   chk(s2.sembrado === false, 'D16s sembrarNorthStarSatori_ es idempotente (la 2a vez no pisa)');
   chk(!!northStarSatori_() && northStarSatori_().meta === 6, 'D16t el North Star queda en Config con meta 6');
-  if (!nsB) { ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte'].forEach(function (k) { setConfig(k, ''); }); } // restaurar baseline
+  // Restaurar baseline. Las 3 claves enriquecidas van en la lista desde el 20-jul: cargarNorthStarSatori
+  // ahora las siembra por default, así que sin esto el test dejaba residuo cuando Config estaba vacía.
+  if (!nsB) { ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte',
+               'ns_satori_metricas', 'ns_satori_valores', 'ns_satori_pivots'].forEach(function (k) { setConfig(k, ''); }); }
+}
+
+
+/**
+ * D17j — T1 métrica CM v3 (17/18-jul). Tanda aislada: la corre _asertsF2_.
+ *
+ * NUMERACIÓN: arranca en D17j y NO en D17a como pedía el encargo del 17-jul. AKASHA E3.7 (posterior
+ * al encargo) ya ocupó D17h/D17i con los asserts de boot en 2 tiempos; reusar D17a-g los habría
+ * pisado. Mapa encargo→acá: A(whitelist+asignarMetricaUI) = D17j-n · B(cifras) = D17o · C(tenant en
+ * encolarAgente) = D17p.
+ *
+ * LO QUE PRUEBA DE VERDAD: que mudar la métrica de "celda a mano en Sheets" a "chip en el CM" NO
+ * debilita la frontera de confianza. El enforcement es server-side con match EXACTO (D17j), y el
+ * camino de la voz sigue descartando `metrica` como antes (D17l, regresión de D16j).
+ */
+function _asertsD17j_(chk, log, opts) {
+  var cli = crearCliente({ nombre: '__TEST__ metrica ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var id = cli.id_cliente;
+  var shObj = abrirCliente(id).ss.getSheetByName('objetivos');
+  chk(!!shObj, 'D17j-pre el tenant de prueba tiene hoja objetivos');
+
+  // Objetivo de prueba, nacido SIN métrica (como lo deja ejecutarCrearObjetivo_).
+  appendFila(shObj, { id_objetivo: 'OBJ-9001', horizonte: '12m', descripcion: '__TEST__ objetivo métrica',
+                      metrica: '', valor_objetivo: '', estado: 'activo', prioridad: 'B', fecha_objetivo: '' });
+  SpreadsheetApp.flush();
+  var filaDe = function (idObj) { return leerTabla(shObj).filter(function (o) { return String(o.id_objetivo) === idObj; })[0]; };
+
+  // ── D17j — métrica fuera de la whitelist → rechazo, y NADA escrito (no hay escritura parcial).
+  var r1 = asignarMetricaUI(id, 'OBJ-9001', 'metrica_inventada_por_el_llm');
+  chk(r1 && r1.ok === false && r1.error === 'metrica_invalida', 'D17j métrica fuera de la whitelist → metrica_invalida (match EXACTO server-side)');
+  chk(String((filaDe('OBJ-9001') || {}).metrica) === '', 'D17j2 el rechazo NO escribió la celda (sigue vacía)');
+  // Variantes que un match laxo dejaría pasar: case y wildcard. Patrón Direcciones = case-SENSITIVE.
+  chk(asignarMetricaUI(id, 'OBJ-9001', 'Ventas_ARS').error === 'metrica_invalida', 'D17j3 la whitelist es case-sensitive (Ventas_ARS ≠ ventas_ars)');
+  chk(asignarMetricaUI(id, 'OBJ-9001', '*').error === 'metrica_invalida', 'D17j4 sin wildcard: "*" no matchea nada');
+  chk(asignarMetricaUI('CLI-INVENTADO', 'OBJ-9001', 'ventas_ars').error === 'tenant_desconocido', 'D17j5 tenant fuera del roster → rechazo (mismo criterio que accionVoz_)');
+
+  // ── D17k — asignación válida: escribe la celda Y deja rastro en el feed.
+  var shAct = getMaestro().getSheetByName('Actividad');
+  var actAntes = leerTabla(shAct).length;
+  var r2 = asignarMetricaUI(id, 'OBJ-9001', 'ventas_ars');
+  chk(r2 && r2.ok === true && r2.metrica === 'ventas_ars', 'D17k asignación válida → ok con la métrica asignada');
+  chk(String((filaDe('OBJ-9001') || {}).metrica) === 'ventas_ars', 'D17k2 la celda metrica quedó escrita en la hoja del tenant');
+  var feedNuevo = leerTabla(shAct).slice(actAntes).filter(function (f) { return String(f.tipo) === 'metrica_asignada' && String(f.id_cliente) === id; });
+  chk(feedNuevo.length === 1, 'D17k3 la asignación deja UNA entrada metrica_asignada en el feed (trazable)');
+  // "sin métrica por ahora" es un camino legítimo del chip: vacía sin pasar por la whitelist.
+  var r3 = asignarMetricaUI(id, 'OBJ-9001', '');
+  chk(r3 && r3.ok === true && String((filaDe('OBJ-9001') || {}).metrica) === '', 'D17k4 "sin métrica por ahora" vacía la celda (saca el objetivo del análisis dirigido)');
+
+  // ── D17l — REGRESIÓN DE LA FRONTERA: el camino de la VOZ sigue descartando metrica (D16j vigente).
+  // Si esto se pone rojo, T1 debilitó la frontera en lugar de mudarla: es el assert que más importa.
+  var v = accionVoz_('crear_objetivo', { titulo: '__TEST__ frontera T1', metrica: 'ventas_ars' }, id);
+  _aprobarSiOk_(chk, id, v, 'D17l');
+  var porVoz = leerTabla(shObj).filter(function (o) { return String(o.descripcion) === '__TEST__ frontera T1'; })[0];
+  chk(!!porVoz && String(porVoz.metrica) === '', 'D17l la voz con metrica en el payload SIGUE descartándola (frontera intacta tras T1)');
+
+  // ── D17m — objetivo inexistente → rechazo claro (no crea nada al pasar).
+  var filasAntes = leerTabla(shObj).length;
+  chk(asignarMetricaUI(id, 'OBJ-NOEXISTE', 'ventas_ars').error === 'objetivo_inexistente', 'D17m objetivo inexistente → rechazo objetivo_inexistente');
+  chk(asignarMetricaUI(id, '', 'ventas_ars').error === 'objetivo_inexistente', 'D17m2 id_objetivo vacío → rechazo (no toca la primera fila que encuentre)');
+  chk(leerTabla(shObj).length === filasAntes, 'D17m3 los rechazos no agregaron filas');
+
+  // ── D17n — la whitelist es unión: curadas + lo que el cliente YA usa + la columna kpi de KPIs.
+  appendFila(shObj, { id_objetivo: 'OBJ-9002', horizonte: '12m', descripcion: '__TEST__ métrica propia',
+                      metrica: 'metrica_propia_del_cliente', valor_objetivo: '', estado: 'activo', prioridad: 'B', fecha_objetivo: '' });
+  var shKpi = abrirCliente(id).ss.getSheetByName('KPIs');
+  if (shKpi) appendFila(shKpi, { fecha: hoyISO(), kpi: 'kpi_propio_del_cliente', valor: 1, objetivo: 1, alerta: '' });
+  SpreadsheetApp.flush();
+  var ms = metricasValidas_(id);
+  chk(ms.indexOf('ventas_ars') >= 0 && ms.indexOf('ticket_promedio_ars') >= 0, 'D17n la whitelist incluye el set curado global');
+  chk(ms.indexOf('metrica_propia_del_cliente') >= 0, 'D17n2 incluye lo que el cliente YA usa en objetivos.metrica');
+  if (shKpi) chk(ms.indexOf('kpi_propio_del_cliente') >= 0, 'D17n3 incluye la columna kpi de la hoja KPIs del cliente');
+  chk(ms.length === ms.filter(function (x, i) { return ms.indexOf(x) === i; }).length, 'D17n4 la whitelist no trae duplicados');
+  // Y lo que la whitelist admite, asignarMetricaUI lo acepta (whitelist y endpoint no divergen).
+  chk(asignarMetricaUI(id, 'OBJ-9001', 'metrica_propia_del_cliente').ok === true, 'D17n5 una métrica propia del cliente SÍ se puede asignar (whitelist y endpoint coherentes)');
+
+  // ── D17o — cifras SIEMPRE en números (T1-B). Determinista, sin LLM.
+  chk(normalizarCifrasTexto_('ciento treinta mil pesos') === '$130.000', 'D17o "ciento treinta mil pesos" → "$130.000"');
+  chk(normalizarCifrasTexto_('un millón doscientos mil pesos') === '$1.200.000', 'D17o2 millones también ("un millón doscientos mil pesos" → "$1.200.000")');
+  // El ACOTADO es la defensa: sin multiplicador no toca nada, así "un objetivo" no se vuelve "1 objetivo".
+  chk(normalizarCifrasTexto_('un objetivo de ventas') === 'un objetivo de ventas', 'D17o3 sin multiplicador NO toca el texto (los artículos un/una quedan intactos)');
+  chk(normalizarCifrasTexto_('texto sin cifras') === 'texto sin cifras', 'D17o4 texto sin cifras pasa igual (jamás inventa)');
+  // Y de punta a punta: un título dictado en palabras queda en cifras EN LA FILA.
+  var vc = accionVoz_('crear_objetivo', { titulo: '__TEST__ ticket de ciento treinta mil pesos' }, id);
+  _aprobarSiOk_(chk, id, vc, 'D17o5');
+  var filaCifra = leerTabla(shObj).filter(function (o) { return String(o.descripcion).indexOf('__TEST__ ticket de') === 0; })[0];
+  chk(!!filaCifra && String(filaCifra.descripcion).indexOf('$130.000') >= 0 && String(filaCifra.descripcion).indexOf('ciento treinta mil') < 0,
+      'D17o5 un título dictado en palabras queda escrito en cifras en la fila ($130.000)');
+
+  // ── D17p — defensa de tenant en encolarAgente (hallazgo TERCERA PRUEBA AKASHA).
+  // El caso real: idCliente = "Todos los Espacios" (el option nacía sin value) → Analista contra
+  // tenant fantasma → "Errores: 1". La UI ya lo corta; esto prueba la capa server.
+  var tiro = null;
+  try { encolarAgente('Todos los Espacios', 'analista', {}); } catch (e) { tiro = String((e && e.message) || e); }
+  chk(tiro !== null && tiro.indexOf('tenant desconocido') >= 0, 'D17p el tenant fantasma REAL ("Todos los Espacios") → throw "tenant desconocido"');
+  tiro = null;
+  try { encolarAgente('CLI-NOEXISTE', 'analista', {}); } catch (e) { tiro = String((e && e.message) || e); }
+  chk(tiro !== null && tiro.indexOf('tenant desconocido') >= 0, 'D17p2 tenant fuera del roster → throw con mensaje claro');
+  // El caso feliz sigue encolando (la defensa no rompió el camino bueno). La fila la barre limpiarTodoTest.
+  var feliz = null, errFeliz = null;
+  try { feliz = encolarAgente(id, 'analista', {}); } catch (e2) { errFeliz = String((e2 && e2.message) || e2); }
+  chk(!!feliz && !!feliz.tareaId, 'D17p3 un tenant REAL del roster sigue encolando' + (errFeliz ? ' (tiró: ' + errFeliz + ')' : ''));
+  // El agente inexistente sigue rechazándose ANTES que el tenant (no se invirtió el orden de guardas).
+  tiro = null;
+  try { encolarAgente(id, 'agente_inventado', {}); } catch (e3) { tiro = String((e3 && e3.message) || e3); }
+  chk(tiro !== null && tiro.indexOf('agente desconocido') >= 0, 'D17p4 agente desconocido sigue rechazándose (guardas en orden)');
+}
+
+
+/**
+ * D18 — North Star enriquecido (A) · pivots descartados (B) · reset (C) · error fantasma (D). 20-jul.
+ *
+ * LO QUE ESTA TANDA **NO** HACE, A PROPÓSITO: no llama a `resetObjetivosYNorthStar()`. Esa función
+ * borra las hojas `objetivos` de tenants REALES; meterla en la batería de tests la convertiría en
+ * una bomba que se dispara sola cada vez que alguien corre selfTest. Se testean sus PIEZAS (el
+ * respaldo, el restore, y la exclusión hard-coded de CLI-002); el disparo entero lo hace Luciano a
+ * mano, una vez, con el backup ya verificado. Tanda aislada: la corre _asertsF2_.
+ */
+function _asertsD18_(chk, log, opts) {
+  // ── D18a (Parte A · sistema) — el lector enriquecido lee los 3 campos nuevos, y sin ellos NO rompe.
+  var nsBase = {};
+  ['ns_satori_desc', 'ns_satori_metrica', 'ns_satori_valor', 'ns_satori_horizonte',
+   'ns_satori_metricas', 'ns_satori_valores', 'ns_satori_pivots'].forEach(function (k) { nsBase[k] = getConfig(k); });
+  try {
+    setConfig('ns_satori_desc', '__TEST__ norte'); setConfig('ns_satori_metrica', 'm_principal');
+    setConfig('ns_satori_valor', '6'); setConfig('ns_satori_horizonte', '2026-12-31');
+    // Sin los campos nuevos: backward-compat (el lector viejo no rompe y los nuevos salen vacíos).
+    setConfig('ns_satori_metricas', ''); setConfig('ns_satori_valores', ''); setConfig('ns_satori_pivots', '');
+    var nsViejo = northStarSatori_();
+    chk(!!nsViejo && nsViejo.desc === '__TEST__ norte' && nsViejo.meta === 6, 'D18a sin los campos nuevos, el North Star viejo se sigue leyendo igual');
+    chk(nsViejo.metricas.length === 0 && nsViejo.valores.length === 0 && nsViejo.pivots.length === 0, 'D18a2 campos nuevos ausentes → arrays vacíos (backward-compat, no undefined)');
+    // Con los campos nuevos: 3 métricas en total (1 principal + 2 extra) + guardrails + pivots.
+    setConfig('ns_satori_metricas', 'm_segunda · m_tercera');
+    setConfig('ns_satori_valores', 'no crecer a costa de la paz del dueño · no tomar cliente sin fit');
+    setConfig('ns_satori_pivots', '2026-05-01·vender por Ads·quemaba caja sin retorno\n2026-06-10·abrir oficina física·no aporta al norte');
+    var nsRico = northStarSatori_();
+    chk(nsRico.metricas.length === 2 && nsRico.metricas[0] === 'm_segunda' && nsRico.metricas[1] === 'm_tercera', 'D18a3 métricas secundarias separadas por · se leen (hasta 3 en total con la principal)');
+    chk(nsRico.valores.length === 2 && nsRico.valores[0].indexOf('paz del dueño') >= 0, 'D18a4 los guardrails se leen');
+    chk(nsRico.pivots.length === 2 && nsRico.pivots[0].fecha === '2026-05-01' && nsRico.pivots[0].que === 'vender por Ads' && nsRico.pivots[0].porque.indexOf('caja') >= 0,
+        'D18a5 los pivots se parsean a {fecha,qué,porqué}, uno por línea');
+    // Parser tolerante: una línea con SOLO el "qué" también vale (lo escribe un humano en una celda).
+    chk(_nsPivots_('solo el qué')[0].que === 'solo el qué', 'D18a6 una línea sin fecha ni porqué igual cuenta como pivot');
+    chk(_nsPivots_('').length === 0 && _nsLista_('').length === 0, 'D18a7 celda vacía → array vacío (nunca [""])');
+
+    // ── D18c (Parte B) — un pivot descartado NO se re-propone.
+    chk(!!_pivotMuerto_({ texto: 'Probar vender por Ads este mes' }, nsRico.pivots), 'D18c una recomendación que cae en un pivot muerto se detecta');
+    chk(_pivotMuerto_({ texto: 'Cerrar la vencida más vieja' }, nsRico.pivots) === null, 'D18c2 una recomendación sana NO se marca como pivot');
+    chk(_pivotMuerto_({ texto: 'VENDER POR ADS otra vez' }, nsRico.pivots) !== null, 'D18c3 el match ignora mayúsculas/tildes');
+    chk(_pivotMuerto_({ texto: 'cualquier cosa' }, [{ que: 'ads' }]) === null, 'D18c4 un "qué" de menos de 4 chars se ignora (no silencia media Bandeja)');
+    // La recomendación del día real nunca devuelve algo que caiga en un pivot vigente.
+    var recHoy = recomendacionDelDia_();
+    chk(!!recHoy && !!recHoy.texto, 'D18c5 recomendacionDelDia_ sigue devolviendo una recomendación tras el refactor a candidatas');
+    chk(_pivotMuerto_(recHoy, nsRico.pivots) === null, 'D18c6 la recomendación del día NO cae en un pivot descartado');
+  } finally {
+    Object.keys(nsBase).forEach(function (k) { setConfig(k, nsBase[k]); });   // baseline restaurado SIEMPRE
+  }
+
+  // ── D18b (Parte A · tenant) — las columnas nuevas de `objetivos` se declaran y se leen.
+  ['metricas_extra', 'valores', 'pivots_descartados'].forEach(function (col) {
+    chk(CLIENTE_SHEETS.objetivos.indexOf(col) >= 0, 'D18b el schema de objetivos declara ' + col);
+  });
+  var d18cli = crearCliente({ nombre: '__TEST__ northstar ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d18id = d18cli.id_cliente;
+  var shO = abrirCliente(d18id).ss.getSheetByName('objetivos');
+  appendFila(shO, { id_objetivo: 'OBJ-0001', horizonte: '12m', descripcion: '__TEST__ norte del tenant',
+                    metrica: 'ticket_promedio_ars', valor_objetivo: 130000, estado: 'activo', prioridad: 'A', fecha_objetivo: '',
+                    metricas_extra: 'ordenes_mes · recompra_pct', valores: 'no vender bajo costo',
+                    pivots_descartados: '2026-04-01·bajar precios·mata el margen' });
+  SpreadsheetApp.flush();
+  var nsT = northStarTenant_(d18id);
+  chk(!!nsT && nsT.id_objetivo === 'OBJ-0001' && nsT.metrica === 'ticket_promedio_ars', 'D18b2 northStarTenant_ toma el objetivo activo de mayor prioridad');
+  chk(nsT.metricas.length === 2 && nsT.valores.length === 1 && nsT.pivots.length === 1, 'D18b3 el lector de tenant devuelve métricas extra + valores + pivots');
+  chk(_pivotsTenant_(d18id).length === 1 && _pivotsTenant_(d18id)[0].que === 'bajar precios', 'D18b4 _pivotsTenant_ junta los pivots del tenant');
+  // Un objetivo SIN los campos nuevos no rompe el lector (tenants viejos).
+  appendFila(shO, { id_objetivo: 'OBJ-0002', horizonte: '12m', descripcion: '__TEST__ sin campos nuevos',
+                    metrica: 'ordenes_mes', valor_objetivo: 200, estado: 'activo', prioridad: 'B', fecha_objetivo: '' });
+  SpreadsheetApp.flush();
+  chk(!!northStarTenant_(d18id) && northStarTenant_(d18id).id_objetivo === 'OBJ-0001', 'D18b5 un objetivo sin los campos nuevos no rompe el lector (sigue ganando prioridad A)');
+
+  // ── D18d (Parte C) — las PIEZAS del reset. El reset entero NO se dispara acá (ver docstring).
+  chk(RESET_EXCLUIR.indexOf('CLI-002') >= 0, 'D18d CLI-002 está hard-codeado en RESET_EXCLUIR (decisión de Luciano 20-jul)');
+  chk(typeof resetObjetivosYNorthStar === 'function' && String(resetObjetivosYNorthStar).indexOf('_respaldarObjetivos_') > 0,
+      'D18d2 el reset respalda ANTES de borrar (el respaldo es la primera llamada, no un opcional)');
+  chk(typeof restaurarObjetivosDesdeBackup === 'function', 'D18d3 existe la vía de restore (el backup sin restore no es backup)');
+  if (opts && opts.completo) {
+    // Drill de restore REAL sobre el tenant de prueba: respaldar → vaciar → restaurar → comparar.
+    var antes = leerTabla(shO);
+    var bk = _respaldarObjetivos_();
+    chk(bk.ok && !!bk.id, 'D18d4 el respaldo produce un Spreadsheet fechado (id ' + bk.id + ')');
+    chk(_verificarRespaldo_(bk) === true, 'D18d5 el respaldo VERIFICA como restaurable antes de habilitar el borrado');
+    conLock(function () { if (shO.getLastRow() > 1) shO.deleteRows(2, shO.getLastRow() - 1); });
+    chk(shO.getLastRow() === 1, 'D18d6 tras el borrado la hoja queda SOLO con encabezados');
+    restaurarObjetivosDesdeBackup(bk.id, d18id);
+    var despues = leerTabla(shO);
+    chk(despues.length === antes.length, 'D18d7 el restore devuelve el MISMO conteo de filas (' + antes.length + ')');
+    chk(despues.length > 0 && String(despues[0].id_objetivo) === String(antes[0].id_objetivo) && String(despues[0].pivots_descartados) === String(antes[0].pivots_descartados),
+        'D18d8 el restore devuelve las filas IDÉNTICAS (incluidos los campos nuevos)');
+    try { DriveApp.getFileById(bk.id).setTrashed(true); } catch (_t) {}   // el drill no deja basura en Drive
+  } else {
+    log.push('⏭️  D18d4-d8 (drill de respaldo/restore) omitido: solo en selfTest() completo — crea un Spreadsheet en Drive y abre todos los Sheets cliente');
+  }
+
+  // ── D18e (Parte D) — el error fantasma se ARCHIVA (no se borra) y el de un tenant REAL se respeta.
+  // OJO: limpiarErroresFantasma_ corre sobre la Cola_tareas REAL, así que además de las filas
+  // sintéticas de acá puede archivar el fantasma de verdad del 17-jul. Es exactamente lo que se
+  // busca (es idempotente y no destructivo), pero que no sorprenda: queda dicho.
+  var shCola = getMaestro().getSheetByName('Cola_tareas');
+  var cliReal = leerTabla(getMaestro().getSheetByName('Clientes'))[0];
+  appendFila(shCola, { id: 'TAR-TEST-FANTASMA', worker: '__TESTWORKER__', tipo: 'agente',
+                       payload: JSON.stringify({ agente: 'analista', id_cliente: 'Todos los Espacios' }),
+                       estado: 'fallida', resultado: '', error: '__TEST__ fantasma', tomada_por: '',
+                       creada_en: ahoraISO(), tomada_en: '', completada_en: '' });
+  if (cliReal) appendFila(shCola, { id: 'TAR-TEST-REAL', worker: '__TESTWORKER__', tipo: 'agente',
+                       payload: JSON.stringify({ agente: 'analista', id_cliente: String(cliReal.id_cliente) }),
+                       estado: 'fallida', resultado: '', error: '__TEST__ error real', tomada_por: '',
+                       creada_en: ahoraISO(), tomada_en: '', completada_en: '' });
+  SpreadsheetApp.flush();
+  var rD = limpiarErroresFantasma_();
+  var colaPost = leerTabla(shCola);
+  var fant = colaPost.filter(function (f) { return String(f.id) === 'TAR-TEST-FANTASMA'; })[0];
+  chk(!!fant, 'D18e la fila fantasma SIGUE en la hoja (se archiva, NO se borra: conserva historia)');
+  chk(!!fant && String(fant.estado) === 'archivada', 'D18e2 la fila fantasma quedó como "archivada" (sale del conteo de errores)');
+  if (cliReal) {
+    var real = colaPost.filter(function (f) { return String(f.id) === 'TAR-TEST-REAL'; })[0];
+    chk(!!real && String(real.estado) === 'fallida', 'D18e3 un error de un tenant REAL NO se archiva (sigue contando, es un error de verdad)');
+  }
+  chk(rD.archivadas >= 1, 'D18e4 el resultado reporta cuántas archivó (log auditable)');
+  // Idempotente: correrla de nuevo no re-archiva lo ya archivado.
+  var rD2 = limpiarErroresFantasma_();
+  chk(rD2.archivadas === 0, 'D18e5 correrla de nuevo archiva 0 (idempotente: lo ya archivado no vuelve a contar)');
+  // El contador que ve el CM: los fantasmas ya no suman.
+  var tel = telemetriaMaestro_();
+  chk(tel && typeof tel.errores === 'number', 'D18e6 telemetriaMaestro_ sigue devolviendo el contador de errores del mes (=' + (tel && tel.errores) + ')');
+  borrarFilasDonde(shCola, function (f) { return String(f.id).indexOf('TAR-TEST-') === 0; });
 }
 
 

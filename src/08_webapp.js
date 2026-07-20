@@ -339,10 +339,17 @@ function accionVoz_(tipo, payload, idCliente) {
   if (!cli) return { ok: false, error: 'tenant_desconocido', mensaje: 'No tengo ese cliente en el roster.' };
 
   // Whitelist de campos: se construye un payload NUEVO solo con lo permitido (descarta el resto).
+  // T1-B: los campos de TEXTO LIBRE pasan además por el normalizador de cifras (best-effort
+  // server-side, determinista) para que un monto dictado en palabras no quede escrito en palabras.
+  // El prompt de Sato ya normaliza aguas arriba; esto es la red por si el STT/LLM se le escapa.
+  var CAMPOS_TEXTO_LIBRE = ['titulo', 'descripcion'];
   var limpio = {};
   CAMPOS_ACCION[tipo].forEach(function (k) {
     if (payload[k] === undefined || payload[k] === null || payload[k] === '') return;
-    limpio[k] = (typeof payload[k] === 'number') ? payload[k] : limpiarHostilTexto_(payload[k], 200);
+    if (typeof payload[k] === 'number') { limpio[k] = payload[k]; return; }
+    var v = limpiarHostilTexto_(payload[k], 200);
+    if (CAMPOS_TEXTO_LIBRE.indexOf(k) >= 0) v = normalizarCifrasTexto_(v);
+    limpio[k] = v;
   });
 
   if (tipo === 'crear_objetivo') {
@@ -956,6 +963,59 @@ function resolverAprobacionUI(idCliente, id, decision, ediciones) {
   // sale YA, sin esperar al próximo syncMaestro (antes reaparecía en el CM al recargar).
   if (res && res.ok) { try { quitarAgregada_(id, idCliente); } catch (e) { /* la resolución ya quedó; el próximo sync la limpia */ } }
   return res;
+}
+
+/** Métricas admisibles para el tenant, para pintar los chips del CM (T1-A). La UI NO decide: esto es
+ *  lo mismo que después re-valida `asignarMetricaUI` server-side. */
+function metricasValidasUI(idCliente) {
+  if (!clienteExiste_(String(idCliente || '').trim())) return [];
+  return metricasValidas_(String(idCliente).trim());
+}
+
+/**
+ * T1-A — asigna la `metrica` de un objetivo desde el CM (fin de la celda a mano en Sheets).
+ *
+ * Este es EL acto humano de la frontera de confianza: escribir `metrica` activa el análisis dirigido
+ * (14_director.js:48 encola al Analista y le pasa `descripcion` cruda al LLM). Por eso acá NO se
+ * confía en la UI: se re-valida todo server-side, en orden, y cualquier fallo es RECHAZO (nunca
+ * escritura parcial):
+ *   1. tenant en el roster            → `tenant_desconocido`
+ *   2. el objetivo existe             → `objetivo_inexistente`
+ *   3. metrica ∈ metricasValidas_     → `metrica_invalida`  (match EXACTO, patrón Direcciones)
+ * `metrica` JAMÁS puede venir de texto libre de LLM/STT — solo del chip (acto humano dentro del OS).
+ * @return {{ok:boolean, error?:string, id_objetivo?:string, metrica?:string, mensaje?:string}}
+ */
+function asignarMetricaUI(idCliente, id_objetivo, metrica) {
+  var id = String(idCliente || '').trim();
+  if (!clienteExiste_(id)) return { ok: false, error: 'tenant_desconocido', mensaje: 'No tengo ese cliente en el roster.' };
+
+  var idObj = String(id_objetivo || '').trim();
+  if (!idObj) return { ok: false, error: 'objetivo_inexistente', mensaje: 'Falta el id del objetivo.' };
+
+  // Se acepta '' explícito = "sin métrica por ahora" (deja el objetivo fuera del análisis dirigido).
+  var m = String(metrica == null ? '' : metrica).trim();
+  if (m && metricasValidas_(id).indexOf(m) < 0) {
+    return { ok: false, error: 'metrica_invalida', mensaje: 'Esa métrica no está en la lista del cliente: ' + m };
+  }
+
+  var sh = abrirCliente(id).ss.getSheetByName('objetivos');
+  if (!sh) return { ok: false, error: 'objetivo_inexistente', mensaje: 'El tenant ' + id + ' no tiene hoja objetivos.' };
+
+  return conLock(function () {
+    var matriz = sh.getDataRange().getValues();
+    var H = matriz[0];
+    var iId = H.indexOf('id_objetivo'), iMet = H.indexOf('metrica');
+    if (iId < 0 || iMet < 0) return { ok: false, error: 'objetivo_inexistente', mensaje: 'La hoja objetivos no tiene las columnas esperadas.' };
+    for (var r = 1; r < matriz.length; r++) {
+      if (String(matriz[r][iId]).trim() !== idObj) continue;
+      sh.getRange(r + 1, iMet + 1).setValue(sanitizarCelda(m));
+      SpreadsheetApp.flush();
+      try { feed_('Director', 'metrica_asignada', id, idObj + ' · metrica: ' + (m || '(sin métrica)'), '', ''); } catch (e) {}
+      return { ok: true, id_objetivo: idObj, metrica: m,
+               mensaje: m ? ('Objetivo ' + idObj + ' ahora mide ' + m + '.') : ('Objetivo ' + idObj + ' queda sin métrica por ahora.') };
+    }
+    return { ok: false, error: 'objetivo_inexistente', mensaje: 'No encontré el objetivo ' + idObj + ' en ' + id + '.' };
+  });
 }
 
 /** Quita una aprobación del espejo agregado por id + id_cliente (D16y 16-jul: APR-#### es secuencia

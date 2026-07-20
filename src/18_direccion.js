@@ -589,7 +589,82 @@ function northStarSatori_() {
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes'));
   var pagos = clientes.filter(function (c) { return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0; }).length;
   var meta = parseInt(getConfig('ns_satori_valor'), 10);
-  return { desc: desc, metrica: getConfig('ns_satori_metrica'), valor: getConfig('ns_satori_valor'), horizonte: _hzLimpio_(getConfig('ns_satori_horizonte')), actual: pagos, meta: isNaN(meta) ? null : meta };
+  // North Star enriquecido (20-jul): campos NUEVOS. Backward-compat DURO — si las claves no están,
+  // salen arrays vacíos y todo lo que ya consumía desc/metrica/valor/horizonte sigue igual.
+  return { desc: desc, metrica: getConfig('ns_satori_metrica'), valor: getConfig('ns_satori_valor'), horizonte: _hzLimpio_(getConfig('ns_satori_horizonte')), actual: pagos, meta: isNaN(meta) ? null : meta,
+           metricas: _nsLista_(getConfig('ns_satori_metricas')),
+           valores: _nsLista_(getConfig('ns_satori_valores')),
+           pivots: _nsPivots_(getConfig('ns_satori_pivots')) };
+}
+
+/** Lista separada por '·' → array limpio (vacío si no hay nada). */
+function _nsLista_(v) {
+  return String(v == null ? '' : v).split('·')
+    .map(function (s) { return String(s).trim(); })
+    .filter(function (s) { return !!s; });
+}
+
+/**
+ * Pivots descartados: UNA POR LÍNEA, formato 'fecha·qué·porqué'. Tolerante a propósito — lo escribe
+ * un humano en una celda: una línea con solo el "qué" también vale (fecha/porqué quedan vacíos).
+ * Sin `que` la entrada se descarta: sin el "qué" no hay nada contra qué comparar.
+ * @return {Array<{fecha:string, que:string, porque:string}>}
+ */
+function _nsPivots_(v) {
+  return String(v == null ? '' : v).split(/\r?\n/)
+    .map(function (l) { return String(l).trim(); })
+    .filter(function (l) { return !!l; })
+    .map(function (l) {
+      var p = l.split('·').map(function (s) { return String(s).trim(); });
+      if (p.length === 1) return { fecha: '', que: p[0], porque: '' };
+      return { fecha: p[0] || '', que: p[1] || '', porque: p[2] || '' };
+    })
+    .filter(function (p) { return !!p.que; });
+}
+
+/**
+ * North Star de TENANT — es una FILA de la hoja `objetivos` del cliente (no un archivo aparte;
+ * decisión 20-jul: extender lo que existe, no migrar). Se toma el objetivo activo de mayor
+ * prioridad (A > B > …) y, a igualdad, el de id más bajo: para Vehemence eso es su North Star.
+ * Devuelve también los campos enriquecidos. Fail-safe: tenant ilegible → null.
+ * @return {?{id_objetivo, descripcion, metrica, metricas, valores, pivots, valor_objetivo, horizonte}}
+ */
+function northStarTenant_(idCliente) {
+  try {
+    var sh = abrirCliente(idCliente).ss.getSheetByName('objetivos');
+    if (!sh) return null;
+    var act = leerTabla(sh).filter(function (o) { return String(o.estado || '').toLowerCase() === 'activo'; });
+    if (!act.length) return null;
+    act.sort(function (a, b) {
+      var pa = String(a.prioridad || 'Z'), pb = String(b.prioridad || 'Z');
+      if (pa !== pb) return pa < pb ? -1 : 1;
+      return String(a.id_objetivo) < String(b.id_objetivo) ? -1 : 1;
+    });
+    var o = act[0];
+    return { id_objetivo: String(o.id_objetivo || ''), descripcion: String(o.descripcion || ''),
+             metrica: String(o.metrica || ''), valor_objetivo: o.valor_objetivo,
+             horizonte: String(o.horizonte || ''),
+             metricas: _nsLista_(o.metricas_extra), valores: _nsLista_(o.valores),
+             pivots: _nsPivots_(o.pivots_descartados) };
+  } catch (e) {
+    try { Logger.log('northStarTenant_ fail-safe (' + idCliente + '): ' + ((e && e.message) || e)); } catch (_e) {}
+    return null;
+  }
+}
+
+/**
+ * TODOS los pivots descartados de un tenant (unión de la columna `pivots_descartados` de sus
+ * objetivos). Se lee la hoja entera y no solo la fila North Star a propósito: un pivot muerto
+ * sigue muerto aunque esté anotado en otro objetivo del mismo cliente.
+ */
+function _pivotsTenant_(idCliente) {
+  try {
+    var sh = abrirCliente(idCliente).ss.getSheetByName('objetivos');
+    if (!sh) return [];
+    var out = [];
+    leerTabla(sh).forEach(function (o) { out = out.concat(_nsPivots_(o.pivots_descartados)); });
+    return out;
+  } catch (e) { return []; }
 }
 
 /** Normaliza una fecha que Config pudo coaccionar a Date-string ("Thu Dec 31 2026 …") → YYYY-MM-DD. */
@@ -597,6 +672,50 @@ function _hzLimpio_(v) {
   v = String(v == null ? '' : v);
   if (v.indexOf('GMT') >= 0) { var d = new Date(v); if (!isNaN(d.getTime())) return Utilities.formatDate(d, TZ, 'yyyy-MM-dd'); }
   return v;
+}
+
+// ── T1-A · Métrica de objetivos desde el CM (whitelist server-side) ─────────────────────────
+//
+// FRONTERA DE CONFIANZA (Bastión — no debilitar): `objetivos.metrica` llena ⇒ correrDirector
+// (14_director.js:48) encola al Analista para ese objetivo, pasándole `descripcion` CRUDA como
+// `pregunta` al LLM. Por eso `ejecutarCrearObjetivo_` nace con `metrica: ''` (11_aprobaciones.js:98).
+// Completar la métrica es el ACTO HUMANO que restaura el first-party — T1 lo muda de "celda a mano
+// en Sheets" a "click de chip en el CM", NO lo debilita. El enforcement es ESTA whitelist con match
+// EXACTO server-side: nunca se confía en lo que mande la UI, y `metrica` JAMÁS sale de texto libre
+// de LLM/STT.
+
+/** Set curado global de métricas (T1-A). Match EXACTO: sin wildcard, trim, case-SENSITIVE. */
+var METRICAS_CURADAS = ['ordenes_mes', 'ticket_promedio_ars', 'ventas_ars', 'margen_pct', 'recompra_pct'];
+
+/**
+ * Métricas admisibles para un tenant = unión de (a) el set curado global, (b) lo que ese cliente YA
+ * usa en `objetivos.metrica`, (c) la columna `kpi` de su hoja KPIs si tiene filas.
+ *
+ * Degrada al set curado si el Sheet del cliente no abre: degradar NUNCA ensancha la whitelist
+ * (fail-closed real), solo la achica. Devuelve strings únicos, ya trimmeados.
+ * @param {string} idCliente
+ * @return {string[]}
+ */
+function metricasValidas_(idCliente) {
+  var vistas = {};
+  var out = [];
+  function sumar(v) {
+    var s = String(v == null ? '' : v).trim();
+    if (!s || vistas[s]) return;
+    vistas[s] = true;
+    out.push(s);
+  }
+  METRICAS_CURADAS.forEach(sumar);
+  try {
+    var ss = abrirCliente(idCliente).ss;
+    var shObj = ss.getSheetByName('objetivos');
+    if (shObj) leerTabla(shObj).forEach(function (o) { sumar(o.metrica); });
+    var shKpi = ss.getSheetByName('KPIs');
+    if (shKpi) leerTabla(shKpi).forEach(function (k) { sumar(k.kpi); });
+  } catch (e) {
+    try { Logger.log('metricasValidas_ degradó al set curado para ' + idCliente + ': ' + ((e && e.message) || e)); } catch (_e) {}
+  }
+  return out;
 }
 
 /**
@@ -631,13 +750,33 @@ function sembrarNorthStarSatori_() {
  */
 function sembrarNorthStarSatori() { return sembrarNorthStarSatori_(); }
 
-/** Puesta en marcha — EDITAR y correr desde el editor para fijar/cambiar el North Star de Satori. */
-function cargarNorthStarSatori() {
-  setConfig('ns_satori_desc', 'Gestionar 6 clientes pagos en paralelo, cada mes, entre servicios (resto de 2026)');
-  setConfig('ns_satori_metrica', 'clientes_pagos_paralelo');
-  setConfig('ns_satori_valor', '6');
-  setConfig('ns_satori_horizonte', '2026-12-31');
-  Logger.log('North Star Satori seteado.');
+/**
+ * Puesta en marcha — EDITAR y correr desde el editor para fijar/cambiar el North Star de Satori.
+ * Formato enriquecido (20-jul): métricas secundarias y guardrails separados por '·'; los pivots
+ * descartados van UNO POR LÍNEA como 'fecha·qué·porqué'. Los 3 campos nuevos son OPCIONALES.
+ */
+function cargarNorthStarSatori(extra) {
+  extra = extra || {};
+  setConfig('ns_satori_desc', extra.desc || 'Gestionar 6 clientes pagos en paralelo, cada mes, entre servicios (resto de 2026)');
+  setConfig('ns_satori_metrica', extra.metrica || 'clientes_pagos_paralelo');
+  setConfig('ns_satori_valor', extra.valor || '6');
+  setConfig('ns_satori_horizonte', extra.horizonte || '2026-12-31');
+
+  // Enriquecidos (North Star definido por Luciano, 20-jul-2026). Van como DEFAULTS para que la
+  // siembra sea un acto humano de un solo clic desde el dropdown del editor, sin editar código.
+  // Formato: métricas y valores separados por '·'; los pivots UNO POR LÍNEA como 'fecha·qué·porqué'.
+  setConfig('ns_satori_metricas', extra.metricas || 'retenciones_formalizadas · ingresos_recurrentes_mes_eur');
+  setConfig('ns_satori_valores', extra.valores ||
+    'no crecer a costa de la paz, salud o propósito del líder' +
+    ' · transformación, no dependencia: nada que ate al cliente a Luciano' +
+    ' · ningún número sale a un cliente sin verificar');
+  // Pivots MUERTOS: recomendacionDelDia_ no los re-propone (Parte B). El "qué" es largo a propósito
+  // — _pivotMuerto_ matchea por substring, y un "qué" corto silenciaría recomendaciones legítimas.
+  setConfig('ns_satori_pivots', extra.pivots ||
+    '2026-07-13·Kit Consulting como palanca comercial·los clientes reales no califican con el corte en 10 empleados\n' +
+    '2026-07-07·vender vía OSS/waitlist estilo Trillion·Satori vende servicios y transformación, no libera producto');
+
+  Logger.log('North Star Satori seteado: ' + JSON.stringify(northStarSatori_()));
   return northStarSatori_();
 }
 
@@ -646,11 +785,282 @@ function cargarNorthStarSatori() {
  * desde el dropdown del editor (que no pasa parámetros). EDITAR el target real y re-correr.
  * Reusa cargarObjetivo (15_cerebro) → escribe en la pestaña `objetivos` del Sheet de Vehemence.
  */
-function cargarNorthStarVehemence() {
+function cargarNorthStarVehemence(extra) {
   // Vehemence opera en ARS. AOV real ≈ $104k/orden (may/jun 2026) → target propuesto $120.000 (+~15%); ajustar.
   // id_objetivo:'OBJ-0001' → actualiza el objetivo existente en lugar (no duplica).
-  return cargarObjetivo('CLI-002', { id_objetivo: 'OBJ-0001', descripcion: 'Subir el ticket promedio (AOV)', metrica: 'ticket_promedio_ars', valor_objetivo: 120000, horizonte: '12m', prioridad: 'A' });
+  // OJO (20-jul): OBJ-0001 hoy está en estado 'reemplazado' (lo reemplazaron OBJ-0002/0003, que son
+  // los dos objetivos VIGENTES de Vehemence y que el reset NO toca). Re-correr esto lo revive:
+  // pasar `extra` a conciencia, no por inercia.
+  extra = extra || {};
+  return cargarObjetivo('CLI-002', {
+    id_objetivo: 'OBJ-0001',
+    descripcion: extra.descripcion || 'Subir el ticket promedio (AOV)',
+    metrica: extra.metrica || 'ticket_promedio_ars',
+    valor_objetivo: (extra.valor_objetivo == null ? 120000 : extra.valor_objetivo),
+    horizonte: extra.horizonte || '12m',
+    prioridad: extra.prioridad || 'A',
+    // North Star enriquecido (20-jul): opcionales.
+    metricas_extra: extra.metricas_extra || '',
+    valores: extra.valores || '',
+    pivots_descartados: extra.pivots_descartados || ''
+  });
 }
+
+/**
+ * Retrofit NO destructivo (20-jul, Parte A): agrega las columnas del North Star enriquecido
+ * (`metricas_extra`, `valores`, `pivots_descartados`) a la hoja `objetivos` YA existente de cada
+ * tenant, al final y sin tocar datos. Idempotente. Correr a mano UNA vez tras desplegar.
+ *
+ * Incluye a CLI-002 A PROPÓSITO: lo que el reset excluye es el BORRADO de filas; agregar columnas
+ * es aditivo y está explícitamente permitido (encargo 20-jul).
+ */
+function migrarObjetivosNorthStar() {
+  var add = 0, tenants = 0;
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    if (!c.url_sheet_cliente) return;
+    try {
+      var sh = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getSheetByName('objetivos');
+      if (!sh) return;
+      var n = agregarColumnasFaltantes_(sh, CLIENTE_SHEETS.objetivos, { metricas_extra: '', valores: '', pivots_descartados: '' });
+      if (n) { add += n; tenants++; Logger.log('migrarObjetivosNorthStar ' + c.id_cliente + ': +' + n + ' columna(s)'); }
+    } catch (e) { Logger.log('migrarObjetivosNorthStar ' + c.id_cliente + ': ' + ((e && e.message) || e)); }
+  });
+  Logger.log('migrarObjetivosNorthStar: +' + add + ' columna(s) en ' + tenants + ' tenant(s).');
+  return { columnas: add, tenants: tenants };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// Parte C (20-jul) — RESET de Objetivos y North Stars desde cero. DESTRUCTIVO.
+//
+// Alcance CONFIRMADO por Luciano el 20-jul: se borra TODO **salvo CLI-002 (Vehemence)**, que
+// conserva sus dos objetivos vigentes (OBJ-0002 `ordenes_mes` y OBJ-0003 `ticket_promedio_ars`
+// $130.000) y su historial (OBJ-0001 'reemplazado'). La exclusión es HARD-CODED acá abajo.
+//
+// Bastión: (1) el respaldo va PRIMERO y se VERIFICA restaurable; si falla, aborta sin borrar nada.
+// (2) El respaldo INCLUYE a CLI-002 — respaldar de más es gratis, borrar de más no. (3) No
+// auto-corre: no hay trigger, la dispara Luciano del editor. (4) Idempotente. (5) Los North Stars
+// se re-siembran DESPUÉS a mano, por acto humano, con el formato enriquecido (Parte A).
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Tenants que el reset NO toca. Decisión de Luciano 20-jul. */
+var RESET_EXCLUIR = ['CLI-002'];
+
+/**
+ * Vuelca a un Spreadsheet nuevo y fechado: una pestaña por tenant con TODA su hoja `objetivos`
+ * (encabezados + filas, tal cual), más una pestaña `Config_ns` con las claves `ns_*` del MAESTRO.
+ * Va a la carpeta de backups (mismo patrón que 21_backup.js). @return {{ok,id,url,nombre,tenants,filas}}
+ */
+function _respaldarObjetivos_() {
+  var stamp = _stampBackup_();
+  var nombre = _nombreSeguro_('objetivos-reset_' + stamp);
+  var ss = SpreadsheetApp.create(nombre);
+  try { DriveApp.getFileById(ss.getId()).moveTo(_backupRootFolder_()); }
+  catch (_m) { /* degradación: queda en la raíz del Drive, sigue siendo backup */ }
+
+  var tenants = 0, filas = 0;
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    if (!c.url_sheet_cliente) return;
+    var sh;
+    try { sh = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getSheetByName('objetivos'); }
+    catch (e) { throw new Error('no pude LEER objetivos de ' + c.id_cliente + ' para el respaldo: ' + ((e && e.message) || e)); }
+    if (!sh || sh.getLastRow() < 1) return;
+    var datos = sh.getDataRange().getValues();
+    var dest = ss.insertSheet(_nombreSeguro_(String(c.id_cliente)));
+    dest.getRange(1, 1, datos.length, datos[0].length).setValues(datos);
+    tenants++; filas += Math.max(0, datos.length - 1);
+  });
+
+  // Claves ns_* del MAESTRO (North Star de sistema).
+  var cfg = configPrefijo_('ns_');
+  var hojaCfg = ss.insertSheet('Config_ns');
+  var rows = [['clave', 'valor']];
+  Object.keys(cfg).forEach(function (k) { rows.push(['ns_' + k, cfg[k]]); });
+  hojaCfg.getRange(1, 1, rows.length, 2).setValues(rows);
+
+  try { ss.deleteSheet(ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1')); } catch (_d) {}
+  SpreadsheetApp.flush();
+  return { ok: true, id: ss.getId(), url: ss.getUrl(), nombre: nombre, tenants: tenants, filas: filas };
+}
+
+/**
+ * Verifica que el respaldo sea REALMENTE restaurable ANTES de habilitar el borrado: lo reabre desde
+ * Drive (no se confía en el objeto en memoria) y comprueba que cada tenant tenga su pestaña con el
+ * mismo conteo de filas que la hoja viva. Cualquier discrepancia → false (y el reset aborta).
+ */
+function _verificarRespaldo_(bk) {
+  try {
+    var ss = SpreadsheetApp.openById(bk.id);
+    var ok = true;
+    leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+      if (!c.url_sheet_cliente || !ok) return;
+      var viva = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getSheetByName('objetivos');
+      if (!viva || viva.getLastRow() < 1) return;
+      var copia = ss.getSheetByName(String(c.id_cliente));
+      if (!copia || copia.getLastRow() !== viva.getLastRow()) {
+        Logger.log('respaldo INCOMPLETO para ' + c.id_cliente + ' (viva=' + (viva ? viva.getLastRow() : 0) + ', copia=' + (copia ? copia.getLastRow() : 0) + ')');
+        ok = false;
+      }
+    });
+    return ok;
+  } catch (e) {
+    Logger.log('verificación del respaldo falló: ' + ((e && e.message) || e));
+    return false;
+  }
+}
+
+/**
+ * RESET desde cero de Objetivos y North Stars. DESTRUCTIVO — la corre LUCIANO desde el editor.
+ * Visible en el dropdown a propósito (sin guión bajo).
+ *
+ * Orden innegociable: respaldar → verificar restaurable → recién ahí borrar. CLI-002 se respalda
+ * pero NO se toca. @return {{ok, backup, borrado:{}, excluidos:[], mensaje}}
+ */
+function resetObjetivosYNorthStar() {
+  Logger.log('=== RESET Objetivos + North Star — arranca. Excluidos: ' + RESET_EXCLUIR.join(', ') + ' ===');
+
+  // 1 · RESPALDO PRIMERO (innegociable). Si falla → abortar sin borrar nada.
+  var bk;
+  try { bk = _respaldarObjetivos_(); }
+  catch (e) {
+    var msg = 'ABORTADO: el respaldo falló, NO se borró nada. ' + ((e && e.message) || e);
+    Logger.log(msg);
+    return { ok: false, abortado: true, mensaje: msg };
+  }
+  Logger.log('Respaldo OK → ' + bk.nombre + ' · id=' + bk.id + ' · ' + bk.url + ' (' + bk.tenants + ' tenants, ' + bk.filas + ' filas)');
+
+  if (!_verificarRespaldo_(bk)) {
+    var msg2 = 'ABORTADO: el respaldo no verificó como restaurable, NO se borró nada. Backup id=' + bk.id;
+    Logger.log(msg2);
+    return { ok: false, abortado: true, backup: bk, mensaje: msg2 };
+  }
+  Logger.log('Respaldo VERIFICADO restaurable. Habilitado el borrado.');
+
+  // 2 · LIMPIAR — filas de datos de `objetivos`, conservando encabezados. CLI-002 intacto.
+  var borrado = {}, excluidos = [];
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    var id = String(c.id_cliente);
+    if (RESET_EXCLUIR.indexOf(id) >= 0) {
+      excluidos.push(id);
+      Logger.log(id + ': EXCLUIDO por decisión de Luciano 20-jul — 0 filas tocadas.');
+      return;
+    }
+    if (!c.url_sheet_cliente) return;
+    try {
+      var sh = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getSheetByName('objetivos');
+      if (!sh) return;
+      var n = sh.getLastRow() - 1;                  // fila 1 = encabezados, se conserva
+      if (n > 0) conLock(function () { sh.deleteRows(2, n); });
+      borrado[id] = Math.max(0, n);
+      Logger.log(id + ': ' + Math.max(0, n) + ' fila(s) borrada(s) (encabezados conservados).');
+    } catch (e) { Logger.log(id + ': NO se pudo limpiar (' + ((e && e.message) || e) + ') — el backup lo tiene.'); }
+  });
+
+  // 3 · North Star de SISTEMA a cero (se redefine desde cero, por acto humano).
+  var cfg = configPrefijo_('ns_satori_');
+  Object.keys(cfg).forEach(function (k) { setConfig('ns_satori_' + k, ''); });
+  Logger.log('Config ns_satori_* limpiadas (' + Object.keys(cfg).length + ' clave(s)).');
+
+  var total = Object.keys(borrado).reduce(function (a, k) { return a + borrado[k]; }, 0);
+  Logger.log('=== RESET COMPLETO === ' + total + ' fila(s) borradas en ' + Object.keys(borrado).length + ' tenant(s). ' +
+             'Excluidos: ' + (excluidos.join(', ') || '—') + '. ' +
+             'RESTAURAR: restaurarObjetivosDesdeBackup("' + bk.id + '") — o abrí ' + bk.url);
+  return { ok: true, backup: bk, borrado: borrado, excluidos: excluidos,
+           mensaje: total + ' fila(s) borradas · CLI-002 excluido · backup ' + bk.id };
+}
+
+/**
+ * Restaura las hojas `objetivos` desde un backup de _respaldarObjetivos_ (drill de restore y
+ * botón de pánico real). Reemplaza las filas de datos del tenant por las del backup.
+ * @param {string} backupId  id del Spreadsheet de backup
+ * @param {string} [soloTenant]  restaurar UN tenant (para el drill, sin tocar el resto)
+ */
+function restaurarObjetivosDesdeBackup(backupId, soloTenant) {
+  var bs = SpreadsheetApp.openById(backupId);
+  var out = {};
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    var id = String(c.id_cliente);
+    if (soloTenant && id !== String(soloTenant)) return;
+    if (!c.url_sheet_cliente) return;
+    var copia = bs.getSheetByName(id);
+    if (!copia || copia.getLastRow() < 1) return;
+    try {
+      var sh = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getSheetByName('objetivos');
+      if (!sh) return;
+      var datos = copia.getDataRange().getValues();
+      conLock(function () {
+        if (sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+        if (datos.length > 1) sh.getRange(2, 1, datos.length - 1, datos[0].length).setValues(datos.slice(1));
+      });
+      out[id] = datos.length - 1;
+      Logger.log('restaurado ' + id + ': ' + (datos.length - 1) + ' fila(s).');
+    } catch (e) { Logger.log('restaurarObjetivos ' + id + ': ' + ((e && e.message) || e)); }
+  });
+  // Config ns_* (solo si se restaura todo).
+  if (!soloTenant) {
+    var hc = bs.getSheetByName('Config_ns');
+    if (hc && hc.getLastRow() > 1) {
+      hc.getRange(2, 1, hc.getLastRow() - 1, 2).getValues().forEach(function (r) { if (r[0]) setConfig(String(r[0]), r[1]); });
+      Logger.log('Config ns_* restauradas.');
+    }
+  }
+  return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// Parte D (20-jul) — Limpiar el error fantasma. NO destructivo.
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * El contador "Errores: N" del CM son las filas de `Cola_tareas` con estado='fallida' del MES en
+ * curso (telemetriaMaestro_, 08_webapp.js). El "1" que se ve viene de la corrida fantasma del
+ * 17-jul: "Despertar a Analista" viajó con idCliente = "Todos los Espacios" y el Analista corrió
+ * contra un tenant inexistente.
+ *
+ * Esto RECATEGORIZA esas filas a estado='archivada' — NO las borra: la historia queda, solo salen
+ * del conteo mensual. Que no REAPAREZCA lo previene T1-C (defensa de tenant en encolarAgente,
+ * D17p): esto limpia el que ya está, aquello evita el próximo.
+ *
+ * Criterio (conservador): fila 'fallida' del mes en curso cuyo payload lleva un id_cliente que NO
+ * está en el roster (o no lleva ninguno). Un error de un tenant REAL no se toca — es un error de
+ * verdad y tiene que seguir contando. @return {{revisadas, archivadas, detalle:[]}}
+ */
+function limpiarErroresFantasma_() {
+  var sh = getMaestro().getSheetByName('Cola_tareas');
+  if (!sh || sh.getLastRow() < 2) return { revisadas: 0, archivadas: 0, detalle: [] };
+  var mes = mesISO();
+  var roster = {};
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) { roster[String(c.id_cliente)] = true; });
+
+  return conLock(function () {
+    var m = sh.getDataRange().getValues();
+    var H = m[0];
+    var iEstado = H.indexOf('estado'), iPayload = H.indexOf('payload'), iCreada = H.indexOf('creada_en');
+    if (iEstado < 0) return { revisadas: 0, archivadas: 0, detalle: [] };
+    var revisadas = 0, detalle = [];
+    for (var r = 1; r < m.length; r++) {
+      if (String(m[r][iEstado]) !== 'fallida') continue;
+      if (iCreada >= 0 && String(aFechaISO(m[r][iCreada]) || '').indexOf(mes) !== 0) continue;  // solo el mes en curso
+      revisadas++;
+      var pl = {};
+      try { pl = JSON.parse(String(m[r][iPayload] || '{}')); } catch (_p) { pl = {}; }
+      var idc = String(pl.id_cliente || '').trim();
+      if (idc && roster[idc]) continue;                    // tenant REAL → es un error de verdad, no se toca
+      m[r][iEstado] = 'archivada';
+      detalle.push({ fila: r + 1, id_cliente: idc || '(sin tenant)' });
+    }
+    if (detalle.length) {
+      sh.getRange(1, 1, m.length, H.length).setValues(m);
+      SpreadsheetApp.flush();
+    }
+    Logger.log('limpiarErroresFantasma_: ' + revisadas + ' fallida(s) del mes revisadas · ' + detalle.length +
+               ' archivada(s) (tenant fantasma) · ' + (revisadas - detalle.length) + ' conservada(s) (tenant real). ' +
+               'Las filas NO se borraron: quedan como "archivada".');
+    return { revisadas: revisadas, archivadas: detalle.length, detalle: detalle };
+  });
+}
+
+/** Wrapper PÚBLICO (el dropdown del editor no lista funciones con guión bajo). Lo corre Luciano. */
+function limpiarErroresFantasma() { return limpiarErroresFantasma_(); }
 
 /** Ver Vehemence (CLI-002) desde el editor: loguea su estado vigente + su brief. No-arg. */
 function verVehemence() {
@@ -690,21 +1100,83 @@ function _diasDesde_(v) {
  * habilita B2 ("→ Aprobación" en el CM); dato es el ancla cruda (asserts D9).
  */
 function recomendacionDelDia_(pre) {
+  // Parte B (20-jul) — NO re-proponer un pivot descartado. Las ramas de _recCandidatas_ vienen en
+  // orden de prioridad y LAZY (thunks): se evalúa una por una y la primera que no caiga en un pivot
+  // muerto gana. Antes esto era una cadena de early-returns; se convirtió en lista para que
+  // "descartar" pueda CAER A LA SIGUIENTE en lugar de devolver algo ya descartado.
+  var cands = _recCandidatas_(pre);
+  var pivSis = null;                                   // pivots de sistema: se leen UNA vez, lazy
+  for (var i = 0; i < cands.length; i++) {
+    var rec = null;
+    try { rec = cands[i](); } catch (e) { continue; }  // una rama que tira no tumba la recomendación
+    if (!rec || !rec.texto) continue;
+    if (pivSis === null) { var nsP = northStarSatori_(); pivSis = (nsP && nsP.pivots) || []; }
+    var pivs = pivSis.concat(rec.id_cliente ? _pivotsTenant_(rec.id_cliente) : []);
+    var muerto = _pivotMuerto_(rec, pivs);
+    if (muerto) {
+      try { Logger.log('recomendacionDelDia_: candidata descartada por pivot muerto ("' + muerto.que + '") → paso a la siguiente'); } catch (_l) {}
+      continue;
+    }
+    return rec;
+  }
+  // Todas descartadas (o no había ninguna): el North Star nunca se descarta a sí mismo.
+  return _recNorthStar_();
+}
+
+/**
+ * ¿La recomendación cae en un pivot ya descartado? Match por SUBSTRING normalizado del "qué" del
+ * pivot dentro del texto de la recomendación (sin tildes, case-insensitive).
+ *
+ * Es deliberadamente CONSERVADOR en el largo mínimo: un "qué" de menos de 4 caracteres se ignora,
+ * porque un fragmento corto ("ads", "x") matchearía media Bandeja y silenciaría recomendaciones
+ * legítimas. Errar acá se paga en las DOS direcciones (re-proponer algo muerto, o tapar algo vivo),
+ * así que el pivot tiene que estar escrito con palabras, no con siglas sueltas.
+ * @return {?{fecha,que,porque}} el pivot que matcheó, o null
+ */
+function _pivotMuerto_(rec, pivots) {
+  if (!rec || !pivots || !pivots.length) return null;
+  var txt = _sinTildes_(String(rec.texto || '').toLowerCase());
+  for (var i = 0; i < pivots.length; i++) {
+    var q = _sinTildes_(String(pivots[i].que || '').toLowerCase().trim());
+    if (q.length < 4) continue;
+    if (txt.indexOf(q) >= 0) return pivots[i];
+  }
+  return null;
+}
+
+/** Rama final: el North Star de sistema. Vive aparte porque es el fallback que nunca se descarta. */
+function _recNorthStar_() {
+  var ns = northStarSatori_();
+  return {
+    texto: 'Definir la próxima movida hacia el North Star' + (ns && ns.meta != null ? ' — vas ' + ns.actual + '/' + ns.meta + ' (' + ns.desc + ')' : '') + '.',
+    kpi: 'north_star', id_cliente: '', dato: ns ? 'progreso=' + ns.actual + '/' + (ns.meta == null ? '—' : ns.meta) : ''
+  };
+}
+
+/**
+ * Las candidatas a recomendación del día, EN ORDEN de prioridad y sin evaluar (thunks). El orden y
+ * los textos son exactamente los de siempre: lo único nuevo es que ahora se pueden saltear.
+ * @return {Array<function():?Object>}
+ */
+function _recCandidatas_(pre) {
   var d = (pre && pre.d) || datosHoy();
   var sal = (pre && pre.sal) || estadoSalud();
   var abiertas = (pre && pre.abiertas) || tareasActivasOrdenadas(leerTabla(getMaestro().getSheetByName('Tareas')));
   var vencidas = (pre && pre.vencidas) || abiertas.filter(function (t) { return esVencida(t.fecha_limite, t.estado); });
   var ap = d.estado.aprobaciones_pendientes;
+  var cands = [];
 
-  if (sal.global === 'crit') {
+  cands.push(function () {
+    if (sal.global !== 'crit') return null;
     var h0 = (sal.hallazgos || []).filter(function (h) { return h.estado !== 'ok'; })[0];
     return {
       texto: 'Estabilizar la salud del sistema — está en CRÍTICO (integridad ' + sal.integridad + '%' + (h0 ? '; ' + h0.nombre : '') + ') antes de cualquier otra cosa.',
       kpi: 'salud', id_cliente: '', dato: 'integridad=' + sal.integridad + '%'
     };
-  }
+  });
 
-  if (vencidas.length) {
+  cands.push(function () {
+    if (!vencidas.length) return null;
     // la MÁS VIEJA de verdad (por fecha límite), no la primera del orden de prioridad
     var v0 = vencidas.slice().sort(function (a, b) { return String(aFechaISO(a.fecha_limite)) < String(aFechaISO(b.fecha_limite)) ? -1 : 1; })[0];
     var diasV = _diasDesde_(v0.fecha_limite);
@@ -713,20 +1185,22 @@ function recomendacionDelDia_(pre) {
       texto: 'Cerrar la vencida más vieja — lleva ' + (diasV == null ? '?' : diasV) + ' día(s) vencida (de ' + vencidas.length + ' vencidas): ' + truncar_(v0.descripcion, 80) + (cliV ? ' · ' + cliV : ''),
       kpi: 'tareas_vencidas', id_cliente: cliV, dato: 'vencidas=' + vencidas.length + ';dias=' + diasV
     };
-  }
+  });
 
   // A3 (08-jul): KPI de CLIENTE en alerta → recomendación ANCLADA al cliente (id_cliente set)
   // → el botón "→ Crear aprobación" cobra sentido en el uso real, sin depender de proyectos.
-  var ka = (pre && pre.kpiAlerta !== undefined) ? pre.kpiAlerta : clienteKpiEnAlerta_();
-  if (ka && ka.id_cliente) {
+  cands.push(function () {
+    var ka = (pre && pre.kpiAlerta !== undefined) ? pre.kpiAlerta : clienteKpiEnAlerta_();
+    if (!ka || !ka.id_cliente) return null;
     var objK = (ka.objetivo === '' || ka.objetivo == null) ? '' : ' (objetivo ' + ka.objetivo + ')';
     return {
       texto: 'Atender ' + (ka.kpi || 'el KPI') + ' de ' + (ka.cliente || ka.id_cliente) + ' = ' + ka.valor + objK + ' — ' + truncar_(String(ka.alerta || ''), 70),
       kpi: 'kpi_cliente', id_cliente: String(ka.id_cliente), dato: 'kpi=' + (ka.kpi || '') + ';valor=' + ka.valor
     };
-  }
+  });
 
-  if (ap) {
+  cands.push(function () {
+    if (!ap) return null;
     var ancla = '';
     try { // lazy: solo en esta rama, hoja chica del MAESTRO
       var pend = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).filter(function (a) { return String(a.estado).toLowerCase() === 'pendiente'; });
@@ -740,9 +1214,10 @@ function recomendacionDelDia_(pre) {
       texto: 'Despachar las ' + ap + ' aprobación(es) pendiente(s)' + ancla + ' — desbloquean a los agentes.',
       kpi: 'aprobaciones_pendientes', id_cliente: '', dato: 'pendientes=' + ap
     };
-  }
+  });
 
-  if (abiertas.length) {
+  cands.push(function () {
+    if (!abiertas.length) return null;
     var t0 = abiertas[0];
     var cliT = String(t0.id_proyecto ? (clienteDeProyecto(t0.id_proyecto) || '') : '');
     var lim = t0.fecha_limite ? String(aFechaISO(t0.fecha_limite)) : '';
@@ -750,13 +1225,9 @@ function recomendacionDelDia_(pre) {
       texto: 'Arrancar por: [' + (t0.prioridad || '—') + '] ' + truncar_(t0.descripcion, 80) + (lim ? ' · vence ' + lim : '') + (cliT ? ' · ' + cliT : ''),
       kpi: 'north_star', id_cliente: cliT, dato: lim ? 'limite=' + lim : ''
     };
-  }
+  });
 
-  var ns = northStarSatori_();
-  return {
-    texto: 'Definir la próxima movida hacia el North Star' + (ns && ns.meta != null ? ' — vas ' + ns.actual + '/' + ns.meta + ' (' + ns.desc + ')' : '') + '.',
-    kpi: 'north_star', id_cliente: '', dato: ns ? 'progreso=' + ns.actual + '/' + (ns.meta == null ? '—' : ns.meta) : ''
-  };
+  return cands;
 }
 
 /**

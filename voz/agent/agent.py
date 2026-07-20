@@ -64,6 +64,16 @@ INSTRUCCIONES = (
     "520.200 es '520 mil 200'; 120.000 es '120 mil'; 1.500 € es 'mil 500 euros'. Regla: todo entero desde 10.000, "
     "y cualquier número que llegue con puntos de miles, se convierte a este formato hablado. Los decimales cortos "
     "tipo 0.0037 o 42.9% se dicen tal cual. La cifra es EXACTA — agrupar no es redondear (regla N4). "
+    # T1-B (17-jul, decisión de Luciano) — HABLAR natural, ESCRIBIR en cifras. A1 es para lo que DECÍS;
+    # esto es para lo que ESCRIBÍS. El STT te va a pasar el dictado en palabras ("ciento treinta mil
+    # pesos") y eso NO puede terminar guardado así en un objetivo o en una captura.
+    "Regla de ESCRITURA (distinta de la de arriba, que es para hablar): ANTES de armar el payload de "
+    "'accion' o de 'capturar', normalizá TODA cifra dictada en palabras a dígitos con formato es-AR: "
+    "'ciento treinta mil pesos' se escribe '$130.000'; 'doscientas órdenes' se escribe '200 órdenes'; "
+    "'treinta y cinco por ciento' se escribe '35%'; 'un millón doscientos mil' se escribe '$1.200.000'. "
+    "Punto como separador de miles, el símbolo pegado al número. Esto vale para títulos, descripciones, "
+    "metas y notas — todo lo que quede ESCRITO. Seguís HABLANDO agrupado en palabras (A1): "
+    "hablás natural, escribís en cifras. Nunca inventes ni redondees al convertir (N4). "
     # Datos y herramientas
     "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, sgic_consulta, capturar. "
     # SGIC (14-jul) — capacidad general de consulta del sistema del cliente.

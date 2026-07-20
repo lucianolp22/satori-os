@@ -72,7 +72,14 @@ var CLIENTE_SHEETS = {
   aristas: ['id_arista', 'origen', 'destino', 'relacion', 'tipo', 'peso', 'atributos', 'actualizado_en'],
   cerebro_log: ['ts', 'evento', 'id_nodo', 'id_arista', 'origen', 'detalle'],
   estado_actual: ['seccion', 'clave', 'valor', 'materializado_en'],
-  objetivos: ['id_objetivo', 'horizonte', 'descripcion', 'metrica', 'valor_objetivo', 'estado', 'prioridad', 'fecha_objetivo']
+  // North Star enriquecido (20-jul): las 3 últimas son NUEVAS y se agregan al final por la
+  // reconciliación ADITIVA de ensureSheet (no reordena ni borra; los tenants viejos no rompen).
+  //  · metricas_extra      hasta 2 métricas más, separadas por '·'
+  //  · valores             guardrails: qué NO se hace aunque acerque al objetivo, separados por '·'
+  //  · pivots_descartados  caminos ya descartados ('fecha·qué·porqué', uno por línea). Solo-consulta:
+  //                        recomendacionDelDia_ NO re-propone lo que está acá.
+  objetivos: ['id_objetivo', 'horizonte', 'descripcion', 'metrica', 'valor_objetivo', 'estado', 'prioridad', 'fecha_objetivo',
+              'metricas_extra', 'valores', 'pivots_descartados']
 };
 
 var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 'Umbrales', 'Costos_API', 'Reglas', 'nodos', 'aristas', 'cerebro_log', 'estado_actual', 'objetivos'];

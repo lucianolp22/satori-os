@@ -234,10 +234,21 @@ function correrAgente_(clave, args, tareaId, idCliente) {
   return runner(idCliente, args, tareaId); // se espera el final real (started no es done)
 }
 
-/** Encola una corrida de agente para un cliente (lo llama la UI). Devuelve {tareaId}. */
+/**
+ * Encola una corrida de agente para un cliente (lo llama la UI). Devuelve {tareaId}.
+ *
+ * T1-C (17-jul, hallazgo TERCERA PRUEBA AKASHA): el tenant se valida contra el ROSTER, no solo
+ * no-vacío. En la prueba real "Despertar a Analista" con el selector en "Todos los Espacios" viajó
+ * `idCliente = "Todos los Espacios"` (el option nacía sin value) y esto lo aceptaba → el Analista
+ * corrió contra un tenant fantasma → "Errores: 1" en telemetría. La UI ya corta el vector conocido
+ * (E3.2); esta es la capa server (defensa en profundidad, patrón de la casa). Fail-closed igual que
+ * `aprobacionDesdeRecomendacion`: tenant real o rechazo claro. Reusa el roster EXISTENTE.
+ */
 function encolarAgente(idCliente, clave, args) {
   if (!AGENTES[clave]) throw new Error('agente desconocido');
   if (!idCliente) throw new Error('falta id_cliente');
+  idCliente = String(idCliente).trim();
+  if (!clienteExiste_(idCliente)) throw new Error('tenant desconocido: ' + idCliente);
   var id = encolar(workerActual_(), 'agente', { agente: clave, id_cliente: idCliente, args: args || {} });
   feed_(AGENTES[clave].nombre, 'info', idCliente, 'Tarea encolada por el usuario.', id, '');
   return { tareaId: id };

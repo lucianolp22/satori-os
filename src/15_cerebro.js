@@ -312,7 +312,11 @@ function cargarObjetivo(idCliente, obj) {
     valor_objetivo: (obj.valor_objetivo == null ? '' : obj.valor_objetivo),
     estado: obj.estado || 'activo',
     prioridad: obj.prioridad || 'B',
-    fecha_objetivo: obj.fecha_objetivo || ''
+    fecha_objetivo: obj.fecha_objetivo || '',
+    // North Star enriquecido (20-jul). Opcionales: si no vienen, quedan vacíos y la fila es la de antes.
+    metricas_extra: obj.metricas_extra || '',
+    valores: obj.valores || '',
+    pivots_descartados: obj.pivots_descartados || ''
   }, 'OBJ', 4);
   logEvento(idCliente, { evento: r.creado ? 'objetivo_creado' : 'objetivo_actualizado', origen: 'alta', detalle: { id: r.id, metrica: obj.metrica || '' } });
   Logger.log('cargarObjetivo ' + idCliente + ': ' + r.id + (r.creado ? ' (creado)' : ' (actualizado)'));

@@ -1873,9 +1873,52 @@ function dispararAgente(clave,nombre){
 function resolver(a,decision,ediciones){
   if(!EN_GAS){cmToast('Resolución simulada ('+decision+')');return;}
   cmToast('Resolviendo '+a.id+'…');
-  google.script.run.withSuccessHandler(function(){cmToast(a.id+' → '+decision);refrescarCentro();})
+  google.script.run.withSuccessHandler(function(res){
+    cmToast(a.id+' → '+decision);
+    /* T1-A: aprobar un crear_objetivo escribe el objetivo con `metrica` VACÍA A PROPÓSITO
+       (frontera de confianza, 11_aprobaciones.js:98). El chip de acá es el ACTO HUMANO que la
+       completa y habilita el análisis dirigido. `id_objetivo` viene ANIDADO en `.ejecucion`
+       (resolverAprobacion devuelve {ok,estado,ejecucion:{ok,id_objetivo,detalle}}), no top-level.
+       Sin refrescarCentro() todavía: el refresh re-pinta el inbox y se llevaría los chips. */
+    var idObj=res&&res.ejecucion&&res.ejecucion.id_objetivo;
+    if(String(a.tipo_accion)==='crear_objetivo'&&idObj){pedirMetrica(a.id_cliente,idObj);return;}
+    refrescarCentro();
+  })
     .withFailureHandler(function(e){cmToast('No se pudo: '+(e&&e.message||decision));})
     .resolverAprobacionUI(a.id_cliente,a.id,decision,ediciones||{});
+}
+/* T1-A · chips de métrica. La lista la manda el SERVER (metricasValidasUI); el click sólo
+   propone — `asignarMetricaUI` la re-valida contra la whitelist con match exacto. */
+function pedirMetrica(cli,idObj){
+  google.script.run.withSuccessHandler(function(ms){pintarChipsMetrica(cli,idObj,ms||[]);})
+    .withFailureHandler(function(){cmToast('No pude traer las métricas del cliente');refrescarCentro();})
+    .metricasValidasUI(cli);
+}
+function pintarChipsMetrica(cli,idObj,ms){
+  var box=document.getElementById('cmInbox');if(!box)return;clear(box);
+  var it=el('div','inbox-item sel');
+  var who=el('div','who2');who.appendChild(el('span',null,'¿Qué mide '+idObj+'?'));
+  who.appendChild(chip('acto humano','primary'));it.appendChild(who);
+  it.appendChild(el('div',null,'Elegí la métrica y el objetivo queda medible: el Analista lo toma en la próxima corrida. Sin métrica, no se analiza.'));
+  var ac=el('div','inbox-actions');
+  ms.forEach(function(m){
+    var b=el('button','go',m);
+    b.onclick=function(ev){ev.stopPropagation();asignarMetrica(cli,idObj,m);};
+    ac.appendChild(b);
+  });
+  var bn=el('button',null,'Sin métrica por ahora');
+  bn.onclick=function(ev){ev.stopPropagation();asignarMetrica(cli,idObj,'');};
+  ac.appendChild(bn);
+  it.appendChild(ac);box.appendChild(it);
+}
+function asignarMetrica(cli,idObj,m){
+  cmToast('Asignando métrica…');
+  google.script.run.withSuccessHandler(function(r){
+    if(r&&r.ok)cmToast(r.metrica?(idObj+' → '+r.metrica):(idObj+' queda sin métrica'));
+    else cmToast('No se pudo: '+((r&&r.error)||'rechazado'));
+    refrescarCentro();
+  }).withFailureHandler(function(){cmToast('No se pudo asignar la métrica');refrescarCentro();})
+    .asignarMetricaUI(cli,idObj,m);
 }
 function editar(a){
   // Edición mínima: email → completar destinatario y (opcional) cuerpo, luego aprobar como 'editada'.
