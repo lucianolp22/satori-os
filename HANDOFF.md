@@ -5,6 +5,32 @@
 
 ## Estado vigente (21-jul)
 
+## T3 · MÓDULO S (seguridad del motor) — CONSTRUIDO, gates de editor PENDIENTES
+
+Encargo: `ENCARGO-CODE-T3-modulo-S-seguridad-2026-07-21.md`. Archivo nuevo: **`src/22_seguridad.js`** (S1-S4 juntos, blast radius chico). **NO se tocó `/exec`.**
+
+**S1 · gate de identidad.** `_soloOwner_(nombre)` en **26 endpoints** client-callable (los 9 del encargo + los 17 que salieron del grep parseado de `google.script.run` en `index.html` y del puente `gas()/pedir()` de Akasha): 20 en `08_webapp.js`, 5 en `18_direccion.js`, `capturar` en `17_bandeja.js`. El gate va **sobre la función real**, no sobre un wrapper (un wrapper deja la original igual de llamable). El criterio de puerta vive UNA vez en `_puertaOwner_(who, owner)` (puro) y `doGet` ahora lo reusa.
+- **Cómo no se rompen triggers ni voz:** 9 de esos endpoints los llaman también doPost y los triggers. Cada entrada de sistema declara contexto con `_ctxSistema_()` en su primera línea — en doPost **después** de validar el secreto (un request sin auth nunca obtiene contexto). Wrapeadas: `corridaDiaria`, `drenarCola`, `clasificarBandeja`, `chequeoLivianoDirector`, `correrDirector`, `backupSemanal`, `sincronizarConectores` + las 2 ramas de `doPost`. El flag es **por ejecución** (GAS levanta un V8 nuevo por invocación): no hay fuga entre usuarios.
+- UI: `satNoAuth(e)` en los failure handlers de disparar-agente, resolver-aprobación (CM y cockpit), `showError` y el puente de Akasha → toast «Sesión no autorizada…», sin crash y sin `no_autorizado` en crudo.
+
+**S2 · credencial con vencimiento.** `VOZ_SECRET_EXPIRA` / `OFICINA_SECRET_EXPIRA` (ISO). doPost corta con `secret_expirado` por el mismo camino fail-closed que `unauthorized`. **Decisión explícita: property ausente = NO expira** (compat — el día del deploy la voz sigue andando); el scan lo marca `warn`, no `crit`. Rotación: `rotarSecretoVoz()` / `rotarSecretoOficina()` generan 48 chars, setean expiry a +90d y **muestran el secreto UNA vez en el Registro** — el reparto NO se automatiza: Luciano lo pega a mano en el `.env` del agente y reinicia ese proceso.
+
+**S3 · matriz de riesgo.** `riesgo_*` en Config (6 tipos) + choke point único `gateRiesgo_(tipo, ctx)`, cableado en `encolarAgente`, `ejecutarTarea_` (la cola re-decide con la matriz VIGENTE, no la de cuando se encoló) y `accionVoz_`. Siembra: lecturas `permitir` · escrituras de tenant `aprobar` (pasan por Aprobaciones) · `accion_externa`/`tocar_config`/`tocar_secretos` `bloquear` · `ejecutar_agente` `permitir` (bloquearlo mataría el «Despertar agente» del CM). **Default-deny con alcance declarado:** tipo no listado en `RIESGO_TIPOS` = bloquear siempre; valor con typo en la hoja = bloquear; tipo conocido cuya fila aún no existe en Config = default de código `RIESGO_SIEMBRA` (idéntico a la siembra de `CONFIG_DEFAULTS`, aserido en D19e8) — si no, entre el `clasp push` y el `setup()` habría una ventana con los agentes muertos en prod. No reemplaza el default-deny de Umbrales (montos): aquél decide *cuánto*, éste *qué clase de cosa*.
+
+**S4 · security-scan.** `securityScan_()` = chequeo **7** de `correrSalud` (0 API): endpoints sin gate (introspección por `Function.toString`, lista mantenida `ENDPOINTS_UI`) · secretos vencidos/sin fecha · properties críticas vacías · kill switch legible · hojas sensibles visibles (solo en `full`, abre Sheets). Si el scan revienta, el chequeo sale `crit` (nunca «ok»).
+
+**Verificado offline (lo que se puede sin GAS):** `node --check` de los 22 `.js` + del bloque inline de `index.html` ✓ · **harness en `vm` con stubs de GAS: 42/42 verdes** (puerta en las 4 combinaciones · `_soloOwner_` tira con otro usuario y pasa con contexto de sistema · introspección distingue gateado/no-gateado · expiry puro · matriz: Config pisa el default, typo = bloquear, Config == código en los 6 tipos · scan: detecta el endpoint sin gate, secreto vencido = crit, `credencial_por_vencer` a ≤7d, property vacía = crit, todo en orden = ok · rotación no filtra el secreto en el retorno) · **cruce estático: 26 endpoints declarados = 26 gateados, 0 faltantes, 0 duplicados** ✓ · CAPABILITIES regen ✓.
+
+### ⛔ Bloqueos y lo que corre Luciano (2 líneas + 1 desbloqueo)
+0. **`clasp` perdió permiso** («The caller does not have permission» en `clasp pull`, con y sin sandbox) → **no pude correr la guardia de drift ni el `clasp push` a /dev**. Desbloqueo: `clasp logout && clasp login` en el Mac. El commit a GitHub sí está hecho.
+1. **En el editor GAS:** `selfTest()` (trae la serie **D19**: puerta · cobertura de los 26 endpoints · expiry · matriz default-deny · el scan detectando un endpoint sin gate sembrado a propósito · Salud con 7 chequeos). Si sale ❌ **D19b**, la Session del editor no entrega el email: mirar ESO antes que cualquier otro rojo. Después, **una vez**: `sembrarExpirySecretos()` (siembra las 2 fechas a +90d; idempotente, no pisa).
+2. **Eyeball en /dev (después del `clasp push`):** el CM opera normal con los gates puestos — Hoy carga, se despierta un agente, se resuelve una aprobación, Akasha abre — y **la voz sigue andando** (Sato consulta y captura).
+
+**Nota honesta de cobertura:** `selfTest()` invoca `doPost()` con secreto válido más arriba, y eso deja el contexto de sistema encendido; D19 lo apaga y lo restaura para no dar un verde mentiroso. El rechazo a un usuario REAL no-owner no es aserible desde GAS (no se puede falsear `Session`) — por eso el criterio vive en `_puertaOwner_`, que sí se asera exhaustivamente (y el harness offline lo prueba con Session stubbeada).
+
+**Frenar acá:** la purga del módulo S la corre Cowork; después va M. NO arrancar M ni H.
+
+
 **Prod:** **PROMOTE a /exec HECHO** el 21-jul 08:18 por Luciano — commit `5f8846e`, `main == origin/main`. Rollback anotado en `_promote_rollback.txt`. Eyeball de /exec: **pendiente de Luciano**. Reinicio del agente de voz: **pendiente**.
 
 **Esta sesión (21-jul, ronda 3 · `ENCARGO-CODE-ronda3-overlays-snapshot-2026-07-21.md`) — hecho en `src/index.html`:**

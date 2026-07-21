@@ -109,6 +109,15 @@ var CONFIG_DEFAULTS = [
   // cambiala a la URL ts.net para operar la voz del CM desde el iPhone sin tocar código. oficina_url:
   // Observatorio de la Oficina Virtual (loopback, solo Mac por dictamen Bastión). VACÍA => el CM oculta
   // el botón (exponerla a la tailnet es decisión D4 de Luciano, no default).
+  // T3-S3 — matriz de riesgo (22_seguridad.js). Editable a mano desde la hoja Config.
+  // Estos valores son la SIEMBRA CONSERVADORA; el default de código (RIESGO_SIEMBRA) es el
+  // mismo, así que borrar una fila no abre nada. Un valor no reconocido = bloquear.
+  ['riesgo_leer_tenant', 'permitir'],
+  ['riesgo_escribir_tenant', 'aprobar'],
+  ['riesgo_ejecutar_agente', 'permitir'],
+  ['riesgo_accion_externa', 'bloquear'],
+  ['riesgo_tocar_config', 'bloquear'],
+  ['riesgo_tocar_secretos', 'bloquear'],
   ['voz_url', 'http://127.0.0.1:8787'],
   ['oficina_url', 'http://127.0.0.1:8420'],
   // E1.1 — slots de avatar por agente (arte IA cargado como DATO, sin tocar código). Vacío => el CM

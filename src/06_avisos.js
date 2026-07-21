@@ -93,6 +93,7 @@ function crearAviso(a) {
  * Orden: sync primero (refresca pendientes) → luego detectores.
  */
 function corridaDiaria() {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
   var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, salud: null, costos: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida

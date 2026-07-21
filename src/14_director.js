@@ -22,6 +22,7 @@
  * @return {{tenants:number, encolados:number, partes:Array}}
  */
 function correrDirector(tenant) {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
     if (tenant) return c.id_cliente === tenant;
     return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0;
@@ -121,6 +122,7 @@ function poblarCerebro_(idCliente, objetivos) {
  * 0 API, lectura barata del MAESTRO. Trigger opcional vía instalarTriggerDirector().
  */
 function chequeoLivianoDirector() {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   if (_sistemaPausado_()) return { pausado: true };
   var pend = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).length;
   var cola = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) {

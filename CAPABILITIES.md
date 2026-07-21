@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-21 08:18 · commit: c6addff
+> Generado: 2026-07-21 10:45 · commit: 0eac47b
 
 ## Módulos
 
@@ -16,7 +16,7 @@
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 17 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 56 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 15 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 17 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
@@ -29,6 +29,7 @@
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
+| `22_seguridad.js` | MÓDULO S (T3 · Bastión lidera). Seguridad del motor | 20 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -126,7 +127,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD17h_ _asertsD17i_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
+**09_selftest.js:** selfTest _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -151,4 +152,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **20_killswitch.js:** _sistemaPausado_ pausarSistema reanudarSistema estadoPausa smokeKill 
 
 **21_backup.js:** _stampBackup_ _nombreSeguro_ _backupRootFolder_ _retencionSemanas_ _copiarSpreadsheet_ _ejecutarBackup_ backupSemanal backupAhora instalarTriggerBackup estadoTriggerBackup smokeBackup backupListar drillRestore _drillRestore_ 
+
+**22_seguridad.js:** _ctxSistema_ _puertaOwner_ _esOwner_ _soloOwner_ _tieneGate_ _vencido_ _diasPara_ _expiraProp_ _secretoVencido_ _isoMasDias_ sembrarExpirySecretos _nuevoSecreto_ rotarSecretoVoz rotarSecretoOficina _rotarSecreto_ _riesgoConfig_ _riesgoModo_ gateRiesgo_ securityScan_ securityScan 
 

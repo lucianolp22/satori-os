@@ -113,6 +113,7 @@ function reclamarColgadas_() {
  * Lo instala instalarTriggers() (cada 5 min); también corre a mano.
  */
 function drenarCola() {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   if (_sistemaPausado_()) { Logger.log('PAUSA: drenarCola omitida'); return { pausado: true }; }
   reclamarColgadas_();
   var worker = workerActual_();
@@ -133,6 +134,10 @@ function ejecutarTarea_(tarea) {
       completar_(tarea.fila, { ok: true });
     } else if (tarea.tipo === 'agente') {
       var p = tarea.payload || {};
+      // T3-S3: segundo paso por el choke point. Una tarea puede haberse encolado ANTES de que
+      // Luciano cerrara la matriz; el ejecutor decide con la matriz VIGENTE, no con la de ayer.
+      var g = gateRiesgo_('ejecutar_agente', { id_cliente: p.id_cliente, detalle: p.agente });
+      if (!g.ok) { fallar_(tarea.fila, 'riesgo: ' + g.error + ' (ejecutar_agente=' + g.modo + ')'); return; }
       var resumen = correrAgente_(p.agente, p.args || {}, tarea.id, p.id_cliente);
       if (resumen && (resumen.status === 'error' || resumen.status === 'fallida')) {
         fallar_(tarea.fila, resumen.detalle || 'el agente reportó fallo'); // fallo honesto, no éxito silencioso

@@ -21,6 +21,7 @@ var BANDEJA_MAX_POR_CORRIDA = 25; // Purga F3: tope de items clasificados por co
 
 /** Captura un input crudo en la Bandeja (estado 'pendiente'). Lo dispara la UI o vos. @return {{id}} */
 function capturar(texto, fuente) {
+  _soloOwner_('capturar');   // S1 (T3-S): endpoint client-callable — gate de identidad
   texto = String(texto || '').trim();
   if (!texto) throw new Error('captura vacía');
   var sh = getMaestro().getSheetByName('Bandeja');
@@ -42,6 +43,7 @@ function bandejaUmbral_() { var n = parseInt(getConfig('bandeja_umbral_confianza
  * @return {{procesados, escalados}}
  */
 function clasificarBandeja() {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   if (_sistemaPausado_()) return { procesados: 0, escalados: 0, pausado: true };
   var ss = getMaestro();
   var sh = ss.getSheetByName('Bandeja');

@@ -33,6 +33,7 @@ function sincronizarVehemence() {
 
 /** Corre todos los conectores configurados. Lo llama corridaDiaria. Tolerante a fallos por conector. */
 function sincronizarConectores() {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   var out = {};
   try { out.vehemence = sincronizarVehemence(); } catch (e) { out.vehemence = { error: e.message }; }
   return out;

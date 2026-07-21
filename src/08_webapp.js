@@ -20,10 +20,12 @@ function doGet(e) {
   // ⚠ RIESGO DE LOCKOUT: si getEmail() viniera vacío para Luciano en su propio deployment,
   // lo dejaría afuera. PROBAR en el deployment de la UI ANTES de confiar; revertir con git si corta.
   // OWNER_EMAIL (Script Properties) afina el match exacto; si falta, basta con email no vacío.
+  // T3-S1: el criterio vive UNA sola vez, en _puertaOwner_ (22_seguridad.js) — el mismo que
+  // usan los endpoints de google.script.run. Acá no se re-escribe el nombre de la property.
   var who = '';
   try { who = Session.getActiveUser().getEmail() || ''; } catch (_e) { who = ''; }
   var owner = PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || '';
-  if (!owner || who !== owner) {   // PURGA #4: fail-closed — exige OWNER_EMAIL (sin él, nadie entra)
+  if (!_puertaOwner_(who, owner)) {   // PURGA #4: fail-closed — exige OWNER_EMAIL (sin él, nadie entra)
     // PURGA #1: diagnóstico de lockout (efímero, no spamea la hoja) — qué email se detectó vs owner
     try { Logger.log('doGet bloqueado: who=' + (who || '(vacío)') + ' owner=' + (owner || '(no seteado)')); } catch (_lg) {}
     return HtmlService.createHtmlOutput(
@@ -92,10 +94,18 @@ function doPost(e) {
     // NO habilita esta action y este secreto NO habilita las tools de voz. Se rutea ANTES del vozAuth_.
     if (String(body.action || '') === 'oficina_sync') {
       if (!oficinaSyncAuth_(body.secret)) { vozRechazo_('oficina_sync_unauth'); return vozOut_({ ok: false, error: 'unauthorized' }); }
+      // T3-S2: credencial con vencimiento — mismo camino fail-closed que `unauthorized`.
+      // Sin fecha seteada = NO expira (decisión explícita del módulo S: compat con lo vigente).
+      if (_secretoVencido_(PROP_OFICINA_EXPIRA)) { vozRechazo_('oficina_secret_expirado'); return vozOut_({ ok: false, error: 'secret_expirado' }); }
+      // T3-S1: recién ACÁ (secreto validado y vigente) esta ejecución es "de sistema" y puede
+      // atravesar los _soloOwner_ de los endpoints que reusa. Un request sin auth nunca llega.
+      _ctxSistema_();
       try { var rs = oficinaSync_(body.payload); vozLog_('oficina_sync', !!rs.ok, rs.error || ''); return vozOut_(rs); }
       catch (err2) { vozLog_('oficina_sync', false, String((err2 && err2.message) || err2)); return vozOut_({ ok: false, error: 'error_interno' }); }
     }
     if (!vozAuth_(body.secret)) { vozRechazo_('unauthorized'); return vozOut_({ ok: false, error: 'unauthorized' }); } // fail-closed + alerta
+    if (_secretoVencido_(PROP_VOZ_EXPIRA)) { vozRechazo_('secret_expirado'); return vozOut_({ ok: false, error: 'secret_expirado' }); } // T3-S2: vencido = mismo corte que unauthorized
+    _ctxSistema_();   // T3-S1: secreto válido y vigente → ejecución de sistema (ver bloque de oficina_sync)
     if (!vozRate_()) return vozOut_({ ok: false, error: 'rate_limit' });                 // PURGA #3: 30/min (el agente legítimo PUEDE gatillarlo → NO alerta)
     tool = String(body.tool || '');
     if (!VOZ_TOOLS[tool]) { vozRechazo_('unknown_tool'); return vozOut_({ ok: false, error: 'unknown_tool' }); }       // post-auth anómalo (tiene el secreto) → alerta
@@ -354,6 +364,13 @@ function accionVoz_(tipo, payload, idCliente) {
   var cli = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === id; })[0];
   if (!cli) return { ok: false, error: 'tenant_desconocido', mensaje: 'No tengo ese cliente en el roster.' };
 
+  // T3-S3: la voz escribe SIEMPRE vía crearAprobacion (motor E2) → declara con_aprobacion.
+  // Con la siembra vigente (escribir_tenant='aprobar') pasa; si Luciano pone 'bloquear',
+  // la voz deja de escribir en el acto sin tocar una línea de código.
+  var gr = gateRiesgo_('escribir_tenant', { con_aprobacion: true, id_cliente: id, detalle: tipo });
+  if (!gr.ok) return { ok: false, error: 'riesgo_bloqueado', modo: gr.modo,
+                       mensaje: 'Esa acción está bloqueada por la matriz de riesgo del sistema.' };
+
   // Whitelist de campos: se construye un payload NUEVO solo con lo permitido (descarta el resto).
   // T1-B: los campos de TEXTO LIBRE pasan además por el normalizador de cifras (best-effort
   // server-side, determinista) para que un monto dictado en palabras no quede escrito en palabras.
@@ -469,6 +486,7 @@ function vozRechazo_(motivo) {
  */
 var PREFS_UI_OK = ['orbe_calidad'];
 function setPrefUI(clave, valor) {
+  _soloOwner_('setPrefUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   clave = String(clave || '');
   valor = String(valor || '').slice(0, 40);
   if (PREFS_UI_OK.indexOf(clave) < 0) throw new Error('preferencia no permitida');
@@ -477,6 +495,7 @@ function setPrefUI(clave, valor) {
 }
 /** Lee las preferencias de UI (default seguro si faltan). */
 function prefsUI() {
+  _soloOwner_('prefsUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   return { orbe_calidad: getConfig('orbe_calidad') || 'alto' };
 }
 
@@ -486,6 +505,7 @@ function prefsUI() {
  * (cobertura < 40 = punto ciego); aristas como pares de índices. Nunca etiquetas/atributos.
  */
 function cerebroGrafo(idCliente) {
+  _soloOwner_('cerebroGrafo');   // S1 (T3-S): endpoint client-callable — gate de identidad
   try {
     var ss = abrirCliente(idCliente).ss;
     var nodos = leerTabla(ss.getSheetByName('nodos')) || [];
@@ -507,6 +527,7 @@ function cerebroGrafo(idCliente) {
 
 /** Resumen de cabecera (incluye ultima_sync_ok, visible siempre). */
 function estadoSistema() {
+  _soloOwner_('estadoSistema');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var ss = getMaestro();
   var avisosActivos = leerTabla(ss.getSheetByName('Avisos')).filter(function (f) { return f.estado === 'activo'; });
   var pendientes = leerTabla(ss.getSheetByName('Aprobaciones_agregadas')).length;
@@ -529,6 +550,7 @@ function estadoSistema() {
  * y pendientes de aprobación agrupados por patrón.
  */
 function datosHoy() {
+  _soloOwner_('datosHoy');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var ss = getMaestro();
 
   var avisos = leerTabla(ss.getSheetByName('Avisos'))
@@ -579,6 +601,7 @@ function datosHoy() {
 
 /** Lista de clientes para la navegación lateral. */
 function listaClientes() {
+  _soloOwner_('listaClientes');   // S1 (T3-S): endpoint client-callable — gate de identidad
   return leerTabla(getMaestro().getSheetByName('Clientes')).map(function (c) {
     return { id_cliente: c.id_cliente, nombre: c.nombre, estado: c.estado, rubro: c.rubro };
   });
@@ -590,6 +613,7 @@ function listaClientes() {
  * Sheet cliente) y ficha de gobernanza.
  */
 function datosCliente(idCliente) {
+  _soloOwner_('datosCliente');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var ss = getMaestro();
   var cli = leerTabla(ss.getSheetByName('Clientes')).filter(function (c) { return c.id_cliente === idCliente; })[0];
   if (!cli) throw new Error('Cliente no encontrado: ' + idCliente);
@@ -698,6 +722,7 @@ function esVencida(fechaLimite, estado) {
  * presupuesto, inbox de aprobaciones y clientes activos para disparar. Solo datos.
  */
 function estadoAgentes() {
+  _soloOwner_('estadoAgentes');   // S1 (T3-S): endpoint client-callable — gate de identidad
   // PURGA #2: una sola lectura de la cola, reusada por estados de agentes + telemetría (errores).
   var colaSh = getMaestro().getSheetByName('Cola_tareas');
   var cola = colaSh ? leerTabla(colaSh) : [];
@@ -839,6 +864,7 @@ function _bootSeccion_(nombre, fn) {
  * @return {{agentes:Object, clientes:Array}} cada clave es su retorno, o null si falló.
  */
 function bootUniverso() {
+  _soloOwner_('bootUniverso');   // S1 (T3-S): endpoint client-callable — gate de identidad
   return {
     agentes:  _bootSeccion_('agentes',  function () { return estadoAgentes(); }),
     clientes: _bootSeccion_('clientes', function () { return listaClientes(); })
@@ -853,6 +879,7 @@ function bootUniverso() {
  * @return {{hoy:Object, recs:Array, agenda:Array, salud:Object}}
  */
 function bootResto(desdeISO, hastaISO) {
+  _soloOwner_('bootResto');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var rango = _bootRangoSemana_(desdeISO, hastaISO);
   return {
     hoy:    _bootSeccion_('hoy',    function () { return datosHoy(); }),
@@ -873,6 +900,7 @@ function bootResto(desdeISO, hastaISO) {
  * @return {{agentes,hoy,salud,recs,agenda,clientes:Object}} cada clave o null.
  */
 function bootUnico(desdeISO, hastaISO) {
+  _soloOwner_('bootUnico');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var u = bootUniverso(), r = bootResto(desdeISO, hastaISO);
   return {
     agentes:  u.agentes,
@@ -902,6 +930,7 @@ function _bootRangoSemana_(desdeISO, hastaISO) {
  * dryRun → NO escribe a producción (no ensucia feed/avisos en cada refresh de la UI).
  */
 function estadoSalud() {
+  _soloOwner_('estadoSalud');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var s = correrSalud({ dryRun: true });
   var ok = s.hallazgos.filter(function (h) { return h.estado === 'ok'; }).length;
   return {
@@ -967,6 +996,7 @@ function inboxAprobaciones_() {
 
 /** Dispara un agente para un cliente desde la UI (encola + drena para feedback inmediato). */
 function dispararAgenteUI(idCliente, clave) {
+  _soloOwner_('dispararAgenteUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var r = encolarAgente(idCliente, clave, {});
   drenarCola();
   return r;
@@ -974,6 +1004,7 @@ function dispararAgenteUI(idCliente, clave) {
 
 /** Resuelve una aprobación desde la UI (único punto de decisión: resolverAprobacion). */
 function resolverAprobacionUI(idCliente, id, decision, ediciones) {
+  _soloOwner_('resolverAprobacionUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var res = resolverAprobacion(idCliente, id, decision, ediciones || {});
   // Reflejo inmediato (08-jul): el espejo agregado es "pendientes only"; una resuelta
   // sale YA, sin esperar al próximo syncMaestro (antes reaparecía en el CM al recargar).
@@ -984,6 +1015,7 @@ function resolverAprobacionUI(idCliente, id, decision, ediciones) {
 /** Métricas admisibles para el tenant, para pintar los chips del CM (T1-A). La UI NO decide: esto es
  *  lo mismo que después re-valida `asignarMetricaUI` server-side. */
 function metricasValidasUI(idCliente) {
+  _soloOwner_('metricasValidasUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   if (!clienteExiste_(String(idCliente || '').trim())) return [];
   return metricasValidas_(String(idCliente).trim());
 }
@@ -1002,6 +1034,7 @@ function metricasValidasUI(idCliente) {
  * @return {{ok:boolean, error?:string, id_objetivo?:string, metrica?:string, mensaje?:string}}
  */
 function asignarMetricaUI(idCliente, id_objetivo, metrica) {
+  _soloOwner_('asignarMetricaUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var id = String(idCliente || '').trim();
   if (!clienteExiste_(id)) return { ok: false, error: 'tenant_desconocido', mensaje: 'No tengo ese cliente en el roster.' };
 
@@ -1065,6 +1098,7 @@ var TERMINALES_TAREA = ['hecha', 'completada', 'cancelada'];
 
 /** Tablero completo de tareas del MAESTRO para el kanban (solo lectura). */
 function tableroTareas() {
+  _soloOwner_('tableroTareas');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var ss = getMaestro();
   return leerTabla(ss.getSheetByName('Tareas')).map(function (t) {
     var est = String(t.estado || '').toLowerCase();
@@ -1147,6 +1181,7 @@ function parseQuickAdd(str, hoyBase) {
  * nunca inventa cliente: si cliente_txt no matchea un cliente real, queda como etiqueta visible.
  */
 function crearTarea(payload) {
+  _soloOwner_('crearTarea');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var p = payload || {};
   var desc = String(p.descripcion || '').trim();
   if (!desc) throw new Error('crearTarea: falta la descripción.');
@@ -1173,6 +1208,7 @@ function crearTarea(payload) {
 
 /** CM: quick-add del board — parsea sigilos y crea. @cliente intenta matchear Clientes (por nombre). */
 function crearTareaQuick(str) {
+  _soloOwner_('crearTareaQuick');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var q = parseQuickAdd(str);
   if (!q.descripcion) throw new Error('Escribí la tarea (los sigilos solos no alcanzan).');
   if (q.cliente_txt) {
@@ -1195,6 +1231,7 @@ function crearTareaQuick(str) {
  * AREL: interno + reversible = avanzar (sin gate).
  */
 function moverTarea(idTarea, estadoDestino) {
+  _soloOwner_('moverTarea');   // S1 (T3-S): endpoint client-callable — gate de identidad
   estadoDestino = String(estadoDestino || '').toLowerCase();
   if (ESTADOS_TAREA_UI.indexOf(estadoDestino) < 0) throw new Error('Estado destino no permitido: ' + estadoDestino);
   var sh = getMaestro().getSheetByName('Tareas');

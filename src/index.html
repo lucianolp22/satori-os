@@ -1312,7 +1312,10 @@ function setActiveNav(view,id){
 function showError(err){
   var m=document.getElementById('main');clear(m);
   var c=el('div','card');c.appendChild(el('h3',null,'Error'));
-  c.appendChild(el('div','muted', String(err&&err.message||err)));
+  /* T3-S1: 'no_autorizado' en crudo no le dice nada a nadie. */
+  var na=esNoAutorizado(err);
+  if(na){try{satNoAuth(err);}catch(_t){}}
+  c.appendChild(el('div','muted', na?'Sesión no autorizada: entrá con la cuenta del sistema y recargá.':String(err&&err.message||err)));
   m.appendChild(c);
 }
 
@@ -1953,7 +1956,7 @@ function dispararAgente(clave,nombre){
   if(!EN_GAS){cmToast(nombre+' se dispararía aquí (sin backend)');return;}
   cmToast(nombre+' encolado…');
   google.script.run.withSuccessHandler(function(){cmToast(nombre+' encolado para '+id);refrescarCentro();})
-    .withFailureHandler(function(){cmToast('No se pudo disparar '+nombre);}).dispararAgenteUI(id,clave);
+    .withFailureHandler(function(e){if(satNoAuth(e))return;cmToast('No se pudo disparar '+nombre);}).dispararAgenteUI(id,clave);
 }
 function resolver(a,decision,ediciones){
   if(!EN_GAS){cmToast('Resolución simulada ('+decision+')');return;}
@@ -1969,7 +1972,7 @@ function resolver(a,decision,ediciones){
     if(String(a.tipo_accion)==='crear_objetivo'&&idObj){pedirMetrica(a.id_cliente,idObj);return;}
     refrescarCentro();
   })
-    .withFailureHandler(function(e){cmToast('No se pudo: '+(e&&e.message||decision));})
+    .withFailureHandler(function(e){if(satNoAuth(e))return;cmToast('No se pudo: '+(e&&e.message||decision));})
     .resolverAprobacionUI(a.id_cliente,a.id,decision,ediciones||{});
 }
 /* T1-A · chips de métrica. La lista la manda el SERVER (metricasValidasUI); el click sólo
@@ -2031,6 +2034,19 @@ function cmBudget(p){
 }
 function cmToast(t){var el2=document.getElementById('cmToast');el2.textContent=t;el2.classList.add('show');
   setTimeout(function(){el2.classList.remove('show');},3000);}
+
+/* T3-S1 — el server ahora gatea CADA endpoint por identidad (_soloOwner_). Si la sesión de
+   Google del navegador no es la del sistema, el fallo llega como 'no_autorizado' por el
+   withFailureHandler. Sin esto el usuario vería "No se pudo …" y culparía al dato.
+   Devuelve true si lo manejó (el llamador corta ahí); nunca tira. */
+function esNoAutorizado(e){
+  try{ return /no_autorizado/i.test(String((e&&e.message)||e||'')); }catch(_e){ return false; }
+}
+function satNoAuth(e){
+  if(!esNoAutorizado(e)) return false;
+  try{ cmToast('Sesión no autorizada: entrá con la cuenta del sistema y recargá.'); }catch(_t){}
+  return true;
+}
 
 /* ── orbe + starfield (pausa con calma / pestaña oculta / reduced-motion) ── */
 var REDUCED=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2631,7 +2647,7 @@ function ccResolver(a,decision,node){
   cmToast(a.id+': '+decision+'…');
   google.script.run
     .withSuccessHandler(function(){ cmToast(a.id+' → '+decision+' ✓'); refrescarCentro(); ccHoy(); })   // (b) re-sync
-    .withFailureHandler(function(e){ cmToast('No se pudo '+decision+' '+a.id+': '+((e&&e.message)||'error')); refrescarCentro(); })  // (c) nunca vacío
+    .withFailureHandler(function(e){ if(satNoAuth(e))return; cmToast('No se pudo '+decision+' '+a.id+': '+((e&&e.message)||'error')); refrescarCentro(); })  // (c) nunca vacío
     .resolverAprobacionUI(a.id_cliente,a.id,decision,{});
 }
 
@@ -4012,7 +4028,11 @@ window.AKASHA = (function () {
   function pedir(fn, args) {
     return new Promise(function (res) {
       gas(fn, args, function (v) { res({ ok: true, v: v }); },
-                    function (e) { console.error('[AKASHA] ' + fn + ':', e); res({ ok: false, e: e }); });
+                    function (e) { console.error('[AKASHA] ' + fn + ':', e);
+                                   /* T3-S1: gate de identidad del server — un toast claro, y la
+                                      Oficina sigue abriendo con la sección vacía (fail por fuente). */
+                                   try { if (typeof satNoAuth === 'function') satNoAuth(e); } catch (_n) {}
+                                   res({ ok: false, e: e }); });
     });
   }
 

@@ -1,7 +1,7 @@
 /**
  * 16_salud.js — Loop de salud del sistema (ETAPA 8a · módulo a3).
  *
- * correrSalud() corre 6 chequeos, los clasifica (ok/warn/crit) y escribe los hallazgos
+ * correrSalud() corre 7 chequeos (el 7º es el security-scan, T3-S4), los clasifica (ok/warn/crit) y escribe los hallazgos
  * al feed (Actividad, agente "Salud") + Avisos para los CRÍTICOS (surfacean en "Hoy").
  * **0 API** (100% reglas). **Alerta, no arregla**: el auto-heal está detrás del flag
  * AUTOHEAL_ON (Script Property o Config 'autoheal_on'); en piloto = false → solo alerta.
@@ -17,6 +17,8 @@
  *  4) presupuesto — gasto del mes vs tope USD (80% warn / 100% crit).
  *  5) aprobaciones— pendientes pasadas de N días que el expirador no marcó.
  *  6) cerebro     — cada tenant activo con su fila en Cerebro_index (materializado).
+ *  7) seguridad   — securityScan_: gate de endpoints, expiry de secretos, properties
+ *                   críticas, kill switch (y hojas sensibles solo en full).
  */
 
 /**
@@ -93,6 +95,18 @@ function correrSalud(opts) {
       return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0 && !idx[c.id_cliente];
     }).map(function (c) { return c.id_cliente; });
     H('cerebro', sin.length ? 'warn' : 'ok', sin.length ? ('sin materializar: ' + sin.join(', ')) : 'todos al día');
+  })();
+
+  // 7) Seguridad (T3-S4) — securityScan_ (22_seguridad.js, 0 API). En `full` audita además
+  //    las hojas sensibles de cada tenant (abre Sheets: por eso va detrás del mismo flag).
+  (function () {
+    try {
+      var sc = securityScan_({ full: !!opts.full });
+      H('seguridad', sc.estado, sc.detalle);
+    } catch (e) {
+      // Un scan que revienta NO puede pasar por "ok": es exactamente el caso que debía detectar.
+      H('seguridad', 'crit', 'securityScan_ falló: ' + ((e && e.message) || e));
+    }
   })();
 
   // Clasificación global.

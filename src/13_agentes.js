@@ -249,6 +249,10 @@ function encolarAgente(idCliente, clave, args) {
   if (!idCliente) throw new Error('falta id_cliente');
   idCliente = String(idCliente).trim();
   if (!clienteExiste_(idCliente)) throw new Error('tenant desconocido: ' + idCliente);
+  // T3-S3: choke point de riesgo (matriz `riesgo_*` en Config, default-deny). Va DESPUÉS de las
+  // validaciones baratas para que el motivo del rechazo sea el real, no "riesgo" tapando un typo.
+  var _gr = gateRiesgo_('ejecutar_agente', { id_cliente: idCliente, detalle: clave });
+  if (!_gr.ok) throw new Error('riesgo: ' + _gr.error + ' (ejecutar_agente=' + _gr.modo + ')');
   var id = encolar(workerActual_(), 'agente', { agente: clave, id_cliente: idCliente, args: args || {} });
   feed_(AGENTES[clave].nombre, 'info', idCliente, 'Tarea encolada por el usuario.', id, '');
   return { tareaId: id };

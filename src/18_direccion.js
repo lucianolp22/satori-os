@@ -1292,6 +1292,7 @@ function registrarRecomendacionDelDia() {
  * Cuando ambos campos quedan seteados → estado 'cerrada' + cerrada_en. Juicio humano, no automático.
  */
 function marcarRecomendacion(id, campo, valor) {
+  _soloOwner_('marcarRecomendacion');   // S1 (T3-S): endpoint client-callable — gate de identidad
   if (['se_hizo', 'kpi_movio'].indexOf(String(campo)) < 0) throw new Error('campo inválido: ' + campo);
   var v = String(valor).toLowerCase() === 'si' ? 'si' : 'no';
   var sh = getMaestro().getSheetByName('Recomendaciones');
@@ -1321,6 +1322,7 @@ function marcarRecomendacion(id, campo, valor) {
  * @return {{ok:boolean, id?:string, patron?:string, dedupe?:boolean, motivo?:string}}
  */
 function aprobacionDesdeRecomendacion(recId) {
+  _soloOwner_('aprobacionDesdeRecomendacion');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var sh = getMaestro().getSheetByName('Recomendaciones');
   if (!sh) return { ok: false, motivo: 'falta hoja Recomendaciones (correr setup)' };
   var rec = leerTabla(sh).filter(function (f) { return String(f.id) === String(recId); })[0];
@@ -1349,6 +1351,7 @@ function aprobacionDesdeRecomendacion(recId) {
 
 /** CM: recomendaciones abiertas (vista del lazo en la card del brief). */
 function recomendacionesAbiertas() {
+  _soloOwner_('recomendacionesAbiertas');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var sh = getMaestro().getSheetByName('Recomendaciones');
   if (!sh) return [];
   return leerTabla(sh).filter(function (f) { return String(f.estado) === 'abierta'; }).map(function (f) {
@@ -1389,6 +1392,7 @@ function agendarEvento(fecha, hora, titulo, idCliente, notas) {
  * NO reemplaza a agendaSemana (esa queda tal cual para voz/vistas "próximos 7 días").
  */
 function agendaRango(desdeISO, hastaISO) {
+  _soloOwner_('agendaRango');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var sh = getMaestro().getSheetByName('Agenda');
   if (!sh) return [];
   var d = String(desdeISO || ''), h = String(hastaISO || '');
@@ -1408,6 +1412,7 @@ function agendaRango(desdeISO, hastaISO) {
  * util: 'si' | 'no'. origenTipo: 'brief' | 'aviso' | 'recomendacion'. Devuelve el id.
  */
 function registrarFeedback(origenTipo, origenId, util, nota) {
+  _soloOwner_('registrarFeedback');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var u = String(util).toLowerCase() === 'si' ? 'si' : 'no';
   var sh = getMaestro().getSheetByName('Feedback');
   if (!sh) throw new Error('Falta la hoja Feedback — correr setup() para crearla.');

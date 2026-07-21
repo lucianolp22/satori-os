@@ -508,7 +508,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D17h boot único', f: _asertsD17h_ },
    { n: 'D17i boot 2 olas', f: _asertsD17i_ },
    { n: 'D17j métrica CM v3', f: _asertsD17j_ },
-   { n: 'D18 north star + reset', f: _asertsD18_ }].forEach(function (t) {
+   { n: 'D18 north star + reset', f: _asertsD18_ },
+   { n: 'D19 módulo S seguridad', f: _asertsD19_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1056,6 +1057,102 @@ function _asertsD18_(chk, log, opts) {
  *  si una fuente revienta, esa clave viaja null y las otras 5 viven (nunca todo-o-nada).
  *  No toca datos: fuerza el fallo reemplazando temporalmente una función global y la
  *  restaura en finally. Tanda aislada: la corre _asertsF2_. */
+/**
+ * D19 — MÓDULO S (T3, 21-jul): gate de identidad · expiry de secretos · matriz de riesgo ·
+ * security-scan. Tanda aislada: la corre _asertsF2_.
+ *
+ * NO escribe NINGUNA Script Property (ni para probar): un test que pise OWNER_EMAIL y muera a
+ * mitad dejaría a Luciano afuera de su propio CM. Por eso el criterio de puerta y el de
+ * vencimiento viven en funciones PURAS (_puertaOwner_ / _vencido_) que se aseran sin tocar nada.
+ */
+function _asertsD19_(chk, log, opts) {
+  // selfTest() invoca doPost() más arriba (assert de voz) y ese camino, con secreto válido,
+  // deja SATORI_CTX_SISTEMA en true para el resto de la ejecución. Si no lo bajáramos, los
+  // asserts del gate pasarían por el bypass de sistema en vez de por la identidad: verde
+  // mentiroso. Se apaga acá y se restaura al final (el resto de la corrida no cambia).
+  var _ctxPrevio = SATORI_CTX_SISTEMA;
+  SATORI_CTX_SISTEMA = false;
+  try {
+  // ── S1a — la puerta (función pura). Fail-closed en las 4 combinaciones.
+  chk(_puertaOwner_('a@b.com', 'a@b.com') === true, 'D19a el owner pasa');
+  chk(_puertaOwner_('otro@b.com', 'a@b.com') === false, 'D19a2 un email distinto NO pasa');
+  chk(_puertaOwner_('', 'a@b.com') === false, 'D19a3 email vacío (anónimo del deploy público) NO pasa');
+  chk(_puertaOwner_('a@b.com', '') === false, 'D19a4 sin OWNER_EMAIL no pasa NADIE (fail-closed, PURGA #4)');
+
+  // ── S1b — el gate real: en el editor corre como Luciano ⇒ _esOwner_ true y _soloOwner_ no tira.
+  // Si este assert sale ❌, la Session del editor NO entrega el email: revisar ESO antes de
+  // culpar a cualquier otro rojo de esta corrida (todos los endpoints dependen de esto).
+  chk(_esOwner_() === true, 'D19b _esOwner_ es true en el editor (si es ❌, Session no entrega el email)');
+  var tiroS1 = '';
+  try { _soloOwner_('__test__'); } catch (e) { tiroS1 = String((e && e.message) || e); }
+  chk(tiroS1 === '', 'D19b2 _soloOwner_ deja pasar al owner sin tirar');
+  chk(_ctxSistema_() === true && SATORI_CTX_SISTEMA === true, 'D19b3 _ctxSistema_ marca la ejecución como de sistema (triggers/doPost)');
+
+  // ── S1c — COBERTURA: cada endpoint declarado tiene el gate en su cuerpo. Es el assert que
+  // impide que un endpoint nuevo entre sin puerta (el scan lo canta, esto lo REPRUEBA).
+  var sinGate = ENDPOINTS_UI.filter(function (n) { return _tieneGate_(n) !== 'ok'; });
+  chk(sinGate.length === 0, 'D19c los ' + ENDPOINTS_UI.length + ' endpoints client-callable tienen _soloOwner_' +
+      (sinGate.length ? ' — SIN GATE: ' + sinGate.join(', ') : ''));
+
+  // ── S2 — vencimiento (función pura, sin tocar properties).
+  var T = Date.parse('2026-07-21T12:00:00Z');
+  chk(_vencido_('2026-07-20', T) === true, 'D19d una fecha pasada = VENCIDO');
+  chk(_vencido_('2026-12-31', T) === false, 'D19d2 una fecha futura NO está vencida');
+  chk(_vencido_('', T) === false, 'D19d3 sin fecha = NO expira (decisión explícita del módulo S: compat)');
+  chk(_vencido_('cualquier cosa', T) === false, 'D19d4 fecha ilegible NO bloquea (el scan la marca warn)');
+  chk(_diasPara_('2026-07-28T12:00:00Z', T) === 7, 'D19d5 _diasPara_ calcula los días que faltan (aviso ≤7d)');
+  chk(_diasPara_('', T) === null, 'D19d6 sin fecha, _diasPara_ devuelve null (no 0: 0 sería "vence hoy")');
+  chk(_isoMasDias_(90, T).length === 10, 'D19d7 _isoMasDias_ produce una fecha ISO de 10 chars (siembra +90d)');
+
+  // ── S3 — matriz de riesgo. Default-deny sobre lo NO listado, y los tres modos.
+  chk(gateRiesgo_('tipo_que_nadie_declaro').ok === false &&
+      gateRiesgo_('tipo_que_nadie_declaro').modo === 'bloquear', 'D19e default-deny: un tipo no listado se BLOQUEA');
+  chk(_riesgoModo_('accion_externa') === 'bloquear', 'D19e2 accion_externa nace bloqueada (siembra conservadora)');
+  chk(_riesgoModo_('tocar_secretos') === 'bloquear', 'D19e3 tocar_secretos nace bloqueado');
+  chk(gateRiesgo_('escribir_tenant', { con_aprobacion: false }).error === 'requiere_aprobacion',
+      'D19e4 escribir_tenant sin aprobación se corta con requiere_aprobacion');
+  chk(gateRiesgo_('escribir_tenant', { con_aprobacion: true }).ok === true,
+      'D19e5 escribir_tenant CON aprobación pasa (la voz escribe vía crearAprobacion)');
+  chk(gateRiesgo_('ejecutar_agente', {}).ok === true, 'D19e6 ejecutar_agente permitido (si no, el CM no despierta agentes)');
+  RIESGO_TIPOS.forEach(function (t) {
+    chk(RIESGO_MODOS.indexOf(_riesgoModo_(t)) >= 0, 'D19e7 riesgo_' + t + ' resuelve a un modo válido (' + _riesgoModo_(t) + ')');
+  });
+  // La siembra de Config y el default de código dicen LO MISMO (si divergen, borrar una fila
+  // de Config cambiaría la política en silencio).
+  var _cfgR = {}; CONFIG_DEFAULTS.forEach(function (p) { if (String(p[0]).indexOf('riesgo_') === 0) _cfgR[String(p[0]).slice(7)] = p[1]; });
+  RIESGO_TIPOS.forEach(function (t) {
+    chk(_cfgR[t] === RIESGO_SIEMBRA[t], 'D19e8 riesgo_' + t + ': Config y RIESGO_SIEMBRA coinciden');
+  });
+
+  // ── S4 — el scan detecta un endpoint sin gate SEMBRADO A PROPÓSITO (prueba de que sirve).
+  var scanTrampa = securityScan_({ full: false, endpoints: ['_endpointSinGateD19_'] });
+  chk(scanTrampa.estado === 'crit' && scanTrampa.detalle.indexOf('_endpointSinGateD19_') >= 0,
+      'D19f el scan DETECTA el endpoint sembrado sin _soloOwner_ y lo reporta como crit');
+  var scanFantasma = securityScan_({ full: false, endpoints: ['_no_existe_esta_funcion_'] });
+  chk(scanFantasma.hallazgos.some(function (h) { return h.que.indexOf('no verificable') >= 0 || h.que.indexOf('no_existe') >= 0; }),
+      'D19f2 un endpoint declarado que NO existe se reporta (nunca pasa como ok)');
+  chk(_tieneGate_('_endpointSinGateD19_') === 'sin_gate' && _tieneGate_('datosHoy') === 'ok',
+      'D19f3 la introspección distingue gateado de no gateado (si esto falla, el scan miente)');
+
+  // ── S4b — el scan real corre y produce un veredicto usable para el chequeo 7 de Salud.
+  var sc = securityScan_({ full: false });
+  chk(['ok', 'warn', 'crit'].indexOf(sc.estado) >= 0 && typeof sc.detalle === 'string' && sc.hallazgos.length > 0,
+      'D19g securityScan_ devuelve {estado,detalle,hallazgos} (estado=' + sc.estado + ')');
+  log.push('   ↳ D19 scan: ' + sc.estado + ' — ' + sc.detalle);
+
+  // ── S4c — Salud lo expone como chequeo 7 (dryRun: no escribe feed ni avisos).
+  var sal = correrSalud({ dryRun: true });
+  var chSeg = sal.hallazgos.filter(function (h) { return h.nombre === 'seguridad'; })[0];
+  chk(!!chSeg, 'D19h correrSalud incluye el chequeo "seguridad" (7º)');
+  chk(sal.hallazgos.length >= 7, 'D19h2 Salud pasó de 6 a ' + sal.hallazgos.length + ' chequeos');
+  if (chSeg) log.push('   ↳ D19 salud/seguridad: ' + chSeg.estado + ' — ' + chSeg.detalle);
+  } finally { SATORI_CTX_SISTEMA = _ctxPrevio; }
+}
+
+/** Cebo de D19f: endpoint DELIBERADAMENTE sin _soloOwner_. No hace nada y nadie lo llama:
+ *  existe para probar que el security-scan detecta una puerta abierta. NO agregarle el gate. */
+function _endpointSinGateD19_() { return { cebo: true }; }
+
 function _asertsD17h_(chk, log, opts) {
   var CLAVES = ['agentes', 'hoy', 'salud', 'recs', 'agenda', 'clientes'];
 

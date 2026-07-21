@@ -166,6 +166,7 @@ function _ejecutarBackup_() {
 
 /** Trigger semanal: respeta la pausa operativa (kill switch). */
 function backupSemanal() {
+  _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   if (_sistemaPausado_()) { Logger.log('PAUSA: backupSemanal omitida'); return { pausado: true }; }
   try {
     return _ejecutarBackup_();
