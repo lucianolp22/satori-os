@@ -1,4 +1,36 @@
-# HANDOFF — Satori OS — 2026-07-17
+# HANDOFF — Satori OS — 2026-07-21 (espejo vivo)
+
+> Estado vigente arriba. Todo lo que sigue del `<!-- HISTÓRICO` para abajo es archivo — no es el estado de hoy.
+> Cierre completo del 20-jul (declaración formal, qué incluye / qué queda abierto): `HANDOFF-2026-07-20-CIERRE-T1-NS-UI.md`.
+
+## Estado vigente (21-jul)
+
+**Prod:** **PROMOTE a /exec HECHO** el 21-jul 08:18 por Luciano — commit `5f8846e`, `main == origin/main`. Rollback anotado en `_promote_rollback.txt`. Eyeball de /exec: **pendiente de Luciano**. Reinicio del agente de voz: **pendiente**.
+
+**Esta sesión (21-jul, ronda 3 · `ENCARGO-CODE-ronda3-overlays-snapshot-2026-07-21.md`) — hecho en `src/index.html`:**
+
+1. **Overlays desde Akasha — CAUSA RAÍZ ENCONTRADA Y CORREGIDA (era un selector muerto).** El fix E3.15 se apoyaba en `#centro.ak-modal #akasha{display:none}`, pero **`#akasha` NO cuelga de `#centro`**: vive FUERA a propósito (comentario del markup ~línea 1055 — adentro le robaría las `.eyebrow` al `ccCard` del CM). O sea: **la regla nunca machó con nada**. El JS ponía la clase bien; el CSS no podía verla. Por eso E3.14 y E3.15 "no pegaron": no había nada que pegar. Verificado parseando el DOM del archivo (ancestros reales: `akasha > cosmos > gl`, `centro > kscrim`, `centro > calscrim`).
+   - **Fix:** la clase de modo modal se pone **también sobre `#akasha`** y la regla que apaga la pintura es `#akasha.ak-modal{display:none}` (misma especificidad que `#akasha.on`, gana por orden). `#centro.ak-modal` se conserva porque lo leen las guardas de JS (Escape, entrada auto-saneada) y se limpia en `entrar()`/`salir()`/`modal(false)` igual que antes.
+   - **Descartadas por lectura del código, no por corazonada:** las 4 puertas SÍ pasan por el handler ruteado (`acc.abrirCalendario`/`acc.abrirTablero`/`calAbrir`/`cmBoardOpen` → `akModal_`), y el canvas 3D (`#gl`) SÍ vive dentro de `#akasha`. Las ramas 1 y 2 del árbol de lectura del handoff del 20-jul quedan cerradas.
+2. **Instrumentación de overlays, detrás de flag (default OFF).** `akOvlLog_(puerta)` loguea puerta · `className` de `#centro` · `display` computado de `#akasha` · canvas DENTRO/FUERA, con `console.log` **y** toast (Luciano no abre consola). Se prende con `?ovldebug=1` en la URL o `AK_DEBUG_OVL=true` en consola. Las 4 puertas van con nombre: `P1 mini-calendario del Atril`, `P2 card openBoard del Despacho`, `P3 Abrir tablero (panel TAREAS)`, `P4 día del mini-calendario`.
+3. **Bug lateral corregido:** el mini-calendario del Atril acumulaba **un listener por corrida de `renderDocks()`** (hasta 3 por entrada: snapshot + ola fresh + ola final) → un click abría el calendario N veces. Guarda `_wired`, igual que `sel-cliente`.
+4. **Delay al volver de la Voz — CORREGIDO:** `cmSnapGuardar`/`cmSnapLeer` pasaron de **`sessionStorage` a `localStorage`**. `voz.html` es otra navegación de `window.top`, así que el sessionStorage del Despacho moría en el camino; Akasha no tenía el delay porque su `ak_snap_v1` ya era localStorage. Contrato `{t,d}` y `maxMin` intactos — el TTL (10 min en los 3 llamadores) sigue siendo lo que decide, no la vida de la pestaña. Claves migradas: `cm_est`, `cm_salud`, `cm_hoy` — payloads del propio dueño del CM (doGet ya gateado por `OWNER_EMAIL`), sin secretos.
+
+**Ya no figura como pendiente:** la fila test "Objetivo de prueba" (OBJ-0001) de CLI-001 **fue borrada** (hoja `objetivos` de CLI-001 con solo header, verificado).
+
+**Sigue abierto (del cierre 20-jul):** purga de cierre de tanda + declaración formal · re-siembra de objetivos de tenants (**pausa clientes vigente**) · cola T3 (motor profundo/seguridad) · badges 3D con glifo en vez de avatar real.
+
+**Gates:** `selfTestF2` + `selfTest` completos VERDES 2× el 20-jul (17:41 y 19:21) — **NO re-flaggear**. Esta ronda solo tocó `src/index.html` (UI); verificación offline: `node --check` del bloque `<script>` = OK.
+
+**PENDIENTE DE ESTA RONDA (bloqueado por auth):** `clasp push` a HEAD (/dev) — clasp cortó con `invalid_grant / invalid_rapt`. Requiere que Luciano corra `clasp logout` y `clasp login` en el Mac; después va el push + selfTest + commit.
+
+### Lo que tiene que eyeballear Luciano en /dev (2 líneas)
+1. **Overlays:** desde Akasha abrir por las 4 puertas (mini-calendario del Atril · card Tablero del Despacho · "Abrir tablero →" del panel TAREAS · día del mini-calendario) — el universo 3D debe DESAPARECER detrás del overlay, y al cerrar volver intacto y sin reboot.
+2. **Retorno de voz:** Despacho → Hablar con Sato → volver — el Despacho debe repintar instantáneo (como Akasha), sin delay ni velo largo.
+
+<!-- HISTÓRICO desde acá ══════════════════════════════════════════════════════ -->
+
+## Histórico — HANDOFF al 2026-07-17
 
 PRÓXIMO PASO (17-jul tarde — **E3.7 boot-2tiempos EN /dev, ESPERANDO TU EYEBALL CON CRONÓMETRO EN /exec**):
 **Abrí /exec** (NO /dev: /dev recompila HEAD en cada carga y miente los tiempos) y en la consola corré **`AK_T.tabla()`** tras cargar. Mirá: (a) **umbral:visible** (el motor 3D arranca con el fondo+anillos+Núcleo vacío) debe ser ~TTFP, no +15s; (b) **universo:poblado** (estaciones/Espacios/Muelle con datos) <3s warm / <6s cold; (c) **final:poblado** (docks+clima); (d) en 2ª visita en tu Mac, **snapshot:pintado** ~instantáneo. Criterio del pedido: "no pasar de 3s para todo definitivo" — juzgable SOLO en /exec warm; el piso duro es el TTFP de GAS (~2-3s) que no controlamos. Si algún tramo no llega, mandame el desglose de `AK_T.tabla()` y digo dónde quedó el cuello.

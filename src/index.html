@@ -463,8 +463,18 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
  * No se usa auto-switch a Despacho porque salir() DESTRUYE el engine 3D: volver del calendario
  * te dejaría el universo reconstruido desde cero. Esto conserva el engine intacto (solo se le
  * pausa el rAF con setVisible(false)) y la vuelta es instantánea, sin reboot.
- * Las reglas de E3.14 quedan arriba como red: si display:none fallara, el scrim opaco sigue. */
-#centro.ak-modal #akasha{display:none}
+ * Las reglas de E3.14 quedan arriba como red: si display:none fallara, el scrim opaco sigue.
+ *
+ * RONDA 3 (21-jul) — LA CAUSA RAÍZ DE LAS 3 RONDAS FALLIDAS: el selector era
+ * `#centro.ak-modal #akasha`, y #akasha NO es descendiente de #centro — vive FUERA a
+ * propósito (ver comentario del markup, línea ~1055: si estuviera adentro le robaría las
+ * .eyebrow al ccCard del CM). O sea: la regla NUNCA machaba con nada. El JS ponía la clase
+ * bien, el CSS no podía verla. Por eso E3.14 y E3.15 "no pegaron": no había nada que pegar.
+ * Fix: la clase de modo modal se pone TAMBIÉN sobre #akasha (que es a quien hay que apagar).
+ * `#centro.ak-modal` se conserva porque la leen las guardas de JS (Escape, entrada saneada).
+ * Va DESPUÉS de `#akasha.on{display:block}` (misma especificidad 1-1-0): gana por orden. */
+#akasha.ak-modal{display:none}
+#centro.ak-modal #akasha{display:none}   /* red histórica: inerte hoy (akasha no cuelga de centro), inocua */
 
 /* E1.1: avatares con imagen (arte IA). Sin url => el div queda con inicial (placeholder). La img llena el
    medallón circular ya existente; onerror en JS revierte al placeholder. Aplica a órbita, chips y roster. */
@@ -1829,8 +1839,15 @@ function cmBootMark(k){ if(CMBOOT.done)return; CMBOOT[k]=true;
     var v=document.getElementById('cmVeil'); if(v){ v.classList.add('off'); setTimeout(function(){ if(v.parentNode)v.parentNode.removeChild(v); },400); }
   }
 }
-function cmSnapGuardar(clave,dato){ try{ sessionStorage.setItem(clave,JSON.stringify({t:Date.now(),d:dato})); }catch(_e){} }
-function cmSnapLeer(clave,maxMin){ try{ var raw=sessionStorage.getItem(clave); if(!raw)return null; var o=JSON.parse(raw); if(!o||!o.t||(Date.now()-o.t)>maxMin*60000)return null; return o.d; }catch(_e){ return null; } }
+/* RONDA 3 (21-jul) — sessionStorage → localStorage. Causa del delay al volver de la Voz:
+   voz.html es OTRA navegación (window.top), así que el sessionStorage del Despacho moría en el
+   camino y la vuelta repintaba desde cero. Akasha no tenía el delay justamente porque su
+   ak_snap_v1 ya usaba localStorage con TTL. Mismo contrato {t,d} y mismo maxMin (TTL 10 min en
+   los 3 llamadores) — el TTL sigue siendo el que decide, no la vida de la pestaña.
+   Claves migradas: cm_est, cm_salud, cm_hoy — payloads del Despacho del PROPIO dueño del CM
+   (doGet ya está gateado por OWNER_EMAIL); no hay secretos ni datos de otra sesión. */
+function cmSnapGuardar(clave,dato){ try{ localStorage.setItem(clave,JSON.stringify({t:Date.now(),d:dato})); }catch(_e){} }
+function cmSnapLeer(clave,maxMin){ try{ var raw=localStorage.getItem(clave); if(!raw)return null; var o=JSON.parse(raw); if(!o||!o.t||(Date.now()-o.t)>maxMin*60000)return null; return o.d; }catch(_e){ return null; } }
 function cmPill(on){ var p=document.getElementById('cmPill'); if(p){ if(on)p.classList.add('on'); else p.classList.remove('on'); } }
 function cmRestaurarSnapshot(){
   if(!EN_GAS)return false;
@@ -2271,9 +2288,9 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
   var t=document.getElementById('cmTheme'); if(t)t.addEventListener('click',toggleTheme);
   var ob=document.getElementById('openBoard'), ks=document.getElementById('kscrim'), kb=document.getElementById('kboard');
   /* E3.15: akModal_ apaga Akasha mientras el modal está abierto (no-op desde el Despacho). */
-  function openB(){ akModal_(true); if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open'); }
+  function openB(puerta){ akModal_(true, typeof puerta==='string'?puerta:'tablero:otra'); if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open'); }
   function closeB(){ if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open'); akModal_(false); }
-  if(ob){ ob.addEventListener('click',openB); ob.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openB();}}); }
+  if(ob){ ob.addEventListener('click',function(){openB('P2 card openBoard del Despacho');}); ob.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openB('P2 card openBoard (teclado)');}}); }
   /* Ronda 2: openB/closeB expuestos para que Akasha ENTRE POR ACÁ y no por openBoard.click().
      El .click() sintético sobre un nodo que está dentro de .wrap (display:none con Akasha
      abierta) dependía de que el listener corriera igual; llamar la función es directo y no
@@ -2669,21 +2686,41 @@ function ccCalSemana(){
         ev.appendChild(el('span','t',e.hora||'—')); ev.appendChild(document.createTextNode(e.titulo)); day.appendChild(ev);
       });
       if(evd.length>4) day.appendChild(el('div','mmore','+'+(evd.length-4)+' más'));
-      (function(dd){ day.addEventListener('click',function(){calAbrir(dd);});
-        day.addEventListener('keydown',function(k){if(k.key==='Enter'||k.key===' '){k.preventDefault();calAbrir(dd);}}); })(d);
+      (function(dd){ day.addEventListener('click',function(){calAbrir(dd,'P4 dia del mini-calendario');});
+        day.addEventListener('keydown',function(k){if(k.key==='Enter'||k.key===' '){k.preventDefault();calAbrir(dd,'P4 dia del mini-calendario (teclado)');}}); })(d);
       grid.appendChild(day);
     }
   },true);
 }
+/* RONDA 3 — INSTRUMENTACIÓN de overlays, detrás de un flag (default OFF: no se repite la saga
+   del panel AK-DEBUG). Se prende en consola con `AK_DEBUG_OVL=true` (o ?ovldebug=1 en la URL)
+   y loguea, por CADA puerta de apertura: nombre de puerta · className de #centro · display
+   computado de #akasha · si el canvas 3D quedó dentro o fuera de #akasha. Toast breve además
+   del console.log, porque Luciano no abre la consola por defecto. */
+var AK_DEBUG_OVL = /[?&]ovldebug=1/.test(location.search);
+function akOvlLog_(puerta){
+  if(!AK_DEBUG_OVL) return;
+  try{
+    var c=document.getElementById('centro'), a=document.getElementById('akasha');
+    var disp = a ? getComputedStyle(a).display : 'sin-#akasha';
+    var gl=document.querySelector('#gl, #akasha canvas, canvas');
+    var donde = !gl ? 'sin-canvas' : (a && a.contains(gl) ? 'canvas-DENTRO' : 'canvas-FUERA');
+    var linea = puerta+' | centro="'+(c?c.className:'?')+'" | #akasha display='+disp+' | '+donde;
+    console.log('[AK-OVL]', linea);
+    if(typeof cmToast==='function') cmToast('[AK-OVL] '+linea);
+  }catch(e){ console.log('[AK-OVL] error de instrumentación:', e); }
+}
 /* E3.15: apagar Akasha mientras un modal del CM está abierto. Vive acá arriba (fuera del IIFE
    de Akasha) porque lo llaman el tablero y el calendario, que son del CM. Fail-safe: si Akasha
-   todavía no se inicializó, es un no-op silencioso — el modal abre igual. */
-function akModal_(on){
+   todavía no se inicializó, es un no-op silencioso — el modal abre igual.
+   `puerta` es solo para el log: identifica por dónde entró la apertura. */
+function akModal_(on,puerta){
   try{ if(window.AKASHA && window.AKASHA.modal) window.AKASHA.modal(!!on); }catch(e){}
+  if(on) akOvlLog_(puerta||'(puerta sin nombre)');
 }
-function calAbrir(d){
+function calAbrir(d,puerta){
   var base=d||new Date(); CAL.y=base.getFullYear(); CAL.m=base.getMonth(); CAL.cache={};
-  akModal_(true);
+  akModal_(true, puerta||'calendario:otra');
   var ks=document.getElementById('calscrim'), kb=document.getElementById('calboard');
   if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open');
   calMes();
@@ -4196,14 +4233,14 @@ window.AKASHA = (function () {
        sobre #openBoard, que vive dentro de .wrap y con Akasha abierta está display:none.
        openB es quien apaga Akasha (akModal_), así que entrar por acá garantiza el modo modal.
        ccKanbanLoad se llama aparte porque antes lo disparaba el 2º listener del .click(). */
-    abrirTablero: function () {
+    abrirTablero: function (puerta) {
       if (typeof window.cmBoardOpen !== 'function') { toast('El tablero no está disponible'); return; }
-      window.cmBoardOpen();
+      window.cmBoardOpen(typeof puerta === 'string' ? puerta : 'P3 Abrir tablero (panel TAREAS de Akasha)');
       try { if (typeof ccKanbanLoad === 'function') ccKanbanLoad(); } catch (e) {}
     },
-    abrirCalendario: function () {
+    abrirCalendario: function (puerta) {
       if (typeof calAbrir !== 'function') { toast('El calendario no está disponible'); return; }
-      calAbrir(new Date());
+      calAbrir(new Date(), typeof puerta === 'string' ? puerta : 'P1 mini-calendario del Atril de Akasha');
     },
     capturar: function () {
       var b = $('cmCapturar');
@@ -4459,7 +4496,10 @@ window.AKASHA = (function () {
     DATA.agenda.forEach(function (d) {
       ca.appendChild(el('div', 'day' + (d[1] === hoyD ? ' today' : ''), d[0] + '<b>' + d[1] + '</b>' + (d[2] ? '<span class="ev" style="--evc:' + d[2] + '"></span>' : '')));
     });
-    ca.addEventListener('click', acc.abrirCalendario);
+    /* Ronda 3: guarda _wired — renderDocks() corre hasta 3 veces por entrada (snapshot, ola
+       fresh, ola final) y sin esto el mini-calendario acumulaba un listener por corrida:
+       un click abría calAbrir N veces (N akModal_, N calMes, N fetch de agenda). */
+    if (!ca._wired) { ca._wired = true; ca.addEventListener('click', function () { acc.abrirCalendario('P1 mini-calendario del Atril de Akasha'); }); }
 
     var sel = $('sel-cliente');
     if (sel && !sel._wired) {
@@ -4665,6 +4705,7 @@ window.AKASHA = (function () {
        en display:none y la Oficina abriría sin estrellas y sin cosmos. Limpiarla acá hace que
        CUALQUIER entrada arranque siempre desde un estado sano, sin depender de quién cerró qué. */
     centro.classList.remove('ak-modal');
+    ak.classList.remove('ak-modal');                 // Ronda 3: la clase que apaga la pintura vive acá
     ak.classList.add('on'); ak.setAttribute('aria-hidden', 'false');
     ak.classList.toggle('clima-amber', !!S.alerta);
     mostrar('cosmos');
@@ -4744,6 +4785,7 @@ window.AKASHA = (function () {
     /* E3.15: si se sale de Akasha con un modal abierto, la clase de modo modal NO puede quedar
        pegada — en la próxima entrada dejaría #akasha en display:none (Oficina en negro). */
     centro.classList.remove('ak-modal');
+    ak.classList.remove('ak-modal');
     starsOff();
     AK.gen++;                  // las respuestas de cerebroGrafo en vuelo se descartan
     CEREBROS.cargando = false; hudCerebros();
@@ -4782,7 +4824,7 @@ window.AKASHA = (function () {
     var bv = $('btn-voz'); if (bv) bv.addEventListener('click', acc.abrirVoz);
     var bo = $('btn-ov'); if (bo) bo.addEventListener('click', acc.abrirOV);
     var bc = $('btn-capturar'); if (bc) bc.addEventListener('click', acc.capturar);
-    var bb = $('atril-board'); if (bb) bb.addEventListener('click', acc.abrirTablero);
+    var bb = $('atril-board'); if (bb) bb.addEventListener('click', function () { acc.abrirTablero('P3 Abrir tablero (panel TAREAS de Akasha)'); });
     var bh = $('btn-ayuda'); if (bh) bh.addEventListener('click', function () { $('ayuda').hidden = false; $('ayuda-close').focus(); });
     var bhc = $('ayuda-close'); if (bhc) bhc.addEventListener('click', function () { $('ayuda').hidden = true; });
     var ay = $('ayuda'); if (ay) ay.addEventListener('click', function (e) { if (e.target.id === 'ayuda') ay.hidden = true; });
@@ -4828,11 +4870,14 @@ window.AKASHA = (function () {
      Despacho: si Akasha no está abierta, no hay nada que apagar.
      Apaga: pintura (clase ak-modal → display:none), rAF del engine, starfield y popups del HUD. */
   function modal(on) {
-    var centro = $('centro');
+    var centro = $('centro'), ak = $('akasha');
     if (!centro) return;
     if (on) {
       if (!AK.on || centro.classList.contains('ak-modal')) return;
       centro.classList.add('ak-modal');
+      /* Ronda 3: la clase que APAGA la pintura va sobre #akasha, que es quien se tiene que ir.
+         La de #centro queda como bandera de estado (la leen Escape y la entrada saneada). */
+      if (ak) ak.classList.add('ak-modal');
       if (S.engine && S.engine.setVisible) { try { S.engine.setVisible(false); } catch (e) {} }
       starsOff();
       /* Popups del HUD CERRADOS, no solo ocultos: si volvieran abiertos al cerrar el modal,
@@ -4843,6 +4888,7 @@ window.AKASHA = (function () {
     } else {
       if (!centro.classList.contains('ak-modal')) return;
       centro.classList.remove('ak-modal');
+      if (ak) ak.classList.remove('ak-modal');
       if (!AK.on) return;                       // se salió de Akasha con el modal abierto
       if (S.engine && S.engine.setVisible) { try { S.engine.setVisible(true); } catch (e) {} }
       /* starsOn re-siembra y REARRANCA el rAF (starsDraw solo se re-encola mientras AK.on).
