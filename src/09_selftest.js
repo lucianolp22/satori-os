@@ -161,9 +161,9 @@ function selfTest() {
     });
     chk(colaDir.length >= 1, 'E8a-2 el Analista del objetivo quedó encolado en la cola');
 
-    // ── ETAPA 8a · a3 — Salud (6 chequeos, dryRun: no escribe a producción) ────
+    // ── ETAPA 8a · a3 — Salud (7 chequeos, dryRun: no escribe a producción) ────
     var sal = correrSalud({ dryRun: true });
-    chk(sal.hallazgos.length === 6, 'E8a-3 Salud corre los 6 chequeos (' + sal.hallazgos.length + ')');
+    chk(sal.hallazgos.length === 7, 'E8a-3 Salud corre los 7 chequeos (' + sal.hallazgos.length + ')');
     chk(['ok', 'warn', 'crit'].indexOf(sal.global) >= 0, 'E8a-3 Salud clasifica el estado global (' + sal.global + ')');
     chk(sal.autoheal === false, 'E8a-3 auto-heal apagado en piloto (alerta, no arregla)');
 
@@ -509,7 +509,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D17i boot 2 olas', f: _asertsD17i_ },
    { n: 'D17j métrica CM v3', f: _asertsD17j_ },
    { n: 'D18 north star + reset', f: _asertsD18_ },
-   { n: 'D19 módulo S seguridad', f: _asertsD19_ }].forEach(function (t) {
+   { n: 'D19 módulo S seguridad', f: _asertsD19_ },
+   { n: 'D20 serie North Star (M2)', f: _asertsD20_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1087,6 +1088,11 @@ function _asertsD19_(chk, log, opts) {
   try { _soloOwner_('__test__'); } catch (e) { tiroS1 = String((e && e.message) || e); }
   chk(tiroS1 === '', 'D19b2 _soloOwner_ deja pasar al owner sin tirar');
   chk(_ctxSistema_() === true && SATORI_CTX_SISTEMA === true, 'D19b3 _ctxSistema_ marca la ejecución como de sistema (triggers/doPost)');
+  // ── S1b' (M1a) — el criterio PURO de contexto de sistema (ya no es un bypass a ciegas):
+  // trigger (email '') y owner califican; un tercero NO. Se asera puro para no tocar Session.
+  chk(_ctxSistemaPermitido_('', 'a@b.com') === true, 'D19b4 sin usuario activo (trigger/doPost) SÍ es contexto de sistema');
+  chk(_ctxSistemaPermitido_('a@b.com', 'a@b.com') === true, 'D19b4b el owner corriendo un entry point SÍ es contexto de sistema');
+  chk(_ctxSistemaPermitido_('otro@b.com', 'a@b.com') === false, 'D19b4c un usuario REAL no-owner NO obtiene contexto de sistema (M1a: ya no es bypass a ciegas)');
 
   // ── S1c — COBERTURA: cada endpoint declarado tiene el gate en su cuerpo. Es el assert que
   // impide que un endpoint nuevo entre sin puerta (el scan lo canta, esto lo REPRUEBA).
@@ -1103,6 +1109,11 @@ function _asertsD19_(chk, log, opts) {
   chk(_diasPara_('2026-07-28T12:00:00Z', T) === 7, 'D19d5 _diasPara_ calcula los días que faltan (aviso ≤7d)');
   chk(_diasPara_('', T) === null, 'D19d6 sin fecha, _diasPara_ devuelve null (no 0: 0 sería "vence hoy")');
   chk(_isoMasDias_(90, T).length === 10, 'D19d7 _isoMasDias_ produce una fecha ISO de 10 chars (siembra +90d)');
+  // ── S2b (M1b) — secreto de fuente FUERTE (Utilities.getUuid, no Math.random): largo ≥40 y no
+  // se repite entre dos generaciones (sanity de aleatoriedad; el CSPRNG lo da el runtime).
+  var _sec1 = _nuevoSecreto_(), _sec2 = _nuevoSecreto_();
+  chk(_sec1.length >= 40 && /^[0-9a-f]+$/.test(_sec1), 'D19d8 _nuevoSecreto_ da ≥40 chars hex (fuente fuerte, M1b)');
+  chk(_sec1 !== _sec2, 'D19d8b dos secretos consecutivos difieren (no es un valor fijo)');
 
   // ── S3 — matriz de riesgo. Default-deny sobre lo NO listado, y los tres modos.
   chk(gateRiesgo_('tipo_que_nadie_declaro').ok === false &&
@@ -1147,6 +1158,38 @@ function _asertsD19_(chk, log, opts) {
   chk(sal.hallazgos.length >= 7, 'D19h2 Salud pasó de 6 a ' + sal.hallazgos.length + ' chequeos');
   if (chSeg) log.push('   ↳ D19 salud/seguridad: ' + chSeg.estado + ' — ' + chSeg.detalle);
   } finally { SATORI_CTX_SISTEMA = _ctxPrevio; }
+}
+
+/**
+ * D20 — MÓDULO M · M2 (T3, 21-jul): serie temporal del North Star + tendencia del brief.
+ * Todo PURO / read-only: la idempotencia se asera sobre _puntoSerieAccion_ (sin escribir NS_serie),
+ * la tendencia sobre _tendencia_ con la forma real de la serie, y _serieNorte_ solo LEE. Tanda aislada.
+ */
+function _asertsD20_(chk, log, opts) {
+  // ── M2a — idempotencia por fecha (decisión pura, no toca el MAESTRO).
+  var hoy = hoyISO();
+  chk(_puntoSerieAccion_([], hoy).accion === 'agregado', 'D20a serie vacía → agrega el primer punto');
+  chk(_puntoSerieAccion_([{ fecha: hoy, _fila: 2 }], hoy).accion === 'actualizado' &&
+      _puntoSerieAccion_([{ fecha: hoy, _fila: 2 }], hoy).fila === 2,
+      'D20a2 mismo día → ACTUALIZA su fila (no duplica: idempotente por fecha)');
+  chk(_puntoSerieAccion_([{ fecha: '2026-07-20', _fila: 2 }], '2026-07-21').accion === 'agregado',
+      'D20a3 día nuevo → agrega (la serie crece un punto por día)');
+
+  // ── M2b — la tendencia con la forma REAL de la serie (valor = actual observado).
+  var serie2 = [{ fecha: '2026-07-20', valor: 5 }, { fecha: '2026-07-21', valor: 7 }];
+  var t2 = _tendencia_(serie2);
+  chk(!!t2 && t2.palabra === 'acelerando' && t2.detalle.indexOf('+2') >= 0,
+      'D20b con ≥2 puntos, la Tendencia del brief da el delta real (+2, acelerando)');
+  chk(_tendencia_([{ fecha: '2026-07-21', valor: 7 }]) === null,
+      'D20b2 con 1 punto NO inventa tendencia (null → el brief mantiene el texto honesto, D14e)');
+
+  // ── M2c — _serieNorte_ lee sin romper y devuelve la forma esperada; no toca la definición del NS.
+  var s = _serieNorte_();
+  chk(Array.isArray(s), 'D20c _serieNorte_ devuelve un array (fail-safe si la hoja no existe)');
+  chk(s.every(function (p) { return /^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha)) && typeof p.valor === 'number'; }),
+      'D20c2 cada punto es {fecha ISO, valor numérico} (filas sin fecha/número se descartan)');
+  chk(MAESTRO_SHEETS.NS_serie.join(',') === 'fecha,metrica,actual,meta', 'D20c3 el schema de NS_serie es [fecha,metrica,actual,meta]');
+  log.push('   ↳ D20 serie North Star: ' + s.length + ' punto(s) en NS_serie');
 }
 
 /** Cebo de D19f: endpoint DELIBERADAMENTE sin _soloOwner_. No hace nada y nadie lo llama:

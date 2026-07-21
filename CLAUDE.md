@@ -44,6 +44,7 @@
 - Secretos SOLO en Script Properties: `MAESTRO_ID`, `CLAUDE_API_KEY`, `OWNER_EMAIL`, `VOZ_TOOL_SECRET`, `BACKUP_FOLDER_ID`. Nunca en el repo. `.clasp.json`, `.env.local`, `client_secret*.json` = gitignoreados.
 - doPost Voz: secreto-en-body fail-closed + whitelist de tools + least-privilege (solo lectura + capturar). doGet gateado por `getActiveUser().getEmail()` vs `OWNER_EMAIL`. Kill switch total = congelar TODO en pausa (`20_killswitch.js`).
 - **Confirmation-pattern verbal (regla dura para Voz):** toda FUTURA tool de voz que ESCRIBA o mute datos (hoy la voz es solo-lectura + capturar) debe repetir en voz alta qué va a hacer y esperar confirmación verbal explícita antes de ejecutar. Ningún dev futuro la saltea.
+- **Endpoint client-callable nuevo → alta en `ENDPOINTS_UI` (`22_seguridad.js`) en el MISMO commit** (regla anti-drift, purga #3 del módulo S). Toda función invocable por `google.script.run`/el puente de Akasha lleva `_soloOwner_()` y se declara en `ENDPOINTS_UI`; el assert D19c y `securityScan_` auditan la cobertura contra el código, pero no pueden adivinar un endpoint que nadie declaró.
 - Fuera del core: daemon always-on (descartado) · Hermes en el core (descartado; solo si VPS multicanal 24/7) · OpenClaw (descartado — rojo). PM persistente = cron NATIVO (Scheduled Tasks).
 - No meter PII pesada de clientes en capturas personales de Bandeja (capa sin anonimizar hasta B8).
 

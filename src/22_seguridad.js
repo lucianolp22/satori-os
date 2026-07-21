@@ -27,10 +27,44 @@
 var SATORI_CTX_SISTEMA = false;
 
 /**
+ * Criterio PURO de contexto de sistema (M1a, purga #1). ¿Esta ejecución CALIFICA como de
+ * sistema, dado el email del usuario activo y el owner? Solo dos identidades lo hacen:
+ *   · who === ''      → trigger instalado (corre sin usuario activo) o doPost de voz (un POST
+ *                        externo no trae usuario activo; llega acá DESPUÉS de validar el secreto).
+ *   · who === owner   → el owner corriendo un entry point (editor, o trigger que corre como él).
+ * Un usuario REAL no-owner que lograra invocar un entry point de sistema por RPC cae afuera →
+ * NO obtiene el flag → los _soloOwner_ de aguas adentro lo cortan. Pura para poder aserirla sin
+ * tocar Session ni Properties (ver D19b4).
+ * @param {string} who   email del usuario activo ('' si GAS no lo entrega)
+ * @param {string} owner valor de la Script Property OWNER_EMAIL
+ */
+function _ctxSistemaPermitido_(who, owner) {
+  who = String(who == null ? '' : who);
+  owner = String(owner == null ? '' : owner);
+  return who === '' || who === owner;
+}
+
+/**
  * Declara que ESTA ejecución es de sistema (trigger instalado, o doPost ya autenticado):
  * _soloOwner_ deja pasar. Va en la primera línea del entry point, nunca aguas adentro.
+ *
+ * M1a (purga #1): ya NO concede a ciegas. Solo enciende el flag si la ejecución NO tiene un
+ * usuario distinto del owner (_ctxSistemaPermitido_). No rompe: un trigger real corre sin
+ * usuario activo (email '') y el owner en el editor tiene email===owner; doPost llega acá
+ * DESPUÉS de validar el secreto y sin usuario activo (email '') → sigue funcionando. Verificado
+ * en ESTE deployment que bajo un trigger instalado getActiveUser().getEmail() da '' o el owner,
+ * nunca un tercero (eyeball de voz+triggers, 21-jul). Devuelve el veredicto por si algún llamador
+ * futuro lo quiere leer (hoy los entry points lo invocan como statement).
  */
-function _ctxSistema_() { SATORI_CTX_SISTEMA = true; return true; }
+function _ctxSistema_() {
+  var who = '';
+  try { who = Session.getActiveUser().getEmail() || ''; } catch (_e) { who = ''; }
+  var owner = '';
+  try { owner = PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || ''; } catch (_p) { owner = ''; }
+  if (_ctxSistemaPermitido_(who, owner)) { SATORI_CTX_SISTEMA = true; return true; }
+  try { Logger.log('_ctxSistema_ NEGADO: who=' + who); } catch (_l) {}
+  return false;
+}
 
 /**
  * Criterio de puerta PURO (sin Session ni Properties) — así se puede aserir sin tocar
@@ -174,12 +208,15 @@ function sembrarExpirySecretos() {
   return out;
 }
 
-/** Secreto nuevo, alfabeto seguro, 48 chars (~250 bits). Sin dependencias externas. */
+/**
+ * Secreto nuevo, 48 chars hex (~192 bits). M1b (purga #2): fuente FUERTE — `Utilities.getUuid()`
+ * es un UUID v4 (aleatoriedad criptográfica del runtime), no `Math.random()` (PRNG predecible,
+ * inaceptable para un módulo de seguridad). Dos UUIDs sin guiones = 64 hex → recortado a 48.
+ * Sin dependencias externas.
+ */
 function _nuevoSecreto_() {
-  var abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  var s = '';
-  for (var i = 0; i < 48; i++) s += abc.charAt(Math.floor(Math.random() * abc.length));
-  return s;
+  var hex = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+  return hex.slice(0, 48);
 }
 
 /**
