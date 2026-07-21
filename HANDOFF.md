@@ -22,7 +22,7 @@
 
 **Gates:** `selfTestF2` + `selfTest` completos VERDES 2× el 20-jul (17:41 y 19:21) — **NO re-flaggear**. Esta ronda solo tocó `src/index.html` (UI); verificación offline: `node --check` del bloque `<script>` = OK.
 
-**PENDIENTE DE ESTA RONDA (bloqueado por auth):** `clasp push` a HEAD (/dev) — clasp cortó con `invalid_grant / invalid_rapt`. Requiere que Luciano corra `clasp logout` y `clasp login` en el Mac; después va el push + selfTest + commit.
+**Cierre de la ronda:** guardia de drift repo↔GAS **OK** (solo difería `index.html`) · **`clasp push` a HEAD (/dev) OK** · commit **`23f2180`** pusheado a GitHub (`main == origin/main`). **`clasp run` sigue bloqueado** ("Unable to run script function"), así que el **`selfTest()` completo queda para Luciano en el editor GAS** — esta ronda tocó SOLO `src/index.html` (UI, cero backend). **/exec no se tocó.**
 
 ### Lo que tiene que eyeballear Luciano en /dev (2 líneas)
 1. **Overlays:** desde Akasha abrir por las 4 puertas (mini-calendario del Atril · card Tablero del Despacho · "Abrir tablero →" del panel TAREAS · día del mini-calendario) — el universo 3D debe DESAPARECER detrás del overlay, y al cerrar volver intacto y sin reboot.
