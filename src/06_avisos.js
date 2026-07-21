@@ -134,6 +134,12 @@ function corridaDiaria() {
   try { resumen.recomendacion = registrarRecomendacionDelDia(); }
   catch (e) { try { Logger.log('registrarRecomendacionDelDia fallo: ' + e.message); } catch (_e) {} }
 
+  // T3 M2 (21-jul): registrar el North Star de sistema del día → serie temporal (NS_serie) que
+  // alimenta la Tendencia del brief (de foto a película). Idempotente por fecha; fail-silenciosa:
+  // registrar la serie es higiene, jamás rompe la corrida diaria.
+  try { resumen.norte_serie = registrarNorteDelDia_(); }
+  catch (e) { try { Logger.log('registrarNorteDelDia_ fallo: ' + e.message); } catch (_e) {} }
+
   // P2 F3: brief-push (opt-in brief_push_on, default OFF; solo OWNER_EMAIL; dedupe diario).
   try { resumen.brief_push = briefPush_(); }
   catch (e) { try { Logger.log('brief_push fallo: ' + e.message); } catch (_e) {} }

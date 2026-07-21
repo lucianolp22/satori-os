@@ -49,11 +49,15 @@ var MAESTRO_SHEETS = {
   // intacto para todo lo demás. Matcheo EXACTO (tipo_accion + alcance) y vigencia OBLIGATORIA;
   // sin wildcard de tenant. Una dirección vencida o activa=false NO matchea (ver direccionVigente_).
   Direcciones: ['id', 'tipo_accion', 'alcance', 'aprobada_fecha', 'vigencia', 'activa', 'notas'],
+  // T3 M2 (21-jul) — serie temporal del North Star de SISTEMA (la consultora). UN punto por día
+  // (idempotente por fecha). Le da al brief la TENDENCIA (de foto a película). La DEFINICIÓN del
+  // North Star sigue en Config (ns_satori_*); acá vive SOLO la serie de resultados observados.
+  NS_serie: ['fecha', 'metrica', 'actual', 'meta'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {

@@ -5,6 +5,32 @@
 
 ## Estado vigente (21-jul)
 
+## T3 · MÓDULO M (motor) — M1+M2 CONSTRUIDOS, gates de editor PENDIENTES
+
+Encargo: `ENCARGO-CODE-T3-modulo-M-motor-2026-07-21.md`. **Pusheado a /dev**, **/exec NO se tocó**. M3-M5 y Módulo H = roadmap, NO arrancados.
+
+**M1 · hardening de seguridad (cierra la purga de S).**
+- **M1a** — `_ctxSistema_()` ya NO es bypass a ciegas (`22_seguridad.js`): solo enciende el flag de sistema si la ejecución NO tiene un usuario distinto del owner. Criterio PURO en `_ctxSistemaPermitido_(who, owner)` (trigger email='' u owner califican; un tercero NO). No rompe voz (doPost = sin usuario activo, llega tras validar el secreto) ni triggers (corren sin usuario o como el owner). **Supuesto verificado:** en este deployment `Session.getActiveUser().getEmail()` bajo trigger da `''` o el owner, nunca un tercero (queda para el eyeball de voz+triggers).
+- **M1b** — `_nuevoSecreto_` con CSPRNG: `Utilities.getUuid()×2` sin guiones → 48 hex (~192 bits), reemplaza `Math.random()`. No cambia la interfaz de `rotarSecreto*`.
+- **M1c** — regla anti-drift en `CLAUDE.md` (Seguridad): endpoint client-callable nuevo → alta en `ENDPOINTS_UI` en el MISMO commit.
+- Asserts nuevos: **D19b4/b4b/b4c** (ctx-sistema puro), **D19d8/d8b** (secreto fuerte).
+
+**M2 · D6 encadenado (de foto a película).**
+- **M2a** — serie temporal del North Star de SISTEMA: hoja dedicada **`NS_serie`** (`[fecha, metrica, actual, meta]`) en el MAESTRO. `registrarNorteDelDia_()` persiste UN punto/día, **idempotente por fecha** (re-correr el mismo día actualiza, no duplica). Soporte = hoja dedicada (NO `cerebro_log`, que es por-tenant y Satori no es tenant; NO Config, que guarda la definición). Cableado en `corridaDiaria` (fail-silenciosa). Decisión de idempotencia aislada en `_puntoSerieAccion_` (puro, aserible sin escribir).
+- **M2b** — la Tendencia del brief lee la serie (`_serieNorte_` → `_tendencia_`): con ≥2 puntos muestra el delta real; con <2 mantiene el texto honesto (respeta D14e — sin 2 puntos NO inventa).
+- **M2c** — no toca `northStarSatori_` ni la siembra; D3/D18 intactos.
+- Asserts nuevos: tanda **D20** (idempotencia por fecha · tendencia con 2 puntos da delta · con 1 punto null · schema de `NS_serie`).
+
+**Verificado offline:** `node --check` de los 5 `.js` tocados ✓ · **harness vm con stubs: 11/11** (ctx-sistema 3 casos · secreto ≥40 hex y varía · idempotencia agrega/actualiza/día-nuevo · tendencia +2 acelerando · 1 punto null) ✓ · guardia drift repo↔GAS: GAS HEAD == repo salvo exactamente los 5 archivos tocados ✓ · CAPABILITIES regen ✓ · **`clasp push` a /dev HECHO**.
+
+### ⛔ Lo que corre Luciano (2 líneas)
+1. **En el editor GAS:** `selfTest()` completo (trae **D19b4** ctx-sistema puro, **D19d8** secreto fuerte, y la tanda **D20** de la serie). `clasp run` sigue bloqueado → el gate es de editor.
+2. **Eyeball en /dev:** (a) **voz + un trigger siguen vivos** con el nuevo `_ctxSistema_` (Sato consulta y captura; `corridaDiaria`/`drenarCola` corren) — es la prueba de que M1a no cerró ninguna puerta legítima; (b) **la Tendencia del brief**: tras 2 `corridaDiaria` en días distintos aparece el delta real. Para verlo YA sin esperar 2 días, sembrá 2 puntos de prueba en `NS_serie` (`2026-07-20` actual=N, `2026-07-21` actual=M) y abrí el brief de sistema: la línea "Tendencia" debe decir acelerando/frenando/estable con el delta, no "aún sin ≥2 puntos".
+
+**Frenar acá:** M1+M2 cerrados a nivel código+offline; faltan los gates de editor + eyeball. NO arrancar M3-M5 ni Módulo H (encargo aparte). La purga de M la corre Cowork.
+
+---
+
 ## T3 · MÓDULO S (seguridad del motor) — CONSTRUIDO, gates de editor PENDIENTES
 
 Encargo: `ENCARGO-CODE-T3-modulo-S-seguridad-2026-07-21.md`. Archivo nuevo: **`src/22_seguridad.js`** (S1-S4 juntos, blast radius chico). **NO se tocó `/exec`.**
@@ -28,7 +54,7 @@ Encargo: `ENCARGO-CODE-T3-modulo-S-seguridad-2026-07-21.md`. Archivo nuevo: **`s
 
 **Nota honesta de cobertura:** `selfTest()` invoca `doPost()` con secreto válido más arriba, y eso deja el contexto de sistema encendido; D19 lo apaga y lo restaura para no dar un verde mentiroso. El rechazo a un usuario REAL no-owner no es aserible desde GAS (no se puede falsear `Session`) — por eso el criterio vive en `_puertaOwner_`, que sí se asera exhaustivamente (y el harness offline lo prueba con Session stubbeada).
 
-**Frenar acá:** la purga del módulo S la corre Cowork; después va M. NO arrancar M ni H.
+**Frenar acá:** la purga del módulo S la corre Cowork. (M1+M2 del Módulo M ya se construyeron sobre esto — ver la sección de arriba.)
 
 
 **Prod:** **PROMOTE a /exec HECHO** el 21-jul 08:18 por Luciano — commit `5f8846e`, `main == origin/main`. Rollback anotado en `_promote_rollback.txt`. Eyeball de /exec: **pendiente de Luciano**. Reinicio del agente de voz: **pendiente**.

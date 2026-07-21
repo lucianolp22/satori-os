@@ -382,7 +382,12 @@ function briefDiarioSistema_() {
   var metricas = [];
   if (ns) {
     metricas.push('- North Star: ' + ns.desc + (ns.meta != null ? ' · ' + ns.actual + '/' + ns.meta : '') + (ns.horizonte ? ' · horizonte ' + ns.horizonte : ''));
-    metricas.push('- Tendencia: sin serie histórica del North Star (no se registra por período) — es foto, no película.');
+    // M2b (T3): la serie NS_serie da la TENDENCIA real. Con ≥2 puntos, delta honesto; con <2,
+    // el texto honesto (respeta D14e: sin 2 puntos NO se inventa tendencia).
+    var tNs = _tendencia_(_serieNorte_());
+    metricas.push(tNs
+      ? '- Tendencia: ' + tNs.palabra + ' · ' + tNs.detalle
+      : '- Tendencia: aún sin ≥2 puntos del North Star en la serie (se registra por período desde ya) — todavía es foto, no película.');
   } else metricas.push('- North Star de Satori sin definir (Config ns_satori_desc) — sin norte no hay tendencia que medir.');
   metricas.push('- Cartera: ' + d.estado.clientes + ' clientes · ' + abiertas.length + ' tareas abiertas (' + vencidas.length + ' vencidas) · ' + ap + ' aprobaciones · ' + av + ' avisos');
   metricas.push('- Salud: ' + String(sal.global).toUpperCase() + ' (integridad ' + sal.integridad + '%)');
@@ -595,6 +600,63 @@ function northStarSatori_() {
            metricas: _nsLista_(getConfig('ns_satori_metricas')),
            valores: _nsLista_(getConfig('ns_satori_valores')),
            pivots: _nsPivots_(getConfig('ns_satori_pivots')) };
+}
+
+/**
+ * M2a (T3, 21-jul) — persiste UN datapoint diario del North Star de SISTEMA en la hoja `NS_serie`
+ * del MAESTRO. IDEMPOTENTE POR FECHA: re-correr el mismo día ACTUALIZA la fila (no duplica). Es la
+ * serie de resultados observados que le faltaba al brief para mostrar tendencia real (de foto a
+ * película). NO toca la definición del North Star (Config `ns_satori_*`); solo registra el valor
+ * de hoy. Soporte elegido = hoja dedicada (no `cerebro_log`, que es POR-TENANT y Satori no es un
+ * tenant; no Config, que guarda la definición, no la serie). Fail-safe: sin NS definido → skip.
+ * @return {{ok:boolean, fecha?:string, actual?:number, meta?:(number|null), accion?:string, motivo?:string}}
+ */
+function registrarNorteDelDia_() {
+  var ns = northStarSatori_();
+  if (!ns) return { ok: false, motivo: 'North Star sin definir (Config ns_satori_desc)' };
+  var fecha = hoyISO();
+  var metrica = String(ns.metrica || ns.desc || '');
+  var actual = Number(ns.actual);
+  var meta = (ns.meta == null ? '' : ns.meta);
+  var sh = ensureSheet(getMaestro(), 'NS_serie', MAESTRO_SHEETS.NS_serie);
+  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var cActual = hdr.indexOf('actual') + 1, cMeta = hdr.indexOf('meta') + 1;
+  var acc = _puntoSerieAccion_(leerTabla(sh), fecha);
+  if (acc.accion === 'actualizado') {          // mismo día → actualiza en su fila, no duplica
+    if (cActual > 0) sh.getRange(acc.fila, cActual).setValue(actual);
+    if (cMeta > 0) sh.getRange(acc.fila, cMeta).setValue(meta);
+  } else {
+    appendFila(sh, { fecha: fecha, metrica: metrica, actual: actual, meta: meta });
+  }
+  return { ok: true, fecha: fecha, actual: actual, meta: (meta === '' ? null : meta), accion: acc.accion };
+}
+
+/**
+ * Puro (M2a) — decisión de idempotencia por fecha: dada la serie YA leída y una fecha, ¿actualiza
+ * la fila de ese día o agrega una nueva? Separado para poder aserirlo sin escribir en el MAESTRO.
+ * @return {{accion:('actualizado'|'agregado'), fila:(number|null)}}
+ */
+function _puntoSerieAccion_(filas, fecha) {
+  var f = aFechaISO(fecha) || String(fecha || '');
+  for (var i = 0; i < (filas || []).length; i++) {
+    if (aFechaISO(filas[i].fecha) === f) return { accion: 'actualizado', fila: filas[i]._fila };
+  }
+  return { accion: 'agregado', fila: null };
+}
+
+/**
+ * M2b (T3) — lee la serie de `NS_serie` como [{fecha, valor}] lista para `_tendencia_`
+ * (valor = `actual` observado). Fail-safe: hoja ausente/ilegible → [] (el brief cae al texto
+ * honesto de "sin serie"). No inventa: filas sin fecha ISO o sin número se descartan.
+ */
+function _serieNorte_() {
+  try {
+    var sh = getMaestro().getSheetByName('NS_serie');
+    if (!sh) return [];
+    return leerTabla(sh)
+      .map(function (r) { return { fecha: aFechaISO(r.fecha), valor: Number(r.actual) }; })
+      .filter(function (p) { return /^\d{4}-\d{2}-\d{2}$/.test(String(p.fecha)) && !isNaN(p.valor); });
+  } catch (_e) { return []; }
 }
 
 /** Lista separada por '·' → array limpio (vacío si no hay nada). */
