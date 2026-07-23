@@ -140,6 +140,7 @@ function _ultimoEspejo_(sh) {
  * interna). Idempotente. Correr a mano — no está en CLIENTE_ORDEN a propósito (ver 01_schema.js).
  */
 function repararHilo() {
+  _soloOwner_('repararHilo');   // purga integral 23-jul: crea hojas en TODOS los Sheets cliente
   var n = 0;
   leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
     if (!c.url_sheet_cliente) return;
@@ -162,6 +163,7 @@ function repararHilo() {
  * @return {{escritas:number, descartadas:number}}
  */
 function espejarHilo(idCliente, filas) {
+  _soloOwner_('espejarHilo');   // purga integral 23-jul: el gate va sobre la función REAL, no solo sobre el wrapper CSV (doctrina S1: un wrapper deja la original igual de llamable)
   var ss = abrirCliente(idCliente).ss;
   var sh = ensureSheet(ss, 'hilo', CLIENTE_SHEETS.hilo);
   try { protegerSheet(sh, false); sh.hideSheet(); } catch (_p) {}
@@ -192,6 +194,7 @@ function espejarHilo(idCliente, filas) {
  * agrega credenciales ni scopes nuevos, y porque el paso queda auditable a ojo antes de aplicarlo.
  */
 function espejarHiloCSV(idCliente, csv) {
+  _soloOwner_('espejarHiloCSV');   // purga integral 23-jul
   var filas = String(csv || '').split('\n').map(function (l) { return l.trim(); }).filter(String)
     .map(function (l) { return _parseCSVLinea_(l); });
   if (filas.length && _sinTildes_(String(filas[0][0] || '').toLowerCase()) === 'seccion') filas.shift();  // header

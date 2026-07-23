@@ -1481,8 +1481,35 @@ function _asertsD25_(chk, log, opts) {
   chk(srcAlta.indexOf('probarConector') >= 0, 'D25f2 el alta te manda a validar al peso antes de encender');
   chk(String(probarConector).indexOf('SE_ESCRIBIO_ALGO') >= 0, 'D25f3 probarConector es ensayo EN SECO (declara que no escribió)');
 
+  // ── Mapeo cliente↔SGIC de la siembra A3. FIJADO tras la purga integral (23-jul): la versión
+  //    original cruzaba los id_cliente (DAM apuntaba a la DB de MesaQuince, y CLI-005 —que no tiene
+  //    SGIC— a la de DAM). Nacían apagados, así que no se escribió nada; pero un `encenderConector`
+  //    sin mirar habría metido las finanzas de un cliente en el Sheet de otro. Este assert vuelve el
+  //    mapeo un CONTRATO: reordenarlo o agregar un cliente equivocado ahora pone rojo el selfTest.
+  var ESPERADO_A3 = { 'CLI-001': 'movimientos_mesaquince', 'CLI-003': 'libro_lctravel', 'CLI-004': 'fresha_dam' };
+  var vistos = {};
+  CONECTORES_HALLADOS_A3.forEach(function (c) { vistos[c.cliente] = c.tipo; });
+  chk(Object.keys(vistos).sort().join(',') === 'CLI-001,CLI-003,CLI-004',
+      'D25g la siembra A3 cubre exactamente CLI-001, CLI-003 y CLI-004 (fue: ' + Object.keys(vistos).sort().join(',') + ')');
+  Object.keys(ESPERADO_A3).forEach(function (cli) {
+    chk(vistos[cli] === ESPERADO_A3[cli],
+        'D25g2 ' + cli + ' → adapter ' + ESPERADO_A3[cli] + ' (roster real del MAESTRO; fue: ' + (vistos[cli] || 'ausente') + ')');
+  });
+  // CLI-005 (SIP) NO tiene SGIC: si aparece en la siembra, alguien le inventó uno.
+  chk(!vistos['CLI-005'], 'D25g3 CLI-005 (SIP) NO se siembra — no tiene SGIC que conectar');
+  // CLI-002 (Vehemence) corre por código, no por el mapa: sembrarlo lo duplicaría.
+  chk(!vistos['CLI-002'], 'D25g4 CLI-002 (Vehemence) no se siembra — corre por código y se duplicaría');
+  // Cada DB tiene que ser única: dos clientes con el mismo spreadsheetId es el bug que se acaba de arreglar.
+  var dbs = CONECTORES_HALLADOS_A3.map(function (c) { return c.db; });
+  chk(dbs.length === dbs.filter(function (d, i) { return dbs.indexOf(d) === i; }).length,
+      'D25g5 ningún spreadsheetId se repite entre clientes (dos tenants leyendo la misma DB = datos cruzados)');
+  CONECTORES_HALLADOS_A3.forEach(function (c) {
+    chk(!!CONECTOR_ADAPTERS[c.tipo], 'D25g6 el adapter sembrado para ' + c.cliente + ' existe: ' + c.tipo);
+  });
+
   log.push('   ↳ D25 conectores: ' + Object.keys(CONECTOR_ADAPTERS).length + ' adapter(s) · mapa fixture ' +
-           Object.keys(m).length + ' cliente(s), 1 corre');
+           Object.keys(m).length + ' cliente(s), 1 corre · siembra A3 ' +
+           CONECTORES_HALLADOS_A3.map(function (c) { return c.cliente + '→' + c.tipo; }).join(', '));
 }
 
 /**

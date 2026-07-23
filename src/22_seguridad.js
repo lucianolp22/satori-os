@@ -197,6 +197,7 @@ function _isoMasDias_(dias, base) {
  * Correr una vez desde el editor. No toca los secretos: solo su fecha.
  */
 function sembrarExpirySecretos() {
+  _soloOwner_('sembrarExpirySecretos');   // purga integral 23-jul: muta Script Properties de secretos
   var props = PropertiesService.getScriptProperties();
   var out = {};
   [PROP_VOZ_EXPIRA, PROP_OFICINA_EXPIRA].forEach(function (p) {
@@ -227,10 +228,16 @@ function _nuevoSecreto_() {
  * ahora o volvé a rotar. El reparto NO se automatiza (decisión Bastión): el .env del
  * agente de voz lo actualiza Luciano a mano y reinicia el agente.
  */
-function rotarSecretoVoz() { return _rotarSecreto_('VOZ_TOOL_SECRET', PROP_VOZ_EXPIRA, 'agente de voz (.env del LiveKit worker)'); }
+function rotarSecretoVoz() {
+  _soloOwner_('rotarSecretoVoz');   // purga integral 23-jul: genera y muestra un secreto nuevo
+  return _rotarSecreto_('VOZ_TOOL_SECRET', PROP_VOZ_EXPIRA, 'agente de voz (.env del LiveKit worker)');
+}
 
 /** Igual que rotarSecretoVoz pero para el sync de la Oficina Virtual. */
-function rotarSecretoOficina() { return _rotarSecreto_('OFICINA_SYNC_SECRET', PROP_OFICINA_EXPIRA, 'Oficina Virtual (.env del sync)'); }
+function rotarSecretoOficina() {
+  _soloOwner_('rotarSecretoOficina');   // purga integral 23-jul
+  return _rotarSecreto_('OFICINA_SYNC_SECRET', PROP_OFICINA_EXPIRA, 'Oficina Virtual (.env del sync)');
+}
 
 function _rotarSecreto_(propSecreto, propExpira, destino) {
   var props = PropertiesService.getScriptProperties();

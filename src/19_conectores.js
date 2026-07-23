@@ -215,24 +215,39 @@ function mapearFreshaDam_(filas) {
  * Los id_cliente son los del MAESTRO. Si alguno no coincide con la cartera real, la fila queda
  * huérfana y `estadoConectores()` la muestra sin cliente — se corrige ahí, no se adivina acá.
  */
+// ⚠ CORREGIDO EN LA PURGA INTEGRAL (Cowork, 23-jul). La versión anterior asignaba los tres SGIC a
+// los id_cliente EQUIVOCADOS: el barrido A3 confirmó los Spreadsheet-ID pero NO leyó la hoja
+// `Clientes` del MAESTRO, así que los id se pusieron por suposición (quedó anotado como supuesto,
+// pero anotar un supuesto no lo vuelve inofensivo).
+//
+// Roster REAL del MAESTRO:  CLI-001 FRANFLACA/MesaQuince · CLI-002 Vehemence · CLI-003 LC Travel ·
+//                           CLI-004 Barbería Alex/DAM · CLI-005 SIP (sin SGIC).
+//
+// Qué habría pasado: `sembrarConectoresHallados()` habría dejado a **CLI-004 (DAM) apuntando a la DB
+// de MesaQuince** y a **CLI-005 (SIP, que no tiene SGIC) apuntando a la de DAM**. Nacen apagados y
+// `probarConector` es ensayo en seco, así que el radio quedaba contenido — pero un
+// `encenderConector` sin mirar habría escrito las finanzas de un cliente en el Sheet de otro.
+// Es la razón por la que los conectores nacen OFF y se validan al peso uno por uno.
+//
+// CLI-005 (SIP) NO entra: no tiene SGIC. Un cliente sin sistema propio no tiene nada que conectar.
 var CONECTORES_HALLADOS_A3 = [
+  { cliente: 'CLI-001', db: '16scXurhcVyzjLJoRtjKZViy7aqpvd7wjvEzZ7mwo-d8', tipo: 'movimientos_mesaquince',
+    nota: 'FRANFLACA RB S.L. / MesaQuince (code.gs.rtf:28 + HANDOFF_MesaQuince.md:15)' },
   { cliente: 'CLI-003', db: '1_5fyiolfK2bvvPwKmGr5kUxrRCUAUOGXiTu-x2Zigzc', tipo: 'libro_lctravel',
     nota: 'LC Travel · "LCTRAVELS - Base de datos" (Code.js:1, confirmado literal)' },
-  { cliente: 'CLI-004', db: '16scXurhcVyzjLJoRtjKZViy7aqpvd7wjvEzZ7mwo-d8', tipo: 'movimientos_mesaquince',
-    nota: 'MesaQuince/FRANFLACA RB S.L. (code.gs.rtf:28 + HANDOFF_MesaQuince.md:15)' },
-  { cliente: 'CLI-005', db: '1_pkEGg5e14gF2_59EmEygDoR9BlIvPAvZZOg6k50dWY', tipo: 'fresha_dam',
-    nota: 'DAM Barber Shop · "DAM System · DB" (HANDOFF.md:77 + N3_Plano_DataLayer.md:9)' }
+  { cliente: 'CLI-004', db: '1_pkEGg5e14gF2_59EmEygDoR9BlIvPAvZZOg6k50dWY', tipo: 'fresha_dam',
+    nota: 'Barbería Alex / DAM Barber Shop · "DAM System · DB" (HANDOFF.md:77 + N3_Plano_DataLayer.md:9)' }
 ];
 
 function sembrarConectoresHallados() {
+  _soloOwner_('sembrarConectoresHallados');   // purga integral 23-jul: escribe 9 filas de Config
   var out = [];
   CONECTORES_HALLADOS_A3.forEach(function (c) {
     try { altaConector(c.cliente, c.db, c.tipo); out.push(c.cliente + ' ✓ (' + c.tipo + ', APAGADO)'); }
     catch (e) { out.push(c.cliente + ' ✗ ' + ((e && e.message) || e)); }
   });
   Logger.log('sembrarConectoresHallados:\n  ' + out.join('\n  ') +
-             '\n\n⚠ Los id_cliente son un SUPUESTO: verificá contra la hoja Clientes del MAESTRO antes de encender.' +
-             '\n⚠ Ninguno quedó encendido. Por cada uno: probarConector(id) → comparar totales contra la fuente → encenderConector(id).');
+             '\n\n⚠ Ninguno quedó encendido. Por cada uno: probarConector(id) → comparar totales contra la fuente → encenderConector(id).');
   return out;
 }
 
@@ -447,6 +462,7 @@ function altaConector(idCliente, spreadsheetIdDB, tipoAdapter) {
  * hace que sus números empiecen a alimentar recomendaciones.
  */
 function encenderConector(idCliente) {
+  _soloOwner_('encenderConector');   // purga integral 23-jul: enciende un conector productivo
   var cfg = _mapaConectores_(leerTabla(getMaestro().getSheetByName('Config')))[idCliente];
   if (!cfg || !cfg.db || !cfg.tipo) throw new Error(idCliente + ': no tiene conector dado de alta (corré altaConector primero)');
   setConfig(CONECTOR_PREFIJO + idCliente + '_on', 'true');
@@ -456,6 +472,7 @@ function encenderConector(idCliente) {
 
 /** Apaga un conector sin borrar su configuración. */
 function apagarConector(idCliente) {
+  _soloOwner_('apagarConector');   // purga integral 23-jul: muta Config
   setConfig(CONECTOR_PREFIJO + idCliente + '_on', 'false');
   return { id_cliente: idCliente, on: false };
 }
@@ -466,6 +483,7 @@ function apagarConector(idCliente) {
  * en su propio sistema. Corre aunque el conector esté apagado (justamente para eso existe).
  */
 function probarConector(idCliente) {
+  _soloOwner_('probarConector');   // purga integral 23-jul: abre el SGIC de un cliente — no es endpoint de UI, pero lee datos de tenant
   var cfg = _mapaConectores_(leerTabla(getMaestro().getSheetByName('Config')))[idCliente];
   if (!cfg || !cfg.db || !cfg.tipo) return { error: idCliente + ': sin conector dado de alta' };
   var ad = CONECTOR_ADAPTERS[cfg.tipo];
@@ -493,6 +511,7 @@ function probarConector(idCliente) {
 
 /** Estado del mapa completo — qué hay dado de alta, qué está encendido y qué le falta a cada uno. */
 function estadoConectores() {
+  _soloOwner_('estadoConectores');   // purga integral 23-jul: expone los spreadsheetId de los SGIC de la cartera
   var mapa = _mapaConectores_(leerTabla(getMaestro().getSheetByName('Config')));
   var out = Object.keys(mapa).sort().map(function (cli) {
     var d = _decidirConector_(cli, mapa[cli]);

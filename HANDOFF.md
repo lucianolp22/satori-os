@@ -21,7 +21,7 @@ Autorizaciones: **A1=SÍ · A2=NO · A3=SÍ · A4=SÍ · A5=SÍ · A6=SÍ**. **`
 | **F6** | B8-código (Bucket B de la purga B5: #6/#8/#9/#10) · borrador RGPD · REPORTE · este handoff | (este) |
 
 **Verificado offline: `node --check` de los 25 `.js` + del bloque inline de `index.html` · harness
-`vm` con stubs de GAS **215/215 verdes** (41 F1 · 61 F2 · 79 F3+B8 · 34 F4) · guardia de drift verde
+`vm` con stubs de GAS **236/236 verdes** (41 F1 · 61 F2 · 100 F3+B8+purga · 34 F4) · guardia de drift verde
 antes de cada push · CAPABILITIES regen.** Asserts nuevos en `selfTest`: **D21 · D22 · D23 · D24 ·
 D25 · D26** (D27 reservada para T7). **NADA se ejecutó dentro de GAS** — ese es el riesgo real de
 haber batcheado 6 fases y está declarado en el §7 del reporte.
@@ -49,8 +49,22 @@ haber batcheado 6 fases y está declarado en el §7 del reporte.
 6. **Decidir `cerebro_map`** (mapa neural) mirando los fps en el iPhone — no es medible desde Code.
 
 ### Flags que nacieron APAGADOS (la cadena construye, la revisión enciende)
-`conector_CLI-003_on` (LC Travel) · `conector_CLI-004_on` (MesaQuince) · `conector_CLI-005_on` (DAM)
+`conector_CLI-001_on` (MesaQuince) · `conector_CLI-003_on` (LC Travel) · `conector_CLI-004_on` (DAM)
 · `cerebro_map` (mapa neural). Cómo encender cada uno: §3 del reporte.
+
+### 🔴 Purga integral de Cowork (23-jul) — 3 parches aplicados sobre la cadena
+1. **CRÍTICO — `id_cliente` cruzados en la siembra de conectores.** El barrido A3 confirmó los
+   Spreadsheet-ID pero no leyó la hoja `Clientes`, así que los ids se pusieron por suposición:
+   CLI-004 (DAM) apuntaba a la DB de **MesaQuince** y CLI-005 (SIP, sin SGIC) a la de **DAM**.
+   Corregido al roster real (CLI-001 MesaQuince · CLI-003 LC Travel · CLI-004 DAM; CLI-005 fuera) y
+   **fijado con asserts D25g..g6**: cruzarlo de nuevo pone rojo el selfTest.
+2. **+11 gates `_soloOwner_`** en funciones de mantenimiento que mutaban Config, secretos u hojas de
+   todos los tenants (`probarConector`, `encenderConector`, `apagarConector`,
+   `sembrarConectoresHallados`, `estadoConectores`, `espejarHiloCSV`, **`espejarHilo`**,
+   `repararHilo`, `sembrarExpirySecretos`, `rotarSecretoVoz`, `rotarSecretoOficina`).
+   No entran en `ENDPOINTS_UI` — no son client-callable, son de editor.
+3. **REPORTE §2.3 corregido:** Vehemence y DAM **no tienen git**; la acción es rotar el `OWNER_TOKEN`
+   de Vehemence y sacar el valor del DOC, no purgar un historial que no existe.
 
 ### IDs de SGIC hallados (A3) — origen archivo:línea en §4 del reporte
 LC Travel `1_5fyi…igzc` ✓ · MesaQuince `16scXu…o-d8` ✓ · DAM `1_pkEG…0dWY` ✓ · Vehemence ya cableado.

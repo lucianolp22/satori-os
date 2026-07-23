@@ -14,10 +14,11 @@
 | **F0** preflight | ✅ hecho | — | drift repo↔GAS **idéntico** (25 archivos) · `node --check` 23 `.js` ✓ · working tree sin modificados trackeados |
 | **F1** T3-M3/M4/M5 | ✅ hecho | `9ce5e4f` | harness **41/41** · asserts D21·D22·D23 |
 | **F2** T3-H (H1-H4) | ✅ hecho | `209bbce` | harness **61/61** · asserts D24 |
-| **F3** TC-W3 conectores | ✅ hecho | `ceb4664` | harness **79/79** (incluye B8) · asserts D25 |
+| **F3** TC-W3 conectores | ✅ hecho | `ceb4664` | harness **100/100** (incluye B8 y la purga) · asserts D25 |
 | **F4** TC-W1/W2/W4 Hilo | ✅ hecho | `bf640b2` | harness **34/34** · asserts D26 |
-| **F5** T7 correo | ⏸ **spec, por A2=NO** | (con F6) | sin código: era la instrucción exacta |
-| **F6** B8 + cierre | ✅ hecho | (este) | B8 dentro del harness F3 |
+| **F5** T7 correo | ⏸ **spec, por A2=NO** | `5acead4` | sin código: era la instrucción exacta |
+| **F6** B8 + cierre | ✅ hecho | `5acead4` | B8 dentro del harness F3 |
+| **Purga integral** (Cowork) | ✅ aplicada 23-jul | (este) | mapeo cliente↔SGIC corregido + 11 gates · asserts D25g..g6 |
 
 **Ninguna fase se bloqueó.** Un solo desvío deliberado, ya previsto en el encargo: F5.
 
@@ -39,7 +40,8 @@ el encargo no se la había numerado, la serie quedó corrida en uno:
 
 ## 2. Lo que la cadena encontró (no estaba en el encargo)
 
-Tres hallazgos reales. Los tres los produjo la verificación, no la lectura.
+Tres hallazgos reales de la cadena — los tres los produjo la verificación, no la lectura. El cuarto
+(§2.4) lo encontró la purga integral de Cowork **después**, y es el más grave de todos.
 
 ### 2.1 🐞 Bug de producción en el normalizador de cifras — **arreglado**
 El golden-set M4, apenas se encendió, puso en rojo el caso `CF-04`:
@@ -67,13 +69,43 @@ voz, en el mismo commit que las creaba. Se pasó a **espejo verbatim** y el harn
 reglas enteras.
 
 ### 2.3 🔓 Secretos en claro en documentación de OTROS proyectos — **reportado, no tocado**
-El barrido A3 encontró **tokens de acceso en texto plano dentro de documentación versionada**:
+El barrido A3 encontró **tokens de acceso en texto plano dentro de documentación**:
 
 - `Vehemence/DOC-Vehemence-ERP-sistema.md` §13 → un `OWNER_TOKEN`
 - `DAM Barber Shop/HANDOFF.md` → tabla "Artefactos"
 
-**No están en el repo de Satori OS y no se modificó nada de esos proyectos.** Recomendación:
-**rotar ambos y purgarlos del historial de git**, no solo borrar la línea.
+**No están en el repo de Satori OS y no se modificó nada de esos proyectos.**
+
+**Corrección de la purga integral (23-jul):** la primera versión de este reporte recomendaba "purgar
+el historial de git". **Esos dos proyectos no tienen repositorio git** — son carpetas en el Mac. No
+hay historial que reescribir, y hablar de purgarlo habría mandado a Luciano a hacer un `filter-repo`
+sobre algo que no existe.
+
+**La acción real, más chica y más útil:**
+1. **Vehemence — rotar el `OWNER_TOKEN`** en su SGIC, porque estuvo escrito en claro en un archivo
+   que se comparte y se copia. Rotar es lo que corta el riesgo; borrarlo del doc sin rotarlo no.
+2. **Sacar el valor del `DOC-Vehemence-ERP-sistema.md`** y dejar en su lugar dónde vive el token
+   (Script Property), no cuál es.
+3. **DAM — revisar la tabla "Artefactos"** con el mismo criterio: si lo que hay es un token, rotarlo
+   y reemplazarlo por un puntero; si son solo IDs de planilla, no son secretos (el ACL es el gate) y
+   pueden quedarse.
+
+Sin git de por medio, el alcance de la exposición es quien haya tenido acceso a esas carpetas —
+acotado, pero no nulo si esos docs se pasaron por algún canal.
+
+### 2.4 🔴 `id_cliente` cruzados en la siembra de conectores — **lo encontró la purga, no la cadena**
+El barrido A3 confirmó los cuatro Spreadsheet-ID contra archivo:línea, pero **nunca abrió la hoja
+`Clientes` del MAESTRO**. Los `id_cliente` se pusieron por suposición y quedaron corridos: **CLI-004
+(DAM) apuntando a la DB de MesaQuince** y **CLI-005 (SIP, que no tiene SGIC) apuntando a la de DAM**.
+
+El código llevaba un `⚠ los id_cliente son un SUPUESTO` en el log — y eso no sirvió de nada. **Anotar
+un supuesto no lo vuelve inofensivo.** Lo que contuvo el daño fueron las decisiones de diseño, no la
+advertencia: nacen apagados, `probarConector` es ensayo en seco, y encender es un acto separado. Sin
+eso, un `encenderConector` sin mirar habría escrito las finanzas de un cliente en el Sheet de otro.
+
+**La lección operativa:** el barrido A3 verificó la mitad de una relación (el ID del SGIC) y dio por
+buena la otra mitad (a qué cliente pertenece). Una relación entre dos sistemas hay que verificarla en
+los DOS extremos. Corregido y fijado con asserts (D25g..g6) para que no vuelva a pasar en silencio.
 
 ---
 
@@ -91,15 +123,22 @@ Todo lo riesgoso nació apagado. **La cadena construyó; la revisión enciende.*
 **Conectores dados de alta pero APAGADOS** (se siembran con `sembrarConectoresHallados()`, una vez,
 desde el editor):
 
-| Cliente (supuesto) | SGIC | Adapter | Estado |
+| Cliente | SGIC | Adapter | Estado |
 |---|---|---|---|
-| CLI-002 | Vehemence | `ventas_sgic` (por código) | ✅ ya validado y corriendo |
-| CLI-003 | LC Travel | `libro_lctravel` | ⏸ **OFF** |
-| CLI-004 | MesaQuince | `movimientos_mesaquince` | ⏸ **OFF** |
-| CLI-005 | DAM | `fresha_dam` | ⏸ **OFF** |
+| **CLI-001** FRANFLACA | MesaQuince | `movimientos_mesaquince` | ⏸ **OFF** |
+| **CLI-002** | Vehemence | `ventas_sgic` (por código) | ✅ ya validado y corriendo |
+| **CLI-003** | LC Travel | `libro_lctravel` | ⏸ **OFF** |
+| **CLI-004** Barbería Alex | DAM | `fresha_dam` | ⏸ **OFF** |
+| **CLI-005** SIP | — | — | sin SGIC: no hay nada que conectar |
 
-⚠ **Los `id_cliente` de la tabla son un SUPUESTO.** Hay que verificarlos contra la hoja `Clientes`
-del MAESTRO antes de sembrar. `estadoConectores()` muestra el mapa completo.
+> **🔴 Corregido en la purga integral (23-jul).** La primera versión de esta tabla —y del código—
+> tenía los `id_cliente` **cruzados**: el barrido A3 confirmó los Spreadsheet-ID pero nunca leyó la
+> hoja `Clientes` del MAESTRO, así que los ids se pusieron por suposición. Quedaban **CLI-004 (DAM)
+> apuntando a la DB de MesaQuince** y **CLI-005 (SIP, que no tiene SGIC) apuntando a la de DAM**.
+> Nacían apagados y `probarConector` es ensayo en seco, así que el radio estaba contenido — pero un
+> `encenderConector` sin mirar habría escrito las finanzas de un cliente en el Sheet de otro.
+> Ahora el mapeo es un **contrato aserido** (D25g/g2/g3/g4/g5/g6): cruzarlo de nuevo pone rojo el
+> `selfTest`. `estadoConectores()` muestra el mapa completo.
 
 ---
 
@@ -202,8 +241,9 @@ Antes: `cola [crit] 0 pendientes · 2 tomadas colgadas`. Ahora tenés que ver:
 ## 6. Lo que corre Luciano (nada de esto lo puede hacer Code)
 
 1. **`selfTest()` en el editor GAS.** `clasp run` sigue bloqueado.
-2. **`sembrarConectoresHallados()`** — una vez, después de verificar los `id_cliente` contra la hoja
-   `Clientes`. Deja los 3 conectores nuevos **apagados**.
+2. **`sembrarConectoresHallados()`** — una vez. Siembra CLI-001 (MesaQuince), CLI-003 (LC Travel) y
+   CLI-004 (DAM), los tres **apagados**. El mapeo ya está aserido en D25g contra el roster real, así
+   que un `selfTest` verde es la verificación; igual conviene mirar `estadoConectores()` después.
 3. **Por cada conector, en este orden:** `probarConector('CLI-00X')` → comparar los totales con lo que
    el cliente ve en SU sistema → `encenderConector('CLI-00X')`. **Uno por uno, no los tres juntos.**
 4. **`repararCerebro()`** (crea `cerebro_log_archivo` + `cerebro_resumen`) y **`repararHilo()`** (crea
@@ -214,7 +254,9 @@ Antes: `cola [crit] 0 pendientes · 2 tomadas colgadas`. Ahora tenés que ver:
 6. **Decidir `cerebro_map`** después de mirar los fps (paso 6 del guion).
 7. **Decidir A2 (correo).** Hoy NO. La spec está entera en `docs/SPEC-correo-T7.md`.
 8. **Llevar `docs/RGPD-registro-tratamiento.md` a un asesor** antes de cargar el primer dato real.
-9. **Rotar los dos tokens** expuestos en la documentación de Vehemence y DAM (§2.3).
+9. **Rotar el `OWNER_TOKEN` de Vehemence** y sacar su valor del `DOC-Vehemence-ERP-sistema.md`
+   (dejar el puntero a la Script Property, no el secreto). Revisar la tabla "Artefactos" de DAM con
+   el mismo criterio. **No hay historial de git que purgar en esos proyectos** — ver §2.3.
 10. **Promote a `/exec`** — recién después de todo lo anterior.
 
 ---
@@ -257,6 +299,7 @@ diffs, antes de la sesión de revisión).
 
 ## 8. Resumen en una línea
 
-Seis fases, cinco commits, **215 asserts offline verdes**, 6 tandas nuevas en `selfTest`, **2 bugs
-reales encontrados y arreglados**, 1 hallazgo de seguridad reportado en proyectos vecinos, **4 flags
-apagados esperando tu validación al peso**, y `/exec` intacto.
+Seis fases, seis commits, **236 asserts offline verdes**, 6 tandas nuevas en `selfTest`, **3 bugs
+reales encontrados y arreglados** (2 por la propia cadena, 1 por la purga integral de Cowork:
+los `id_cliente` de la siembra de conectores estaban cruzados), 1 hallazgo de seguridad reportado en
+proyectos vecinos, **4 flags apagados esperando tu validación al peso**, y `/exec` intacto.
