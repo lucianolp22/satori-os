@@ -339,7 +339,13 @@ function normalizarCifrasTexto_(texto) {
   var palabras = Object.keys(_NUM_PALABRA_).concat(Object.keys(_NUM_MULTIPLICADOR_)).concat(['y'])
     .sort(function (a, b) { return b.length - a.length; });
   var alt = palabras.join('|');
-  var re = new RegExp('(?:' + alt + ')(?:\\s+(?:' + alt + '))*(?:\\s+pesos?)?', 'gi');
+  // BUG encontrado por el golden-set M4 (caso CF-04, 21-jul): sin `\b` la alternación matchea el
+  // PREFIJO de una palabra común. "cincuenta mil unidades" comía el "un" de "unidades" y devolvía
+  // "50.001idades" — una cifra inventada Y la palabra mutilada, en un texto que ya iba a la hoja.
+  // Ninguna clave de las tablas empieza ni termina en carácter acentuado, así que `\b` (ASCII) las
+  // delimita bien a todas. Regla que deja el caso: los sufijos NO se validan por buena voluntad.
+  var tok = '\\b(?:' + alt + ')\\b';
+  var re = new RegExp(tok + '(?:\\s+' + tok + ')*(?:\\s+pesos?\\b)?', 'gi');
   return t.replace(re, function (match) {
     var toks = match.toLowerCase().split(/\s+/).filter(String);
     // ¿Termina en "pesos"/"peso"? → es un monto: sale con $.

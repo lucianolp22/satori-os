@@ -75,6 +75,13 @@ var CLIENTE_SHEETS = {
   nodos: ['id_nodo', 'dimension', 'tipo', 'etiqueta', 'atributos', 'relevancia', 'cobertura', 'estado', 'fuente', 'actualizado_en'],
   aristas: ['id_arista', 'origen', 'destino', 'relacion', 'tipo', 'peso', 'atributos', 'actualizado_en'],
   cerebro_log: ['ts', 'evento', 'id_nodo', 'id_arista', 'origen', 'detalle'],
+  // T3 M3 (21-jul) — memoria caliente/fría (D8). `cerebro_log` queda como memoria CALIENTE
+  // (últimos `cerebro_corte_dias`); lo viejo se MUEVE crudo acá (mismo schema, como Cola_archivo:
+  // no se pierde nada) y se resume en `cerebro_resumen`. Ver 15_cerebro.js · comprimirMemoriaFria.
+  cerebro_log_archivo: ['ts', 'evento', 'id_nodo', 'id_arista', 'origen', 'detalle'],
+  // Filas-resumen por período (YYYY-MM) de lo archivado: conservan el CONTEO por tipo de evento
+  // para que los lectores (materializarEstado) no vean caer el total al comprimir.
+  cerebro_resumen: ['periodo', 'eventos', 'tipos', 'desde', 'hasta', 'comprimido_en'],
   estado_actual: ['seccion', 'clave', 'valor', 'materializado_en'],
   // North Star enriquecido (20-jul): las 3 últimas son NUEVAS y se agregan al final por la
   // reconciliación ADITIVA de ensureSheet (no reordena ni borra; los tenants viejos no rompen).
@@ -90,7 +97,14 @@ var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 
 
 // Pestañas sensibles del Sheet cliente: ocultas + protegidas (Auditor 0.3 #1).
 // Si en Etapa 3 el dueño del negocio abre su Sheet, no ve interna de gestión.
-var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'estado_actual', 'objetivos'];
+var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos'];
+
+// T3 M3 — DECISIÓN EXPLÍCITA: `cerebro_log_archivo` y `cerebro_resumen` NO entran en CLIENTE_ORDEN.
+// CLIENTE_ORDEN es el contrato que `correrSalud({full:true})` exige COMPLETO (falta ⇒ chequeo `crit`
+// ⇒ email de alerta) y que `selfTest` asera sobre el cliente de prueba. Meterlas ahí abriría una
+// ventana roja entre el `clasp push` y el primer `repararCerebro()`/`corridaDiaria`, por una hoja
+// que es HIGIENE, no contrato. Se crean solas: `repararCerebro()` (van en CEREBRO_SHEETS) y
+// `comprimirMemoriaFria()` las asegura con ensureSheet antes de escribir.
 
 // ── Config por defecto del MAESTRO (clave · valor) ──────────────────────────
 var CONFIG_DEFAULTS = [
@@ -109,6 +123,10 @@ var CONFIG_DEFAULTS = [
   ['api_budget_mensual_usd', '25'],
   // Fase 1 (Jarvis) — confianza < umbral en la Bandeja → escala como aviso.
   ['bandeja_umbral_confianza', '6'],
+  // T3 M3 (21-jul) — corte memoria caliente/fría del cerebro. Eventos de `cerebro_log` con más
+  // de N días se MUEVEN a `cerebro_log_archivo` (crudo, no se pierde) y se resumen por mes en
+  // `cerebro_resumen`. 30 días = el horizonte que el Director y el brief miran de verdad.
+  ['cerebro_corte_dias', '30'],
   // E1.1 (12-jul) — URLs de servicios locales que el CM abre. voz_url: orbe de voz (default Mac);
   // cambiala a la URL ts.net para operar la voz del CM desde el iPhone sin tocar código. oficina_url:
   // Observatorio de la Oficina Virtual (loopback, solo Mac por dictamen Bastión). VACÍA => el CM oculta

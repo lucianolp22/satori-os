@@ -95,7 +95,7 @@ function crearAviso(a) {
 function corridaDiaria() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
-  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, director: null, salud: null, costos: null };
+  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -115,6 +115,12 @@ function corridaDiaria() {
   // worker drenarCola la corre). Los detectores internos se conservan tal cual.
   try { resumen.vigias_encoladas = encolarVigiaClientesActivos(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Encolar vigías falló: ' + e.message }); }
+
+  // T3 M3 (21-jul): memoria caliente/fría del cerebro. Va ANTES del Director para que el pase
+  // dirigido lea ya el `cerebro_log` chico. Fail-silenciosa: comprimir es HIGIENE, jamás rompe
+  // la corrida (si falla, el log sigue entero y todo funciona igual, solo más lento).
+  try { resumen.memoria = comprimirMemoriaFriaTodos_(); }
+  catch (e) { try { Logger.log('comprimirMemoriaFria fallo: ' + e.message); } catch (_e) {} }
 
   // ETAPA 8a: el Director materializa el cerebro de cada tenant y encola la capa
   // dirigida por objetivos. 0 API (solo decide+encola; los agentes gatean/cupean).

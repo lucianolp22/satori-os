@@ -299,11 +299,59 @@ function _contrapeso_(kpi) {
   return CONTRAPESO_POR_KPI[String(kpi || '')] || 'chequeá que no desatiende lo que hoy ya funciona';
 }
 
-/** Sección 6: la rec única de T2 → formato contractual (dato + contrapeso + acción). */
+// ═══ T3 M5 (21-jul) — VERIFICACIÓN ≥2 DOMINIOS (score ≠ verificado) ═════════
+//
+// Un número que sale de UNA hoja no está verificado: está *dicho una vez*. La confianza alta de
+// un modelo tampoco lo verifica — eso es score, no evidencia. Regla: un dato se llama VERIFICADO
+// solo si ≥2 dominios independientes lo respaldan y COINCIDEN. Con uno solo se dice "1 fuente"
+// (honesto). Si dos dominios se contradicen, el conflicto SURFACEA — jamás se promedia ni se
+// elige el más lindo: promediar una contradicción la esconde, que es el peor de los tres mundos.
+//
+// Un "dominio" es una fuente de datos independiente (hoja/sistema distinto): KPIs · Datos_operativos
+// (lo que escribe el conector) · Tareas · Avisos · Aprobaciones_agregadas · Salud. Dos lecturas de
+// LA MISMA hoja no son dos dominios (por eso el 2º ancla se busca donde de verdad hay otro origen).
+
+var VERIF_NIVELES = ['sin_fuente', 'una_fuente', 'verificado', 'conflicto'];
+
+/**
+ * PURA: dictamina el nivel de verificación de un dato a partir de sus anclas.
+ * @param {Array<{dominio:string, valor:*}>} anclas  cada una mide LA MISMA magnitud
+ * @return {{nivel:string, dominios:Array<string>, texto:string, valores:Array}}
+ */
+function _verificacion_(anclas) {
+  var as = (anclas || []).filter(function (a) {
+    return a && a.dominio && a.valor !== undefined && a.valor !== null && a.valor !== '';
+  });
+  // Dominios únicos: dos anclas de la misma hoja NO suman evidencia.
+  var vistos = {}, unicas = [];
+  as.forEach(function (a) { if (!vistos[a.dominio]) { vistos[a.dominio] = true; unicas.push(a); } });
+  var doms = unicas.map(function (a) { return a.dominio; });
+
+  if (!unicas.length) return { nivel: 'sin_fuente', dominios: [], valores: [], texto: 'sin fuente — dato no anclado' };
+  if (unicas.length === 1) {
+    return { nivel: 'una_fuente', dominios: doms, valores: [unicas[0].valor],
+             texto: '1 fuente (' + doms[0] + ') — NO verificado' };
+  }
+  var vals = unicas.map(function (a) { return a.valor; });
+  var norm = vals.map(function (v) { return String(v).trim().toLowerCase(); });
+  var coinciden = norm.every(function (v) { return v === norm[0]; });
+  if (!coinciden) {
+    return { nivel: 'conflicto', dominios: doms, valores: vals,
+             texto: '⚠ CONFLICTO entre fuentes: ' + unicas.map(function (a) { return a.dominio + '=' + a.valor; }).join(' vs ') +
+                    ' — resolvé cuál miente antes de actuar' };
+  }
+  return { nivel: 'verificado', dominios: doms, valores: vals,
+           texto: 'verificado (' + doms.join(' + ') + ' coinciden en ' + vals[0] + ')' };
+}
+
+/** Sección 6: la rec única de T2 → formato contractual (dato + verificación + contrapeso + acción). */
 function _recContractual_(rec) {
   var out = [];
   out.push('1. ' + rec.texto);
   out.push('   - Dato que la ancla: ' + (rec.dato || '(sin ancla numérica)'));
+  // M5: la honestidad de fuente va SIEMPRE, incluso cuando es "1 fuente". Omitirla cuando es
+  // débil dejaría leer la ausencia como fortaleza.
+  out.push('   - Verificación: ' + _verificacion_(rec.anclas).texto);
   out.push('   - Contrapeso: ' + _contrapeso_(rec.kpi));
   out.push('   - Acción: ' + (rec.id_cliente
     ? 'creá la aprobación desde el Centro de Mando (botón "→ Crear aprobación" en la rec del día).'
@@ -535,12 +583,20 @@ function briefDiarioCliente_(id) {
 
   // 6 · Recomendación priorizada: MISMA regla única (T2), anclada a este cliente vía kpiAlerta.
   var k0 = kpisAlerta.length ? kpisAlerta[kpisAlerta.length - 1] : null;
+  // M5: mismas reglas de verificación que la rec de sistema. `cs` ya está abierto acá, así que
+  // buscar el 2º dominio (Datos_operativos) no cuesta una apertura extra.
+  var opK = k0 ? (cs ? _valorOperativoDeKpi_(cs, String(k0.kpi || '')) : null) : null;
+  var anclasCliK = [{ dominio: 'KPIs', valor: k0 ? k0.valor : '' }];
+  if (opK !== null && opK !== undefined) anclasCliK.push({ dominio: 'Datos_operativos', valor: opK });
   var recCli = k0
     ? { texto: 'Atender ' + (k0.kpi || 'el KPI en alerta') + ' de ' + c.nombre + ' — ' + truncar_(String(k0.alerta), 80),
-        kpi: 'kpi_cliente', id_cliente: id, dato: (k0.kpi || 'kpi') + '=' + k0.valor + ((k0.objetivo !== '' && k0.objetivo != null) ? ' vs objetivo ' + k0.objetivo : '') }
+        kpi: 'kpi_cliente', id_cliente: id, dato: (k0.kpi || 'kpi') + '=' + k0.valor + ((k0.objetivo !== '' && k0.objetivo != null) ? ' vs objetivo ' + k0.objetivo : ''),
+        anclas: anclasCliK }
     : (vencidas.length
-        ? { texto: 'Cerrar las ' + vencidas.length + ' tarea(s) vencida(s) de ' + c.nombre + '.', kpi: 'tareas_vencidas', id_cliente: id, dato: vencidas.length + ' vencida(s)' }
-        : { texto: 'Sin urgencias en ' + c.nombre + ' — avanzá el North Star.', kpi: 'north_star', id_cliente: id, dato: ns ? String(ns.descripcion || ns.metrica || '') : 'sin North Star' });
+        ? { texto: 'Cerrar las ' + vencidas.length + ' tarea(s) vencida(s) de ' + c.nombre + '.', kpi: 'tareas_vencidas', id_cliente: id, dato: vencidas.length + ' vencida(s)',
+            anclas: [{ dominio: 'Tareas', valor: vencidas.length }] }
+        : { texto: 'Sin urgencias en ' + c.nombre + ' — avanzá el North Star.', kpi: 'north_star', id_cliente: id, dato: ns ? String(ns.descripcion || ns.metrica || '') : 'sin North Star',
+            anclas: ns ? [{ dominio: 'objetivos', valor: String(ns.descripcion || ns.metrica || '') }] : [] });
 
   // 7 · Cierre acción→métrica: solo el lazo de ESTE cliente.
   var cierreAccion = _cierreAccionMetrica_(id);
@@ -1209,9 +1265,19 @@ function _pivotMuerto_(rec, pivots) {
 /** Rama final: el North Star de sistema. Vive aparte porque es el fallback que nunca se descarta. */
 function _recNorthStar_() {
   var ns = northStarSatori_();
+  // M5 · 2º dominio del progreso: `Clientes` (conteo vivo que calcula northStarSatori_) contra el
+  // punto de HOY en `NS_serie` (lo que la corrida diaria persistió). Solo se compara el punto de
+  // hoy: un punto viejo no está en conflicto, simplemente es de otro día.
+  var anclas = [];
+  if (ns) {
+    anclas.push({ dominio: 'Clientes', valor: ns.actual });
+    var hoyPt = _nsSerieHoy_();
+    if (hoyPt !== null && hoyPt !== undefined && !isNaN(hoyPt)) anclas.push({ dominio: 'NS_serie', valor: hoyPt });
+  }
   return {
     texto: 'Definir la próxima movida hacia el North Star' + (ns && ns.meta != null ? ' — vas ' + ns.actual + '/' + ns.meta + ' (' + ns.desc + ')' : '') + '.',
-    kpi: 'north_star', id_cliente: '', dato: ns ? 'progreso=' + ns.actual + '/' + (ns.meta == null ? '—' : ns.meta) : ''
+    kpi: 'north_star', id_cliente: '', dato: ns ? 'progreso=' + ns.actual + '/' + (ns.meta == null ? '—' : ns.meta) : '',
+    anclas: anclas
   };
 }
 
@@ -1231,9 +1297,14 @@ function _recCandidatas_(pre) {
   cands.push(function () {
     if (sal.global !== 'crit') return null;
     var h0 = (sal.hallazgos || []).filter(function (h) { return h.estado !== 'ok'; })[0];
+    // M5 · 2º dominio: Salud dice 'crit'; Avisos guarda lo que Salud escribió en corridas previas.
+    // Si Salud grita y Avisos está mudo, el conflicto es real (el canal de alerta no llegó) y
+    // merece surfacear en vez de quedar tapado por un "verificado" de conveniencia.
+    var avSalud = (d.avisos || []).filter(function (a) { return String(a.tipo || '').indexOf('salud_') === 0; }).length;
     return {
       texto: 'Estabilizar la salud del sistema — está en CRÍTICO (integridad ' + sal.integridad + '%' + (h0 ? '; ' + h0.nombre : '') + ') antes de cualquier otra cosa.',
-      kpi: 'salud', id_cliente: '', dato: 'integridad=' + sal.integridad + '%'
+      kpi: 'salud', id_cliente: '', dato: 'integridad=' + sal.integridad + '%',
+      anclas: [{ dominio: 'Salud', valor: 'crit' }, { dominio: 'Avisos', valor: avSalud ? 'crit' : 'ok' }]
     };
   });
 
@@ -1243,9 +1314,14 @@ function _recCandidatas_(pre) {
     var v0 = vencidas.slice().sort(function (a, b) { return String(aFechaISO(a.fecha_limite)) < String(aFechaISO(b.fecha_limite)) ? -1 : 1; })[0];
     var diasV = _diasDesde_(v0.fecha_limite);
     var cliV = String(v0.id_proyecto ? (clienteDeProyecto(v0.id_proyecto) || '') : '');
+    // M5 · 2º dominio: Tareas (el conteo vivo) vs Avisos 'tarea_vencida' (lo que el detector
+    // registró). Coinciden ⇒ verificado. Difieren ⇒ conflicto explícito: o el detector no corrió,
+    // o alguien cerró/abrió tareas después. Se muestra; NO se promedia.
+    var avVenc = (d.avisos || []).filter(function (a) { return String(a.tipo) === 'tarea_vencida'; }).length;
     return {
       texto: 'Cerrar la vencida más vieja — lleva ' + (diasV == null ? '?' : diasV) + ' día(s) vencida (de ' + vencidas.length + ' vencidas): ' + truncar_(v0.descripcion, 80) + (cliV ? ' · ' + cliV : ''),
-      kpi: 'tareas_vencidas', id_cliente: cliV, dato: 'vencidas=' + vencidas.length + ';dias=' + diasV
+      kpi: 'tareas_vencidas', id_cliente: cliV, dato: 'vencidas=' + vencidas.length + ';dias=' + diasV,
+      anclas: [{ dominio: 'Tareas', valor: vencidas.length }, { dominio: 'Avisos', valor: avVenc }]
     };
   });
 
@@ -1255,9 +1331,14 @@ function _recCandidatas_(pre) {
     var ka = (pre && pre.kpiAlerta !== undefined) ? pre.kpiAlerta : clienteKpiEnAlerta_();
     if (!ka || !ka.id_cliente) return null;
     var objK = (ka.objetivo === '' || ka.objetivo == null) ? '' : ' (objetivo ' + ka.objetivo + ')';
+    // M5 · 2º dominio: el mismo indicador visto desde Datos_operativos (lo que trajo el conector).
+    // Si no hay correspondencia, `valor_operativo` es null y la rec queda como "1 fuente (KPIs)".
+    var anclasK = [{ dominio: 'KPIs', valor: ka.valor }];
+    if (ka.valor_operativo !== null && ka.valor_operativo !== undefined) anclasK.push({ dominio: 'Datos_operativos', valor: ka.valor_operativo });
     return {
       texto: 'Atender ' + (ka.kpi || 'el KPI') + ' de ' + (ka.cliente || ka.id_cliente) + ' = ' + ka.valor + objK + ' — ' + truncar_(String(ka.alerta || ''), 70),
-      kpi: 'kpi_cliente', id_cliente: String(ka.id_cliente), dato: 'kpi=' + (ka.kpi || '') + ';valor=' + ka.valor
+      kpi: 'kpi_cliente', id_cliente: String(ka.id_cliente), dato: 'kpi=' + (ka.kpi || '') + ';valor=' + ka.valor,
+      anclas: anclasK
     };
   });
 
@@ -1274,7 +1355,11 @@ function _recCandidatas_(pre) {
     } catch (e) { /* sin ancla, la recomendación sigue */ }
     return {
       texto: 'Despachar las ' + ap + ' aprobación(es) pendiente(s)' + ancla + ' — desbloquean a los agentes.',
-      kpi: 'aprobaciones_pendientes', id_cliente: '', dato: 'pendientes=' + ap
+      kpi: 'aprobaciones_pendientes', id_cliente: '', dato: 'pendientes=' + ap,
+      // M5: el conteo y la fila más vieja salen de la MISMA hoja (Aprobaciones_agregadas). Dos
+      // lecturas de una hoja no son dos dominios: se declara 1 fuente y listo. El 2º real serían
+      // los Sheets cliente, y abrirlos por una recomendación no es "barato" (regla: no inventar).
+      anclas: [{ dominio: 'Aprobaciones_agregadas', valor: ap }]
     };
   });
 
@@ -1285,7 +1370,8 @@ function _recCandidatas_(pre) {
     var lim = t0.fecha_limite ? String(aFechaISO(t0.fecha_limite)) : '';
     return {
       texto: 'Arrancar por: [' + (t0.prioridad || '—') + '] ' + truncar_(t0.descripcion, 80) + (lim ? ' · vence ' + lim : '') + (cliT ? ' · ' + cliT : ''),
-      kpi: 'north_star', id_cliente: cliT, dato: lim ? 'limite=' + lim : ''
+      kpi: 'north_star', id_cliente: cliT, dato: lim ? 'limite=' + lim : '',
+      anclas: [{ dominio: 'Tareas', valor: lim || t0.id_tarea }]
     };
   });
 
@@ -1306,8 +1392,8 @@ function clienteKpiEnAlerta_() {
     for (var i = 0; i < clientes.length; i++) {
       var cli = clientes[i];
       if (!cli.url_sheet_cliente) continue;
-      var sh;
-      try { sh = SpreadsheetApp.openByUrl(cli.url_sheet_cliente).getSheetByName('KPIs'); } catch (e) { continue; }
+      var ssCli, sh;
+      try { ssCli = SpreadsheetApp.openByUrl(cli.url_sheet_cliente); sh = ssCli.getSheetByName('KPIs'); } catch (e) { continue; }
       if (!sh) continue;
       var enAlerta = leerTabla(sh).filter(function (k) { return String(k.alerta || '') !== ''; });
       if (enAlerta.length) {
@@ -1315,12 +1401,50 @@ function clienteKpiEnAlerta_() {
         return {
           id_cliente: cli.id_cliente, cliente: cli.nombre, kpi: String(k0.kpi || 'KPI'),
           valor: (k0.valor === undefined ? '' : k0.valor),
-          objetivo: (k0.objetivo === undefined ? '' : k0.objetivo), alerta: String(k0.alerta || '')
+          objetivo: (k0.objetivo === undefined ? '' : k0.objetivo), alerta: String(k0.alerta || ''),
+          // M5: 2º dominio del MISMO número, aprovechando que el Sheet del cliente ya está abierto.
+          // Datos_operativos es otra fuente (la escribe el conector); si no dice nada de este KPI,
+          // queda null y la rec sale honestamente como "1 fuente". No se inventa el segundo.
+          valor_operativo: _valorOperativoDeKpi_(ssCli, String(k0.kpi || ''))
         };
       }
     }
   } catch (e) { /* sin alerta accesible → sigue el resto de la lógica */ }
   return null;
+}
+
+/**
+ * M5 — 2º dominio para un KPI: el último valor de `Datos_operativos` cuyo `concepto` habla del
+ * MISMO indicador. Match conservador (nombre del KPI normalizado contenido en el concepto, ≥4
+ * caracteres): si el KPI se llama "x" no matchea nada, y preferimos "1 fuente" honesto antes que
+ * un falso "verificado" contra una fila cualquiera. null cuando no hay correspondencia.
+ * @return {?number}
+ */
+function _valorOperativoDeKpi_(ssCli, kpi) {
+  var k = _sinTildes_(String(kpi || '').toLowerCase().trim());
+  if (k.length < 4) return null;
+  try {
+    var sh = ssCli.getSheetByName('Datos_operativos');
+    if (!sh) return null;
+    var hits = leerTabla(sh).filter(function (o) {
+      return _sinTildes_(String(o.concepto || '').toLowerCase()).indexOf(k) >= 0 && !isNaN(Number(o.valor));
+    });
+    return hits.length ? Number(hits[hits.length - 1].valor) : null;
+  } catch (e) { return null; }
+}
+
+/**
+ * M5 — ¿hay hoy un punto en NS_serie? Devuelve su `actual` (2º dominio del progreso del North
+ * Star, independiente del conteo vivo de Clientes). null si la serie no tiene el punto de hoy:
+ * comparar contra un punto viejo produciría un "conflicto" que solo dice que la corrida no pasó.
+ * @return {?number}
+ */
+function _nsSerieHoy_() {
+  try {
+    var hoy = hoyISO();
+    var p = _serieNorte_().filter(function (x) { return String(x.fecha) === hoy; })[0];
+    return p ? Number(p.valor) : null;
+  } catch (e) { return null; }
 }
 
 /**

@@ -510,7 +510,10 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D17j métrica CM v3', f: _asertsD17j_ },
    { n: 'D18 north star + reset', f: _asertsD18_ },
    { n: 'D19 módulo S seguridad', f: _asertsD19_ },
-   { n: 'D20 serie North Star (M2)', f: _asertsD20_ }].forEach(function (t) {
+   { n: 'D20 serie North Star (M2)', f: _asertsD20_ },
+   { n: 'D21 memoria caliente/fría (M3)', f: _asertsD21_ },
+   { n: 'D22 golden-set evals (M4)', f: _asertsD22_ },
+   { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1190,6 +1193,157 @@ function _asertsD20_(chk, log, opts) {
       'D20c2 cada punto es {fecha ISO, valor numérico} (filas sin fecha/número se descartan)');
   chk(MAESTRO_SHEETS.NS_serie.join(',') === 'fecha,metrica,actual,meta', 'D20c3 el schema de NS_serie es [fecha,metrica,actual,meta]');
   log.push('   ↳ D20 serie North Star: ' + s.length + ' punto(s) en NS_serie');
+}
+
+/**
+ * D21 — MÓDULO M · M3 (T3, 21-jul): memoria caliente/fría del cerebro.
+ * TODO sobre las funciones PURAS (`_planCompresion_`, `_fusionarResumen_`, los conversores de
+ * tipos): no se escribe una sola celda de ningún tenant. Lo que se asera es el invariante que
+ * hace segura la compresión — que NO se pierda ni se invente un evento.
+ */
+function _asertsD21_(chk, log, opts) {
+  var filas = [
+    { ts: '2026-01-05T10:00:00', evento: 'nodo_creado', _fila: 2 },
+    { ts: '2026-01-20T10:00:00', evento: 'nodo_creado', _fila: 3 },
+    { ts: '2026-02-10T10:00:00', evento: 'parte_director', _fila: 4 },
+    { ts: '2026-07-20T10:00:00', evento: 'nodo_actualizado', _fila: 5 },   // caliente
+    { ts: 'no-es-fecha', evento: 'raro', _fila: 6 }                        // ilegible
+  ];
+  var p = _planCompresion_(filas, '2026-07-01');
+
+  // (a) el resumen CONSERVA los conteos: la suma de los períodos == las filas archivadas.
+  var sumaRes = p.resumenes.reduce(function (a, r) { return a + r.eventos; }, 0);
+  chk(p.frias.length === 3 && sumaRes === 3,
+      'D21a el resumen conserva el conteo (3 frías = 3 eventos sumados en los resúmenes)');
+  chk(p.frias.length + p.calientes === filas.length,
+      'D21a2 ningún evento se evapora: frías + calientes == total de entrada');
+
+  // (b) el crudo archivado no se pierde: cada fría lleva su _fila para poder moverla, y el
+  //     desglose por tipo del período reproduce los tipos originales.
+  chk(p.frias.every(function (f) { return typeof f._fila === 'number'; }),
+      'D21b cada fila fría conserva su _fila (se puede archivar y recién después borrar)');
+  var ene = p.resumenes.filter(function (r) { return r.periodo === '2026-01'; })[0];
+  chk(!!ene && ene.eventos === 2 && ene.tipos === 'nodo_creado:2' && ene.desde === '2026-01-05' && ene.hasta === '2026-01-20',
+      'D21b2 el resumen del período trae conteo por tipo + rango real de fechas');
+  chk(p.resumenes.length === 2, 'D21b3 un resumen por período YYYY-MM (enero + febrero)');
+
+  // (c) fail-safe: un ts ilegible NUNCA se archiva (se queda caliente). Archivar lo que no se
+  //     puede fechar sería mover datos por una lectura rota.
+  chk(p.ilegibles === 1 && p.frias.every(function (f) { return f.evento !== 'raro'; }),
+      'D21c un evento con ts ilegible queda CALIENTE (no se archiva a ciegas)');
+
+  // (d) idempotencia del corte: correr el plan sobre las calientes no archiva nada más.
+  var p2 = _planCompresion_(filas.filter(function (f) { return f._fila >= 5; }), '2026-07-01');
+  chk(p2.frias.length === 0, 'D21d segunda pasada sobre lo caliente no archiva nada (idempotente)');
+
+  // (e) fusión de resúmenes: una corrida posterior del MISMO período SUMA, no pisa.
+  var fus = _fusionarResumen_({ periodo: '2026-01', eventos: 2, tipos: 'nodo_creado:2', desde: '2026-01-05', hasta: '2026-01-20' },
+                              { periodo: '2026-01', eventos: 1, tipos: 'nodo_creado:1', desde: '2026-01-25', hasta: '2026-01-25' });
+  chk(fus.eventos === 3 && fus.tipos === 'nodo_creado:3' && fus.desde === '2026-01-05' && fus.hasta === '2026-01-25',
+      'D21e re-comprimir el mismo período SUMA conteos y ensancha el rango (no pisa)');
+  chk(_fusionarResumen_(null, { periodo: '2026-03', eventos: 4, tipos: 'x:4', desde: '2026-03-01', hasta: '2026-03-09' }).eventos === 4,
+      'D21e2 período nuevo (sin previo) entra tal cual');
+  chk(_tiposATexto_(_textoATipos_('a:2 · b:1')) === 'a:2 · b:1', 'D21e3 tipos texto↔objeto es ida y vuelta sin pérdida');
+
+  // (f) contrato de los lectores: el corte sale de Config y `materializarEstado` sigue
+  //     devolviendo las MISMAS claves (lo que cambia es que `eventos` ya es el total histórico).
+  chk(typeof cerebroCorteDias_() === 'number' && cerebroCorteDias_() >= 1,
+      'D21f el corte caliente/frío es un entero ≥1 (Config cerebro_corte_dias, default 30)');
+  chk(CLIENTE_SHEETS.cerebro_log_archivo.join(',') === CLIENTE_SHEETS.cerebro_log.join(','),
+      'D21f2 cerebro_log_archivo tiene EXACTAMENTE el schema de cerebro_log (el crudo entra entero)');
+  chk(CLIENTE_SHEETS.cerebro_resumen.join(',') === 'periodo,eventos,tipos,desde,hasta,comprimido_en',
+      'D21f3 el schema de cerebro_resumen es [periodo,eventos,tipos,desde,hasta,comprimido_en]');
+  chk(CLIENTE_ORDEN.indexOf('cerebro_log_archivo') < 0 && CLIENTE_ORDEN.indexOf('cerebro_resumen') < 0,
+      'D21f4 las hojas de archivo NO están en CLIENTE_ORDEN (no abren ventana roja en Salud/selfTest)');
+  chk(CEREBRO_SHEETS.indexOf('cerebro_log_archivo') >= 0 && CEREBRO_SHEETS.indexOf('cerebro_resumen') >= 0,
+      'D21f5 pero SÍ en CEREBRO_SHEETS (repararCerebro las crea ocultas+protegidas)');
+  chk(CLIENTE_SHEETS_SENSIBLES.indexOf('cerebro_log_archivo') >= 0 && CLIENTE_SHEETS_SENSIBLES.indexOf('cerebro_resumen') >= 0,
+      'D21f6 y son SENSIBLES (el archivo tiene la misma carga que el log vivo)');
+  log.push('   ↳ D21 memoria: corte ' + cerebroCorteDias_() + 'd · plan de prueba ' + p.frias.length + ' frías / ' + p.calientes + ' calientes');
+}
+
+/**
+ * D22 — MÓDULO M · M4 (T3, 21-jul): PISO DETERMINÍSTICO del golden-set.
+ * Corre los casos que NO dependen del modelo (`EVALS_FAMILIAS_DET`). Cero API. Un rojo acá es
+ * una regresión de producto: el sistema dejó de decidir lo que decidía, aunque no reviente.
+ */
+function _asertsD22_(chk, log, opts) {
+  var det = EVALS_GOLDEN.filter(function (c) { return EVALS_FAMILIAS_DET.indexOf(c.familia) >= 0; });
+  chk(det.length >= 20, 'D22a el golden-set determinístico tiene ≥20 casos (' + det.length + ')');
+  EVALS_FAMILIAS_DET.forEach(function (f) {
+    chk(det.filter(function (c) { return c.familia === f; }).length > 0, 'D22a2 la familia ' + f + ' tiene casos');
+  });
+  var ids = {}, dup = [];
+  det.forEach(function (c) { if (ids[c.id]) dup.push(c.id); ids[c.id] = true; });
+  chk(!dup.length, 'D22a3 no hay ids duplicados en el golden-set' + (dup.length ? ': ' + dup.join(',') : ''));
+
+  var r = correrEvals({});
+  chk(r.api === false, 'D22b selfTest corre los evals SIN API (el piso determinístico no gasta)');
+  chk(r.total === det.length, 'D22b2 correrEvals() sin conApi corre exactamente los determinísticos (' + r.total + ')');
+  chk(r.ok === r.total, 'D22c golden-set determinístico ' + r.ok + '/' + r.total + ' OK' +
+      (r.fallos.length ? ' — FALLOS: ' + r.fallos.map(function (x) { return x.id + ' (' + x.detalle + ')'; }).join(' · ') : ''));
+
+  // El comparador tiene que poder decir que NO: un comparador que siempre da verde es peor que ninguno.
+  chk(_evalComparar_({ a: 1 }, { a: 2 }).ok === false, 'D22d el comparador detecta una diferencia (no es un sello de goma)');
+  chk(_evalComparar_(null, { a: 1 }).ok === false, 'D22d2 esperaba null y vino objeto ⇒ falla');
+  chk(_evalComparar_({ a: 1 }, null).ok === false, 'D22d3 esperaba objeto y vino null ⇒ falla');
+  chk(_evalComparar_({ a: 1 }, { a: 1, b: 9 }).ok === true, 'D22d4 una clave EXTRA en la salida no rompe el caso (solo se comparan las declaradas)');
+
+  // El validador de estructura del piso LLM también tiene que poder rechazar.
+  chk(_evalEstructuraClasificacion_(null).ok === false, 'D22e estructura: sin salida parseable ⇒ rechaza');
+  chk(_evalEstructuraClasificacion_({ bin: 'inventado', confianza: 5, slug: '', tags: '', resumen: '', id_cliente: '' }).ok === false,
+      'D22e2 estructura: bin fuera del vocabulario ⇒ rechaza');
+  chk(_evalEstructuraClasificacion_({ bin: 'tarea', confianza: 99, slug: '', tags: '', resumen: '', id_cliente: '' }).ok === false,
+      'D22e3 estructura: confianza fuera de 1-10 ⇒ rechaza');
+  chk(_evalEstructuraClasificacion_({ bin: 'tarea', confianza: 8, slug: 's', tags: 't', resumen: 'r', id_cliente: '' }).ok === true,
+      'D22e4 estructura: una clasificación bien formada pasa');
+  log.push('   ↳ D22 evals: ' + r.ok + '/' + r.total + ' determinísticos OK · familias ' + Object.keys(r.por_familia).join(', '));
+}
+
+/**
+ * D23 — MÓDULO M · M5 (T3, 21-jul): verificación ≥2 dominios (score ≠ verificado).
+ * Puro sobre `_verificacion_`. El punto: 1 fuente JAMÁS puede decir "verificado", y dos fuentes
+ * en conflicto SURFACEAN el conflicto en vez de promediarlo.
+ */
+function _asertsD23_(chk, log, opts) {
+  var una = _verificacion_([{ dominio: 'KPIs', valor: 12 }]);
+  chk(una.nivel === 'una_fuente' && una.texto.indexOf('NO verificado') >= 0,
+      'D23a 1 fuente ≠ verificado (se dice "1 fuente", y se dice que NO está verificado)');
+
+  var dos = _verificacion_([{ dominio: 'KPIs', valor: 12 }, { dominio: 'Datos_operativos', valor: 12 }]);
+  chk(dos.nivel === 'verificado' && dos.dominios.length === 2 && dos.texto.indexOf('KPIs + Datos_operativos') >= 0,
+      'D23b 2 fuentes coincidentes ⇒ verificado, nombrando los dos dominios');
+
+  var conf = _verificacion_([{ dominio: 'Tareas', valor: 5 }, { dominio: 'Avisos', valor: 3 }]);
+  chk(conf.nivel === 'conflicto' && conf.texto.indexOf('CONFLICTO') >= 0 &&
+      conf.texto.indexOf('Tareas=5') >= 0 && conf.texto.indexOf('Avisos=3') >= 0,
+      'D23c 2 fuentes en conflicto ⇒ CONFLICTO explícito con ambos valores (no se promedia, no se elige)');
+  chk(conf.valores.length === 2 && conf.valores.indexOf(5) >= 0 && conf.valores.indexOf(3) >= 0,
+      'D23c2 el conflicto expone los dos valores crudos (para poder resolverlo)');
+
+  chk(_verificacion_([]).nivel === 'sin_fuente' && _verificacion_(null).nivel === 'sin_fuente',
+      'D23d sin anclas ⇒ sin_fuente (nunca "verificado" por omisión)');
+  chk(_verificacion_([{ dominio: 'KPIs', valor: '' }, { dominio: 'X', valor: null }]).nivel === 'sin_fuente',
+      'D23d2 un ancla con valor vacío/null NO cuenta como fuente');
+
+  // Dos lecturas de la MISMA hoja no son dos dominios: si lo fueran, cualquier dato quedaría
+  // "verificado" leyéndolo dos veces — exactamente el auto-engaño que M5 viene a cerrar.
+  var mismo = _verificacion_([{ dominio: 'KPIs', valor: 12 }, { dominio: 'KPIs', valor: 12 }]);
+  chk(mismo.nivel === 'una_fuente', 'D23e dos anclas del MISMO dominio siguen siendo 1 fuente');
+
+  // Comparación tolerante al tipo de celda (8 vs '8' no es un conflicto real).
+  chk(_verificacion_([{ dominio: 'A', valor: 8 }, { dominio: 'B', valor: '8' }]).nivel === 'verificado',
+      'D23f 8 y "8" coinciden (Sheets devuelve number o string según la celda; eso no es conflicto)');
+
+  // Cableado: la recomendación del día lleva anclas y el renderizador contractual las muestra.
+  var render = _recContractual_({ texto: 't', kpi: 'salud', dato: 'd', anclas: [{ dominio: 'Salud', valor: 'crit' }, { dominio: 'Avisos', valor: 'crit' }] });
+  chk(render.join('\n').indexOf('Verificación: verificado') >= 0,
+      'D23g el brief RENDERIZA la verificación en la recomendación (no queda en el modelo de datos)');
+  var renderSin = _recContractual_({ texto: 't', kpi: 'salud', dato: 'd' });
+  chk(renderSin.join('\n').indexOf('Verificación: sin fuente') >= 0,
+      'D23g2 una rec sin anclas dice "sin fuente" — la ausencia se declara, no se calla');
+  chk(VERIF_NIVELES.join(',') === 'sin_fuente,una_fuente,verificado,conflicto', 'D23h los 4 niveles del vocabulario están declarados');
+  log.push('   ↳ D23 verificación: niveles ' + VERIF_NIVELES.join('/'));
 }
 
 /** Cebo de D19f: endpoint DELIBERADAMENTE sin _soloOwner_. No hace nada y nadie lo llama:

@@ -17,7 +17,9 @@
  */
 
 // Pestañas del cerebro por tenant (definidas en CLIENTE_SHEETS / 01_schema.js).
-var CEREBRO_SHEETS = ['nodos', 'aristas', 'cerebro_log', 'estado_actual', 'objetivos'];
+// T3 M3: `cerebro_log_archivo` + `cerebro_resumen` son parte del cerebro (las crea repararCerebro,
+// ocultas+protegidas) pero NO de CLIENTE_ORDEN — ver la nota de decisión en 01_schema.js.
+var CEREBRO_SHEETS = ['nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos'];
 
 /** Abre una pestaña del cerebro de un tenant. Lanza si falta (corré repararCerebro()). */
 function cerebroSheet_(tenant, pestana) {
@@ -136,9 +138,179 @@ function logEvento(tenant, ev) {
   return true;
 }
 
+// ═══ T3 M3 (21-jul) — MEMORIA CALIENTE / FRÍA (D8) ══════════════════════════
+//
+// Problema: `cerebro_log` es append-only y sin techo. Con 10× eventos, todo lector que hace
+// `leerTabla(cerebro_log)` (materializarEstado, y por transitividad el Director en cada corrida)
+// paga el crecimiento entero. Nada lee eventos de hace 6 meses uno por uno; lo que se necesita
+// de esa cola es el CONTEO.
+//
+// Solución (append, jamás destructiva):
+//   CALIENTE = `cerebro_log` con los últimos `cerebro_corte_dias` (Config, default 30).
+//   FRÍA     = las filas más viejas se MUEVEN crudas a `cerebro_log_archivo` (mismo schema,
+//              patrón Cola_archivo) y se resumen por mes en `cerebro_resumen`.
+// Los lectores consumen CALIENTE + los resúmenes: `materializarEstado` sigue devolviendo el
+// total real de eventos (`eventos` = calientes + archivados), así que comprimir NO hace caer
+// ningún número visible. Ese es el invariante que asera D21.
+
+/** Corte de la memoria caliente en días (Config `cerebro_corte_dias`; default 30, mínimo 1). */
+function cerebroCorteDias_() {
+  var n = parseInt(getConfig('cerebro_corte_dias') || '30', 10);
+  return (isNaN(n) || n < 1) ? 30 : n;
+}
+
+/**
+ * PURA (testeable, sin I/O): parte las filas de `cerebro_log` en calientes/frías según el corte
+ * y arma las filas-resumen por período (YYYY-MM) de las frías.
+ *
+ * Regla dura: una fila con `ts` ilegible NUNCA se archiva (se queda caliente). Archivar a ciegas
+ * lo que no se puede fechar sería mover datos por una lectura rota — el mismo error que la guarda
+ * anti-wipe del conector evita.
+ *
+ * @param {Array} filas    leerTabla(cerebro_log)
+ * @param {string} corteISO YYYY-MM-DD — todo evento ESTRICTAMENTE anterior es frío
+ * @return {{frias:Array, resumenes:Array, calientes:number, ilegibles:number}}
+ */
+function _planCompresion_(filas, corteISO) {
+  var frias = [], porPeriodo = {}, ilegibles = 0, calientes = 0;
+  (filas || []).forEach(function (f) {
+    var iso = String(aFechaISO(f.ts) || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) { ilegibles++; calientes++; return; }
+    if (iso >= String(corteISO)) { calientes++; return; }
+    frias.push(f);
+    var per = iso.slice(0, 7);
+    var r = porPeriodo[per] || (porPeriodo[per] = { periodo: per, eventos: 0, tipos: {}, desde: iso, hasta: iso });
+    r.eventos++;
+    var ev = String(f.evento || 'evento');
+    r.tipos[ev] = (r.tipos[ev] || 0) + 1;
+    if (iso < r.desde) r.desde = iso;
+    if (iso > r.hasta) r.hasta = iso;
+  });
+  var resumenes = Object.keys(porPeriodo).sort().map(function (p) {
+    var r = porPeriodo[p];
+    return { periodo: r.periodo, eventos: r.eventos, tipos: _tiposATexto_(r.tipos), desde: r.desde, hasta: r.hasta };
+  });
+  return { frias: frias, resumenes: resumenes, calientes: calientes, ilegibles: ilegibles };
+}
+
+/** PURA: {evento:n,...} → "evento:n · evento:n" (orden estable alfabético). */
+function _tiposATexto_(tipos) {
+  return Object.keys(tipos || {}).sort().map(function (t) { return t + ':' + tipos[t]; }).join(' · ');
+}
+
+/** PURA: "a:2 · b:1" → {a:2, b:1}. Tolera vacío/basura (devuelve {} o saltea el token). */
+function _textoATipos_(txt) {
+  var out = {};
+  String(txt || '').split('·').forEach(function (p) {
+    var m = String(p).trim().match(/^(.+):(\d+)$/);
+    if (m) out[m[1]] = (out[m[1]] || 0) + parseInt(m[2], 10);
+  });
+  return out;
+}
+
+/**
+ * PURA: fusiona el resumen YA guardado de un período con uno nuevo (una corrida posterior archiva
+ * más filas del mismo mes). SUMA los conteos — nunca pisa, o el total del período mentiría.
+ * @param {?Object} prev fila existente de cerebro_resumen (o null)
+ * @param {Object} nuevo fila de _planCompresion_
+ */
+function _fusionarResumen_(prev, nuevo) {
+  if (!prev) return { periodo: nuevo.periodo, eventos: nuevo.eventos, tipos: nuevo.tipos, desde: nuevo.desde, hasta: nuevo.hasta };
+  var tipos = _textoATipos_(prev.tipos);
+  var add = _textoATipos_(nuevo.tipos);
+  Object.keys(add).forEach(function (k) { tipos[k] = (tipos[k] || 0) + add[k]; });
+  var desdePrev = String(prev.desde || ''), hastaPrev = String(prev.hasta || '');
+  return {
+    periodo: nuevo.periodo,
+    eventos: (Number(prev.eventos) || 0) + nuevo.eventos,
+    tipos: _tiposATexto_(tipos),
+    desde: (desdePrev && desdePrev < nuevo.desde) ? desdePrev : nuevo.desde,
+    hasta: (hastaPrev && hastaPrev > nuevo.hasta) ? hastaPrev : nuevo.hasta
+  };
+}
+
+/** Total de eventos ya archivados de un tenant, según las filas-resumen. 0 si la hoja no existe. */
+function _eventosArchivados_(ssCli) {
+  var sh = ssCli.getSheetByName('cerebro_resumen');
+  if (!sh) return 0;
+  return leerTabla(sh).reduce(function (a, r) { return a + (Number(r.eventos) || 0); }, 0);
+}
+
+/**
+ * Comprime la memoria fría de UN tenant: mueve los eventos anteriores al corte de `cerebro_log`
+ * a `cerebro_log_archivo` (crudo) y acumula su conteo en `cerebro_resumen`.
+ *
+ * Orden de escritura deliberado (append ANTES de borrar): si la corrida muere entre medio, lo peor
+ * que queda es un evento duplicado entre log y archivo — nunca uno perdido.
+ *
+ * @param {string} tenant  id_cliente
+ * @param {number} [dias]  override del corte (default: Config)
+ * @return {{archivadas:number, calientes:number, periodos:number, ilegibles:number}}
+ */
+function comprimirMemoriaFria(tenant, dias) {
+  var ssCli = abrirCliente(tenant).ss;
+  var shLog = ssCli.getSheetByName('cerebro_log');
+  if (!shLog) return { archivadas: 0, calientes: 0, periodos: 0, ilegibles: 0, omitido: 'sin cerebro_log' };
+
+  var corte = hace(dias == null ? cerebroCorteDias_() : dias);
+  var plan = _planCompresion_(leerTabla(shLog), corte);
+  if (!plan.frias.length) {
+    return { archivadas: 0, calientes: plan.calientes, periodos: 0, ilegibles: plan.ilegibles };
+  }
+
+  // Las hojas destino se aseguran acá (no dependen de que alguien haya corrido repararCerebro).
+  var shArch = ensureSheet(ssCli, 'cerebro_log_archivo', CLIENTE_SHEETS.cerebro_log_archivo);
+  var shRes = ensureSheet(ssCli, 'cerebro_resumen', CLIENTE_SHEETS.cerebro_resumen);
+  try { protegerSheet(shArch, false); shArch.hideSheet(); protegerSheet(shRes, false); shRes.hideSheet(); } catch (_p) {}
+
+  return conLock(function () {
+    // 1) crudo al archivo (append: el evento sigue existiendo, entero).
+    plan.frias.forEach(function (f) {
+      appendFila(shArch, { ts: f.ts, evento: f.evento, id_nodo: f.id_nodo, id_arista: f.id_arista, origen: f.origen, detalle: f.detalle });
+    });
+    // 2) conteos al resumen (fusión con lo ya acumulado del mismo período).
+    var previos = {};
+    leerTabla(shRes).forEach(function (r) { previos[String(r.periodo)] = r; });
+    plan.resumenes.forEach(function (r) {
+      var fila = _fusionarResumen_(previos[r.periodo] || null, r);
+      fila.comprimido_en = ahoraISO();
+      upsertPorClave_(shRes, 'periodo', fila, 'PER', 4);
+    });
+    // 3) recién ahora se sacan del log caliente.
+    borrarFilasBatch_(shLog, plan.frias.map(function (f) { return f._fila; }));
+    Logger.log('comprimirMemoriaFria ' + tenant + ': ' + plan.frias.length + ' evento(s) < ' + corte +
+               ' → archivo (' + plan.resumenes.length + ' período/s). Calientes: ' + plan.calientes + '.');
+    return { archivadas: plan.frias.length, calientes: plan.calientes, periodos: plan.resumenes.length, ilegibles: plan.ilegibles };
+  });
+}
+
+/**
+ * Comprime la memoria fría de TODOS los tenants activos. Lo llama `corridaDiaria` ANTES del
+ * Director (así el pase dirigido lee ya el log chico). Tolerante a fallos por tenant: comprimir
+ * es HIGIENE — jamás puede tumbar la corrida.
+ */
+function comprimirMemoriaFriaTodos_() {
+  var out = { tenants: 0, archivadas: 0, errores: [] };
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    if (!c.url_sheet_cliente) return;
+    if (['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) < 0) return;
+    try {
+      var r = comprimirMemoriaFria(c.id_cliente);
+      out.tenants++; out.archivadas += r.archivadas;
+    } catch (e) { out.errores.push(c.id_cliente + ': ' + ((e && e.message) || e)); }   // id, sin nombre (PURGA #24)
+  });
+  return out;
+}
+
+/** No-arg para correr del editor sobre toda la cartera. */
+function comprimirMemoria() { return comprimirMemoriaFriaTodos_(); }
+
 /**
  * Reconstruye estado_actual del tenant (snapshot derivado de nodos+aristas+log+objetivos)
  * y refresca el índice agregado del MAESTRO (Cerebro_index, SIN PII).
+ *
+ * T3 M3: `eventos` es el TOTAL histórico (calientes + archivados). Comprimir no lo baja —
+ * ese es el invariante del contrato: el lector no se entera de que hubo compresión.
  * @return {{nodos:number, aristas:number, eventos:number, objetivos_activos:number}}
  */
 function materializarEstado(tenant) {
@@ -147,6 +319,8 @@ function materializarEstado(tenant) {
   var aristas = leerTabla(ssCli.getSheetByName('aristas'));
   var log = leerTabla(ssCli.getSheetByName('cerebro_log'));
   var objetivos = leerTabla(ssCli.getSheetByName('objetivos'));
+  var archivados = _eventosArchivados_(ssCli);
+  var eventosTotal = log.length + archivados;
 
   var porTipo = {};
   var porDim = { lider: 0, negocio: 0, sistema: 0 };
@@ -156,7 +330,9 @@ function materializarEstado(tenant) {
     var d = String(n.dimension || dimensionDeTipo_(n.tipo)); porDim[d] = (porDim[d] || 0) + 1;
     var c = Number(n.cobertura); if (n.cobertura !== '' && n.cobertura != null && !isNaN(c)) { covSum += c; covN++; if (c < 40) ciegos++; }
   });
-  var ultimoEvento = log.length ? String(log[log.length - 1].ts) : '';
+  // M3: si el log caliente quedó vacío tras comprimir, el "último evento" no es '' — es el
+  // borde superior de lo archivado. Un tenant con historia no puede figurar como sin actividad.
+  var ultimoEvento = log.length ? String(log[log.length - 1].ts) : _ultimoArchivado_(ssCli);
   var objActivos = objetivos.filter(function (o) {
     return ['activo', 'en_curso', 'abierto'].indexOf(String(o.estado).toLowerCase()) >= 0;
   }).length;
@@ -164,7 +340,10 @@ function materializarEstado(tenant) {
   var filas = [
     { seccion: 'resumen', clave: 'nodos', valor: nodos.length },
     { seccion: 'resumen', clave: 'aristas', valor: aristas.length },
-    { seccion: 'resumen', clave: 'eventos', valor: log.length },
+    { seccion: 'resumen', clave: 'eventos', valor: eventosTotal },
+    // M3: desglose caliente/frío — diagnóstico de la compresión, sin cambiar 'eventos'.
+    { seccion: 'resumen', clave: 'eventos_calientes', valor: log.length },
+    { seccion: 'resumen', clave: 'eventos_archivados', valor: archivados },
     { seccion: 'resumen', clave: 'ultimo_evento', valor: ultimoEvento },
     { seccion: 'objetivos', clave: 'activos', valor: objActivos }
   ];
@@ -198,7 +377,16 @@ function materializarEstado(tenant) {
     estado_resumen: nodos.length + ' nodos · ' + aristas.length + ' aristas · ' + objActivos + ' obj. activos'
   });
 
-  return { nodos: nodos.length, aristas: aristas.length, eventos: log.length, objetivos_activos: objActivos };
+  return { nodos: nodos.length, aristas: aristas.length, eventos: eventosTotal, objetivos_activos: objActivos };
+}
+
+/** Borde superior de lo archivado (max `hasta` de cerebro_resumen). '' si no hay archivo. */
+function _ultimoArchivado_(ssCli) {
+  var sh = ssCli.getSheetByName('cerebro_resumen');
+  if (!sh) return '';
+  var max = '';
+  leerTabla(sh).forEach(function (r) { var h = String(r.hasta || ''); if (h > max) max = h; });
+  return max;
 }
 
 /** Upsert de la fila del tenant en Cerebro_index del MAESTRO (sin PII). */
