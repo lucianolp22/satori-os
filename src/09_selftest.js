@@ -513,7 +513,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D20 serie North Star (M2)', f: _asertsD20_ },
    { n: 'D21 memoria caliente/fría (M3)', f: _asertsD21_ },
    { n: 'D22 golden-set evals (M4)', f: _asertsD22_ },
-   { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_ }].forEach(function (t) {
+   { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_ },
+   { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1344,6 +1345,66 @@ function _asertsD23_(chk, log, opts) {
       'D23g2 una rec sin anclas dice "sin fuente" — la ausencia se declara, no se calla');
   chk(VERIF_NIVELES.join(',') === 'sin_fuente,una_fuente,verificado,conflicto', 'D23h los 4 niveles del vocabulario están declarados');
   log.push('   ↳ D23 verificación: niveles ' + VERIF_NIVELES.join('/'));
+}
+
+/**
+ * D24 — MÓDULO H (T3, 21-jul): SOUL (H1) · panel de Salud humano (H2) · cerebroNodo (H3).
+ * Todo puro / read-only. El espejo de SOUL en `voz/agent/agent.py` no es verificable desde GAS
+ * (otro proceso, otra máquina): eso lo cubre el harness offline, que compara los dos archivos.
+ */
+function _asertsD24_(chk, log, opts) {
+  // ── H1 · SOUL
+  chk(SOUL_REGLAS.length === 8, 'D24a SOUL tiene las 8 invariantes (' + SOUL_REGLAS.length + ')');
+  var ids = SOUL_REGLAS.map(function (r) { return r.id; });
+  chk(ids.join(',') === 'S1,S2,S3,S4,S5,S6,S7,S8', 'D24a2 los ids son S1..S8 y en orden (son citables en una purga)');
+  chk(SOUL_REGLAS.every(function (r) { return r.regla && r.regla.length > 20 && r.porque && r.porque.length > 20; }),
+      'D24a3 cada invariante tiene regla Y porqué (una regla sin porqué se afloja sola)');
+  var p678 = soulPrompt_(['S1', 'S6']);
+  chk(p678.indexOf('[S1]') >= 0 && p678.indexOf('[S6]') >= 0 && p678.indexOf('[S5]') < 0,
+      'D24a4 soulPrompt_ filtra: mete las pedidas y NO las demás');
+  chk(soulPrompt_().indexOf('[S5]') >= 0, 'D24a5 sin filtro van las 8');
+  // El clasificador REFERENCIA SOUL en vez de re-escribirlo. Si alguien lo desengancha, esto se cae.
+  var pc = promptClasificador_('texto de prueba', []);
+  chk(pc.indexOf('INVARIANTES DE SATORI OS') >= 0 && pc.indexOf('[S1]') >= 0 && pc.indexOf('[S7]') >= 0,
+      'D24a6 el clasificador de Bandeja arranca con las invariantes de SOUL');
+  chk(pc.indexOf('[S5]') < 0, 'D24a7 …pero NO con S5 (confirmación verbal): el clasificador no habla con nadie');
+
+  // ── H2 · capa humana de Salud. Los 7 chequeos tienen que estar TODOS cubiertos: un chequeo sin
+  //    "qué hacer" es el que te va a agarrar justo el día que se ponga rojo.
+  var CHEQUEOS = ['schema', 'sync', 'cola', 'presupuesto', 'aprobaciones', 'cerebro', 'seguridad'];
+  chk(Object.keys(SALUD_HUMANO).length === 7, 'D24b SALUD_HUMANO cubre los 7 chequeos');
+  CHEQUEOS.forEach(function (n) {
+    var m = SALUD_HUMANO[n];
+    chk(!!m && !!m.titulo && !!m.warn && !!m.crit, 'D24b2 ' + n + ': título + qué hacer en warn Y en crit');
+    chk(!!m && m.titulo !== n, 'D24b3 ' + n + ': el título es humano, no el nombre técnico');
+  });
+  chk(saludAccion_('cola', 'ok') === '', 'D24b4 un chequeo en verde no propone acción (no hay nada que hacer)');
+  chk(saludAccion_('cola', 'crit').indexOf('Cola_tareas') >= 0, 'D24b5 el "qué hacer" es concreto (nombra la hoja a mirar)');
+  // Un chequeo NUEVO sin texto cargado tiene que DECIRLO, no devolver vacío: un hueco silencioso se
+  // lee como "todo bien", que es exactamente lo contrario.
+  chk(saludAccion_('chequeo_inexistente', 'crit').indexOf('Sin guía cargada') >= 0,
+      'D24b6 chequeo sin guía cargada lo declara (no devuelve vacío)');
+  var sal = estadoSalud();
+  chk((sal.hallazgos || []).length > 0 && sal.hallazgos.every(function (h) { return !!h.titulo; }),
+      'D24b7 estadoSalud() entrega los hallazgos YA con la capa humana (la UI solo pinta)');
+  chk(sal.hallazgos.every(function (h) { return h.estado === 'ok' ? h.accion === '' : !!h.accion; }),
+      'D24b8 todo hallazgo no-ok trae su acción; todo hallazgo ok viene sin acción');
+
+  // ── H3 · cerebroNodo. Las guardas de entrada cortan ANTES de tocar ningún Sheet, así que son
+  //    aserible sin abrir un tenant. El gate de identidad lo cubre D19 (cobertura de ENDPOINTS_UI).
+  chk(ENDPOINTS_UI.indexOf('cerebroNodo') >= 0, 'D24c cerebroNodo está dado de alta en ENDPOINTS_UI (regla anti-drift)');
+  chk(cerebroNodo('CLI-000', '').sin_nodo === true, 'D24c2 sin id de nodo ⇒ {sin_nodo:true} (fail-closed, no objeto vacío)');
+  chk(cerebroNodo('__NO_EXISTE__', 'NOD-0001').sin_nodo === true, 'D24c3 tenant inexistente ⇒ {sin_nodo:true}, sin reventar');
+  chk(typeof CEREBRO_NODO_EVENTOS === 'number' && CEREBRO_NODO_EVENTOS > 0 && CEREBRO_NODO_EVENTOS <= 20,
+      'D24c4 el detalle trae un tope acotado de eventos (no vuelca el log entero al cliente)');
+
+  // ── H4 · el mapa neural nace OFF y su flag está en la whitelist de prefs (no es config sensible).
+  chk(PREFS_UI_OK.indexOf('cerebro_map') >= 0, 'D24d cerebro_map está en la whitelist de prefs de UI');
+  chk(prefsUI().cerebro_map === 'off' || prefsUI().cerebro_map === 'on', 'D24d2 prefsUI expone cerebro_map con valor legible');
+  var defMapa = CONFIG_DEFAULTS.filter(function (f) { return f[0] === 'cerebro_map'; })[0];
+  chk(!!defMapa && defMapa[1] === 'off', 'D24d3 el default de código de cerebro_map es OFF (lo riesgoso nace apagado)');
+  log.push('   ↳ D24 módulo H: SOUL ' + SOUL_REGLAS.length + ' invariantes · Salud ' + sal.hallazgos.length +
+           ' chequeos humanizados · mapa neural ' + prefsUI().cerebro_map);
 }
 
 /** Cebo de D19f: endpoint DELIBERADAMENTE sin _soloOwner_. No hace nada y nadie lo llama:

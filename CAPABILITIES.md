@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-23 14:23 · commit: a6c6f9e
+> Generado: 2026-07-23 14:37 · commit: 9ce5e4f
 
 ## Módulos
 
@@ -15,15 +15,15 @@
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 17 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 56 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 21 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 57 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 22 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
 | `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 25 |
-| `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 1 |
+| `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 3 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 8 |
 | `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 57 |
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 5 |
@@ -31,6 +31,7 @@
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
 | `22_seguridad.js` | MÓDULO S (T3 · Bastión lidera). Seguridad del motor | 21 |
 | `23_evals.js` | Golden-set + runner de evals (T3 · MÓDULO M · M4, 21-jul-2026) | 6 |
+| `24_soul.js` | SOUL: identidad operativa de Satori OS (T3 · MÓDULO H · H1 · D11, 21-jul-2026) | 2 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -126,9 +127,9 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
-**08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
+**08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
+**09_selftest.js:** selfTest _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -142,7 +143,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **15_cerebro.js:** cerebroSheet_ upsertPorClave_ dimensionDeTipo_ upsertNodo upsertArista logEvento cerebroCorteDias_ _planCompresion_ _tiposATexto_ _textoATipos_ _fusionarResumen_ _eventosArchivados_ comprimirMemoriaFria comprimirMemoriaFriaTodos_ comprimirMemoria materializarEstado _ultimoArchivado_ actualizarCerebroIndex_ leerEstado repararCerebro migrarCerebroSchema agregarColumnasFaltantes_ cargarObjetivo cargarObjetivosPiloto sembrarDatosEjemplo 
 
-**16_salud.js:** correrSalud 
+**16_salud.js:** saludTitulo_ saludAccion_ correrSalud 
 
 **17_bandeja.js:** esResearch_ capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
@@ -157,4 +158,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **22_seguridad.js:** _ctxSistemaPermitido_ _ctxSistema_ _puertaOwner_ _esOwner_ _soloOwner_ _tieneGate_ _vencido_ _diasPara_ _expiraProp_ _secretoVencido_ _isoMasDias_ sembrarExpirySecretos _nuevoSecreto_ rotarSecretoVoz rotarSecretoOficina _rotarSecreto_ _riesgoConfig_ _riesgoModo_ gateRiesgo_ securityScan_ securityScan 
 
 **23_evals.js:** _correrEvalDet_ _evalEjecutar_ _evalComparar_ _evalEstructuraClasificacion_ correrEvals correrEvalsConApi 
+
+**24_soul.js:** soulPrompt_ soulReglas_ 
 

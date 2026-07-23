@@ -107,7 +107,10 @@ function clasificarBandeja() {
 
 /** Prompt del clasificador (Haiku). Pide JSON estricto con bin + confianza + metadatos. */
 function promptClasificador_(texto, clientes) {
-  return 'Sos el clasificador de la bandeja de entrada de Luciano (consultor de negocios, marca Satori). ' +
+  // H1 (D11): las invariantes se REFERENCIAN desde SOUL (24_soul.js), no se re-escriben acá. S5 queda
+  // afuera a propósito (es la confirmación verbal de la voz; el clasificador no habla con nadie).
+  return soulPrompt_(['S1', 'S2', 'S3', 'S6', 'S7', 'S8']) +
+    'Sos el clasificador de la bandeja de entrada de Luciano (consultor de negocios, marca Satori). ' +
     'Leé el INPUT y devolvé SOLO un JSON válido (sin texto extra, sin markdown) con las claves: ' +
     '{"bin": uno de [proyecto,tarea,idea,referencia,cliente,lead,escalate], "confianza": entero 1-10, ' +
     '"slug": "titulo-corto-en-kebab", "tags": "tag1,tag2", "resumen": "una linea", "id_cliente": "CLI-XXX o vacio"}. ' +

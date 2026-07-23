@@ -140,6 +140,9 @@ var CONFIG_DEFAULTS = [
   ['riesgo_accion_externa', 'bloquear'],
   ['riesgo_tocar_config', 'bloquear'],
   ['riesgo_tocar_secretos', 'bloquear'],
+  // H4 (T3, 21-jul) — mapa neural del Cerebro dentro del Espacio de Akasha. 'off' | 'on'.
+  // Default OFF: es render 3D extra y el piso de 30fps en iPhone lo valida Luciano a ojo.
+  ['cerebro_map', 'off'],
   ['voz_url', 'http://127.0.0.1:8787'],
   ['oficina_url', 'http://127.0.0.1:8420'],
   // E1.1 — slots de avatar por agente (arte IA cargado como DATO, sin tocar código). Vacío => el CM

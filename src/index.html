@@ -571,6 +571,20 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .hl .dt{font-size:10px;color:#6b7488;flex:1 1 100%;margin-left:17px}
 .hl .pip{width:9px;height:9px;border-radius:50%;background:#6cddba;flex:none}
 .hl.warn .pip{background:#ffd479} .hl.crit .pip{background:#ff8d7a}
+/* H2 — panel de Salud humano. Mismo registro visual del CM: sin librerías, sin colores nuevos
+   (reusa los pips jade/ámbar/coral ya definidos arriba). */
+.sal-glob{display:flex;align-items:center;gap:10px;background:rgba(10,14,22,.7);border:1px solid rgba(108,221,186,.14);border-left:3px solid #6cddba;border-radius:8px;padding:10px 12px;margin-bottom:8px}
+.sal-glob.warn{border-left-color:#ffd479} .sal-glob.crit{border-left-color:#ff8d7a}
+.sal-pip{width:11px;height:11px;border-radius:50%;background:#6cddba;flex:none;box-shadow:0 0 10px -1px #6cddba}
+.sal-glob.warn .sal-pip{background:#ffd479;box-shadow:0 0 10px -1px #ffd479}
+.sal-glob.crit .sal-pip{background:#ff8d7a;box-shadow:0 0 10px -1px #ff8d7a}
+.sal-glob-t{flex:1;min-width:0}
+.sal-glob-h{font-size:13px;color:#dfe5f2;font-weight:600}
+.sal-glob-s{font-size:10.5px;color:#6b7488;margin-top:1px}
+.sal-row{margin-bottom:5px}
+.sal-acc{flex:1 1 100%;margin-left:17px;margin-top:4px;font-size:11px;line-height:1.45;color:#c3ccdd;border-left:2px solid rgba(108,221,186,.22);padding-left:8px}
+.hl.warn .sal-acc{border-left-color:rgba(255,212,121,.32)} .hl.crit .sal-acc{border-left-color:rgba(255,141,122,.32)}
+.sal-vacio{font-size:11.5px;color:#6b7488;padding:8px 2px}
 /* ── a4.2 móvil: agentes como chips tappables (en vez de órbita apretada) ── */
 .cm-agents-m{display:none;grid-template-columns:repeat(2,1fr);gap:8px;padding:2px}
 .agm{display:flex;align-items:center;gap:9px;background:rgba(18,22,34,.72);border:1px solid rgba(108,221,186,.14);border-radius:11px;padding:9px 11px;min-height:48px;cursor:pointer}
@@ -1611,7 +1625,7 @@ function cmTab(t){
   document.getElementById('cmSalud').style.display=t==='salud'?'flex':'none';
   document.getElementById('cmHint').textContent = t==='inbox'
     ? 'j/k mover · a aprobar · e editar · r rechazar'
-    : (t==='salud' ? 'Loop de salud · 6 chequeos · 0 API' : 'Click en un agente activo para dispararlo');
+    : (t==='salud' ? 'Loop de salud · 7 chequeos · 0 API · qué hacer por hallazgo' : 'Click en un agente activo para dispararlo');
   if(t==='salud')refrescarSalud();
 }
 
@@ -1743,6 +1757,15 @@ function refrescarSalud(){
       var t=document.getElementById('tmSaludG');if(t&&t.parentNode)t.parentNode.title='No se pudo leer Salud — reintentando';
     }).estadoSalud();
 }
+/* ── H2 (T3 · MÓDULO H, 21-jul): panel de Salud HUMANO ──────────────────────
+   Antes esto listaba el estado crudo ("cola [crit] 0 pendientes · 2 tomadas colgadas"): perfecto
+   para quien escribió el chequeo, ilegible para todos los demás. Ahora: semáforo global arriba,
+   y por chequeo el nombre en llano + estado + el detalle técnico de UN renglón + QUÉ HACER.
+   El "qué hacer" es texto FIJO por tipo, servido por el backend (SALUD_HUMANO en 16_salud.js) —
+   nunca un LLM: un sistema en crítico es el peor momento posible para una alucinación, y además
+   ataría el panel de salud a que la API esté viva.
+   Fallback: si el backend es viejo y no manda titulo/accion, se cae al nombre técnico (nunca vacío). */
+var SALUD_GLOB_TXT={ok:'Todo en orden',warn:'Requiere atención',crit:'Necesita acción ya'};
 function cmSalud(s){
   if(!s)return;
   CC.salud=s;try{ccEstado();}catch(_e){}
@@ -1750,14 +1773,36 @@ function cmSalud(s){
   setTm('tmInteg',s.integridad+'%',kind);
   setTm('tmSaludG',String(s.global).toUpperCase(),kind);
   var box=document.getElementById('cmSalud');clear(box);
-  (s.hallazgos||[]).forEach(function(h){
-    var row=el('div','hl '+(h.estado==='ok'?'':h.estado));
-    row.appendChild(el('span','pip'));
-    row.appendChild(el('span','nm',h.nombre));
-    row.appendChild(chip(h.estado,h.estado==='ok'?'success':(h.estado==='warn'?'warning':'danger')));
-    if(h.detalle)row.appendChild(el('span','dt',h.detalle));
-    box.appendChild(row);
-  });
+  var hs=s.hallazgos||[];
+
+  /* Semáforo global: una frase, no una sigla. */
+  var noOk=hs.filter(function(h){return h.estado!=='ok';});
+  var cab=el('div','sal-glob '+kind);
+  cab.appendChild(el('span','sal-pip'));
+  var cabT=el('div','sal-glob-t');
+  cabT.appendChild(el('div','sal-glob-h',SALUD_GLOB_TXT[kind]||'Estado desconocido'));
+  cabT.appendChild(el('div','sal-glob-s',
+    hs.length
+      ? (noOk.length? noOk.length+' de '+hs.length+' chequeos piden algo · integridad '+s.integridad+'%'
+                    : 'los '+hs.length+' chequeos en verde · integridad '+s.integridad+'%')
+      : 'sin chequeos reportados'));
+  cab.appendChild(cabT);
+  box.appendChild(cab);
+
+  if(!hs.length){ box.appendChild(el('div','sal-vacio','No se pudo leer el loop de salud — reintentá desde la pestaña.')); return; }
+
+  /* Los que piden algo, primero: crit → warn → ok. */
+  var peso={crit:0,warn:1,ok:2};
+  hs.slice().sort(function(a,b){return (peso[a.estado]==null?3:peso[a.estado])-(peso[b.estado]==null?3:peso[b.estado]);})
+    .forEach(function(h){
+      var row=el('div','hl sal-row '+(h.estado==='ok'?'':h.estado));
+      row.appendChild(el('span','pip'));
+      row.appendChild(el('span','nm',h.titulo||h.nombre));
+      row.appendChild(chip(h.estado,h.estado==='ok'?'success':(h.estado==='warn'?'warning':'danger')));
+      if(h.detalle)row.appendChild(el('span','dt',h.detalle));
+      if(h.accion)row.appendChild(el('div','sal-acc','→ '+h.accion));
+      box.appendChild(row);
+    });
 }
 function cmDirectiva(feed){
   var d=(feed||[]).filter(function(e){return String(e.agente)==='Director';});
@@ -3492,6 +3537,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     setTimeout(()=>{ if(nav.dockId==='muelle') mostrarPanelAprob(0); },650);
   }
   function volverOverview(){
+    destruirMapaCerebro();   // H4: el mapa neural muere con el Espacio que lo abrió (E3.7)
     nav.modo='overview'; nav.dockId=null; nav.idle=0; ocultarPaneles(); aislarNodos(null);
     setStatus('Plano general — '+DATA.agentes.length+' estaciones · '+DATA.clientes.length+' Espacios de Cliente · '+DATA.aprobaciones.length+' decisiones en el Muelle');
   }
@@ -3547,6 +3593,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       <div class="p-row"><div class="l">Números</div>
         <div class="p-metrics">${c.kpis.map(k=>`<div class="stat"><span class="l">${k[0]}</span><span class="v" style="font-size:.92rem">${k[1]}</span></div>`).join('')}</div></div>
       ${aprobs.length?`<div class="p-aprob"><b>${aprobs.length} decisión ligada:</b> ${aprobs.map(a=>a.titulo).join(' · ')}</div><button class="btn btn-ghost" id="p3-muelle">Ir al Muelle a decidir</button>`:''}
+      <button class="btn btn-ghost" id="p3-cerebro">◈ Cerebro de este Espacio</button>
       <button class="btn btn-ghost" id="p3-historial">◷ Historial del Espacio</button>
       ${c.reg.length?`<button class="btn btn-ghost" id="p3-registro">Ver su registro en el Núcleo (${c.reg.length})</button>`:''}
       ${H.acc.esEspacioOV(c)?'<button class="btn btn-primary" id="p3-ov">▦ Abrir el panel de la Oficina Virtual</button>':''}
@@ -3558,6 +3605,83 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     const bm=$('p3-muelle'); if(bm) bm.addEventListener('click',flyToMuelle,{once:true});
     const bov=$('p3-ov'); if(bov) bov.addEventListener('click',()=>H.acc.abrirOV());
     const bh=$('p3-historial'); if(bh) bh.addEventListener('click',()=>mostrarHistorialCliente(c),{once:true});
+    const bc=$('p3-cerebro'); if(bc){ bc.textContent = mapaCli===c.id ? '◈ Ocultar el Cerebro' : '◈ Cerebro de este Espacio';
+      bc.addEventListener('click',()=>toggleMapaCerebro(c)); }
+  }
+
+  /* ═══ H4 (T3 · MÓDULO H, 21-jul) — MAPA NEURAL DEL ESPACIO ═══════════════════
+     El Núcleo ya dibujaba la constelación GLOBAL (todos los tenants, sin aristas). Esto es la otra
+     mitad: el grafo de UN cliente, orbitando SU Espacio, con las aristas reales como líneas tenues.
+     No es un motor nuevo — reusa el mismo THREE r128, el mismo `sprite`/`track` y el mismo
+     `cerebroGrafo()` que alimenta al Núcleo; la novedad es que acá SÍ se usan las aristas (el
+     Núcleo las descartaba).
+
+     Presupuesto de perf (patrón E3.7): se crea A DEMANDA y se DESTRUYE al salir o al cambiar de
+     Espacio — nunca hay dos mapas vivos, y sin toggle no hay ni un draw call extra. Geometrías
+     compartidas (una esfera para todos los nodos), materiales dispuestos a mano al bajar.
+
+     Nace OFF (`cerebro_map` en Config). El piso de 30fps en iPhone NO se puede medir desde acá: el
+     CM corre en un iframe cross-origin, no es screenshoteable. Así que el botón está siempre, pero
+     con el flag apagado explica cómo encenderlo en vez de renderizar a ciegas. */
+  let mapaCli=null, mapaGrupo=null, mapaMats=[], mapaGeos=[];
+  function destruirMapaCerebro(){
+    if(!mapaGrupo) return;
+    const dueno = clientes[mapaCli] && clientes[mapaCli].grupo;
+    if(dueno) dueno.remove(mapaGrupo); else world.remove(mapaGrupo);
+    mapaMats.forEach(m=>{ try{m.dispose();}catch(e){} });
+    mapaGeos.forEach(g=>{ try{g.dispose();}catch(e){} });
+    mapaMats=[]; mapaGeos=[]; mapaGrupo=null; mapaCli=null;
+  }
+  function toggleMapaCerebro(c){
+    if(mapaCli===c.id){ destruirMapaCerebro(); mostrarPanelCliente(c); setStatus('Cerebro de '+c.nombre+' — oculto'); return; }
+    destruirMapaCerebro();                                  // nunca dos mapas vivos a la vez
+    if(!H.mapaOn()){
+      toast('Mapa neural apagado — se enciende poniendo cerebro_map=on en la hoja Config, después de validar los fps en tu iPhone.');
+      return;
+    }
+    const grupo = clientes[c.id] && clientes[c.id].grupo;
+    if(!grupo){ toast('Este Espacio todavía no está montado en la escena.'); return; }
+    setStatus('Leyendo el Cerebro de '+c.nombre+'…');
+    const gen = (H.gen?H.gen():0);
+    H.pedirGrafo(c.id, (r)=>{
+      if(gen!==(H.gen?H.gen():0)) return;                             // saliste de la Oficina mientras viajaba
+      const g = r && r.ok && r.v;
+      const ns = (g && g.nodos) || [];
+      if(!ns.length){ toast('Sin grafo del Cerebro para '+c.nombre+' — no hay nada que dibujar.'); setStatus('Espacio de '+c.nombre); return; }
+      dibujarMapaCerebro(c, ns, (g.aristas)||[]);
+      mostrarPanelCliente(c);                                // repinta el botón como "Ocultar"
+      setStatus('Cerebro de '+c.nombre+' — '+ns.length+' nodos · '+((g.aristas||[]).length)+' relaciones');
+    });
+  }
+  function dibujarMapaCerebro(c, ns, ars){
+    const grupo = clientes[c.id] && clientes[c.id].grupo; if(!grupo) return;
+    mapaCli=c.id; mapaGrupo=new THREE.Group(); mapaGrupo.position.y=3.2;
+    /* Agrupados por DIMENSIÓN: cada eje del Cerebro (sistema / negocio / líder) toma su propia
+       banda de altura, así el reparto se lee de un vistazo sin leer una sola etiqueta. */
+    const BANDA={sistema:2.3, negocio:0, lider:-2.3};
+    const geo=new THREE.SphereGeometry(0.16,8,8); mapaGeos.push(geo);
+    const pos=[];
+    ns.forEach((n,i)=>{
+      const dim=String(n.dim||'negocio');
+      const ph=i*2.399963, rad=2.5+(i%3)*0.55;               // espiral áurea: reparto parejo, sin cálculo
+      const p=new THREE.Vector3(rad*Math.cos(ph), (BANDA[dim]==null?0:BANDA[dim])+((i%2)?0.28:-0.28), rad*Math.sin(ph));
+      pos.push(p);
+      const hex=parseInt(H.nodoColor(n).slice(1),16);
+      const mat=new THREE.MeshBasicMaterial({color:hex, transparent:true, opacity:0.92}); mapaMats.push(mat);
+      const m=new THREE.Mesh(geo,mat); m.position.copy(p); mapaGrupo.add(m);
+    });
+    /* Aristas REALES (las que el Núcleo tiraba a la basura). Tenues a propósito: son contexto,
+       no protagonistas — el ojo tiene que ir a los nodos en alerta, no a la maraña. */
+    if(ars.length){
+      const pts=[];
+      ars.forEach(a=>{ const o=pos[a[0]], d=pos[a[1]]; if(o&&d){ pts.push(o.clone(), d.clone()); } });
+      if(pts.length){
+        const lg=new THREE.BufferGeometry().setFromPoints(pts); mapaGeos.push(lg);
+        const lm=new THREE.LineBasicMaterial({color:COL.cremaLinea, transparent:true, opacity:0.10}); mapaMats.push(lm);
+        mapaGrupo.add(new THREE.LineSegments(lg,lm));        // UN draw call para TODAS las aristas
+      }
+    }
+    grupo.add(mapaGrupo);
   }
   /* El log histórico individual del Espacio (aprobado 16/07). E5: hoja Historial + historialCliente() */
   function mostrarHistorialCliente(c){
@@ -3602,10 +3726,43 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       <div class="p-row"><div class="l">Dimensión</div><div style="text-transform:capitalize">${n.dim}</div></div>
       <div class="p-row"><div class="l">Cobertura</div><div>${n.alert?'<span style="color:var(--_red-400)">punto ciego — cobertura &lt; 40</span>':'cubierto'}</div></div>
       ${cli?`<div class="p-row"><div class="l">Espacio</div><div>${cli.nombre} <span class="mono" style="font-size:10.5px;color:var(--color-text-subtle)">${cli.ns}</span></div></div>`:''}
+      <div class="p-row" id="p2-nodo-det"><div class="l">Detalle</div><div style="font-size:12.5px;color:var(--color-text-subtle)">${n.id?'Leyendo el nodo…':'Este nodo llegó sin identificador — recargá la Oficina para pedir el detalle.'}</div></div>
       <button class="btn btn-ghost" id="p2-volver">Ver toda la constelación</button>
-      <div class="p-foot">El grafo del Cerebro no expone etiquetas (Bastión, por diseño): el bulk viaja anónimo. El detalle por nodo llega en E3.5 (<span class="mono" style="font-size:10px">cerebroNodo()</span>).</div>`;
+      <div class="p-foot">El bulk del grafo viaja anónimo (Bastión, por diseño): sin etiquetas ni atributos. El detalle de UN nodo se pide aparte y solo para el owner — <span class="mono" style="font-size:10px">cerebroNodo()</span>.</div>`;
     panel2.classList.add('show');
     $('p2-volver').addEventListener('click',()=>{ aislarNodos(null); mostrarPanelNucleo(); },{once:true});
+    if(n.id && n.cli) pedirDetalleNodo(n, i);
+  }
+  /* E3.5 · H3 — detalle de UN nodo. Se pide a demanda (no en el boot): el bulk sigue anónimo y
+     esto es la única superficie donde salen etiqueta/atributos/relaciones. Guarda de carrera: si
+     Luciano clickea otro nodo mientras esto viaja, la respuesta vieja se descarta. */
+  let _nodoPedido = null;
+  function pedirDetalleNodo(n, idx){
+    _nodoPedido = n.id;
+    H.pedirNodo(n.cli, n.id, (r)=>{
+      if(_nodoPedido !== n.id) return;                       // llegó tarde: ya hay otro nodo abierto
+      const cont = $('p2-nodo-det'); if(!cont) return;        // el panel se cerró mientras viajaba
+      if(!r || !r.ok || !r.v || r.v.sin_nodo){
+        cont.innerHTML = `<div class="l">Detalle</div><div style="font-size:12.5px;color:var(--_amber-400)">Sin detalle: ${(r&&r.v&&r.v.motivo)||'el Cerebro no respondió'}.</div>`;
+        return;
+      }
+      const d = r.v, nd = d.nodo;
+      const esc = (t)=>String(t==null?'':t).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      const rel = (d.aristas||[]).map(a=>
+        `<div style="display:flex;gap:8px;padding:4px 0;font-size:12px"><span class="mono" style="flex:none;color:var(--color-text-subtle);min-width:38px">${a.direccion==='sale'?'→':'←'}</span><span>${esc(a.relacion)} <b>${esc(a.otro)}</b></span></div>`).join('');
+      const evs = (d.eventos||[]).map(e=>
+        `<div style="display:flex;gap:8px;padding:4px 0;font-size:11.5px"><span class="mono" style="flex:none;color:var(--color-text-subtle);min-width:74px">${esc(e.ts)}</span><span>${esc(e.evento)}<span style="color:var(--color-text-subtle)"> · ${esc(e.origen)}</span></span></div>`).join('');
+      cont.innerHTML =
+        `<div class="l">${esc(nd.etiqueta)||'(sin etiqueta)'}</div>
+         <div style="font-size:12px;margin-bottom:6px"><span class="mono" style="color:var(--color-text-subtle)">${esc(nd.tipo)}</span> · ${esc(nd.dimension)} · ${esc(nd.estado)}${nd.relevancia!=null?' · relevancia '+esc(nd.relevancia):''}</div>
+         <div style="font-size:12px">Cobertura: ${nd.cobertura==null?'sin medir':esc(nd.cobertura)+(nd.alert?' <span style="color:var(--_red-400)">— punto ciego</span>':'')}</div>
+         ${nd.atributos&&nd.atributos!=='{}'?`<div style="font-size:11px;color:var(--color-text-subtle);margin-top:5px;word-break:break-word">${esc(nd.atributos)}</div>`:''}
+         <div class="l" style="margin-top:10px">Relaciones (${(d.aristas||[]).length})</div>
+         ${rel||'<div style="font-size:12px;color:var(--color-text-subtle)">Ninguna — este nodo está suelto en el grafo.</div>'}
+         <div class="l" style="margin-top:10px">Últimos movimientos (${(d.eventos||[]).length})</div>
+         ${evs||`<div style="font-size:12px;color:var(--color-text-subtle)">Sin eventos recientes${d.log_comprimido?' — la memoria vieja de este Espacio está archivada, no perdida.':'.'}</div>`}
+         <div style="font-size:10.5px;color:var(--color-text-subtle);margin-top:8px">Actualizado ${esc(nd.actualizado_en)} · fuente ${esc(nd.fuente)}</div>`;
+    });
   }
   function mostrarPanelAprob(i){
     const ap=DATA.aprobaciones[i]; if(!ap) return;
@@ -3929,6 +4086,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     irAEstacion(id){ if(nav.modo!=='umbral') flyToEstacion(id); },
     irAMuelle(){ if(nav.modo!=='umbral') flyToMuelle(); },
     destroy(){
+      destruirMapaCerebro();   // H4: si se sale de la Oficina con el mapa abierto, baja primero
       running=false; cancelAnimationFrame(raf); AC.abort();
       scene.traverse(o=>{ o.geometry?.dispose?.();
         (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ m?.map?.dispose?.(); m?.dispose?.(); }); });
@@ -4183,7 +4341,7 @@ window.AKASHA = (function () {
       if (!g.res.ok || !g.res.v || !g.res.v.nodos) return;
       var c = data.clientes.filter(function (x) { return x.id === g.id; })[0];
       g.res.v.nodos.forEach(function (n) {
-        var i = data.akasha.push({ dim: n.dim, alert: !!n.alert, cli: g.id }) - 1;
+        var i = data.akasha.push({ id: n.id || '', dim: n.dim, alert: !!n.alert, cli: g.id }) - 1;
         if (c) c.reg.push(i);
       });
     });
@@ -4299,7 +4457,16 @@ window.AKASHA = (function () {
     return {
       toast: toast, $: $, ESTADOS: ESTADOS, CLI_CHIP: CLI_CHIP, DIMCOL: DIMCOL,
       nodoColor: nodoColor, el: el, abrirVoz: acc.abrirVoz, acc: acc,
-      statusNucleo: statusNucleo, cerebros: function () { return CEREBROS; }
+      statusNucleo: statusNucleo, cerebros: function () { return CEREBROS; },
+      gen: function () { return AK.gen; },
+      /* E3.5 · H3 — detalle de UN nodo, a demanda. El motor no habla con GAS directo: pasa por
+         `pedir`, que ya trae el fail-por-fuente y el toast de gate de identidad (T3-S1). */
+      pedirNodo: function (cli, idNodo, cb) { pedir('cerebroNodo', [cli, idNodo]).then(cb); },
+      /* H4 — grafo del tenant (nodos + ARISTAS) para el mapa neural del Espacio. Reusa el mismo
+         cerebroGrafo del Núcleo; lo que cambia es que acá SÍ se usan las aristas. */
+      pedirGrafo: function (cli, cb) { pedir('cerebroGrafo', [cli]).then(cb); },
+      /* Flag del mapa neural: nace OFF (ver PREFS_UI_OK / cerebro_map en 08_webapp.js). */
+      mapaOn: function () { return String(AK_PREFS.cerebro_map || 'off') === 'on'; }
     };
   }
   function statusNucleo() {
@@ -4633,6 +4800,14 @@ window.AKASHA = (function () {
      Cada respuesta agrega sus nodos y repinta la constelación; el que tarda de
      más o falla queda "sin constelación" (fail-closed) y NO frena al resto. */
   var CEREBROS = { listos: 0, total: 0, cargando: false, fallidos: [] };
+  /* H4 — preferencias de presentación traídas del backend UNA vez por entrada. `cerebro_map` nace
+     'off' (Config): el mapa neural es render 3D extra por tenant y el piso de 30fps en iPhone no se
+     puede medir desde acá (el CM vive en un iframe cross-origin), así que lo valida Luciano a ojo.
+     Fail-safe: si prefsUI() no contesta, queda 'off' — apagado es el estado seguro. */
+  var AK_PREFS = { orbe_calidad: 'alto', cerebro_map: 'off' };
+  function cargarPrefsAk() {
+    pedir('prefsUI', []).then(function (r) { if (r && r.ok && r.v) AK_PREFS = r.v; });
+  }
   var CEREBRO_TIMEOUT_MS = 12000;
   function pedirCerebro(id) {
     return new Promise(function (res) {
@@ -4666,7 +4841,7 @@ window.AKASHA = (function () {
         CEREBROS.listos++;
         if (r.ok && r.v && r.v.nodos) {
           r.v.nodos.forEach(function (n) {
-            var i = DATA.akasha.push({ dim: n.dim, alert: !!n.alert, cli: c.id }) - 1;
+            var i = DATA.akasha.push({ id: n.id || '', dim: n.dim, alert: !!n.alert, cli: c.id }) - 1;
             c.reg.push(i);
           });
         } else CEREBROS.fallidos.push(c.id);
@@ -4718,6 +4893,7 @@ window.AKASHA = (function () {
     var centro = $('centro'), ak = $('akasha');
     AK.cargando = true;
     AK.gen++;                  // invalida cualquier ola de cerebros de una entrada anterior
+    cargarPrefsAk();           // H4: el flag del mapa neural, antes de que se pueda abrir un Espacio
     AK.on = true;                                   // ANTES de construir: cmLoop deja de dibujar ya en el próximo frame
     centro.classList.add('ak-on');
     /* Ronda 2 (FIX 3) — entrada AUTO-SANEADA: si por cualquier camino quedó `ak-modal` puesta

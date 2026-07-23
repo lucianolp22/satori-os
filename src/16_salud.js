@@ -22,14 +22,75 @@
  */
 
 /**
+ * T3 · MÓDULO H · H2 (21-jul) — capa HUMANA de los 7 chequeos.
+ *
+ * El panel del CM mostraba el estado crudo: `cola [crit] 0 pendientes · 2 tomadas colgadas`. Eso lo
+ * lee bien quien escribió el chequeo; nadie más. Acá vive, por chequeo, el nombre en llano y el
+ * "QUÉ HACER" cuando no está en verde.
+ *
+ * El texto es FIJO por tipo y por estado — nunca sale de un LLM. Un consejo generado sobre un
+ * sistema en crítico es exactamente el momento en que menos se puede permitir una alucinación, y
+ * además haría que el panel de salud dependiera de que la API esté viva.
+ *
+ * `accion` vacío = el chequeo está en verde y no hay nada que hacer.
+ */
+var SALUD_HUMANO = {
+  schema: { titulo: 'Estructura de las planillas',
+            warn: 'Falta alguna pestaña o columna. Corré setup() y repararCerebro() desde el editor.',
+            crit: 'Falta una pestaña o columna que el sistema necesita. Corré setup() y, si el faltante es del cerebro de un cliente, repararCerebro(). Hasta entonces, los datos de esa hoja no se están escribiendo.' },
+  sync: { titulo: 'Frescura de los datos',
+          warn: 'El espejo del MAESTRO tiene más de un día. Revisá que corridaDiaria siga instalada (el trigger de las 07:00) y corré syncMaestro() a mano para ponerlo al día.',
+          crit: 'Hace más de un día que no se sincroniza: lo que ves puede estar viejo. Corré syncMaestro() y revisá el trigger corridaDiaria.' },
+  cola: { titulo: 'Cola de trabajo de los agentes',
+          warn: 'Se está acumulando trabajo sin drenar. Revisá que el trigger drenarCola (cada 5 min) siga vivo.',
+          crit: 'Hay tareas trabadas hace más de 30 minutos: un agente tomó trabajo y no lo terminó. Mirá la hoja Cola_tareas, esas filas quedaron en "tomada" — reseteá su estado a "pendiente" para que se vuelvan a intentar.' },
+  presupuesto: { titulo: 'Gasto de API del mes',
+                 warn: 'Vas por encima del 80% del tope mensual. Decidí si subís el tope (Config api_budget_mensual_usd) o si frenás agentes hasta fin de mes.',
+                 crit: 'Se agotó el tope mensual de API: los agentes ya NO están llamando al modelo. Subí api_budget_mensual_usd en Config o esperá al mes que viene.' },
+  aprobaciones: { titulo: 'Decisiones esperándote',
+                  warn: 'Hay aprobaciones pendientes más viejas que el plazo de expiración y nadie las marcó. Resolvelas desde el Centro de Mando o corré expirarAprobaciones().',
+                  crit: 'Aprobaciones vencidas sin resolver: los agentes que dependen de ellas están frenados. Despachalas desde el Centro de Mando.' },
+  cerebro: { titulo: 'Memoria de los clientes',
+             warn: 'Hay clientes activos sin su cerebro materializado — el Director no los está dirigiendo. Corré repararCerebro() y después correrDirector().',
+             crit: 'Clientes activos sin memoria: no hay contexto para analizarlos. Corré repararCerebro() y correrDirector().' },
+  seguridad: { titulo: 'Cerrojos del sistema',
+               warn: 'Algo de seguridad pide atención (un secreto sin fecha de vencimiento, o un endpoint que no se pudo verificar). Mirá el detalle y, si es un secreto, corré sembrarExpirySecretos().',
+               crit: 'Hay un cerrojo abierto: un endpoint sin gate de identidad, un secreto vencido o una credencial faltante. Esto se resuelve ANTES que cualquier otra cosa — mirá el detalle y corré securityScan_() desde el editor para el desglose completo.' }
+};
+
+/** Título humano de un chequeo (fallback: el nombre técnico, jamás vacío). */
+function saludTitulo_(nombre) {
+  var m = SALUD_HUMANO[String(nombre)];
+  return (m && m.titulo) || String(nombre);
+}
+
+/**
+ * Qué hacer con un hallazgo. '' si está en verde. Si el chequeo no tiene texto cargado, se dice
+ * eso explícitamente en vez de devolver vacío: un hueco silencioso se lee como "no hay nada que
+ * hacer", que es lo contrario de lo que pasa.
+ */
+function saludAccion_(nombre, estado) {
+  if (String(estado) === 'ok') return '';
+  var m = SALUD_HUMANO[String(nombre)];
+  var t = m && m[String(estado)];
+  return t || ('Sin guía cargada para "' + nombre + '" en estado ' + estado + ' — mirá el detalle técnico.');
+}
+
+/**
  * @param {Object} [opts] { dryRun?:boolean (no escribe nada), full?:boolean (schema por cliente) }
  * @return {{global:string, hallazgos:Array, autoheal:boolean, healed:Array}}
+ *   hallazgos: {nombre, estado, detalle, titulo, accion} — `titulo`/`accion` son la capa humana H2.
  */
 function correrSalud(opts) {
   opts = opts || {};
   var ss = getMaestro();
   var hallazgos = [];
-  function H(nombre, estado, detalle) { hallazgos.push({ nombre: nombre, estado: estado, detalle: String(detalle) }); }
+  // H2: cada hallazgo nace ya con su capa humana. Enriquecer acá (y no en la UI) hace que el brief,
+  // `estadoVigente` y cualquier consumidor futuro hereden lo mismo sin re-implementarlo.
+  function H(nombre, estado, detalle) {
+    hallazgos.push({ nombre: nombre, estado: estado, detalle: String(detalle),
+                     titulo: saludTitulo_(nombre), accion: saludAccion_(nombre, estado) });
+  }
 
   // 1) Schema (MAESTRO siempre; clientes solo en full por la cuota).
   (function () {

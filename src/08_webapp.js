@@ -484,7 +484,11 @@ function vozRechazo_(motivo) {
  * Preferencias de presentación de la UI (cliente → backend). Whitelist ESTRICTA: solo claves
  * cosméticas, nunca config sensible. Bastión: todo input del cliente es hostil (validar+tipar).
  */
-var PREFS_UI_OK = ['orbe_calidad'];
+// H4 (T3 · MÓDULO H, 21-jul): `cerebro_map` enciende el mapa neural del Espacio en Akasha.
+// NACE 'off' (regla de la cadena: lo riesgoso nace apagado). Es render 3D extra por tenant y el
+// presupuesto de perf —30fps en iPhone— no se puede medir desde acá: el CM vive en un iframe
+// cross-origin, así que el fps lo valida Luciano a ojo y recién ahí lo prende.
+var PREFS_UI_OK = ['orbe_calidad', 'cerebro_map'];
 function setPrefUI(clave, valor) {
   _soloOwner_('setPrefUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
   clave = String(clave || '');
@@ -496,7 +500,7 @@ function setPrefUI(clave, valor) {
 /** Lee las preferencias de UI (default seguro si faltan). */
 function prefsUI() {
   _soloOwner_('prefsUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
-  return { orbe_calidad: getConfig('orbe_calidad') || 'alto' };
+  return { orbe_calidad: getConfig('orbe_calidad') || 'alto', cerebro_map: getConfig('cerebro_map') || 'off' };
 }
 
 /**
@@ -514,7 +518,12 @@ function cerebroGrafo(idCliente) {
     for (var i = 0; i < nodos.length; i++) {
       var n = nodos[i]; idx[String(n.id_nodo)] = i;
       var cob = parseFloat(n.cobertura);
-      outN.push({ dim: String(n.dimension || 'negocio'), alert: (!isNaN(cob) && cob < 40) });
+      // E3.5 (H3, 21-jul): se agrega `id` — el identificador OPACO de la fila (NOD-0007), que es el
+      // handle para pedir el detalle con cerebroNodo(). El bulk sigue ANÓNIMO en el sentido que
+      // importa: no viaja ni una etiqueta, ni un atributo, ni una relación con nombre. Un id sin
+      // etiqueta no dice nada de nadie; sin él, el detalle por nodo sería imposible o habría que
+      // direccionarlo por POSICIÓN en el array, que se rompe en cuanto alguien agrega un nodo.
+      outN.push({ id: String(n.id_nodo), dim: String(n.dimension || 'negocio'), alert: (!isNaN(cob) && cob < 40) });
     }
     var outA = [];
     for (var j = 0; j < aristas.length; j++) {
@@ -523,6 +532,96 @@ function cerebroGrafo(idCliente) {
     }
     return { nodos: outN, aristas: outA };
   } catch (e) { return { nodos: [], aristas: [] }; } // sin cerebro → orbe decorativo
+}
+
+/** Cuántos eventos del log de un nodo se devuelven en el detalle (H3). Tope duro, no configurable. */
+var CEREBRO_NODO_EVENTOS = 8;
+
+/**
+ * E3.5 · H3 (T3, 21-jul) — DETALLE de UN nodo del cerebro de un tenant: propiedades reales
+ * (etiqueta, tipo, atributos, cobertura), sus aristas con el nombre de la relación y el nodo del
+ * otro lado, y los últimos eventos del `cerebro_log` que lo tocan.
+ *
+ * Bastión — por qué esto SÍ lleva etiquetas y el bulk no: `cerebroGrafo` alimenta un render de 3
+ * dígitos de nodos y viaja entero al cliente en cada carga; llevar etiquetas ahí sería exponer el
+ * mapa completo del negocio de cada tenant en cada boot. Este endpoint devuelve UN nodo, a pedido
+ * explícito del owner (gate `_soloOwner_`), y es la única superficie donde el detalle sale.
+ *
+ * Fail-closed y honesto: tenant/nodo inexistente → `{sin_nodo:true}`, jamás un objeto vacío que la
+ * UI pueda pintar como "nodo sin datos". Celdas del tenant sanitizadas (dato potencialmente hostil).
+ *
+ * M3: el log ya está comprimido (caliente = últimos `cerebro_corte_dias`). Si un nodo no tiene
+ * eventos recientes se dice eso — no se va a buscar al archivo, que es justo lo que la memoria fría
+ * viene a evitar.
+ *
+ * @param {string} idCliente
+ * @param {string} idNodo
+ * @return {{sin_nodo?:boolean, nodo?:Object, aristas?:Array, eventos?:Array, log_comprimido?:boolean}}
+ */
+function cerebroNodo(idCliente, idNodo) {
+  _soloOwner_('cerebroNodo');   // S1 (T3-S): endpoint client-callable — gate de identidad
+  var id = String(idNodo || '').trim();
+  if (!id) return { sin_nodo: true, motivo: 'sin id de nodo' };
+  var ss;
+  try { ss = abrirCliente(idCliente).ss; } catch (e) { return { sin_nodo: true, motivo: 'tenant no accesible' }; }
+
+  var shN = ss.getSheetByName('nodos');
+  if (!shN) return { sin_nodo: true, motivo: 'tenant sin cerebro' };
+  var n = leerTabla(shN).filter(function (f) { return String(f.id_nodo) === id; })[0];
+  if (!n) return { sin_nodo: true, motivo: 'nodo inexistente' };
+
+  // Etiquetas de TODOS los nodos: hace falta para nombrar el otro extremo de cada arista.
+  var etiquetas = {};
+  leerTabla(shN).forEach(function (f) { etiquetas[String(f.id_nodo)] = String(f.etiqueta || f.id_nodo); });
+
+  var shA = ss.getSheetByName('aristas');
+  var aristas = (shA ? leerTabla(shA) : []).filter(function (a) {
+    return String(a.origen) === id || String(a.destino) === id;
+  }).map(function (a) {
+    var saliente = String(a.origen) === id;
+    var otro = saliente ? String(a.destino) : String(a.origen);
+    return {
+      direccion: saliente ? 'sale' : 'entra',
+      relacion: limpiarHostilTexto_(String(a.relacion || a.tipo || 'relación'), 40),
+      otro_id: otro,
+      otro: limpiarHostilTexto_(etiquetas[otro] || otro, 60),
+      peso: (a.peso === '' || a.peso == null) ? 1 : a.peso
+    };
+  });
+
+  var shL = ss.getSheetByName('cerebro_log');
+  var log = shL ? leerTabla(shL) : [];
+  var eventos = log.filter(function (e) { return String(e.id_nodo) === id; })
+    .slice(-CEREBRO_NODO_EVENTOS).reverse()
+    .map(function (e) {
+      return {
+        ts: fechaHoraCorta_(e.ts) || String(e.ts),
+        evento: limpiarHostilTexto_(String(e.evento || 'evento'), 40),
+        origen: limpiarHostilTexto_(String(e.origen || 'sistema'), 30),
+        detalle: limpiarHostilTexto_(String(e.detalle || ''), 160)
+      };
+    });
+
+  var cob = parseFloat(n.cobertura);
+  return {
+    nodo: {
+      id: id,
+      etiqueta: limpiarHostilTexto_(String(n.etiqueta || ''), 80),
+      tipo: limpiarHostilTexto_(String(n.tipo || 'generico'), 40),
+      dimension: String(n.dimension || dimensionDeTipo_(n.tipo)),
+      estado: limpiarHostilTexto_(String(n.estado || 'activo'), 30),
+      relevancia: (n.relevancia === '' || n.relevancia == null) ? null : Number(n.relevancia),
+      cobertura: isNaN(cob) ? null : cob,
+      alert: (!isNaN(cob) && cob < 40),
+      fuente: limpiarHostilTexto_(String(n.fuente || 'sistema'), 40),
+      atributos: limpiarHostilTexto_(String(n.atributos || ''), 300),
+      actualizado_en: fechaHoraCorta_(n.actualizado_en) || String(n.actualizado_en || '')
+    },
+    aristas: aristas,
+    eventos: eventos,
+    // La UI necesita distinguir "este nodo no tuvo actividad" de "la actividad vieja se archivó".
+    log_comprimido: !!(ss.getSheetByName('cerebro_resumen'))
+  };
 }
 
 /** Resumen de cabecera (incluye ultima_sync_ok, visible siempre). */

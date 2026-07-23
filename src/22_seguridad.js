@@ -113,7 +113,7 @@ function _soloOwner_(nombre) {
  */
 var ENDPOINTS_UI = [
   // 08_webapp.js
-  'setPrefUI', 'prefsUI', 'cerebroGrafo', 'estadoSistema', 'datosHoy', 'listaClientes',
+  'setPrefUI', 'prefsUI', 'cerebroGrafo', 'cerebroNodo', 'estadoSistema', 'datosHoy', 'listaClientes',
   'datosCliente', 'estadoAgentes', 'bootUniverso', 'bootResto', 'bootUnico', 'estadoSalud',
   'dispararAgenteUI', 'resolverAprobacionUI', 'metricasValidasUI', 'asignarMetricaUI',
   'tableroTareas', 'crearTarea', 'crearTareaQuick', 'moverTarea',
