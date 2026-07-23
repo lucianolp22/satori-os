@@ -120,6 +120,8 @@ var ENDPOINTS_UI = [
   // 18_direccion.js
   'agendaRango', 'recomendacionesAbiertas', 'marcarRecomendacion', 'registrarFeedback',
   'aprobacionDesdeRecomendacion',
+  // 25_hilo.js (TC-W1)
+  'hiloCliente',
   // 17_bandeja.js
   'capturar'
 ];

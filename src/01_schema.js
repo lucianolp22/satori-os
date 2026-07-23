@@ -83,6 +83,10 @@ var CLIENTE_SHEETS = {
   // para que los lectores (materializarEstado) no vean caer el total al comprimir.
   cerebro_resumen: ['periodo', 'eventos', 'tipos', 'desde', 'hasta', 'comprimido_en'],
   estado_actual: ['seccion', 'clave', 'valor', 'materializado_en'],
+  // TC-W1 (21-jul) — HILO DE TRABAJO. Espejo en DATOS del `.md` que es la fuente de verdad
+  // (`_cerebro/HILO - <Cliente>.md`). GAS no puede leer el Mac: el espejo lo sube `_hilo_sync.sh`.
+  // `seccion` ∈ plan|real|desviado|pendiente (vocabulario CERRADO — hiloCliente descarta lo demás).
+  hilo: ['seccion', 'item', 'detalle', 'estado', 'evidencia', 'fecha', 'prioridad', 'dueno'],
   // North Star enriquecido (20-jul): las 3 últimas son NUEVAS y se agregan al final por la
   // reconciliación ADITIVA de ensureSheet (no reordena ni borra; los tenants viejos no rompen).
   //  · metricas_extra      hasta 2 métricas más, separadas por '·'
@@ -97,14 +101,19 @@ var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 
 
 // Pestañas sensibles del Sheet cliente: ocultas + protegidas (Auditor 0.3 #1).
 // Si en Etapa 3 el dueño del negocio abre su Sheet, no ve interna de gestión.
-var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos'];
+var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos', 'hilo'];
 
-// T3 M3 — DECISIÓN EXPLÍCITA: `cerebro_log_archivo` y `cerebro_resumen` NO entran en CLIENTE_ORDEN.
+// T3 M3 / TC-W1 — DECISIÓN EXPLÍCITA: `cerebro_log_archivo`, `cerebro_resumen` y `hilo` NO entran en CLIENTE_ORDEN.
 // CLIENTE_ORDEN es el contrato que `correrSalud({full:true})` exige COMPLETO (falta ⇒ chequeo `crit`
 // ⇒ email de alerta) y que `selfTest` asera sobre el cliente de prueba. Meterlas ahí abriría una
 // ventana roja entre el `clasp push` y el primer `repararCerebro()`/`corridaDiaria`, por una hoja
 // que es HIGIENE, no contrato. Se crean solas: `repararCerebro()` (van en CEREBRO_SHEETS) y
 // `comprimirMemoriaFria()` las asegura con ensureSheet antes de escribir.
+//
+// `hilo` va por el mismo camino y por una razón propia: un cliente SIN Hilo cargado es un estado
+// LEGÍTIMO (la skill hilo-de-trabajo es nivel 1, se corre a mano). Exigir la hoja en el contrato de
+// Salud pondría en `crit` a toda la cartera por no haber corrido todavía una skill manual.
+// `hiloCliente()` responde `{sin_hilo:true}` y `repararHilo()` la crea cuando se quiera.
 
 // ── Config por defecto del MAESTRO (clave · valor) ──────────────────────────
 var CONFIG_DEFAULTS = [

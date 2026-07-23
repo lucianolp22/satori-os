@@ -293,7 +293,8 @@ var CONTRAPESO_POR_KPI = {
   aprobaciones: 'decidí, pero no apures montos que no tienen umbral cargado',
   bandeja: 'triá rápido sin convertir la bandeja en un segundo backlog',
   north_star: 'crecé sin comprometer la entrega de los clientes que ya están',
-  kpi_cliente: 'movés el KPI del cliente, pero no a costa del margen'
+  kpi_cliente: 'movés el KPI del cliente, pero no a costa del margen',
+  hilo: 'cerrá el desvío sin re-abrir el plan entero: lo acordado sigue siendo lo acordado'
 };
 function _contrapeso_(kpi) {
   return CONTRAPESO_POR_KPI[String(kpi || '')] || 'chequeá que no desatiende lo que hoy ya funciona';
@@ -597,6 +598,11 @@ function briefDiarioCliente_(id) {
             anclas: [{ dominio: 'Tareas', valor: vencidas.length }] }
         : { texto: 'Sin urgencias en ' + c.nombre + ' — avanzá el North Star.', kpi: 'north_star', id_cliente: id, dato: ns ? String(ns.descripcion || ns.metrica || '') : 'sin North Star',
             anclas: ns ? [{ dominio: 'objetivos', valor: String(ns.descripcion || ns.metrica || '') }] : [] });
+
+  // W4a (TC-W4): la foto del Hilo entra al brief del cliente. Si no hay Hilo cargado devuelve []
+  // y el contrato emite su fallback honesto — el brief NO inventa un Hilo que nadie escribió.
+  var hiloL = _seccionHilo_(id);
+  if (hiloL.length) { apertura = hiloL.concat(apertura || []); }
 
   // 7 · Cierre acción→métrica: solo el lazo de ESTE cliente.
   var cierreAccion = _cierreAccionMetrica_(id);
@@ -1324,6 +1330,12 @@ function _recCandidatas_(pre) {
       anclas: [{ dominio: 'Tareas', valor: vencidas.length }, { dominio: 'Avisos', valor: avVenc }]
     };
   });
+
+  // W4b (TC-W4, 21-jul): el HILO del cliente. Va después de salud/vencidas (que son del sistema y
+  // bloquean todo) y antes del KPI: un desvío del Hilo es trabajo acordado que se salió del plan —
+  // más accionable que un KPI en alerta, porque ya tiene dueño y contexto escritos.
+  // Devuelve null si ningún cliente tiene Hilo cargado: la cadena sigue por las ramas de siempre.
+  cands.push(function () { return _clienteConHiloCaliente_(); });
 
   // A3 (08-jul): KPI de CLIENTE en alerta → recomendación ANCLADA al cliente (id_cliente set)
   // → el botón "→ Crear aprobación" cobra sentido en el uso real, sin depender de proyectos.

@@ -585,6 +585,36 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .sal-acc{flex:1 1 100%;margin-left:17px;margin-top:4px;font-size:11px;line-height:1.45;color:#c3ccdd;border-left:2px solid rgba(108,221,186,.22);padding-left:8px}
 .hl.warn .sal-acc{border-left-color:rgba(255,212,121,.32)} .hl.crit .sal-acc{border-left-color:rgba(255,141,122,.32)}
 .sal-vacio{font-size:11.5px;color:#6b7488;padding:8px 2px}
+/* TC-W2 — vista del Hilo. Fuente única de render (hiloRender_), así que UN solo bloque de estilos
+   sirve al panel del CM y a la estación del Espacio de Akasha. Sin librerías, paleta del CM. */
+.hilo-card{margin-top:var(--space-4)}
+.hilo-sem{display:flex;align-items:center;gap:10px;background:rgba(10,14,22,.7);border:1px solid rgba(108,221,186,.14);border-left:3px solid #6b7488;border-radius:8px;padding:9px 11px;margin-bottom:8px}
+.hilo-sem.verde{border-left-color:#6cddba} .hilo-sem.ambar{border-left-color:#ffd479} .hilo-sem.rojo{border-left-color:#ff8d7a}
+.hilo-pip{width:10px;height:10px;border-radius:50%;background:#6b7488;flex:none}
+.hilo-sem.verde .hilo-pip{background:#6cddba;box-shadow:0 0 9px -1px #6cddba}
+.hilo-sem.ambar .hilo-pip{background:#ffd479;box-shadow:0 0 9px -1px #ffd479}
+.hilo-sem.rojo .hilo-pip{background:#ff8d7a;box-shadow:0 0 9px -1px #ff8d7a}
+.hilo-sem-t{flex:1;min-width:0}
+.hilo-sem-h{font-size:12.5px;color:#dfe5f2;font-weight:600}
+.hilo-sem-s{font-size:10.5px;color:#6b7488;margin-top:1px}
+.hilo-num{display:flex;gap:8px;align-items:baseline;font-size:11px;padding:5px 10px;margin-bottom:8px;background:rgba(108,221,186,.06);border-radius:6px}
+.hilo-num-k{color:#6b7488;text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;flex:none}
+.hilo-num-v{color:#c3ccdd}
+.hilo-sec{margin-bottom:9px}
+.hilo-sec-h{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:#6b7488;margin-bottom:4px}
+.hilo-sec.desviado .hilo-sec-h{color:#ff8d7a} .hilo-sec.pendiente .hilo-sec-h{color:#ffd479}
+.hilo-sec-v{font-size:11px;color:#4e5666;padding:2px 0 4px}
+.hilo-it{padding:5px 0 5px 9px;border-left:2px solid rgba(108,221,186,.15);margin-bottom:3px}
+.hilo-sec.desviado .hilo-it{border-left-color:rgba(255,141,122,.35)}
+.hilo-sec.pendiente .hilo-it{border-left-color:rgba(255,212,121,.32)}
+.hilo-it-t{font-size:12.5px;color:#dfe5f2}
+.hilo-pri{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(108,221,186,.14);color:#6cddba;vertical-align:middle}
+.hilo-it-d{font-size:11px;color:#aeb6cc;margin-top:2px}
+.hilo-it-m{font-size:10px;color:#6b7488;margin-top:2px}
+.hilo-it-e{font-size:10px;color:#4e5666;margin-top:2px;font-style:italic}
+.hilo-vacio{padding:10px 2px}
+.hilo-vacio-t{font-size:12.5px;color:#aeb6cc;font-weight:600}
+.hilo-vacio-s{font-size:11px;color:#6b7488;margin-top:3px;line-height:1.5}
 /* ── a4.2 móvil: agentes como chips tappables (en vez de órbita apretada) ── */
 .cm-agents-m{display:none;grid-template-columns:repeat(2,1fr);gap:8px;padding:2px}
 .agm{display:flex;align-items:center;gap:9px;background:rgba(18,22,34,.72);border:1px solid rgba(108,221,186,.14);border-radius:11px;padding:9px 11px;min-height:48px;cursor:pointer}
@@ -1437,6 +1467,77 @@ function tablaTareas(tareas, conCliente){
   t.appendChild(tb);wrap.appendChild(t);return wrap;
 }
 
+/* ═══ TC-W2 (21-jul) — VISTA DEL HILO · FUENTE ÚNICA DE RENDER ════════════════
+   El Hilo es LA vista de cliente. Antes había dos lugares que dibujaban "el estado del cliente" a
+   su manera (el panel del CM y el Espacio de Akasha) y divergían solos. Esta función es la única
+   que dibuja el Hilo; los dos call sites la invocan. Si mañana hay un tercero, también la usa.
+
+   Fail-closed (SOUL S1): sin Hilo cargado se dice EXACTAMENTE eso y qué hacer. Nunca secciones
+   vacías que se lean como "todo en orden" — un Hilo vacío y un Hilo no-cargado no son lo mismo.
+
+   `cont` es cualquier contenedor; se limpia y se llena. Devuelve el contenedor. */
+var HILO_SEM_TXT={verde:'El plan corre',ambar:'Con pendientes',rojo:'Hay desvíos',gris:'Sin señal todavía'};
+var HILO_SEC_ORDEN=['desviado','pendiente','plan','real'];   // primero lo que hay que mirar
+var HILO_SEC_TIT={plan:'Plan — lo acordado',real:'Real — lo que pasó',desviado:'Desviado — dónde se separó del plan',pendiente:'Pendiente — lo que falta'};
+function hiloRender_(cont, h){
+  clear(cont);
+  if(!h || h.sin_hilo){
+    var v=el('div','hilo-vacio');
+    v.appendChild(el('div','hilo-vacio-t','Hilo no cargado'));
+    v.appendChild(el('div','hilo-vacio-s', (h&&h.motivo) ? h.motivo : 'Correr la skill hilo-de-trabajo y después _hilo_sync.sh para espejar el .md a la hoja.'));
+    cont.appendChild(v);
+    return cont;
+  }
+  var cab=el('div','hilo-sem '+h.semaforo);
+  cab.appendChild(el('span','hilo-pip'));
+  var ct=el('div','hilo-sem-t');
+  ct.appendChild(el('div','hilo-sem-h',HILO_SEM_TXT[h.semaforo]||'Estado del Hilo'));
+  ct.appendChild(el('div','hilo-sem-s',
+    'plan '+h.conteos.plan+' · real '+h.conteos.real+' · desviado '+h.conteos.desviado+' · pendiente '+h.conteos.pendiente+
+    (h.espejado_en?' · espejo al '+h.espejado_en:'')));
+  cab.appendChild(ct); cont.appendChild(cab);
+
+  /* "Real" enriquecido con el numérico del conector — solo si ese conector está ENCENDIDO.
+     Apagado ⇒ el backend manda null y acá no se muestra número: un conector sin validar al peso
+     puede estar diciendo cualquier cosa, y un número falso al lado del Real es peor que ninguno. */
+  if(h.numerico){
+    var n=el('div','hilo-num');
+    n.appendChild(el('span','hilo-num-k','Respaldo del conector'));
+    n.appendChild(el('span','hilo-num-v',h.numerico.concepto+' = '+h.numerico.valor+(h.numerico.fecha?' · '+h.numerico.fecha:'')));
+    cont.appendChild(n);
+  }
+
+  HILO_SEC_ORDEN.forEach(function(s){
+    var items=(h.secciones&&h.secciones[s])||[];
+    var bloque=el('div','hilo-sec '+s);
+    bloque.appendChild(el('div','hilo-sec-h',HILO_SEC_TIT[s]+' ('+items.length+')'));
+    if(!items.length){ bloque.appendChild(el('div','hilo-sec-v','— nada en esta sección —')); }
+    else items.forEach(function(it){
+      var r=el('div','hilo-it');
+      var t=el('div','hilo-it-t',it.item);
+      if(it.prioridad) t.appendChild(el('span','hilo-pri',it.prioridad));
+      r.appendChild(t);
+      if(it.detalle) r.appendChild(el('div','hilo-it-d',it.detalle));
+      var meta=[it.estado,it.dueno,it.fecha].filter(Boolean).join(' · ');
+      if(meta) r.appendChild(el('div','hilo-it-m',meta));
+      if(it.evidencia) r.appendChild(el('div','hilo-it-e','evidencia: '+it.evidencia));
+      bloque.appendChild(r);
+    });
+    cont.appendChild(bloque);
+  });
+  if(h.descartadas) cont.appendChild(el('div','hilo-it-m','('+h.descartadas+' fila(s) del espejo descartadas por no respetar el vocabulario plan/real/desviado/pendiente)'));
+  return cont;
+}
+/** Pide el Hilo y lo pinta en `cont`. Estado de carga honesto mientras viaja. */
+function hiloCargar_(id, cont){
+  clear(cont); cont.appendChild(el('div','hilo-vacio-s','Leyendo el Hilo de '+id+'…'));
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ hiloRender_(cont,{sin_hilo:true,motivo:'sin backend'}); return; }
+  google.script.run
+    .withSuccessHandler(function(h){ hiloRender_(cont,h); })
+    .withFailureHandler(function(){ hiloRender_(cont,{sin_hilo:true,motivo:'no se pudo leer el Hilo (sesión o permisos)'}); })
+    .hiloCliente(id);
+}
+
 // ── PANEL CLIENTE ────────────────────────────────────────────────────────────
 function loadCliente(id){
   state.view='cliente';state.cliente=id;setActiveNav('cliente',id);
@@ -1453,6 +1554,15 @@ function renderCliente(d){
   sub.appendChild(chip(c.estado, ESTADO_KIND[c.estado]||''));
   head.appendChild(sub);
   m.appendChild(head);
+
+  /* TC-W2 — ABSORCIÓN: el estado del cliente lo dibuja `hiloRender_`, la MISMA función que usa el
+     Espacio de Akasha. Este panel ya no tiene su propia versión de "cómo va el cliente"; conserva
+     solo lo operativo (proyectos, tareas, gobernanza), que no es el Hilo. Una sola vista viva. */
+  var hiloBox=el('div','card hilo-card');
+  hiloBox.appendChild(el('h3',null,'Hilo de trabajo'));
+  var hiloCont=el('div'); hiloBox.appendChild(hiloCont);
+  m.appendChild(hiloBox);
+  hiloCargar_(c.id_cliente, hiloCont);
 
   // Operatividad / ficha
   var grid=el('div','grid cols2');grid.style.marginTop='var(--space-4)';
@@ -3593,6 +3703,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       <div class="p-row"><div class="l">Números</div>
         <div class="p-metrics">${c.kpis.map(k=>`<div class="stat"><span class="l">${k[0]}</span><span class="v" style="font-size:.92rem">${k[1]}</span></div>`).join('')}</div></div>
       ${aprobs.length?`<div class="p-aprob"><b>${aprobs.length} decisión ligada:</b> ${aprobs.map(a=>a.titulo).join(' · ')}</div><button class="btn btn-ghost" id="p3-muelle">Ir al Muelle a decidir</button>`:''}
+      <div class="p-row" id="p3-hilo"><div class="l">Hilo de trabajo</div></div>
       <button class="btn btn-ghost" id="p3-cerebro">◈ Cerebro de este Espacio</button>
       <button class="btn btn-ghost" id="p3-historial">◷ Historial del Espacio</button>
       ${c.reg.length?`<button class="btn btn-ghost" id="p3-registro">Ver su registro en el Núcleo (${c.reg.length})</button>`:''}
@@ -3605,6 +3716,9 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     const bm=$('p3-muelle'); if(bm) bm.addEventListener('click',flyToMuelle,{once:true});
     const bov=$('p3-ov'); if(bov) bov.addEventListener('click',()=>H.acc.abrirOV());
     const bh=$('p3-historial'); if(bh) bh.addEventListener('click',()=>mostrarHistorialCliente(c),{once:true});
+    /* TC-W2 — la estación del Hilo dentro del Espacio. Usa `hiloRender_`, la misma función que el
+       panel del CM: no hay una "versión Akasha" del Hilo que pueda divergir. */
+    const bhilo=$('p3-hilo'); if(bhilo){ const cH=document.createElement('div'); bhilo.appendChild(cH); hiloCargar_(c.id, cH); }
     const bc=$('p3-cerebro'); if(bc){ bc.textContent = mapaCli===c.id ? '◈ Ocultar el Cerebro' : '◈ Cerebro de este Espacio';
       bc.addEventListener('click',()=>toggleMapaCerebro(c)); }
   }
