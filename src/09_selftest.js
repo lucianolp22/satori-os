@@ -514,7 +514,9 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D21 memoria caliente/fría (M3)', f: _asertsD21_ },
    { n: 'D22 golden-set evals (M4)', f: _asertsD22_ },
    { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_ },
-   { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_ }].forEach(function (t) {
+   { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_ },
+   { n: 'D25 conectores generalizados (TC-W3)', f: _asertsD25_ },
+   { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1405,6 +1407,144 @@ function _asertsD24_(chk, log, opts) {
   chk(!!defMapa && defMapa[1] === 'off', 'D24d3 el default de código de cerebro_map es OFF (lo riesgoso nace apagado)');
   log.push('   ↳ D24 módulo H: SOUL ' + SOUL_REGLAS.length + ' invariantes · Salud ' + sal.hallazgos.length +
            ' chequeos humanizados · mapa neural ' + prefsUI().cerebro_map);
+}
+
+/**
+ * D25 — TC-W3 (21-jul): conectores generalizados. TODO con fixtures: no se abre ni un Sheet real,
+ * no se lee el SGIC de ningún cliente. Lo que se asera es el mapa (Config → decisión), el adapter
+ * (esquema → contrato) y las tres guardas de Bastión.
+ */
+function _asertsD25_(chk, log, opts) {
+  // ── Mapa por Config. Fixture con un conector completo, uno a medias y ruido que NO es de conectores.
+  var cfg = [
+    { clave: 'conector_CLI-007_db', valor: '1abcDEF' },
+    { clave: 'conector_CLI-007_tipo', valor: 'ventas_sgic' },
+    { clave: 'conector_CLI-007_on', valor: 'true' },
+    { clave: 'conector_CLI-008_db', valor: '1zzz' },        // sin tipo
+    { clave: 'conector_CLI-009_tipo', valor: 'ventas_sgic' }, // sin db, sin on
+    { clave: 'voz_url', valor: 'http://x' },                  // ruido: no es conector
+    { clave: 'riesgo_leer_tenant', valor: 'permitir' }
+  ];
+  var m = _mapaConectores_(cfg);
+  chk(Object.keys(m).sort().join(',') === 'CLI-007,CLI-008,CLI-009', 'D25a el mapa toma SOLO las claves conector_* (ignora el resto de Config)');
+  chk(m['CLI-007'].db === '1abcDEF' && m['CLI-007'].tipo === 'ventas_sgic' && m['CLI-007'].on === true,
+      'D25a2 un conector completo se lee entero (db + tipo + on)');
+  chk(m['CLI-009'].on === false, 'D25a3 sin fila `_on` ⇒ APAGADO (default-deny: la ausencia no enciende nada)');
+  // El id de cliente lleva guión: el parseo tiene que cortar por el ÚLTIMO '_', no por el primero.
+  chk(m['CLI-007'].tipo === 'ventas_sgic', 'D25a4 el id con guión no rompe el parseo de la clave');
+
+  // ── Decisión de corrida: por qué NO corre es tan importante como que no corra.
+  chk(_decidirConector_('CLI-007', m['CLI-007']).correr === true, 'D25b conector completo y encendido ⇒ corre');
+  chk(_decidirConector_('CLI-008', m['CLI-008']).correr === false &&
+      _decidirConector_('CLI-008', m['CLI-008']).motivo.indexOf('tipo') >= 0, 'D25b2 sin adapter ⇒ no corre, y dice por qué');
+  chk(_decidirConector_('CLI-009', m['CLI-009']).correr === false, 'D25b3 sin db ⇒ no corre');
+  chk(_decidirConector_('CLI-010', null).correr === false, 'D25b4 cliente sin configuración ⇒ no corre');
+  var off = { db: '1x', tipo: 'ventas_sgic', on: false };
+  chk(_decidirConector_('CLI-011', off).correr === false && _decidirConector_('CLI-011', off).motivo.indexOf('apagado') >= 0,
+      'D25c CONECTOR APAGADO NO CORRE (la regla dura de la cadena: nace OFF)');
+  chk(_decidirConector_('CLI-012', { db: '1x', tipo: 'inventado', on: true }).correr === false,
+      'D25c2 adapter desconocido ⇒ no corre (no se improvisa un mapeo)');
+
+  // ── Adapter: esquema del cliente → contrato de Datos_operativos.
+  var crudas = [
+    { Fecha: '2026-06-01', Detalle: 'Venta mostrador', Importe: 15000, _fila: 2 },
+    { Fecha: '2026-06-02', Detalle: 'Venta online', Importe: 8500, _fila: 3 },
+    { Fecha: 'sin fecha', Detalle: 'rota', Importe: 100, _fila: 4 },      // descarte: fecha ilegible
+    { Fecha: '2026-06-03', Detalle: 'sin importe', Importe: 'ocho mil', _fila: 5 }  // descarte: no numérico
+  ];
+  var r = mapearOperacionesGenerico_(crudas);
+  chk(r.filas.length === 2 && r.descartadas === 2, 'D25d el adapter mapea 2 filas válidas y DESCARTA 2 (no las mete con valor 0)');
+  chk(r.filas[0].fecha === '2026-06-01' && r.filas[0].valor === 15000 && r.filas[0].concepto === 'Venta mostrador',
+      'D25d2 el mapeo respeta el contrato {fecha, concepto, valor}');
+  chk(r.columnas.fecha === 'Fecha' && r.columnas.valor === 'Importe' && r.columnas.concepto === 'Detalle',
+      'D25d3 resuelve los nombres de columna por alias (cada SGIC llama distinto a lo mismo)');
+  chk(mapearOperacionesGenerico_([{ Cosa: 'x', Otra: 1 }]).filas.length === 0,
+      'D25d4 hoja sin fecha ni importe ⇒ 0 filas (no se inventa un mapeo)');
+  chk(mapearOperacionesGenerico_([]).filas.length === 0, 'D25d5 hoja vacía no revienta');
+
+  // ── Bastión.
+  var hostil = mapearOperacionesGenerico_([{ fecha: '2026-06-01', concepto: '=IMPORTRANGE("hoja","A1")', valor: 10, _fila: 2 }]);
+  chk(hostil.filas.length === 1 && String(hostil.filas[0].concepto).charAt(0) !== '=',
+      'D25e celda HOSTIL del SGIC sanitizada (una fórmula del cliente no se ejecuta en nuestra hoja)');
+  Object.keys(CONECTOR_ADAPTERS).forEach(function (t) {
+    var ad = CONECTOR_ADAPTERS[t];
+    chk(ad.hojas && ad.hojas.length > 0, 'D25e2 el adapter ' + t + ' declara su allowlist de hojas');
+    chk(ad.hojas.every(function (h) { return ['Config', 'Usuarios', 'Clientes', 'Secretos'].indexOf(h) < 0; }),
+        'D25e3 la allowlist de ' + t + ' no incluye hojas de config/PII');
+    chk(ad.modo === 'ventas' || typeof ad.mapear === 'function', 'D25e4 el adapter ' + t + ' tiene modo válido');
+  });
+  chk(typeof CONECTOR_AVISO_FILAS === 'number' && CONECTOR_AVISO_FILAS > 0, 'D25e5 hay cap/aviso de filas configurado');
+
+  // ── El alta NUNCA enciende. Se asera sobre la fuente, no corriendo altaConector (escribiría Config).
+  var srcAlta = String(altaConector);
+  chk(/_on', 'false'/.test(srcAlta), 'D25f altaConector deja el conector en false (encender es un acto aparte)');
+  chk(srcAlta.indexOf('probarConector') >= 0, 'D25f2 el alta te manda a validar al peso antes de encender');
+  chk(String(probarConector).indexOf('SE_ESCRIBIO_ALGO') >= 0, 'D25f3 probarConector es ensayo EN SECO (declara que no escribió)');
+
+  log.push('   ↳ D25 conectores: ' + Object.keys(CONECTOR_ADAPTERS).length + ' adapter(s) · mapa fixture ' +
+           Object.keys(m).length + ' cliente(s), 1 corre');
+}
+
+/**
+ * D26 — TC-W1/W2/W4 (21-jul): Hilo end-to-end. Puro sobre `_armarHilo_`/`_semaforoHilo_` + las
+ * guardas de `hiloCliente`. No se toca la hoja `hilo` de ningún cliente.
+ */
+function _asertsD26_(chk, log, opts) {
+  // ── W1 · contrato y vocabulario CERRADO.
+  chk(CLIENTE_SHEETS.hilo.join(',') === 'seccion,item,detalle,estado,evidencia,fecha,prioridad,dueno',
+      'D26a el schema de `hilo` es el del contrato');
+  chk(HILO_SECCIONES.join(',') === 'plan,real,desviado,pendiente', 'D26a2 las 4 secciones y en orden');
+  chk(CLIENTE_ORDEN.indexOf('hilo') < 0, 'D26a3 `hilo` NO está en CLIENTE_ORDEN (un cliente sin Hilo es estado legítimo)');
+  chk(CLIENTE_SHEETS_SENSIBLES.indexOf('hilo') >= 0, 'D26a4 `hilo` es hoja sensible (oculta+protegida)');
+  chk(ENDPOINTS_UI.indexOf('hiloCliente') >= 0, 'D26a5 hiloCliente dado de alta en ENDPOINTS_UI (regla anti-drift)');
+
+  // ── Parser de filas: lo que llega del espejo es texto PROPUESTO, no dato aceptado (SOUL S6).
+  var filas = [
+    { seccion: 'plan', item: 'Migrar catálogo', detalle: '1200 SKUs', estado: 'en curso', fecha: '2026-08-01', prioridad: 'A', dueno: 'Luciano', _fila: 2 },
+    { seccion: 'Real', item: 'Migrado parcial', detalle: '400', fecha: '2026-07-18', _fila: 3 },
+    { seccion: 'desviado', item: 'Atraso', detalle: '400/1200', prioridad: 'A', _fila: 4 },
+    { seccion: 'pendiente', item: 'Accesos ERP', dueno: 'Cliente', fecha: '2026-07-22', prioridad: 'A', _fila: 5 },
+    { seccion: 'inventada', item: 'no debería entrar', _fila: 6 },
+    { seccion: 'plan', item: '', detalle: 'fila sin ítem', _fila: 7 }
+  ];
+  var h = _armarHilo_(filas);
+  chk(h.total === 4 && h.descartadas === 2, 'D26b 4 filas válidas · 2 descartadas (sección inventada + fila sin ítem)');
+  chk(h.conteos.real === 1, 'D26b2 "Real" con mayúscula normaliza a `real` (el .md lo escribe un humano)');
+  chk(h.secciones.plan[0].item === 'Migrar catálogo' && h.secciones.pendiente[0].dueno === 'Cliente',
+      'D26b3 los campos llegan al lugar correcto');
+
+  // ── Semáforo: el criterio es de producto y tiene que poder decir "no sé".
+  chk(_semaforoHilo_({ plan: 0, real: 0, desviado: 0, pendiente: 0 }) === 'gris',
+      'D26c Hilo vacío ⇒ GRIS, nunca verde (vacío ≠ todo bien)');
+  chk(_semaforoHilo_({ plan: 3, real: 2, desviado: 1, pendiente: 0 }) === 'rojo', 'D26c2 con desvíos ⇒ rojo');
+  chk(_semaforoHilo_({ plan: 3, real: 2, desviado: 0, pendiente: 2 }) === 'ambar', 'D26c3 sin desvíos y con pendientes ⇒ ámbar');
+  chk(_semaforoHilo_({ plan: 3, real: 2, desviado: 0, pendiente: 0 }) === 'verde', 'D26c4 plan corriendo, sin deuda ⇒ verde');
+  chk(_semaforoHilo_({ plan: 3, real: 0, desviado: 0, pendiente: 0 }) === 'gris',
+      'D26c5 plan cargado pero SIN real todavía ⇒ gris (no hay evidencia de que corra)');
+
+  // ── W1 · fail-closed. Estas guardas cortan antes de abrir nada.
+  chk(hiloCliente('').sin_hilo === true, 'D26d sin id ⇒ {sin_hilo:true} (fail-closed)');
+  var r = hiloCliente('__NO_EXISTE__');
+  chk(r.sin_hilo === true && !!r.motivo, 'D26d2 cliente inexistente ⇒ sin_hilo CON motivo (nunca un Hilo vacío que parezca cargado)');
+
+  // ── CSV del espejo (lo que produce _hilo_sync.sh).
+  chk(_parseCSVLinea_('plan,Migrar,"1.200, con comas",en curso').length === 4,
+      'D26e el parser CSV respeta comas dentro de comillas');
+  chk(_parseCSVLinea_('a,"di""jo",c')[1] === 'di"jo', 'D26e2 comilla escapada ("") se desescapa');
+
+  // ── W2 · ABSORCIÓN: una sola fuente de render. Si aparece una segunda, esto se cae.
+  chk(typeof HILO_TITULOS === 'object' && Object.keys(HILO_TITULOS).length === 4,
+      'D26f los títulos de sección viven UNA vez en el backend (no duplicados en cada render)');
+
+  // ── W4 · lazo con Dirección.
+  chk(typeof _seccionHilo_ === 'function' && _seccionHilo_('__NO_EXISTE__').length === 0,
+      'D26g sin Hilo, la sección del brief queda vacía y el contrato emite su fallback honesto');
+  chk(_recDesdeHilo_('__NO_EXISTE__') === null, 'D26g2 sin Hilo no hay candidata de recomendación (no se inventa una)');
+  chk(!!CONTRAPESO_POR_KPI.hilo, 'D26g3 la nueva clase de rec `hilo` tiene su contrapeso (el contrato lo exige)');
+  chk(String(_recCandidatas_.toString()).indexOf('_clienteConHiloCaliente_') >= 0,
+      'D26g4 el Hilo está enganchado como candidata de la rec del día');
+
+  log.push('   ↳ D26 Hilo: 4 secciones · semáforo ' + _semaforoHilo_(h.conteos) + ' en el fixture · fail-closed OK');
 }
 
 /** Cebo de D19f: endpoint DELIBERADAMENTE sin _soloOwner_. No hace nada y nadie lo llama:
