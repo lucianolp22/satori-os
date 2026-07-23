@@ -3,8 +3,11 @@
  *
  * Capa PERSONAL de Luciano (fork A): capturás TODO en un solo lugar (idea, tarea, link, lead) y
  * un Haiku barato lo clasifica con confianza 1-10 y rutea; si duda (< umbral) o no entiende, te
- * ESCALA vía aviso (fusible anti-slop). NO anonimiza (es tu propio texto y el clasificador necesita
- * ver nombres para linkear clientes). Costo a Consumo_agentes como 'clasificador'. Sin cliente.
+ * ESCALA vía aviso (fusible anti-slop). Costo a Consumo_agentes como 'clasificador'. Sin cliente.
+ *
+ * B8 #6 (21-jul): anonimización PARCIAL antes de la API — emails y teléfonos salen tokenizados;
+ * los nombres de cliente van en claro A PROPÓSITO (sin ellos el clasificador no puede linkear
+ * `id_cliente`, que es la mitad del valor). Ver `llamadaClasificador_`.
  *
  * Robado del "Jarvis OS" de @_no_hype_ai: contrato de datos (input→bin+confianza+escalate) y el
  * reparto de modelos (modelo barato para el triaje de alta frecuencia). NO el stack (Obsidian/cron).
@@ -79,7 +82,10 @@ function clasificarBandeja() {
       feed_('Clasificador', 'exito', '', 'Bandeja [' + f.id + '] → research: ' + enc, '', '');
       procesados++; return;
     }
-    var r = llamadaClasificador_(promptClasificador_(f.texto, clientes), 400);
+    // B8 #6: la anonimización va acá, sobre el TEXTO DEL ITEM, antes de que entre al prompt.
+    // Hacerla acá y no dentro de llamadaClasificador_ deja el punto de corte visible en el flujo.
+    var textoSeguro = anonimizar(String(f.texto), null).texto;
+    var r = llamadaClasificador_(promptClasificador_(textoSeguro, clientes), 400);
     var c = r.ok ? parseClasificacion_(r.texto) : null;
     if (!c) { // el clasificador falló → escalá honesto, no adivines
       setCol(f._fila, 'estado', 'escalado'); setCol(f._fila, 'procesado_en', ahoraISO());
@@ -142,9 +148,24 @@ function parseClasificacion_(texto) {
 }
 
 /**
- * Llama a Haiku para clasificar — SIN anonimizar (es texto propio; necesita ver nombres) y logueando
- * el costo a Consumo_agentes como 'clasificador'. Reusa las constantes/costeo de 05_costos sin tocar
- * la ruta E2 (llamadaAPI, que es client-scoped). Respeta el tope mensual global.
+ * Llama a Haiku para clasificar, logueando el costo a Consumo_agentes como 'clasificador'. Reusa las
+ * constantes/costeo de 05_costos sin tocar la ruta E2 (llamadaAPI, que es client-scoped). Respeta el
+ * tope mensual global.
+ *
+ * B8 · Bucket B #6 (purga B5, 06-jul → cerrado 21-jul): esta vía mandaba el texto EN CLARO al
+ * proveedor. Ahora pasa por `anonimizar()` **sin lista de nombres**, que es el punto exacto del
+ * arreglo:
+ *   · emails y teléfonos → tokens (`CLIENTA_EMAIL_001`). El clasificador NUNCA los necesita: decide
+ *     entre tarea/idea/lead mirando la SEMÁNTICA, no el contacto. Son PII pura saliendo del Workspace.
+ *   · nombres de cliente → INTACTOS. Tokenizarlos rompería `id_cliente`: el clasificador linkea el
+ *     item a un tenant justamente reconociendo su nombre, y ese linkeo es la mitad del valor.
+ * O sea: se saca lo que es PII y no aporta, se deja lo que aporta. La alternativa "anonimizar todo"
+ * habría cerrado el agujero rompiendo la funcionalidad, que es la forma más común de que un arreglo
+ * de seguridad se revierta a los tres días.
+ *
+ * El mapa de tokens se DESCARTA (no se desanonimiza la salida): del clasificador solo vuelven bin,
+ * confianza, slug, tags, resumen e id_cliente — ninguno necesita el email de vuelta. Un mapa que no
+ * se guarda no se puede filtrar.
  */
 function llamadaClasificador_(prompt, maxTokens) {
   var out = { ok: false, texto: '', usd: 0, error: null };

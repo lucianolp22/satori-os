@@ -1,9 +1,66 @@
-# HANDOFF — Satori OS — 2026-07-21 (espejo vivo)
+# HANDOFF — Satori OS — 2026-07-23 (espejo vivo)
 
 > Estado vigente arriba. Todo lo que sigue del `<!-- HISTÓRICO` para abajo es archivo — no es el estado de hoy.
 > Cierre completo del 20-jul (declaración formal, qué incluye / qué queda abierto): `HANDOFF-2026-07-20-CIERRE-T1-NS-UI.md`.
 
-## Estado vigente (21-jul)
+## Estado vigente (23-jul)
+
+## ⛓ CADENA INTEGRAL F0→F6 — CONSTRUIDA Y PUSHEADA A /dev · GATES HUMANOS PENDIENTES
+
+**Reporte completo (leer ESO antes que nada): `REPORTE-CADENA-2026-07-21.md`.** Encargo:
+`ENCARGO-CODE-CADENA-INTEGRAL-2026-07-21.md`. Marco: `PLAN-INTEGRAL-SATORI-OS-v3-2026-07-21.md`.
+Autorizaciones: **A1=SÍ · A2=NO · A3=SÍ · A4=SÍ · A5=SÍ · A6=SÍ**. **`/exec` NO se tocó.**
+
+| Fase | Qué entró | Commit |
+|---|---|---|
+| **F1** | T3-M3 memoria caliente/fría · M4 golden-set de evals · M5 verificación ≥2 dominios | `9ce5e4f` |
+| **F2** | T3-H: SOUL (D11) · panel de Salud humano · cerebroNodo E3.5 · mapa neural (OFF) | `209bbce` |
+| **F3** | TC-W3 conectores generalizados: mapa por Config + 4 adapters por SGIC (todos OFF) | `ceb4664` |
+| **F4** | TC-W1/W2/W4 Hilo end-to-end: hoja + endpoint + espejo + estación + lazo con Dirección | `bf640b2` |
+| **F5** | T7 correo — **solo spec** (`docs/SPEC-correo-T7.md`), A2=NO: cero código, manifiesto intacto | (con F6) |
+| **F6** | B8-código (Bucket B de la purga B5: #6/#8/#9/#10) · borrador RGPD · REPORTE · este handoff | (este) |
+
+**Verificado offline: `node --check` de los 25 `.js` + del bloque inline de `index.html` · harness
+`vm` con stubs de GAS **215/215 verdes** (41 F1 · 61 F2 · 79 F3+B8 · 34 F4) · guardia de drift verde
+antes de cada push · CAPABILITIES regen.** Asserts nuevos en `selfTest`: **D21 · D22 · D23 · D24 ·
+D25 · D26** (D27 reservada para T7). **NADA se ejecutó dentro de GAS** — ese es el riesgo real de
+haber batcheado 6 fases y está declarado en el §7 del reporte.
+
+### Lo que la cadena encontró sola (no estaba en el encargo)
+1. **🐞 Bug de producción, arreglado:** `normalizarCifrasTexto_` no tenía `\b` en la alternación y se
+   comía prefijos de palabras — *"cincuenta mil unidades"* → **`"50.001idades"`** (cifra inventada +
+   palabra mutilada, en texto dictado por voz que iba a la hoja). Lo cazó el golden-set M4 a los diez
+   minutos de existir. `selfTest` estaba verde: verificaba que no reventara, no que decidiera bien.
+2. **🐞 Drift en SOUL, cerrado:** el espejo en `agent.py` corrió el sentido de S7 y S8 al adaptar la
+   2ª persona. Ahora el espejo es **verbatim** y el harness compara las 8 reglas enteras.
+3. **🔓 Seguridad en proyectos vecinos (reportado, NO tocado):** tokens de acceso **en claro** en
+   documentación versionada de `Vehemence/DOC-Vehemence-ERP-sistema.md` §13 y `DAM/HANDOFF.md`.
+   **Rotarlos y purgarlos del historial de git.**
+
+### ⛔ Lo que corre Luciano (orden exacto en §6 del reporte)
+1. **`selfTest()` en el editor** (trae las 6 tandas nuevas). `clasp run` sigue bloqueado.
+2. **Eyeball guiado en /dev** — el guion pantalla-por-pantalla está en **§5 del reporte** (8 pasos:
+   Salud humana · Hilo en CM y en Akasha · detalle de nodo · mapa neural · voz · brief).
+3. **`sembrarConectoresHallados()`** (deja los 3 nuevos APAGADOS) → por cada uno:
+   `probarConector()` → **comparar totales contra la fuente** → `encenderConector()`. Uno por uno.
+4. **`repararCerebro()`** + **`repararHilo()`** en los clientes existentes.
+5. **N1: correr la skill `hilo-de-trabajo`** en DAM + Vehemence y espejar con `_hilo_sync.sh`.
+   Hasta entonces la vista del Hilo está vacía **a propósito**.
+6. **Decidir `cerebro_map`** (mapa neural) mirando los fps en el iPhone — no es medible desde Code.
+
+### Flags que nacieron APAGADOS (la cadena construye, la revisión enciende)
+`conector_CLI-003_on` (LC Travel) · `conector_CLI-004_on` (MesaQuince) · `conector_CLI-005_on` (DAM)
+· `cerebro_map` (mapa neural). Cómo encender cada uno: §3 del reporte.
+
+### IDs de SGIC hallados (A3) — origen archivo:línea en §4 del reporte
+LC Travel `1_5fyi…igzc` ✓ · MesaQuince `16scXu…o-d8` ✓ · DAM `1_pkEG…0dWY` ✓ · Vehemence ya cableado.
+**EJF: NO hallado** (vive solo en su Script Property `FIGUERAS_SS_ID`; además su SGIC no tiene libro
+contable). **Oficina Virtual: no aplica** (Python+SQLite, no Sheets). **No se adivinó ningún ID.**
+
+**Frenar acá:** la purga integral la corre Cowork sobre este reporte + los diffs, ANTES de la sesión
+de revisión. No promover a `/exec` hasta después de esa sesión.
+
+---
 
 ## T3 · MÓDULO M (motor) — M1+M2 CONSTRUIDOS, gates de editor PENDIENTES
 

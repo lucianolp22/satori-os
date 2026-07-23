@@ -61,7 +61,11 @@ var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'A
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
-  Datos_operativos: ['fecha', 'concepto', 'valor', 'fuente', 'notas'],
+  // B8 · Bucket B #10 (purga B5, cerrado 21-jul): +`moneda`. El conector lee SGIC en ARS mientras el
+  // sistema consolida en EUR/USD; sin la columna, sumar dos filas de distinta moneda daba un número
+  // que parecía válido. Va AL FINAL: la reconciliación de ensureSheet es aditiva y los tenants
+  // viejos no rompen (fila sin moneda = moneda desconocida, que es la verdad de lo ya cargado).
+  Datos_operativos: ['fecha', 'concepto', 'valor', 'fuente', 'notas', 'moneda'],
   KPIs: ['fecha', 'kpi', 'valor', 'objetivo', 'alerta'],
   // Esquema completo de 0.2 (append-only).
   Aprobaciones: ['id', 'fecha_creacion', 'cliente', 'modulo', 'patron', 'tipo_accion', 'descripcion', 'payload', 'monto', 'confianza_%', 'estado', 'decidido_por', 'fecha_decision', 'resultado_ejecucion', 'notas'],

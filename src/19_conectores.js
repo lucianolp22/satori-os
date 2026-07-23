@@ -545,7 +545,8 @@ function sincronizarConectorVentas_(idCliente, srcId, sheetName, fuente) {
     borrarFilasBatch_(dst, aBorrar);                 // Purga #6: batch por rangos contiguos
 
     agregados.forEach(function (a) {
-      appendFila(dst, { fecha: a.fecha, concepto: a.concepto, valor: a.valor, fuente: fuente, notas: a.notas });
+      appendFila(dst, { fecha: a.fecha, concepto: a.concepto, valor: a.valor, fuente: fuente,
+                        moneda: a.moneda || '', notas: a.notas });   // B8 #10: moneda explícita
     });
     Logger.log('sincronizarConectorVentas_ ' + idCliente + ': ' + agregados.length +
                ' filas (mes×canal). Canales: ' + res.canales.join(',') +
@@ -579,10 +580,18 @@ function borrarFilasBatch_(sh, filasAbs) {
  */
 function agregarVentasPorMes_(ventas) {
   var agg = {};               // 'YYYY-MM|canal' → acumulador
-  var canalesSet = {}, desconocidosSet = {};
+  var canalesSet = {}, desconocidosSet = {}, crudosLocal = {};
+  var excluidas = 0;
   ventas.forEach(function (v) {
-    var st = String(v.status || '').toLowerCase();
-    if (/cancel|pend|anul|borrador|draft/.test(st)) return;   // solo ventas válidas
+    var st = _sinTildes_(String(v.status || '').toLowerCase());
+    // B8 · Bucket B #8 (purga B5, cerrado 21-jul): faltaban las DEVOLUCIONES. Una venta reembolsada
+    // seguía contando como venta: inflaba ingresos Y órdenes, o sea que ensuciaba el AOV por las dos
+    // puntas (numerador y denominador). Se agregan refund/reembols/devuelt/devolucion/chargeback.
+    if (/cancel|pend|anul|borrador|draft|refund|reembols|devuelt|devolucion|chargeback/.test(st)) { excluidas++; return; }
+    // #8 (2ª parte): un total NEGATIVO es una nota de crédito, no una venta. Sumarlo restaría de un
+    // mes que quizá no es el suyo. Se excluye y se cuenta — no se convierte a positivo ni se ignora
+    // en silencio, que son las dos formas clásicas de hacer desaparecer plata de un reporte.
+    if (Number(v.total_ars) < 0) { excluidas++; return; }
     var mes = aFechaISO(v.ts).slice(0, 7);                     // robusto a Date/string
     if (!/^\d{4}-\d{2}$/.test(mes)) return;
     // Purga #5: mapeo explícito. 'pos' Y 'local' → local (Vehemence DB_VENTAS usa 'pos' por
@@ -592,6 +601,11 @@ function agregarVentasPorMes_(ventas) {
     var canal = ch === 'online' ? 'online' : (ch === 'pos' || ch === 'local') ? 'local' : 'otro';
     if (canal === 'otro') desconocidosSet[ch || 'vacio'] = true;
     canalesSet[canal] = true;
+    // B8 #9: 'pos' y 'local' colapsan al mismo canal a propósito (dos fuentes, misma cosa). El riesgo
+    // real es que UNA fuente traiga las DOS convenciones el mismo mes: ahí el colapso mezcla dos
+    // series que quizá se solapan y el AOV queda contaminado. No se puede resolver desde acá sin
+    // saber cuál es cuál — así que se DETECTA y se surfacea en las notas (honesto > silencioso).
+    if (ch === 'pos' || ch === 'local') crudosLocal[ch] = true;
     var k = mes + '|' + canal;
     if (!agg[k]) agg[k] = { mes: mes, canal: canal, total: 0, subtotal: 0, envio: 0, n: 0 };
     agg[k].total += Number(v.total_ars) || 0;
@@ -603,12 +617,19 @@ function agregarVentasPorMes_(ventas) {
   // Purga #2: si la fuente trae un solo canal, marco cobertura parcial para que el análisis
   // no lea el dato como total del negocio (caso Vehemence: DB_VENTAS hoy ~100% online).
   var coberturaNota = canales.length === 1 ? ' · ⚠ cobertura: solo canal ' + canales[0] : '';
+  // B8 #9: la fuente usó AMBAS convenciones ⇒ el canal 'local' es una mezcla. Se dice en cada fila.
+  var mezclaNota = (crudosLocal['pos'] && crudosLocal['local'])
+    ? ' · ⚠ la fuente mezcla channel="pos" y channel="local": el canal local suma las dos convenciones' : '';
   var filas = Object.keys(agg).sort().map(function (k) {
     var a = agg[k];
     var aov = a.n ? Math.round(a.total / a.n) : 0;
     return {
       fecha: a.mes + '-01',
+      // B8 #10: la MONEDA va explícita en el concepto y en la columna `moneda`. El conector lee un
+      // SGIC que opera en ARS mientras el resto del sistema maneja EUR/USD; sin declararlo, alguien
+      // suma peras con manzanas en un consolidado y el error es invisible.
       concepto: 'Ventas ' + a.canal + ' (mes, ARS)',
+      moneda: 'ARS',
       valor: Math.round(a.total),
       // canal/ordenes/aov: aditivos (sincronizarConectorVentas_ solo escribe fecha/concepto/valor/
       // fuente/notas → NO cambian el schema de Datos_operativos). Los consume la tool sgic (hoja 'ventas')
@@ -617,8 +638,9 @@ function agregarVentasPorMes_(ventas) {
       ordenes: a.n,
       aov: aov,
       notas: a.n + ' órdenes · AOV $' + aov + ' · prod $' + Math.round(a.subtotal) +
-             ' · envío $' + Math.round(a.envio) + ' · ' + a.mes + coberturaNota
+             ' · envío $' + Math.round(a.envio) + ' · ' + a.mes + coberturaNota + mezclaNota
     };
   });
-  return { filas: filas, canales: canales, desconocidos: Object.keys(desconocidosSet).sort() };
+  return { filas: filas, canales: canales, desconocidos: Object.keys(desconocidosSet).sort(),
+           excluidas: excluidas, mezcla_local: !!(crudosLocal['pos'] && crudosLocal['local']) };
 }
