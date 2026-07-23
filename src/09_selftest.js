@@ -32,9 +32,29 @@ function selfTest() {
     CLIENTE_ORDEN.forEach(function (n) {
       chk(!!cliSS.getSheetByName(n), 'pestaña cliente: ' + n);
     });
-    // sensibles ocultas
+    // Sensibles ocultas. OJO con las hojas LAZY: `CLIENTE_SHEETS_SENSIBLES` ya no es un subconjunto
+    // de `CLIENTE_ORDEN`. Desde la cadena (21-jul) hay 3 hojas sensibles que NO las crea
+    // `crearCliente` — `cerebro_log_archivo` y `cerebro_resumen` (las hace `repararCerebro` /
+    // `comprimirMemoriaFria`) y `hilo` (`repararHilo` / `espejarHilo`). En un cliente recién creado
+    // NO existen, y `getSheetByName` devuelve null: por eso este bucle reventaba con
+    // `TypeError: null.isSheetHidden` (incidente 23-jul, cazado por el selfTest en el editor).
+    //
+    // Criterio: ausente es LEGÍTIMO solo si la hoja es lazy (no está en CLIENTE_ORDEN). Si está en
+    // CLIENTE_ORDEN y falta, eso SÍ es un fallo real — `crearCliente` debía haberla creado.
+    // Si existe, se exige oculta como siempre: quien crea una hoja lazy la crea oculta+protegida.
     CLIENTE_SHEETS_SENSIBLES.forEach(function (n) {
-      chk(cliSS.getSheetByName(n).isSheetHidden(), 'pestaña sensible oculta: ' + n);
+      var sh = cliSS.getSheetByName(n);
+      if (!sh) {
+        chk(CLIENTE_ORDEN.indexOf(n) < 0,
+            'pestaña sensible ausente pero LAZY (se crea a demanda, oculta): ' + n);
+        return;
+      }
+      chk(sh.isSheetHidden(), 'pestaña sensible oculta: ' + n);
+    });
+    // Invariante de la lista-contrato: una hoja sensible con el nombre mal escrito no existiría en
+    // ningún cliente, el bucle de arriba la daría por "lazy" y el chequeo quedaría mudo para siempre.
+    CLIENTE_SHEETS_SENSIBLES.forEach(function (n) {
+      chk(!!CLIENTE_SHEETS[n], 'hoja sensible declarada existe en CLIENTE_SHEETS (sin typo): ' + n);
     });
 
     // b) crear una aprobación PENDIENTE en el cliente (d: monto sin fila en Umbrales)

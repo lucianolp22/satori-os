@@ -105,6 +105,16 @@ var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 
 
 // Pestañas sensibles del Sheet cliente: ocultas + protegidas (Auditor 0.3 #1).
 // Si en Etapa 3 el dueño del negocio abre su Sheet, no ve interna de gestión.
+// ⚠ INVARIANTE ROTO A PROPÓSITO (23-jul) — LEER ANTES DE CONSUMIR ESTA LISTA:
+// hasta la cadena, `CLIENTE_SHEETS_SENSIBLES` era **subconjunto de `CLIENTE_ORDEN`**, así que
+// `getSheetByName(n)` sobre un cliente sano nunca daba null. **Ya no.** Las 3 últimas
+// (`cerebro_log_archivo`, `cerebro_resumen`, `hilo`) son LAZY: no las crea `crearCliente`, las crean
+// `repararCerebro` / `comprimirMemoriaFria` / `repararHilo` / `espejarHilo` a demanda (siempre
+// ocultas+protegidas). En un cliente recién creado NO EXISTEN.
+//
+// ⇒ **Todo consumidor que abra estas hojas necesita null-guard.** El `selfTest` reventó con
+// `TypeError: null.isSheetHidden` justo por esto (incidente 23-jul); `securityScan_` sobrevivió
+// porque ya lo tenía. Regla de lista-contrato en CLAUDE.md.
 var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos', 'hilo'];
 
 // T3 M3 / TC-W1 — DECISIÓN EXPLÍCITA: `cerebro_log_archivo`, `cerebro_resumen` y `hilo` NO entran en CLIENTE_ORDEN.
