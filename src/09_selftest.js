@@ -1483,10 +1483,23 @@ function _asertsD25_(chk, log, opts) {
       'D25d4 hoja sin fecha ni importe ⇒ 0 filas (no se inventa un mapeo)');
   chk(mapearOperacionesGenerico_([]).filas.length === 0, 'D25d5 hoja vacía no revienta');
 
-  // ── Bastión.
-  var hostil = mapearOperacionesGenerico_([{ fecha: '2026-06-01', concepto: '=IMPORTRANGE("hoja","A1")', valor: 10, _fila: 2 }]);
-  chk(hostil.filas.length === 1 && String(hostil.filas[0].concepto).charAt(0) !== '=',
-      'D25e celda HOSTIL del SGIC sanitizada (una fórmula del cliente no se ejecuta en nuestra hoja)');
+  // ── Bastión: defensa anti-formula-injection del conector, VERIFICADA end-to-end (24-jul).
+  //    El mapper deja pasar el concepto CRUDO a propósito: limpiarHostilTexto_ (08_webapp.js:168) solo
+  //    limpia espacios/trunca, NO neutraliza fórmulas. La neutralización se DIFIERE a la escritura:
+  //    appendFila (07_util.js:121) pasa TODA celda por sanitizarCelda (07_util.js:147), que prefija '
+  //    a = + - @. Por eso D25e prueba el chokepoint REAL (sanitizarCelda, puro), no el mapper.
+  //    (Antes probaba mapearOperacionesGenerico_ y solo pasaba offline porque el harness F3 stubeaba
+  //     limpiarHostilTexto_ con un .replace que strippeaba el = — la real NO lo hace: verde falso.)
+  var hostilMap = mapearOperacionesGenerico_([{ fecha: '2026-06-01', concepto: '=IMPORTRANGE("hoja","A1")', valor: 10, _fila: 2 }]);
+  chk(hostilMap.filas.length === 1 && String(hostilMap.filas[0].concepto).charAt(0) === '=',
+      'D25e (a) el mapper deja pasar el concepto CRUDO — la neutralización NO ocurre acá, se difiere a la escritura');
+  chk(sanitizarCelda('=IMPORTRANGE("hoja","A1")').charAt(0) === "'" && sanitizarCelda('texto normal') === 'texto normal',
+      'D25e-san (b) sanitizarCelda neutraliza la fórmula ANTES de tocar la hoja (prefija \', deja el texto sano intacto)');
+  chk(String(appendFila).indexOf('sanitizarCelda') > 0,
+      'D25e-write appendFila pasa TODA celda por sanitizarCelda (la neutralización vive en el write path)');
+  chk(String(sincronizarConectorVentas_).indexOf('appendFila') > 0 && String(sincronizarConectorOperaciones_).indexOf('appendFila') > 0
+      && String(sincronizarConectorVentas_).indexOf('setValue') < 0 && String(sincronizarConectorOperaciones_).indexOf('setValue') < 0,
+      'D25e-only appendFila es el ÚNICO write path del conector — ningún setValue crudo saltea sanitizarCelda');
   Object.keys(CONECTOR_ADAPTERS).forEach(function (t) {
     var ad = CONECTOR_ADAPTERS[t];
     chk(ad.hojas && ad.hojas.length > 0, 'D25e2 el adapter ' + t + ' declara su allowlist de hojas');
