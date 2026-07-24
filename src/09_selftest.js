@@ -565,7 +565,8 @@ function _asertsD14_(chk, log, opts) {
   chk(_tendencia_([{ fecha: '2026-07-01', valor: 30 }, { fecha: '2026-07-15', valor: 12 }]).palabra === 'frenando', 'D14f tendencia frenando con delta negativo');
   // (g) toda rec contractual trae dato + contrapeso + acción (el contrapeso nunca es vacío).
   var d14r = _recContractual_({ texto: 'x', kpi: 'kpi_desconocido_xyz', id_cliente: '', dato: 'd=1' });
-  chk(d14r.length === 4 && d14r[1].indexOf('d=1') > 0 && d14r[2].indexOf('Contrapeso:') > 0 && d14r[2].length > 18 && d14r[3].indexOf('Acción:') > 0, 'D14g rec contractual = dato + contrapeso (fallback no vacío) + acción');
+  // M5 (18-jul) insertó "- Verificación:" en [2] → la forma pasó de 4 a 5 renglones; Contrapeso/Acción corridos a [3]/[4].
+  chk(d14r.length === 5 && d14r[1].indexOf('d=1') > 0 && d14r[2].indexOf('Verificación:') > 0 && d14r[3].indexOf('Contrapeso:') > 0 && d14r[3].length > 18 && d14r[4].indexOf('Acción:') > 0, 'D14g rec contractual = dato + verificación + contrapeso (fallback no vacío) + acción');
 
   // ── D14 direcciones: la superficie de AUTO-aprobación. Default-deny debe sobrevivir intacto. ──
   var shDir = getMaestro().getSheetByName('Direcciones');
