@@ -21,6 +21,7 @@ function _sistemaPausado_() {
 }
 
 function pausarSistema() {
+  _soloOwner_('pausarSistema');   // purga X2: congela TODO el sistema (DoS trivial si es llamable)
   PropertiesService.getScriptProperties().setProperty(PROP_SISTEMA_PAUSADO, '1');
   try { Logger.log('KILL SWITCH: PAUSADO ' + ahoraISO()); } catch (_e) {}
   try {
@@ -31,6 +32,7 @@ function pausarSistema() {
 }
 
 function reanudarSistema() {
+  _soloOwner_('reanudarSistema');   // purga X2: levanta la pausa — la decisión de reanudar es del owner
   PropertiesService.getScriptProperties().setProperty(PROP_SISTEMA_PAUSADO, '0');
   try { Logger.log('KILL SWITCH: REANUDADO ' + ahoraISO()); } catch (_e) {}
   try {

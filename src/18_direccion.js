@@ -939,6 +939,7 @@ function cargarNorthStarVehemence(extra) {
  * es aditivo y está explícitamente permitido (encargo 20-jul).
  */
 function migrarObjetivosNorthStar() {
+  _soloOwner_('migrarObjetivosNorthStar');   // purga X2: migración de esquema sobre TODOS los tenants
   var add = 0, tenants = 0;
   leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
     if (!c.url_sheet_cliente) return;
@@ -1040,6 +1041,7 @@ function _verificarRespaldo_(bk) {
  * pero NO se toca. @return {{ok, backup, borrado:{}, excluidos:[], mensaje}}
  */
 function resetObjetivosYNorthStar() {
+  _soloOwner_('resetObjetivosYNorthStar');   // purga X2: BORRA objetivos de todos los tenants
   Logger.log('=== RESET Objetivos + North Star — arranca. Excluidos: ' + RESET_EXCLUIR.join(', ') + ' ===');
 
   // 1 · RESPALDO PRIMERO (innegociable). Si falla → abortar sin borrar nada.
@@ -1099,6 +1101,7 @@ function resetObjetivosYNorthStar() {
  * @param {string} [soloTenant]  restaurar UN tenant (para el drill, sin tocar el resto)
  */
 function restaurarObjetivosDesdeBackup(backupId, soloTenant) {
+  _soloOwner_('restaurarObjetivosDesdeBackup');   // purga X2: abre un spreadsheet ARBITRARIO y pisa objetivos con su contenido
   var bs = SpreadsheetApp.openById(backupId);
   var out = {};
   leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {

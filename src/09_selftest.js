@@ -1154,6 +1154,14 @@ function _asertsD19_(chk, log, opts) {
   chk(sinGate.length === 0, 'D19c los ' + ENDPOINTS_UI.length + ' endpoints client-callable tienen _soloOwner_' +
       (sinGate.length ? ' — SIN GATE: ' + sinGate.join(', ') : ''));
 
+  // ── S1d (purga X2) — setConfig escribe con setValue/appendRow directos, así que NO pasa por la
+  // neutralización antifórmula de `appendFila`. Se asera contra el chokepoint REAL (el cuerpo de
+  // setConfig referencia sanitizarCelda), no contra un stub: misma lección que D25e.
+  chk(String(setConfig).indexOf('sanitizarCelda') >= 0,
+      'D19c2 setConfig sanitiza el valor antes de escribir (no hay write path a Config sin neutralizar)');
+  chk(sanitizarCelda('=1+1').charAt(0) === "'" && sanitizarCelda('ok (3 pendientes)') === 'ok (3 pendientes)',
+      'D19c3 sanitizarCelda prefija la fórmula y deja intacto el valor sano (los valores de Config no se rompen)');
+
   // ── S2 — vencimiento (función pura, sin tocar properties).
   var T = Date.parse('2026-07-21T12:00:00Z');
   chk(_vencido_('2026-07-20', T) === true, 'D19d una fecha pasada = VENCIDO');

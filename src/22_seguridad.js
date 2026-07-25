@@ -111,11 +111,20 @@ function _soloOwner_(nombre) {
 }
 
 /**
- * Inventario de endpoints llamables desde el cliente (google.script.run en index.html +
- * el puente gas()/pedir() de Akasha). Lo consume securityScan_ y el assert de cobertura
- * de D19: si alguien agrega un endpoint y no lo gatea, el scan lo canta.
- * MANTENERLA A MANO al agregar un endpoint nuevo — el assert de cobertura la audita
- * contra el código, pero no puede adivinar un endpoint que nadie declaró.
+ * Inventario de funciones que DEBEN llevar `_soloOwner_`. Lo consume securityScan_ y el assert
+ * de cobertura de D19: si alguien agrega una y no la gatea, el scan lo canta.
+ * MANTENERLA A MANO al agregar una función nueva — el assert audita contra el código, pero no
+ * puede adivinar lo que nadie declaró.
+ *
+ * ⚠ INVARIANTE AMPLIADO (purga X2, 24-jul). Hasta hoy la lista significaba "lo que el front
+ * invoca por google.script.run / el puente de Akasha". Ahora significa "lo que tiene que estar
+ * gateado", que es un superconjunto: en GAS **toda** función top-level es invocable por
+ * `google.script.run` desde cualquiera que alcance la webapp (y `appsscript.json` tiene
+ * access:DOMAIN), así que "el front no la llama" NUNCA fue una defensa. El bloque X2 de abajo
+ * son funciones que el front NO llama y que igual deben estar cerradas.
+ * Los dos consumidores (D19c y securityScan_) solo verifican presencia del gate → la ampliación
+ * es aditiva para ellos. Si alguien agrega un consumidor que asuma "esto lo llama el front",
+ * ese consumidor está mal: filtrar acá por sección, no asumir.
  */
 var ENDPOINTS_UI = [
   // 08_webapp.js
@@ -129,7 +138,22 @@ var ENDPOINTS_UI = [
   // 25_hilo.js (TC-W1)
   'hiloCliente',
   // 17_bandeja.js
-  'capturar'
+  'capturar',
+  // ── purga X2 (24-jul): NO las llama el front, pero son top-level ⇒ invocables por RPC.
+  // 11_aprobaciones.js — el motor de decisión humana entero
+  'crearAprobacion', 'resolverAprobacion', 'ejecutarAprobada', 'crearReglaDesdeExcepcion',
+  // 18_direccion.js — migración/reset/restore de objetivos (destructivas, multi-tenant)
+  'migrarObjetivosNorthStar', 'resetObjetivosYNorthStar', 'restaurarObjetivosDesdeBackup',
+  // 07_util.js — Config gobierna el motor (flags de conectores, umbrales)
+  'setConfig',
+  // 05_costos.js — revierte la anonimización (PII en claro)
+  'desanonimizar',
+  // 20_killswitch.js — congelar/levantar el sistema entero
+  'pausarSistema', 'reanudarSistema',
+  // 19_conectores.js — gateadas en la purga del 23-jul; faltaba el alta en el registro.
+  // `altaConector` era la excepción: se le puso el gate en X2 (sus tres hermanas ya lo tenían).
+  'altaConector', 'encenderConector', 'apagarConector', 'sembrarConectoresHallados',
+  'probarConector', 'estadoConectores'
 ];
 
 /**

@@ -172,6 +172,7 @@ function anonimizar(texto, nombres) {
 
 /** Revierte la anonimización sobre la respuesta del proveedor. */
 function desanonimizar(texto, mapa) {
+  _soloOwner_('desanonimizar');   // purga X2: revierte la anonimización — devuelve PII en claro
   texto = String(texto == null ? '' : texto);
   if (!mapa) return texto;
   Object.keys(mapa).forEach(function (token) {

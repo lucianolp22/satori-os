@@ -124,6 +124,7 @@ function umbralPara(idCliente, tipoAccion) {
  * @return {{id:string, patron:string}}
  */
 function crearAprobacion(idCliente, modulo, tipoAccion, payload, opts) {
+  _soloOwner_('crearAprobacion');   // purga X2: escribe en el Sheet del cliente (agentes/voz/director la llaman con ctx de sistema)
   opts = opts || {};
   var cliCtx = abrirCliente(idCliente);
   var shAp = cliCtx.ss.getSheetByName('Aprobaciones');
@@ -235,6 +236,7 @@ function agregarAgregada_(cli, fila) {
  * @return {{ok:boolean, estado:string, ejecucion?:Object}}
  */
 function resolverAprobacion(idCliente, id, decision, ediciones) {
+  _soloOwner_('resolverAprobacion');   // purga X2: ES el punto de decisión humano — no puede ser llamable por un tercero
   decision = String(decision || '').toLowerCase();
   if (['aprobada', 'editada', 'rechazada'].indexOf(decision) < 0) {
     throw new Error('decisión inválida: ' + decision);
@@ -284,6 +286,7 @@ function resolverAprobacion(idCliente, id, decision, ediciones) {
  * AREL: el envío de email solo ocurre acá, DESPUÉS del OK humano de resolverAprobacion.
  */
 function ejecutarAprobada(idCliente, id) {
+  _soloOwner_('ejecutarAprobada');   // purga X2: materializa la acción (manda emails, escribe)
   var shAp = abrirCliente(idCliente).ss.getSheetByName('Aprobaciones');
   var filas = leerTabla(shAp);
   var a = filas.filter(function (f) { return String(f.id) === String(id); })[0];
@@ -297,6 +300,22 @@ function ejecutarAprobada(idCliente, id) {
   try {
     switch (String(a.tipo_accion)) {
       case 'email':
+        // purga X2: la matriz de riesgo declara `accion_externa` y hasta hoy esta vía —la ÚNICA
+        // que saca algo del sistema— no la consultaba: la matriz era letra muerta acá. Se pasa
+        // `con_aprobacion:true` porque llegar hasta este punto exige estado aprobada/editada,
+        // o sea una decisión humana explícita.
+        // ⚠ SEMÁNTICA: con la matriz en `bloquear` (el default de RIESGO_SIEMBRA) gateRiesgo_
+        // corta IGUAL — `con_aprobacion` solo habilita el modo `aprobar`. Es lo declarado
+        // ("nada sale del sistema sin decisión explícita"), pero significa que para que un email
+        // aprobado salga, `riesgo_accion_externa` tiene que estar en `aprobar` en Config.
+        // El bloqueo NO se traga: queda en `resultado_ejecucion` con el motivo.
+        var gEmail = gateRiesgo_('accion_externa', { con_aprobacion: true });
+        if (!gEmail.ok) {
+          res = { ok: false, error: gEmail.error, modo: gEmail.modo,
+                  detalle: 'email NO enviado: la matriz de riesgo tiene accion_externa=' + gEmail.modo +
+                           ' (cambiá riesgo_accion_externa en Config para habilitarlo)' };
+          break;
+        }
         res = ejecutarEmail_(payload);
         break;
       case 'activar_regla':
@@ -347,6 +366,7 @@ function ejecutarActivarRegla_(idCliente, payload) {
  * @return {{id_regla:string, aprobacion:Object}}
  */
 function crearReglaDesdeExcepcion(idCliente, condicion, accion, origen) {
+  _soloOwner_('crearReglaDesdeExcepcion');   // purga X2: crea gobernanza (una regla decide sin humano después)
   var cliCtx = abrirCliente(idCliente);
   var shR = cliCtx.ss.getSheetByName('Reglas');
   if (!shR) throw new Error('cliente sin pestaña Reglas');

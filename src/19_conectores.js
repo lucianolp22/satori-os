@@ -446,6 +446,7 @@ function sincronizarConectores() {
  * (`encenderConector`), después de validar al peso contra la fuente.
  */
 function altaConector(idCliente, spreadsheetIdDB, tipoAdapter) {
+  _soloOwner_('altaConector');   // purga X2: da de alta el SGIC de un cliente en Config (faltaba — sus hermanas ya estaban)
   if (!CONECTOR_ADAPTERS[tipoAdapter]) {
     throw new Error('adapter desconocido: ' + tipoAdapter + ' (disponibles: ' + Object.keys(CONECTOR_ADAPTERS).join(', ') + ')');
   }

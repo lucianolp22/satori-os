@@ -207,8 +207,15 @@ function configPrefijo_(pref) {
   return out;
 }
 
-/** Escribe (upsert) un valor de Config por clave. */
+/**
+ * Escribe (upsert) un valor de Config por clave.
+ * purga X2: (a) gate — Config gobierna el motor entero (flags de conectores, umbrales);
+ * (b) `sanitizarCelda` — este camino usa setValue/appendRow directos, así que NO pasaba por la
+ * neutralización antifórmula de `appendFila`: un valor que empieza con = + - @ entraba crudo.
+ */
 function setConfig(clave, valor) {
+  _soloOwner_('setConfig');
+  valor = sanitizarCelda(valor);
   var sh = getMaestro().getSheetByName('Config');
   var vals = sh.getDataRange().getValues();
   for (var i = 1; i < vals.length; i++) {
