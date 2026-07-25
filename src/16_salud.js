@@ -182,6 +182,22 @@ function correrSalud(opts) {
     // Hallazgos al feed (Actividad) + Avisos para CRÍTICOS.
     feed_('Salud', global === 'ok' ? 'info' : 'aprobacion', '',
       'Salud ' + global.toUpperCase() + ': ' + hallazgos.map(function (h) { return h.nombre + '=' + h.estado; }).join(' · '), '', '');
+    // purga X3 #11 — SALUD RECUPERADA. `crearAviso` dedupea por (tipo,cliente,mensaje) mientras el
+    // aviso siga activo, pero NADIE los resolvía: un chequeo que se ponía crítico y después se
+    // arreglaba dejaba su `salud_*` en rojo para siempre en el CM.
+    // Se resuelven los `salud_*` que YA NO están críticos en ESTA corrida, y solo esos: barrer
+    // todos al inicio (como decía el plano) obligaría a re-crear los que siguen rojos, y cada
+    // corrida generaría un id_aviso nuevo del mismo problema — ruido y pérdida de la fecha real
+    // de aparición. Va ANTES de re-crear: el estado de esta corrida manda.
+    var critAhora = {};
+    crit.forEach(function (h) { critAhora['salud_' + h.nombre] = true; });
+    try {
+      resolverAvisosDonde_(function (f) {
+        var t = String(f.tipo || '');
+        return t.indexOf('salud_') === 0 && !critAhora[t];   // el único emisor de `salud_*` es el forEach de abajo
+      });
+    } catch (e) { try { Logger.log('salud: no pude resolver avisos recuperados: ' + e.message); } catch (_l) {} }
+
     crit.forEach(function (h) {
       crearAviso({ origen: 'salud', tipo: 'salud_' + h.nombre, mensaje: 'Salud CRÍTICO — ' + h.nombre + ': ' + h.detalle });
     });

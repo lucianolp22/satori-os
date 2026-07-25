@@ -264,6 +264,15 @@ function comprimirMemoriaFria(tenant, dias) {
   try { protegerSheet(shArch, false); shArch.hideSheet(); protegerSheet(shRes, false); shRes.hideSheet(); } catch (_p) {}
 
   return conLock(function () {
+    // purga X3 #13: el plan se RECALCULA acá adentro. El de arriba se computó ANTES del lock y solo
+    // sirve como pre-chequeo barato; usar sus `_fila` (índices ABSOLUTOS de fila) después de que
+    // otra compresión concurrente ya borró filas significa borrar filas VIVAS — corrimiento de
+    // índices, el archivo queda bien y el log caliente pierde eventos que nadie archivó.
+    // Releer bajo lock cuesta una lectura y elimina la ventana entera.
+    plan = _planCompresion_(leerTabla(shLog), corte);
+    if (!plan.frias.length) {   // otra corrida ganó la carrera y ya comprimió: no hay nada que hacer
+      return { archivadas: 0, calientes: plan.calientes, periodos: 0, ilegibles: plan.ilegibles };
+    }
     // 1) crudo al archivo (append: el evento sigue existiendo, entero).
     plan.frias.forEach(function (f) {
       appendFila(shArch, { ts: f.ts, evento: f.evento, id_nodo: f.id_nodo, id_arista: f.id_arista, origen: f.origen, detalle: f.detalle });
@@ -315,10 +324,19 @@ function comprimirMemoria() { return comprimirMemoriaFriaTodos_(); }
  */
 function materializarEstado(tenant) {
   var ssCli = abrirCliente(tenant).ss;
-  var nodos = leerTabla(ssCli.getSheetByName('nodos'));
-  var aristas = leerTabla(ssCli.getSheetByName('aristas'));
-  var log = leerTabla(ssCli.getSheetByName('cerebro_log'));
-  var objetivos = leerTabla(ssCli.getSheetByName('objetivos'));
+  // purga X3 #12: sub-hoja faltante ⇒ tabla vacía, no `leerTabla(null)` reventando. Un tenant al
+  // que le falta una hoja del cerebro (cliente viejo, repararCerebro sin correr, hoja borrada a
+  // mano) tiene que materializar un estado POBRE y auditable, no tumbar la corrida entera del
+  // Director. Misma clase que el incidente de las hojas lazy del 23-jul.
+  function tabla(nombre) {
+    var sh = ssCli.getSheetByName(nombre);
+    if (!sh) { try { Logger.log('materializarEstado ' + tenant + ': falta la hoja ' + nombre + ' (sigo con tabla vacía)'); } catch (_l) {} return []; }
+    return leerTabla(sh);
+  }
+  var nodos = tabla('nodos');
+  var aristas = tabla('aristas');
+  var log = tabla('cerebro_log');
+  var objetivos = tabla('objetivos');
   var archivados = _eventosArchivados_(ssCli);
   var eventosTotal = log.length + archivados;
 

@@ -562,7 +562,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_ },
    { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_ },
    { n: 'D25 conectores generalizados (TC-W3)', f: _asertsD25_ },
-   { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ }].forEach(function (t) {
+   { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ },
+   { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1718,6 +1719,50 @@ function _asertsD17i_(chk, log, opts) {
   } finally {
     estadoSalud = realES;
   }
+}
+
+/**
+ * D27 — PURGA X3 (24-jul): robustez de datos. Todos los asserts son PUROS o estáticos
+ * (introspección por Function.toString), a propósito: los cinco fixes de X3 viven en caminos que
+ * necesitan Sheets reales, y aserirlos contra un stub sería el verde falso de D25e otra vez. Lo
+ * que se fija acá es el INVARIANTE de cada fix, derivado de la fuente. Tanda aislada: la corre _asertsF2_.
+ */
+function _asertsD27_(chk, log, opts) {
+  // ── X3 #14 — 'periodo' como texto. Es la clave de fusión de cerebro_resumen: si Sheets la
+  // coacciona a fecha, upsertPorClave_ deja de matchear y cada corrida duplica el período.
+  chk(COLUMNAS_TEXTO.indexOf('periodo') >= 0, 'D27a periodo está en COLUMNAS_TEXTO (clave de fusión, no la coacciona Sheets)');
+  chk(CLIENTE_SHEETS.cerebro_resumen[0] === 'periodo', 'D27a2 periodo sigue siendo la 1ª columna de cerebro_resumen');
+  chk(String(comprimirMemoriaFria).indexOf("upsertPorClave_(shRes, 'periodo'") >= 0,
+      'D27a3 comprimirMemoriaFria fusiona POR periodo (la clave aserida arriba es la que se usa)');
+
+  // ── X3 #10 — moneda: precedencia fila → cfg → adapter → '' (desconocida, nunca inventada).
+  chk(_monedaConector_({ moneda: 'ars' }, { moneda: 'EUR' }, { moneda: 'USD' }) === 'ARS', 'D27b la moneda de la FILA gana (y normaliza a mayúsculas)');
+  chk(_monedaConector_(null, { moneda: ' eur ' }, { moneda: 'USD' }) === 'EUR', 'D27b2 sin fila manda Config (y trimea)');
+  chk(_monedaConector_(null, null, { moneda: 'USD' }) === 'USD', 'D27b3 sin fila ni Config manda el adapter');
+  chk(_monedaConector_(null, null, null) === '', 'D27b4 sin ninguna fuente la moneda queda VACÍA — desconocida, no adivinada');
+  chk(CONECTOR_ADAPTERS.ventas_sgic.moneda === 'ARS', 'D27b5 el adapter ventas_sgic declara ARS (probado por su propio mapper)');
+  chk(String(sincronizarConectorOperaciones_).indexOf('_monedaConector_') >= 0,
+      'D27b6 la vía OPERACIONES sella la moneda en el appendFila (era la que la tiraba)');
+  chk(String(sincronizarConectorVentas_).indexOf('_monedaConector_') >= 0,
+      'D27b7 la vía VENTAS resuelve la moneda por el mismo camino (una sola fuente)');
+  chk(_mapaConectores_([{ clave: 'conector_CLI-009_moneda', valor: 'EUR' }])['CLI-009'].moneda === 'EUR',
+      'D27b8 Config admite conector_<id>_moneda (declarar la moneda no exige tocar código)');
+  chk(_mapaConectores_([{ clave: 'conector_CLI-009_db', valor: 'X' }])['CLI-009'].moneda === '',
+      'D27b9 un conector sin moneda declarada queda en vacío, no hereda ninguna');
+
+  // ── X3 #12 — materializarEstado con null-guard: ninguna sub-hoja se lee sin chequear.
+  chk(String(materializarEstado).indexOf('leerTabla(ssCli.getSheetByName(') < 0,
+      'D27c materializarEstado NO llama leerTabla(getSheetByName(...)) directo (sub-hoja faltante ⇒ tabla vacía, no TypeError)');
+
+  // ── X3 #13 — el plan de compresión se recalcula DENTRO del lock: usar los _fila (índices
+  // absolutos) de una lectura pre-lock borra filas vivas si dos compresiones se solapan.
+  var srcCMF = String(comprimirMemoriaFria);
+  chk(srcCMF.lastIndexOf('_planCompresion_') > srcCMF.indexOf('conLock('),
+      'D27d comprimirMemoriaFria recalcula el plan DENTRO del conLock (los _fila pre-lock quedan stale)');
+
+  // ── X3 #11 — la salud recuperada se resuelve (si no, el aviso queda rojo para siempre).
+  chk(String(correrSalud).indexOf('resolverAvisosDonde_') >= 0,
+      'D27e correrSalud resuelve los avisos salud_* que dejaron de estar críticos');
 }
 
 function selfTestF2_() {

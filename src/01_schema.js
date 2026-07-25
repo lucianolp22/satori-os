@@ -186,7 +186,11 @@ var CONFIG_DEFAULTS = [
 // Sheets coaccionaría a fecha/número si la celda queda en formato Automatic.
 // Caso real: 'APR-0001' → Sheets lo lee como abril 0001 (Date), el id releído no matchea.
 // NO incluir fechas ni montos: E1 está verificada con su comportamiento (Date/number) actual.
-var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker', 'id_nodo', 'id_arista', 'id_objetivo'];
+// purga X3 #14: +`periodo` — es la CLAVE DE FUSIÓN de `cerebro_resumen` (upsertPorClave_). Un
+// período '2026-01' sin formato '@' lo coacciona Sheets a fecha, la clave deja de matchear con la
+// string que trae el plan de compresión, y cada corrida crea una fila nueva del mismo período en
+// vez de fusionar: el resumen se duplica y los conteos dejan de cerrar.
+var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker', 'id_nodo', 'id_arista', 'id_objetivo', 'periodo'];
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];

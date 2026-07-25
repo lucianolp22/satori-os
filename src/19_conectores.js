@@ -71,6 +71,9 @@ var CONECTOR_ADAPTERS = {
   ventas_sgic: {
     hojas: ['DB_VENTAS'],
     modo: 'ventas',
+    // purga X3 #10: `moneda` declarada a nivel adapter. Acá NO es un supuesto: el propio mapper
+    // emite `moneda:'ARS'` y el encabezado del contrato dice "Montos en ARS".
+    moneda: 'ARS',
     descripcion: 'SGIC con hoja DB_VENTAS (contrato Vehemence): agrega ventas por mes×canal.'
   },
   // Genérico de operaciones: cualquier hoja con fecha + concepto + importe. Es el que absorbe a los
@@ -270,8 +273,10 @@ function _mapaConectores_(filasConfig) {
     var i = resto.lastIndexOf('_');
     if (i <= 0) return;
     var cli = resto.slice(0, i), campo = resto.slice(i + 1);
-    if (['db', 'tipo', 'on'].indexOf(campo) < 0) return;
-    if (!out[cli]) out[cli] = { db: '', tipo: '', on: false };
+    // purga X3 #10: +`moneda` (opcional, '' = desconocida). Aditivo: los consumidores leen
+    // db/tipo/on por nombre, ninguno itera las claves del objeto.
+    if (['db', 'tipo', 'on', 'moneda'].indexOf(campo) < 0) return;
+    if (!out[cli]) out[cli] = { db: '', tipo: '', on: false, moneda: '' };
     if (campo === 'on') out[cli].on = String(f.valor).trim().toLowerCase() === 'true';
     else out[cli][campo] = String(f.valor || '').trim();
   });
@@ -338,6 +343,24 @@ function mapearOperacionesGenerico_(filas) {
 }
 
 /**
+ * PURA — purga X3 #10. Resuelve la moneda de una fila de conector, con precedencia EXPLÍCITA:
+ *   1. la fila que emitió el mapper (un adapter que sabe la moneda por registro manda);
+ *   2. `conector_<idCliente>_moneda` en Config (declaración por cliente, sin tocar código);
+ *   3. `moneda` declarada en el adapter (vale para todo el SGIC);
+ *   4. '' = DESCONOCIDA.
+ *
+ * El 4 no es un descuido: es la verdad. Los tres adapters nuevos (LC Travel, MesaQuince, DAM) NO
+ * tienen su moneda verificada en el repo, y ADIVINARLA es exactamente el error del mapeo cruzado
+ * cliente↔SGIC del 23-jul (verificar media relación y dar por buena la otra mitad). Vacío es
+ * auditable; 'EUR' inventado se suma en un consolidado y nadie lo ve. Se declara en Config.
+ * @return {string}
+ */
+function _monedaConector_(fila, cfg, ad) {
+  var m = String((fila && fila.moneda) || (cfg && cfg.moneda) || (ad && ad.moneda) || '').trim().toUpperCase();
+  return m;
+}
+
+/**
  * Sincroniza UN cliente según su configuración de Config. Read-only sobre el SGIC.
  * @param {string} idCliente
  * @param {Object} [cfg]  {db, tipo, on} — si no viene, se lee de Config
@@ -365,8 +388,9 @@ function sincronizarCliente_(idCliente, cfg) {
   }
 
   var fuente = idCliente + ' SGIC · ' + hoja;
-  if (ad.modo === 'ventas') return sincronizarConectorVentas_(idCliente, cfg.db, hoja, fuente);
-  return sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad);
+  // purga X3 #10: cfg/ad viajan para que la moneda se pueda resolver en el punto de escritura.
+  if (ad.modo === 'ventas') return sincronizarConectorVentas_(idCliente, cfg.db, hoja, fuente, ad, cfg);
+  return sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad, cfg);
 }
 
 /**
@@ -374,7 +398,7 @@ function sincronizarCliente_(idCliente, cfg) {
  * este conector en `Datos_operativos` (las cargadas a mano no se tocan). Mismo full-refresh y la
  * misma guarda anti-wipe que el conector de ventas.
  */
-function sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad) {
+function sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad, cfg) {
   var sh = src.getSheetByName(hoja);
   if (sh.getLastRow() > CONECTOR_AVISO_FILAS) {
     Logger.log('AVISO conector ' + idCliente + ': ' + hoja + ' tiene ' + sh.getLastRow() +
@@ -397,8 +421,17 @@ function sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad) {
       .filter(function (f) { return String(f.fuente) === fuente; })
       .map(function (f) { return f._fila; });
     borrarFilasBatch_(dst, aBorrar);
+    // purga X3 #10: la moneda se SELLA en la fila. Hasta hoy esta vía la tiraba (la de ventas no),
+    // así que operaciones en ARS y en € entraban indistinguibles a `Datos_operativos` y cualquier
+    // consolidado las sumaba como si fueran la misma unidad.
+    var monedaFila = _monedaConector_(null, cfg, ad);
+    if (!monedaFila) {
+      Logger.log('AVISO conector ' + idCliente + ': moneda DESCONOCIDA para ' + hoja + ' — declarala en Config (' +
+                 CONECTOR_PREFIJO + idCliente + '_moneda) o en el adapter. Las filas quedan sin moneda.');
+    }
     r.filas.forEach(function (a) {
-      appendFila(dst, { fecha: a.fecha, concepto: a.concepto, valor: a.valor, fuente: fuente, notas: a.notas || '' });
+      appendFila(dst, { fecha: a.fecha, concepto: a.concepto, valor: a.valor, fuente: fuente,
+                        moneda: _monedaConector_(a, cfg, ad), notas: a.notas || '' });
     });
     Logger.log('sincronizarConectorOperaciones_ ' + idCliente + ': ' + r.filas.length + ' fila(s) de ' + hoja +
                (r.descartadas ? ' · ' + r.descartadas + ' descartadas (sin fecha/importe válidos)' : ''));
@@ -531,7 +564,10 @@ function estadoConectores() {
  * @param {string} fuente      etiqueta de `fuente` que marca las filas de ESTE conector
  * @return {{meses, nuevas, fuente, canales}}
  */
-function sincronizarConectorVentas_(idCliente, srcId, sheetName, fuente) {
+function sincronizarConectorVentas_(idCliente, srcId, sheetName, fuente, ad, cfg) {
+  // purga X3 #10: `ad`/`cfg` son OPCIONALES — el wrapper Vehemence de la línea 31 llama sin ellos
+  // y ahí la moneda la trae la propia fila del mapper ('ARS'). El resolver cae de fila→cfg→ad→''.
+  if (!ad) ad = CONECTOR_ADAPTERS.ventas_sgic;
   var src = SpreadsheetApp.openById(srcId);          // SOLO lectura de la fuente
   var shV = src.getSheetByName(sheetName);
   if (!shV) throw new Error('la fuente de ' + idCliente + ' no tiene ' + sheetName);
@@ -566,7 +602,7 @@ function sincronizarConectorVentas_(idCliente, srcId, sheetName, fuente) {
 
     agregados.forEach(function (a) {
       appendFila(dst, { fecha: a.fecha, concepto: a.concepto, valor: a.valor, fuente: fuente,
-                        moneda: a.moneda || '', notas: a.notas });   // B8 #10: moneda explícita
+                        moneda: _monedaConector_(a, cfg, ad), notas: a.notas });   // B8 #10 + X3 #10: una sola fuente de moneda
     });
     Logger.log('sincronizarConectorVentas_ ' + idCliente + ': ' + agregados.length +
                ' filas (mes×canal). Canales: ' + res.canales.join(',') +
