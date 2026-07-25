@@ -10,7 +10,7 @@
  * Limpia su cliente de prueba al final (lo manda a la papelera — reversible).
  */
 function selfTest() {
-  var log = [];
+  var log = [], salida = '';
   function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) throw new Error('FALLO: ' + msg); }
 
   try {
@@ -486,11 +486,37 @@ function selfTest() {
     // corridas anteriores (clientes __TEST__ huérfanos, filas TEST).
     var limpiados = limpiarTodoTest();
     log.push('🧹 limpieza: ' + limpiados.clientes + ' cliente(s) __TEST__ a papelera, filas TEST removidas');
+    // X1.3 (purga 24-jul): el log Y el veredicto salen SIEMPRE, pase o falle. Antes vivían
+    // DESPUÉS del try/finally: con el chk fatal, el throw se los llevaba puestos y de una corrida
+    // roja no quedaba rastro de los ✅ previos — solo el mensaje de la excepción.
+    salida = log.join('\n');
+    Logger.log(salida);
+    Logger.log(_resumenSelfTest_(log));   // entrada Logger PROPIA y corta: sobrevive al recorte de la larga
   }
 
-  var salida = log.join('\n');
-  Logger.log(salida);
   return salida;
+}
+
+
+/**
+ * X1.3 (purga 24-jul) — RESUMEN IMPOSIBLE DE TRUNCAR. El log de una corrida son cientos de
+ * renglones y el panel de ejecución del editor recorta: el veredicto, que va al final, es
+ * justo lo que se pierde (el "verde mentiroso por cola truncada"). Por eso el resumen se emite
+ * como entrada Logger propia —corta, sobrevive al recorte— y repite TODOS los ❌ juntos, para
+ * no tener que cazarlos entre los ✅. Derivado del log, no de contadores paralelos: no puede
+ * desincronizarse de lo que realmente se aseró.
+ * @param {Array<string>} log renglones ya prefijados con ✅/❌ por el chk del runner
+ * @return {string} 'RESULTADO: PASA x / FALLA y' + el volcado de los ❌
+ */
+function _resumenSelfTest_(log) {
+  var fallos = [], pasa = 0;
+  (log || []).forEach(function (l) {
+    var s = String(l);
+    if (s.indexOf('✅') === 0) pasa++;
+    else if (s.indexOf('❌') === 0) fallos.push(s);
+  });
+  return 'RESULTADO: PASA ' + pasa + ' / FALLA ' + fallos.length +
+         (fallos.length ? '\n' + fallos.join('\n') : '');
 }
 
 
@@ -1120,6 +1146,7 @@ function _asertsD19_(chk, log, opts) {
   chk(_ctxSistemaPermitido_('', 'a@b.com') === true, 'D19b4 sin usuario activo (trigger/doPost) SÍ es contexto de sistema');
   chk(_ctxSistemaPermitido_('a@b.com', 'a@b.com') === true, 'D19b4b el owner corriendo un entry point SÍ es contexto de sistema');
   chk(_ctxSistemaPermitido_('otro@b.com', 'a@b.com') === false, 'D19b4c un usuario REAL no-owner NO obtiene contexto de sistema (M1a: ya no es bypass a ciegas)');
+  chk(_ctxSistemaPermitido_('', '') === false, 'D19b4d sin OWNER_EMAIL NADIE es contexto de sistema, ni un trigger (fail-closed X1, mismo criterio que _puertaOwner_)');
 
   // ── S1c — COBERTURA: cada endpoint declarado tiene el gate en su cuerpo. Es el assert que
   // impide que un endpoint nuevo entre sin puerta (el scan lo canta, esto lo REPRUEBA).
@@ -1706,6 +1733,7 @@ function selfTestF2_() {
     : '— F2 TODO OK: D14 contrato + D15 mantenimiento + D16 voz-acciones —');
   var salida = log.join('\n');
   Logger.log(salida);
+  Logger.log(_resumenSelfTest_(log));   // X1.3: veredicto en entrada propia (no lo recorta la cola larga)
   // Tirar al final con la lista COMPLETA: el log ya quedó impreso arriba (no se pierde nada).
   if (fallos.length) throw new Error('FALLOS (' + fallos.length + '):\n- ' + fallos.join('\n- '));
   return salida;

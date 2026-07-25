@@ -35,12 +35,18 @@ var SATORI_CTX_SISTEMA = false;
  * Un usuario REAL no-owner que lograra invocar un entry point de sistema por RPC cae afuera →
  * NO obtiene el flag → los _soloOwner_ de aguas adentro lo cortan. Pura para poder aserirla sin
  * tocar Session ni Properties (ver D19b4).
+ *
+ * PURGA X1 (24-jul): fail-closed sin OWNER_EMAIL, MISMO criterio que _puertaOwner_. Sin la
+ * property no hay contra qué comparar: `who===''` daba contexto de sistema a ciegas, y en un
+ * proyecto sin configurar eso es la puerta abierta (doGet ya cierra por PURGA #4; esta vía no).
+ * No rompe prod (OWNER_EMAIL está puesto); en un proyecto virgen nada corre igual — ni el owner.
  * @param {string} who   email del usuario activo ('' si GAS no lo entrega)
  * @param {string} owner valor de la Script Property OWNER_EMAIL
  */
 function _ctxSistemaPermitido_(who, owner) {
   who = String(who == null ? '' : who);
   owner = String(owner == null ? '' : owner);
+  if (!owner) return false;              // sin OWNER_EMAIL, nadie — ni el sistema (coherente con _puertaOwner_)
   return who === '' || who === owner;
 }
 
