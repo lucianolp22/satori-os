@@ -604,12 +604,22 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .hilo-sec-h{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:#6b7488;margin-bottom:4px}
 .hilo-sec.desviado .hilo-sec-h{color:#ff8d7a} .hilo-sec.pendiente .hilo-sec-h{color:#ffd479}
 .hilo-sec-v{font-size:11px;color:#4e5666;padding:2px 0 4px}
-.hilo-it{padding:5px 0 5px 9px;border-left:2px solid rgba(108,221,186,.15);margin-bottom:3px}
+.hilo-it{padding:5px 0 5px 9px;border-left:2px solid rgba(108,221,186,.15);margin-bottom:3px;cursor:pointer}
+.hilo-it:hover{background:rgba(255,255,255,.03)}
 .hilo-sec.desviado .hilo-it{border-left-color:rgba(255,141,122,.35)}
 .hilo-sec.pendiente .hilo-it{border-left-color:rgba(255,212,121,.32)}
 .hilo-it-t{font-size:12.5px;color:#dfe5f2}
 .hilo-pri{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(108,221,186,.14);color:#6cddba;vertical-align:middle}
 .hilo-it-d{font-size:11px;color:#aeb6cc;margin-top:2px}
+/* Fix 27-jul (eyeball): con Hilos REALES (40-58 filas) el render completo ahogaba el panel.
+   El cuerpo scrollea SOLO (no empuja el resto del panel) y el detalle va plegado a 2 líneas. */
+.hilo-body{max-height:340px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+.hilo-it-d{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hilo-it.abierto .hilo-it-d{display:block;-webkit-line-clamp:unset;overflow:visible}
+.hilo-it-e{display:none}
+.hilo-it.abierto .hilo-it-e{display:block}
+.hilo-mas{font-size:10.5px;color:#6cddba;padding:4px 0 2px 9px;cursor:pointer;user-select:none}
+.hilo-mas:hover{text-decoration:underline}
 .hilo-it-m{font-size:10px;color:#6b7488;margin-top:2px}
 .hilo-it-e{font-size:10px;color:#4e5666;margin-top:2px;font-style:italic}
 .hilo-vacio{padding:10px 2px}
@@ -1538,25 +1548,44 @@ function hiloRender_(cont, h){
     cont.appendChild(n);
   }
 
+  /* Fix 27-jul (eyeball con Hilos reales): cuerpo con scroll PROPIO + top-N por sección con
+     "ver todos" + detalle plegado (click en el ítem lo expande). Lo accionable primero. */
+  var body=el('div','hilo-body');
+  var HILO_TOPE={desviado:3,pendiente:4,real:3,plan:2};
+  function hiloItem_(it){
+    var r=el('div','hilo-it');
+    var t=el('div','hilo-it-t',it.item);
+    if(it.prioridad) t.appendChild(el('span','hilo-pri',it.prioridad));
+    r.appendChild(t);
+    if(it.detalle) r.appendChild(el('div','hilo-it-d',it.detalle));
+    var meta=[it.estado,it.dueno,it.fecha].filter(Boolean).join(' · ');
+    if(meta) r.appendChild(el('div','hilo-it-m',meta));
+    if(it.evidencia) r.appendChild(el('div','hilo-it-e','evidencia: '+it.evidencia));
+    if(it.detalle||it.evidencia){ r.addEventListener('click',function(){ r.classList.toggle('abierto'); }); }
+    return r;
+  }
   HILO_SEC_ORDEN.forEach(function(s){
     var items=(h.secciones&&h.secciones[s])||[];
     var bloque=el('div','hilo-sec '+s);
     bloque.appendChild(el('div','hilo-sec-h',HILO_SEC_TIT[s]+' ('+items.length+')'));
     if(!items.length){ bloque.appendChild(el('div','hilo-sec-v','— nada en esta sección —')); }
-    else items.forEach(function(it){
-      var r=el('div','hilo-it');
-      var t=el('div','hilo-it-t',it.item);
-      if(it.prioridad) t.appendChild(el('span','hilo-pri',it.prioridad));
-      r.appendChild(t);
-      if(it.detalle) r.appendChild(el('div','hilo-it-d',it.detalle));
-      var meta=[it.estado,it.dueno,it.fecha].filter(Boolean).join(' · ');
-      if(meta) r.appendChild(el('div','hilo-it-m',meta));
-      if(it.evidencia) r.appendChild(el('div','hilo-it-e','evidencia: '+it.evidencia));
-      bloque.appendChild(r);
-    });
-    cont.appendChild(bloque);
+    else{
+      var tope=HILO_TOPE[s]||3;
+      items.slice(0,tope).forEach(function(it){ bloque.appendChild(hiloItem_(it)); });
+      if(items.length>tope){
+        var mas=el('div','hilo-mas','Ver los '+items.length+' de esta sección →');
+        mas.addEventListener('click',function(ev){
+          ev.stopPropagation();
+          items.slice(tope).forEach(function(it){ bloque.insertBefore(hiloItem_(it),mas); });
+          mas.remove();
+        });
+        bloque.appendChild(mas);
+      }
+    }
+    body.appendChild(bloque);
   });
-  if(h.descartadas) cont.appendChild(el('div','hilo-it-m','('+h.descartadas+' fila(s) del espejo descartadas por no respetar el vocabulario plan/real/desviado/pendiente)'));
+  if(h.descartadas) body.appendChild(el('div','hilo-it-m','('+h.descartadas+' fila(s) del espejo descartadas por no respetar el vocabulario plan/real/desviado/pendiente)'));
+  cont.appendChild(body);
   return cont;
 }
 /** Pide el Hilo y lo pinta en `cont`. Estado de carga honesto mientras viaja. */
