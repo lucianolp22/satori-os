@@ -1829,6 +1829,14 @@ function _asertsD28_(chk, log, opts) {
   chk(String(clasificarBandeja).indexOf('clienteExiste_') >= 0,
       'D28d4 el ruteo re-valida el tenant contra el roster (id desconocido escala, no se adivina)');
 
+  // ── Fix del 27-jul (noche) — importe MesaQuince: el warehouse escribe PUNTO decimal y el
+  // parseo es-AR inflaba ×10/×100 (lo cazó Luciano: "MesaQuince maneja miles, no millones").
+  // Valores del CRUDO real de tx_movimientos, verificados por gviz.
+  chk(_importeMQ_('-87.61') === -87.61, 'D28f importe MQ "-87.61" = −87,61 (punto DECIMAL, no se arranca)');
+  chk(_importeMQ_('-314.0') === -314, 'D28f2 importe MQ "-314.0" = −314 (no −3.140)');
+  chk(_importeMQ_('1.234,56') === 1234.56, 'D28f3 con coma sigue es-ES: "1.234,56" = 1234,56');
+  chk(isNaN(_importeMQ_('')), 'D28f4 vacío = NaN → la fila se descarta, no se inventa un 0');
+
   // ── Fix D — agenda: gates + registro + alta/edición/cancelación.
   ['agendarEvento', 'actualizarEvento', 'cancelarEvento', 'agendaSemana'].forEach(function (fn) {
     chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D28e ' + fn + ' declarado en ENDPOINTS_UI');

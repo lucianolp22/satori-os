@@ -158,6 +158,22 @@ function mapearLibroLcTravel_(filas) {
  * de MesaQuince. Está anotado acá y en el REPORTE para que nadie lo use como si fuera el EERR.
  */
 var MESAQUINCE_EXCLUIR = ['transferencia', 'pago_tarjeta', 'prestamo_socio', 'extraordinario', 'sin_categorizar'];
+
+/**
+ * PURA — importe de MesaQuince. BUG CAZADO 27-jul contra el CRUDO real (gviz de tx_movimientos):
+ * el warehouse escribe los importes como texto con PUNTO DECIMAL estilo JS ("-87.61", "-12.0",
+ * "-314.0"). El parseo anterior asumía formato es-AR/ES ("1.234,56") y le arrancaba el punto →
+ * 87,61 € se convertía en 8.761 (inflado ×100) y 314,0 en 3.140 (×10). Detectado por Luciano:
+ * el total daba millones cuando MesaQuince opera en miles. Regla: si hay COMA, es formato
+ * es-ES (punto=miles, coma=decimal); sin coma, el punto es DECIMAL y no se toca.
+ */
+function _importeMQ_(s) {
+  s = String(s == null ? '' : s).trim();
+  if (!s) return NaN;
+  if (s.indexOf(',') >= 0) return Number(s.replace(/\./g, '').replace(',', '.'));
+  return Number(s);
+}
+
 function mapearMovimientosMesaquince_(filas) {
   var out = [], descartadas = 0;
   (filas || []).forEach(function (f) {
@@ -168,7 +184,7 @@ function mapearMovimientosMesaquince_(filas) {
     var iso = aFechaISO(f.fecha);
     var mes = String(f.mes_devengado || '').trim();
     if (/^\d{4}-\d{2}$/.test(mes)) iso = mes + '-01';
-    var v = Number(String(f.importe || '').replace(/\./g, '').replace(',', '.'));   // todo viene como texto
+    var v = _importeMQ_(f.importe);   // todo viene como texto — punto DECIMAL (fix 27-jul, ver _importeMQ_)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso)) || isNaN(v)) { descartadas++; return; }
     out.push({
       fecha: iso,

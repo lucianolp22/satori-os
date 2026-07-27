@@ -202,7 +202,20 @@ const mq = ctx.mapearMovimientosMesaquince_([
   { tipo: 'transferencia', rubro: 'z', fecha: '2026-07-02', importe: '10', concepto: 'y' },
 ]);
 chk(mq.filas.length === 1 && mq.filas[0].fecha === '2026-06-01' && Math.abs(mq.filas[0].valor - 1234.56) < 0.001,
-    'MesaQuince: mes_devengado manda y el importe texto AR se parsea');
+    'MesaQuince: mes_devengado manda y el importe con coma es-ES se parsea');
+// Fix 27-jul (bug ×100 cazado por Luciano): el warehouse escribe PUNTO decimal — valores del CRUDO real.
+chk(ctx._importeMQ_('-87.61') === -87.61, 'MQ importe "-87.61" = −87,61 € (NO −8.761: el punto es decimal)');
+chk(ctx._importeMQ_('-12.0') === -12, 'MQ importe "-12.0" = −12 €');
+chk(ctx._importeMQ_('-314.0') === -314, 'MQ importe "-314.0" = −314 € (NO −3.140)');
+chk(ctx._importeMQ_('-0.22') === -0.22, 'MQ importe "-0.22" = −0,22 €');
+chk(ctx._importeMQ_('1.234,56') === 1234.56, 'MQ importe con coma "1.234,56" sigue siendo 1.234,56 (es-ES)');
+chk(ctx._importeMQ_('1200') === 1200, 'MQ importe entero "1200" intacto');
+chk(isNaN(ctx._importeMQ_('')), 'MQ importe vacío = NaN (la fila se descarta, no se inventa 0)');
+const mqPunto = ctx.mapearMovimientosMesaquince_([
+  { tipo: 'gasto', rubro: 'seg_social', fecha: '2026-01-02', mes_devengado: '2026-01', importe: '-87.61', concepto: 'TGSS' },
+]);
+chk(mqPunto.filas.length === 1 && mqPunto.filas[0].valor === -87.61,
+    'MQ end-to-end: la fila TGSS real entra como −87,61, no −8.761');
 
 // ═══ 7 · Hilo: puras + espejo ════════════════════════════════════════════════
 seccion('Hilo (armado, semáforo, CSV)');
