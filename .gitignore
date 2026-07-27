@@ -20,3 +20,15 @@ scratch-b4/
 
 # Config local de Claude Code (por maquina, nunca al repo)
 .claude/settings.local.json
+
+# Higiene 27-jul: pesados y scratch FUERA del repo (GitHub rechaza archivos >100MB;
+# los .mov de pruebas suman ~1GB). El commit c29ddb9 que los arrastro se deshizo.
+*.mov
+*.zip
+VIDEOS PRUEBA/
+Grabaci*
+_to_delete/
+_akasha_e3/three.r128.min.js
+Avatares Satori/avatares-satori-512/
+*.jpeg
+SPACE UNIVERSE 2.jpeg

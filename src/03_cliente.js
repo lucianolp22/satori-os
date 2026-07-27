@@ -71,12 +71,16 @@ function crearCliente(datos) {
  * @return {Array} resultados de cada crearCliente()
  */
 function cargaInicialClientes() {
+  // 27-jul: nombres FORMALIZADOS por Luciano (aplicados en prod por aplicarCartera2707). La
+  // idempotencia de crearCliente es POR NOMBRE: esta lista debe usar los nombres vigentes o un
+  // re-seed duplicaría clientes. DEMO fuera (baja definitiva 27-jul); EJF adentro.
   var lista = [
-    { nombre: 'FRANFLACA / Mesaquince', rubro: 'Gastronomía', estado: 'activo' },
+    { nombre: 'MesaQuince', rubro: 'Gastronomía', estado: 'activo' },
     { nombre: 'Vehemence', rubro: 'E-commerce indumentaria', estado: 'activo-piloto' },
     { nombre: 'LC Travel', rubro: 'Turismo', estado: 'activo' },
-    { nombre: 'Barbería Alex / DAM', rubro: 'Servicios', estado: 'activo' },
-    { nombre: 'SIP Coffee Roasters', rubro: 'Café de especialidad', estado: 'potencial' }
+    { nombre: 'DAM Barbers', rubro: 'Servicios', estado: 'activo' },
+    { nombre: 'SIP Coffee Roasters', rubro: 'Café de especialidad', estado: 'potencial' },
+    { nombre: 'EJF', rubro: 'Música', estado: 'activo' }
   ];
   var res = lista.map(function (c) {
     var r = crearCliente(c);

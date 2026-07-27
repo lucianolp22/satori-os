@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-27 20:12 · commit: 05dce67
+> Generado: 2026-07-27 22:02 · commit: c29ddb9
 
 ## Módulos
 
@@ -33,7 +33,7 @@
 | `23_evals.js` | Golden-set + runner de evals (T3 · MÓDULO M · M4, 21-jul-2026) | 6 |
 | `24_soul.js` | SOUL: identidad operativa de Satori OS (T3 · MÓDULO H · H1 · D11, 21-jul-2026) | 2 |
 | `25_hilo.js` | HILO DE TRABAJO por cliente (TC-W1 / W2 / W4 · 21-jul-2026) | 12 |
-| `99_tmp_hilos.js` | TEMPORAL (patrón 99_tmp: borrar tras correr). Cierre 27-jul-2026 | 1 |
+| `99_tmp_cartera.js` | TEMPORAL (patrón 99_tmp: borrar tras correr y verificar). 27-jul-2026 | 1 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -165,5 +165,5 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **25_hilo.js:** _armarHilo_ _semaforoHilo_ hiloCliente _numeroConectorCliente_ _ultimoEspejo_ repararHilo espejarHilo espejarHiloCSV _parseCSVLinea_ _seccionHilo_ _recDesdeHilo_ _clienteConHiloCaliente_ 
 
-**99_tmp_hilos.js:** espejarHilosDelDia 
+**99_tmp_cartera.js:** aplicarCartera2707 
 

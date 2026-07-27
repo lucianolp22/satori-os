@@ -223,8 +223,9 @@ function mapearFreshaDam_(filas) {
 // `Clientes` del MAESTRO, así que los id se pusieron por suposición (quedó anotado como supuesto,
 // pero anotar un supuesto no lo vuelve inofensivo).
 //
-// Roster REAL del MAESTRO:  CLI-001 FRANFLACA/MesaQuince · CLI-002 Vehemence · CLI-003 LC Travel ·
-//                           CLI-004 Barbería Alex/DAM · CLI-005 SIP (sin SGIC).
+// Roster REAL del MAESTRO (nombres formalizados 27-jul):  CLI-001 MesaQuince · CLI-002 Vehemence ·
+//                           CLI-003 LC Travel · CLI-004 DAM Barbers · CLI-005 SIP (sin SGIC) ·
+//                           CLI-007 EJF (sin conector: su SGIC no tiene libro contable).
 //
 // Qué habría pasado: `sembrarConectoresHallados()` habría dejado a **CLI-004 (DAM) apuntando a la DB
 // de MesaQuince** y a **CLI-005 (SIP, que no tiene SGIC) apuntando a la de DAM**. Nacen apagados y
