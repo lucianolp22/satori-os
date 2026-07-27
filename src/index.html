@@ -802,6 +802,23 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .mev .t{font-family:var(--font-mono); color:var(--color-text-subtle); margin-right:4px}
 #centro .mmore{font-size:10px; color:var(--color-text-subtle); margin-top:3px}
 @media (max-width:760px){ #centro .mday{min-height:64px} }
+/* Fix D (27-jul) — calendario FUNCIONAL: alta/edición/cancelación desde el modal mensual.
+   Registro A: tokens existentes del CM, cero animación decorativa, focus ring ≥2px. */
+#centro .mday{cursor:pointer}
+#centro .mday:hover{border-color:var(--color-border-strong)}
+#centro .mday:focus-visible{outline:2px solid var(--color-focus-ring); outline-offset:2px}
+#centro .mev{cursor:pointer}
+#centro .mev:hover{background:rgba(255,255,255,.12)}
+#centro .calform{display:none; border-top:1px solid var(--color-border); padding:var(--space-3) var(--space-5); gap:var(--space-3)}
+#centro .calform.open{display:flex; flex-wrap:wrap; align-items:flex-end}
+#centro .calform label{display:flex; flex-direction:column; gap:4px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-subtle)}
+#centro .calform input,#centro .calform select{background:rgba(255,255,255,.06); border:1px solid var(--color-border-strong); border-radius:var(--radius-md); padding:7px 10px; color:var(--color-text); font:inherit; font-size:var(--text-sm); outline:none; color-scheme:dark}
+#centro .calform input:focus-visible,#centro .calform select:focus-visible{border-color:var(--color-primary); outline:2px solid var(--color-focus-ring); outline-offset:1px}
+#centro .calform .cf-tit{flex:1 1 200px; min-width:180px}
+#centro .calform .cf-tit input{width:100%}
+#centro .calform .cf-acts{display:flex; gap:var(--space-2); margin-left:auto; align-items:center}
+#centro .calform .cf-danger{color:var(--color-danger); border-color:var(--color-danger)}
+#centro .calform .cf-danger:hover{background:var(--color-danger-weak)}
 /* chat */
 #centro .chat{position:absolute; left:50%; bottom:var(--space-3); transform:translateX(-50%) translateY(20px); width:min(440px,94%); z-index:5; opacity:0; pointer-events:none; transition:opacity var(--dur-state) var(--ease-out), transform var(--dur-state) var(--ease-out-expo)}#centro .chat.show{opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0)}
 #centro .chatbox{background:var(--glass-strong); border:1px solid var(--glass-border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); backdrop-filter:blur(20px) saturate(1.3); -webkit-backdrop-filter:blur(20px) saturate(1.3); padding:var(--space-4)}
@@ -1069,12 +1086,26 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div class="kboard calboard" id="calboard" role="dialog" aria-modal="true" aria-label="Calendario mensual">
     <div class="khead"><h3 id="calTitulo">Calendario</h3>
       <span class="mnav">
+        <button class="btn btn-ghost btn-sm" id="calNuevo">＋ Evento</button>
         <button class="icon-btn" id="calPrev" aria-label="Mes anterior"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
         <button class="btn btn-ghost btn-sm" id="calHoy">Hoy</button>
         <button class="icon-btn" id="calNext" aria-label="Mes siguiente"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
         <button class="icon-btn" id="calClose" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </span>
     </div>
+    <!-- Fix D (27-jul): alta/edición de eventos. Cablea agendarEvento / actualizarEvento / cancelarEvento (gated). -->
+    <form class="calform" id="calForm" autocomplete="off">
+      <label>Fecha<input type="date" id="cfFecha" required></label>
+      <label>Hora<input type="time" id="cfHora"></label>
+      <label class="cf-tit">Título<input type="text" id="cfTitulo" maxlength="200" placeholder="Reunión con…" required></label>
+      <label>Cliente<select id="cfCliente"><option value="">— sin cliente —</option></select></label>
+      <label class="cf-tit">Notas<input type="text" id="cfNotas" maxlength="500" placeholder="opcional"></label>
+      <span class="cf-acts">
+        <button type="button" class="btn btn-ghost btn-sm cf-danger" id="cfBorrar" hidden>Cancelar evento</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="cfCerrar">Cerrar</button>
+        <button type="submit" class="btn btn-sm" id="cfGuardar">Guardar evento</button>
+      </span>
+    </form>
     <div class="mwrap">
       <div class="mhdr"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
       <div class="mgrid" id="mgrid"></div>
@@ -2891,6 +2922,7 @@ function akModal_(on,puerta){
 }
 function calAbrir(d,puerta){
   var base=d||new Date(); CAL.y=base.getFullYear(); CAL.m=base.getMonth(); CAL.cache={};
+  try{ calFormCerrar(); }catch(_e){}   /* purga 27-jul: no arrastrar un form abierto de una apertura previa */
   akModal_(true, puerta||'calendario:otra');
   var ks=document.getElementById('calscrim'), kb=document.getElementById('calboard');
   if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open');
@@ -2919,12 +2951,85 @@ function calMes(){
       evd.slice(0,3).forEach(function(e){
         var ev=el('div','mev'); ev.style.setProperty('--evc',calColor(e.id_cliente));
         ev.appendChild(el('span','t',e.hora||'')); ev.appendChild(document.createTextNode(e.titulo)); md.appendChild(ev);
+        /* Fix D: click en un evento → editarlo (stopPropagation: el mday abre alta en esa fecha) */
+        ev.addEventListener('click',function(c){ c.stopPropagation(); calFormAbrir(iso,e); });
       });
       if(evd.length>3) md.appendChild(el('div','mmore','+'+(evd.length-3)+' más'));
+      /* Fix D: click en el día → alta rápida con la fecha precargada */
+      (function(isoD){ md.addEventListener('click',function(){ calFormAbrir(isoD,null); }); })(iso);
       g.appendChild(md);
     }
   });
 }
+/* ── Fix D (27-jul): alta / edición / cancelación de eventos — cablea agendarEvento /
+   actualizarEvento / cancelarEvento (los 3 gated con _soloOwner_ y en ENDPOINTS_UI).
+   Sin confirm() nativo (bloquea el runtime): la cancelación pide un 2º click armado. ── */
+CAL.edit=null; CAL.clientesOK=false;
+function calClientes_(){
+  if(CAL.clientesOK||!EN_GAS)return;
+  google.script.run.withSuccessHandler(function(cs){
+    var sel=document.getElementById('cfCliente'); if(!sel)return;
+    (cs||[]).forEach(function(c){ var o=document.createElement('option'); o.value=c.id_cliente; o.textContent=c.id_cliente+' · '+c.nombre; sel.appendChild(o); });
+    CAL.clientesOK=true;
+  }).withFailureHandler(function(){}).listaClientes();
+}
+function calFormAbrir(iso,ev){
+  var f=document.getElementById('calForm'); if(!f)return;
+  calClientes_();
+  CAL.edit=ev?String(ev.id):null;
+  document.getElementById('cfFecha').value=(ev&&ev.fecha)||iso||calISO(new Date());
+  document.getElementById('cfHora').value=(ev&&ev.hora)||'';
+  document.getElementById('cfTitulo').value=(ev&&ev.titulo)||'';
+  document.getElementById('cfCliente').value=(ev&&ev.id_cliente)||'';
+  document.getElementById('cfNotas').value=(ev&&ev.notas)||'';
+  var b=document.getElementById('cfBorrar');
+  if(b){ b.hidden=!CAL.edit; b.textContent='Cancelar evento'; b._armado=false; }
+  document.getElementById('cfGuardar').textContent=CAL.edit?'Guardar cambios':'Guardar evento';
+  f.classList.add('open');
+  try{ document.getElementById('cfTitulo').focus(); }catch(_e){}
+}
+function calFormCerrar(){
+  var f=document.getElementById('calForm'); if(f)f.classList.remove('open');
+  CAL.edit=null;
+}
+function calRefrescar_(){ CAL.cache={}; calMes(); try{ ccCalSemana(); }catch(_e){} }
+function calGuardar(evt){
+  if(evt&&evt.preventDefault)evt.preventDefault();
+  var fe=document.getElementById('cfFecha').value, ho=document.getElementById('cfHora').value,
+      ti=(document.getElementById('cfTitulo').value||'').trim(),
+      cl=document.getElementById('cfCliente').value, no=document.getElementById('cfNotas').value;
+  if(!fe||!ti){ try{cmToast('Falta la fecha o el título');}catch(_e){} return; }
+  if(!EN_GAS){ try{cmToast('El alta funciona solo dentro del CM (GAS)');}catch(_e){} return; }
+  var g=document.getElementById('cfGuardar'); g.disabled=true; var lbl=g.textContent; g.textContent='Guardando…';
+  function fin(msg){ g.disabled=false; g.textContent=lbl; if(msg){try{cmToast(msg);}catch(_e){}} }
+  if(CAL.edit){
+    google.script.run
+      .withSuccessHandler(function(){ fin('Evento actualizado'); calFormCerrar(); calRefrescar_(); })
+      .withFailureHandler(function(e){ fin('No se pudo actualizar: '+((e&&e.message)||'error')); })
+      .actualizarEvento(CAL.edit,{fecha:fe,hora:ho,titulo:ti,id_cliente:cl,notas:no});
+  }else{
+    google.script.run
+      .withSuccessHandler(function(){ fin('Evento agendado'); calFormCerrar(); calRefrescar_(); })
+      .withFailureHandler(function(e){ fin('No se pudo agendar: '+((e&&e.message)||'error')); })
+      .agendarEvento(fe,ho,ti,cl,no);
+  }
+}
+function calBorrar(){
+  var b=document.getElementById('cfBorrar'); if(!b||!CAL.edit)return;
+  if(!b._armado){ b._armado=true; b.textContent='¿Seguro? Confirmar'; return; }   /* 2º click confirma */
+  if(!EN_GAS){ try{cmToast('Solo dentro del CM (GAS)');}catch(_e){} return; }
+  b.disabled=true;
+  google.script.run
+    .withSuccessHandler(function(){ b.disabled=false; try{cmToast('Evento cancelado');}catch(_e){} calFormCerrar(); calRefrescar_(); })
+    .withFailureHandler(function(e){ b.disabled=false; b._armado=false; b.textContent='Cancelar evento'; try{cmToast('No se pudo cancelar: '+((e&&e.message)||'error'));}catch(_e){} })
+    .cancelarEvento(CAL.edit);
+}
+(function(){
+  var f=document.getElementById('calForm'); if(f)f.addEventListener('submit',calGuardar);
+  var n=document.getElementById('calNuevo'); if(n)n.addEventListener('click',function(){ calFormAbrir(calISO(new Date()),null); });
+  var x=document.getElementById('cfCerrar'); if(x)x.addEventListener('click',calFormCerrar);
+  var b=document.getElementById('cfBorrar'); if(b)b.addEventListener('click',calBorrar);
+})();
 (function(){
   var b=document.getElementById('ccCalMes'); if(b)b.addEventListener('click',function(){calAbrir(new Date());});
   var p=document.getElementById('calPrev'); if(p)p.addEventListener('click',function(){CAL.m--;if(CAL.m<0){CAL.m=11;CAL.y--;}calMes();});

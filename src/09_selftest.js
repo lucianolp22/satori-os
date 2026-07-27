@@ -563,7 +563,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_ },
    { n: 'D25 conectores generalizados (TC-W3)', f: _asertsD25_ },
    { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ },
-   { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ }].forEach(function (t) {
+   { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ },
+   { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1763,6 +1764,90 @@ function _asertsD27_(chk, log, opts) {
   // ── X3 #11 — la salud recuperada se resuelve (si no, el aviso queda rojo para siempre).
   chk(String(correrSalud).indexOf('resolverAvisosDonde_') >= 0,
       'D27e correrSalud resuelve los avisos salud_* que dejaron de estar críticos');
+}
+
+/**
+ * D28 — CIERRE 27-jul: P0 full-refresh de conectores · error de sync visible · Fix A estado
+ * cacheado (voz ~14s→hit) · Fix C preparar_reunion · Fix D agenda gateada y editable.
+ */
+function _asertsD28_(chk, log, opts) {
+  // ── P0 — borrarFilasBatch_ con el 100% de las filas de datos (el caso que mató el refresh
+  // de Vehemence: Sheets rechaza vaciar todas las no-inmovilizadas). Hoja temporal REAL con el
+  // grid EXACTO del incidente (maxRows == lastRow, header congelado).
+  var ss = getMaestro();
+  var NOMBRE_BFB = '__TEST_BFB__';
+  var viejoBFB = ss.getSheetByName(NOMBRE_BFB); if (viejoBFB) ss.deleteSheet(viejoBFB);
+  var shB = ss.insertSheet(NOMBRE_BFB);
+  try {
+    shB.getRange(1, 1, 1, 3).setValues([['fecha', 'concepto', 'valor']]);
+    shB.setFrozenRows(1);
+    shB.getRange(2, 1, 3, 3).setValues([['2026-07-01', 'a', 1], ['2026-07-02', 'b', 2], ['2026-07-03', 'c', 3]]);
+    if (shB.getMaxRows() > 4) shB.deleteRows(5, shB.getMaxRows() - 4);   // sin colchón de filas vacías
+    var tiroBFB = false, msgBFB = '';
+    try { borrarFilasBatch_(shB, [2, 3, 4]); } catch (eB) { tiroBFB = true; msgBFB = String((eB && eB.message) || eB); }
+    chk(!tiroBFB, 'D28a borrar TODAS las filas de datos (header inmovilizado, sin colchón) NO tira' + (msgBFB ? ' — tiró: ' + msgBFB : ''));
+    chk(leerTabla(shB).length === 0, 'D28a2 la hoja queda sin datos (la fila preservada quedó vacía y leerTabla no la ve)');
+    appendFila(shB, { fecha: '2026-07-04', concepto: 'd', valor: 4 });
+    var postB = leerTabla(shB);
+    chk(postB.length === 1 && String(postB[0].concepto) === 'd', 'D28a3 appendFila tras el refresh-total escribe limpio (1 fila, sin huecos)');
+    shB.appendRow(['2026-07-05', 'e', 5]);
+    borrarFilasBatch_(shB, [2]);
+    var post2B = leerTabla(shB);
+    chk(post2B.length === 1 && String(post2B[0].concepto) === 'e', 'D28a4 el borrado PARCIAL sigue borrando solo lo pedido');
+  } finally {
+    try { ss.deleteSheet(shB); } catch (_eD) {}
+  }
+
+  // ── P0-bis — el error del sync ya no se traga: aviso + recuperación por baseline.
+  chk(String(sincronizarConectores).indexOf("'conector_error'") >= 0,
+      'D28b sincronizarConectores levanta aviso conector_error cuando out.errores trae algo');
+  chk(String(sincronizarConectores).indexOf('resolverAvisosDonde_') >= 0,
+      'D28b2 la recuperación (0 errores) resuelve los conector_error activos por baseline');
+
+  // ── Fix A — estado cacheado para la voz (espejo del patrón brief).
+  chk(_ESTADO_CACHE_TTL === 600 && _ESTADO_CACHE_TTL_WARM === 21600,
+      'D28c TTLs del estado espejan el patrón del brief (600s voz / 6h warm)');
+  chk(String(corridaDiaria).indexOf('calentarEstadoCacheSistema_') >= 0,
+      'D28c2 corridaDiaria calienta el cache del estado junto al del brief');
+  chk(String(doPost).indexOf('estadoCacheado_') >= 0,
+      'D28c3 el doPost de voz lee `estado` (y `vehemence`) por el cache, no el render en vivo');
+  if (opts && opts.completo) {
+    try { CacheService.getScriptCache().remove('estado_v1_SISTEMA'); } catch (_c1) {}
+    var e1 = estadoCacheado_();
+    chk(typeof e1 === 'string' && e1.indexOf('# Estado vigente') === 0,
+        'D28c4 estadoCacheado_ devuelve el MISMO snapshot markdown que estadoVigente');
+    var e2 = estadoCacheado_();
+    chk(e2 === e1, 'D28c5 la 2ª llamada es HIT (byte a byte el render cacheado — timestamp incluido)');
+  } else {
+    log.push('   ↳ D28c4/c5 (render real del estado) solo corren en selfTest() completo');
+  }
+
+  // ── Fix C — preparar_reunion: prefijo determinista + tenant fail-closed.
+  chk(BANDEJA_BINS.indexOf('preparar_reunion') >= 0, 'D28d preparar_reunion es un bin válido de la Bandeja');
+  chk(esPreparaReunion_('[PREPARAR_REUNION] CLI-003') === true, 'D28d2 el prefijo literal se reconoce');
+  chk(esPreparaReunion_('preparar la reunion de CLI-003') === false, 'D28d3 sin prefijo NO entra por la vía determinista');
+  chk(String(clasificarBandeja).indexOf('clienteExiste_') >= 0,
+      'D28d4 el ruteo re-valida el tenant contra el roster (id desconocido escala, no se adivina)');
+
+  // ── Fix D — agenda: gates + registro + alta/edición/cancelación.
+  ['agendarEvento', 'actualizarEvento', 'cancelarEvento', 'agendaSemana'].forEach(function (fn) {
+    chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D28e ' + fn + ' declarado en ENDPOINTS_UI');
+    chk(_tieneGate_(fn) === 'ok', 'D28e2 ' + fn + ' lleva _soloOwner_ (invariante X2)');
+  });
+  if (opts && opts.completo) {
+    var ageD28 = agendarEvento(hoyISO(), '10:00', '__TEST__ D28 evento', '', 'assert D28');
+    actualizarEvento(ageD28, { titulo: '__TEST__ D28 editado' });
+    var enRango = agendaRango(hoyISO(), hoyISO()).filter(function (ev) { return String(ev.id) === ageD28; })[0];
+    chk(!!enRango && enRango.titulo === '__TEST__ D28 editado', 'D28e3 alta + edición visibles en agendaRango');
+    var rechazo28 = false;
+    try { actualizarEvento(ageD28, { fecha: 'no-es-fecha' }); } catch (_eF) { rechazo28 = true; }
+    chk(rechazo28, 'D28e4 actualizarEvento rechaza una fecha inválida (fail-closed)');
+    cancelarEvento(ageD28);
+    chk(!agendaRango(hoyISO(), hoyISO()).some(function (ev) { return String(ev.id) === ageD28; }),
+        'D28e5 el evento cancelado desaparece de las vistas (borrado lógico)');
+  } else {
+    log.push('   ↳ D28e3-e5 (alta/edición/cancelación reales) solo corren en selfTest() completo');
+  }
 }
 
 function selfTestF2_() {

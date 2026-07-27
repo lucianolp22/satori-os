@@ -15,11 +15,19 @@
 
 // 'research' (16-jul, voz-acciones P4): encargo de investigación dictado por voz. NO lo decide el
 // clasificador Haiku: entra por el prefijo literal [RESEARCH] que escribe el agente (ver esResearch_).
-var BANDEJA_BINS = ['proyecto', 'tarea', 'idea', 'referencia', 'cliente', 'lead', 'research', 'escalate'];
+// 'preparar_reunion' (Fix C, 27-jul): Sato CAPTURA la intención "armá la reunión de X" — el doc lo
+// genera Cowork (trabajo generativo, no del backend liviano). Mismo patrón: prefijo literal, 0 Haiku.
+// Aditivo verificado (regla LISTA-CONTRATO): parseClasificacion_ y evals validan por indexOf; el
+// prompt del Haiku hardcodea SU vocabulario (sin research ni preparar_reunion) → no puede emitirlos.
+var BANDEJA_BINS = ['proyecto', 'tarea', 'idea', 'referencia', 'cliente', 'lead', 'research', 'preparar_reunion', 'escalate'];
 
 /** Prefijo estructurado que pone el agente de voz cuando Luciano pide investigar algo. */
 var RESEARCH_PREFIJO = '[RESEARCH]';
 function esResearch_(texto) { return String(texto || '').trim().indexOf(RESEARCH_PREFIJO) === 0; }
+
+/** Fix C: prefijo estructurado del pedido "prepará la reunión de <CLI-00X>" dictado a Sato. */
+var PREP_REUNION_PREFIJO = '[PREPARAR_REUNION]';
+function esPreparaReunion_(texto) { return String(texto || '').trim().indexOf(PREP_REUNION_PREFIJO) === 0; }
 var BANDEJA_MAX_POR_CORRIDA = 25; // Purga F3: tope de items clasificados por corrida (anti-timeout 6min / quota UrlFetch)
 
 /** Captura un input crudo en la Bandeja (estado 'pendiente'). Lo dispara la UI o vos. @return {{id}} */
@@ -80,6 +88,26 @@ function clasificarBandeja() {
       setCol(f._fila, 'tags', 'research'); setCol(f._fila, 'resumen', enc); setCol(f._fila, 'id_cliente', '');
       setCol(f._fila, 'procesado_en', ahoraISO()); setCol(f._fila, 'estado', 'clasificado');
       feed_('Clasificador', 'exito', '', 'Bandeja [' + f.id + '] → research: ' + enc, '', '');
+      procesados++; return;
+    }
+    // Fix C (27-jul): pedido de reunión dictado a Sato — determinista, 0 Haiku. FAIL-CLOSED en el
+    // tenant: el id viaja DENTRO del texto, así que se re-valida contra el roster acá (defensa en
+    // profundidad: el doPost ya validó args.idCliente, pero este texto pudo entrar por otra vía).
+    // Un id que no existe NO se adivina: escala con aviso.
+    if (esPreparaReunion_(f.texto)) {
+      var idPrep = limpiarHostilTexto_(String(f.texto).trim().slice(PREP_REUNION_PREFIJO.length), 24).trim();
+      if (!idPrep || !clienteExiste_(idPrep)) {
+        setCol(f._fila, 'estado', 'escalado'); setCol(f._fila, 'procesado_en', ahoraISO());
+        setCol(f._fila, 'resumen', 'preparar_reunion con cliente desconocido: "' + idPrep + '"');
+        crearAviso({ origen: 'bandeja', tipo: 'bandeja_escalada',
+          mensaje: 'Bandeja [' + f.id + ']: pedido de reunión con cliente desconocido ("' + idPrep + '"). Revisá.' });
+        escalados++; procesados++; return;
+      }
+      setCol(f._fila, 'bin', 'preparar_reunion'); setCol(f._fila, 'confianza', 10); setCol(f._fila, 'slug', 'preparar-reunion');
+      setCol(f._fila, 'tags', 'reunion'); setCol(f._fila, 'resumen', 'Preparar la reunión de ' + idPrep);
+      setCol(f._fila, 'id_cliente', idPrep);
+      setCol(f._fila, 'procesado_en', ahoraISO()); setCol(f._fila, 'estado', 'clasificado');
+      feed_('Clasificador', 'exito', idPrep, 'Bandeja [' + f.id + '] → preparar_reunion: ' + idPrep, '', '');
       procesados++; return;
     }
     // B8 #6: la anonimización va acá, sobre el TEXTO DEL ITEM, antes de que entre al prompt.

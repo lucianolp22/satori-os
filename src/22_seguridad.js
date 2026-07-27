@@ -135,6 +135,9 @@ var ENDPOINTS_UI = [
   // 18_direccion.js
   'agendaRango', 'recomendacionesAbiertas', 'marcarRecomendacion', 'registrarFeedback',
   'aprobacionDesdeRecomendacion',
+  // 18_direccion.js — Fix D 27-jul (calendario funcional): alta/edición/cancelación + la vista
+  // semanal que ya era top-level (invariante X2: top-level ⇒ RPC-invocable ⇒ gateada).
+  'agendarEvento', 'actualizarEvento', 'cancelarEvento', 'agendaSemana',
   // 25_hilo.js (TC-W1)
   'hiloCliente',
   // 17_bandeja.js

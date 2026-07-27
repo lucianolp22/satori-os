@@ -434,6 +434,34 @@ class SatoriVoz(Agent):
         return f"Anotado: {texto}"
 
     @function_tool()
+    async def preparar_reunion(self, context: RunContext, id_cliente: str) -> str:
+        """Encarga la preparación del documento de la PRÓXIMA REUNIÓN de un cliente.
+
+        Usala cuando Luciano diga "armá/prepará la reunión de <cliente>". Esta tool SOLO deja el
+        pedido registrado (captura la intención): el documento lo arma Cowork leyendo el Hilo del
+        cliente y queda en el Centro de Mando — NO se genera en este momento, y no hay que
+        prometer que sí. El id_cliente tiene que ser un id REAL del roster (CLI-00X); si Luciano
+        nombra al cliente, resolvé el id con la lista de clientes que ya conocés, y si no estás
+        seguro repreguntá — jamás inventes un id.
+
+        Args:
+            id_cliente: id del cliente en el roster, formato CLI-00X (ej. 'CLI-003').
+        """
+        context.disallow_interruptions()  # escritura: no dejarla a medias por una interrupción
+        idc = (id_cliente or "").strip().upper()
+        res = await _llamar_backend(
+            "capturar",
+            {"idCliente": idc, "texto": f"[PREPARAR_REUNION] {idc}"},
+        )
+        # Timeout en ESCRITURA: no afirmar que quedó encargado (N5, no inventar acción).
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardó demasiado y no puedo confirmar si el pedido quedó registrado. "
+                    "Volvé a pedírmelo en un rato y lo verifico.")
+        # Honesto: encargado ≠ generado. El doc lo prepara Cowork y aparece en el Centro de Mando.
+        return (f"Anotado: te preparo la reunión de {idc}. El documento se arma con el Hilo del "
+                "cliente y te queda en el Centro de Mando — no lo tengo ahora mismo.")
+
+    @function_tool()
     async def oficina_estado(self, context: RunContext) -> str:
         """Estado de la Oficina Virtual, el negocio paralelo de Luciano de productos digitales y
         dropshipping físico. Trae: agentes y su actividad de hoy, aprobaciones pendientes del gate,

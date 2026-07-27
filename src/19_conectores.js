@@ -470,6 +470,25 @@ function sincronizarConectores() {
   Logger.log('sincronizarConectores: ' + out.corridos + ' corrido(s) · ' + out.omitidos.length +
              ' omitido(s) · ' + out.errores.length + ' error(es)' +
              (out.omitidos.length ? '\n  omitidos: ' + out.omitidos.join(' | ') : ''));
+
+  // P0-bis (27-jul): UN ERROR TRAGADO ES PEOR QUE UN ERROR RUIDOSO. `out.errores` acumulaba en
+  // silencio: Vehemence llevaba días sin refrescar y nadie lo vio. Ahora el fallo levanta aviso
+  // (lo muestran el CM y el brief) y la recuperación lo resuelve por baseline — mismo patrón que
+  // los `salud_*` (purga X3 #11) y el resumen de estancadas (16-jul: el mensaje muta con el
+  // detalle, así que se resuelve todo `conector_error` activo distinto ANTES de crear; si el
+  // mensaje no cambió, `crearAviso` dedupea y reusa). Fail-safe: avisar jamás rompe el sync.
+  try {
+    if (out.errores.length) {
+      var msgErr = 'Conector(es) con error en el último sync: ' +
+                   out.errores.map(function (e) { return String(e).slice(0, 140); }).join(' || ').slice(0, 400);
+      resolverAvisosDonde_(function (f) {
+        return String(f.tipo) === 'conector_error' && String(f.mensaje) !== msgErr;
+      });
+      crearAviso({ origen: 'conectores', tipo: 'conector_error', mensaje: msgErr });
+    } else {
+      resolverAvisosDonde_(function (f) { return String(f.tipo) === 'conector_error'; });
+    }
+  } catch (eAvi) { try { Logger.log('sincronizarConectores: no pude avisar/resolver: ' + eAvi.message); } catch (_e) {} }
   return out;
 }
 
@@ -614,10 +633,27 @@ function sincronizarConectorVentas_(idCliente, srcId, sheetName, fuente, ad, cfg
 /**
  * Borra filas por número de fila absoluto, agrupando rangos contiguos para minimizar llamadas
  * a la API (Purga #6). Procesa de mayor a menor → borrar un rango no desplaza los menores.
+ *
+ * P0 (27-jul): Sheets RECHAZA atómicamente borrar TODAS las filas no-inmovilizadas del grid
+ * ("No se pueden eliminar todas las filas que no estén inmovilizadas"). Es exactamente el caso
+ * del full-refresh cuando el conector es dueño del 100% de `Datos_operativos` (Vehemence hoy):
+ * el refresh moría y el error se tragaba en `out.errores`. Manejo: si el lote cubre todo el
+ * grid deletable, se PRESERVA una fila (la menor del lote) — se borra el resto por batch y a la
+ * preservada se le limpia el contenido. Queda una fila vacía que `leerTabla` ignora (sin datos)
+ * y que el próximo `appendFila` pisa (getLastRow vuelve al header). Semántica idéntica para
+ * TODOS los callers (conectores, cola, cerebro): "estas filas ya no existen como datos".
  */
 function borrarFilasBatch_(sh, filasAbs) {
   if (!filasAbs || !filasAbs.length) return;
   var rows = filasAbs.slice().sort(function (a, b) { return b - a; }); // desc
+  var preservar = 0;
+  // maxRows (grid) y no lastRow (datos): el rechazo de Sheets es sobre el GRID. Si hay filas
+  // vacías de grid debajo de los datos, borrar todas las filas de datos NO viola la regla.
+  var deletables = sh.getMaxRows() - sh.getFrozenRows();
+  if (rows.length >= deletables) {
+    preservar = rows[rows.length - 1];               // la menor: no se desplaza al borrar mayores
+    rows = rows.slice(0, rows.length - 1);           // sale del lote de deleteRows
+  }
   var i = 0;
   while (i < rows.length) {
     var fin = rows[i], j = i;
@@ -625,6 +661,9 @@ function borrarFilasBatch_(sh, filasAbs) {
     var inicio = rows[j];
     sh.deleteRows(inicio, fin - inicio + 1);
     i = j + 1;
+  }
+  if (preservar) {
+    sh.getRange(preservar, 1, 1, Math.max(1, sh.getLastColumn())).clearContent();
   }
 }
 

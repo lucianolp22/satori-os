@@ -196,7 +196,13 @@ function correrSalud(opts) {
         var t = String(f.tipo || '');
         return t.indexOf('salud_') === 0 && !critAhora[t];   // el único emisor de `salud_*` es el forEach de abajo
       });
-    } catch (e) { try { Logger.log('salud: no pude resolver avisos recuperados: ' + e.message); } catch (_l) {} }
+    } catch (e) {
+      // 27-jul (caso AVI-0031): este catch era SOLO Logger.log y nadie lee el log de un trigger —
+      // el aviso `salud_schema` recuperado quedó "fantasma" 5 días. El fallo ahora se surfacea en
+      // Actividad (visible en el CM). Fail-safe: el feed jamás rompe la corrida.
+      try { Logger.log('salud: no pude resolver avisos recuperados: ' + e.message); } catch (_l) {}
+      try { feed_('Salud', 'info', '', 'Aviso: no pude resolver los salud_* recuperados (' + String(e.message).slice(0, 120) + ') — reintento en la próxima corrida.', '', ''); } catch (_f) {}
+    }
 
     crit.forEach(function (h) {
       crearAviso({ origen: 'salud', tipo: 'salud_' + h.nombre, mensaje: 'Salud CRÍTICO — ' + h.nombre + ': ' + h.detalle });

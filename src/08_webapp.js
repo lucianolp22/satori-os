@@ -118,9 +118,9 @@ function doPost(e) {
     var data;
     var _t0 = Date.now();  // SPEC-GAS 14-jul: medir el tiempo server REAL por tool (separa doPost de render)
     switch (tool) {
-      case 'estado':    data = estadoVigente(id || undefined); break;
+      case 'estado':    data = estadoCacheado_(id || undefined); break;  // Fix A 27-jul: cache corto (medido ~14s en vivo → <2s con hit); mismo patrón que brief
       case 'brief':     data = briefCacheado_(id || undefined); break;   // SPEC-GAS: cache corto (voz) — evita el render pesado (salud+tareas) en cada consulta
-      case 'vehemence': data = estadoVigente('CLI-002'); break;   // verVehemence() solo loguea → acá devolvemos el dato
+      case 'vehemence': data = estadoCacheado_('CLI-002'); break;   // verVehemence() solo loguea → acá devolvemos el dato (Fix A: también cacheado)
       case 'cliente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = datosCliente(id); break;
       case 'cerebro':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = leerEstado(id); break;
       case 'capturar':  data = capturar(vozStr_(args.texto, 4000), 'voz'); break;

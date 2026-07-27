@@ -155,6 +155,10 @@ function corridaDiaria() {
   try { calentarBriefCacheSistema_(); }
   catch (e) { try { Logger.log('calentarBriefCache fallo: ' + e.message); } catch (_e) {} }
 
+  // Fix A 27-jul: ídem para el ESTADO (tool `estado` de la voz, medido ~14s en frío).
+  try { calentarEstadoCacheSistema_(); }
+  catch (e) { try { Logger.log('calentarEstadoCache fallo: ' + e.message); } catch (_e) {} }
+
   // 16-jul: dieta de Cola_tareas al FINAL de la corrida (después del warm del brief) — mueve las
   // filas terminales viejas a Cola_archivo para que el poll del CM (15s) y el doPost de voz sigan
   // leyendo una hoja chica. Falla-silenciosa: archivar es higiene, jamás rompe la corrida diaria.

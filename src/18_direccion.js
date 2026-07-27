@@ -213,6 +213,56 @@ function calentarBriefCache() { return calentarBriefCacheSistema_(); }
 /** Mide render(miss) vs cache(hit) del brief. */
 function verifBriefCache() { return verifBriefCache_(); }
 
+// ── Fix A (27-jul) — cache del ESTADO para la voz ────────────────────────────
+// Medido: `voz-timing tool=estado ms=14108`. El tool `estado` llamaba `estadoVigente(id)` en vivo
+// y el render de SISTEMA es CARO (estadoSalud 6-7 chequeos + Tareas + telemetría) → el audio de
+// Sato se trababa ~14 s. MISMO patrón que el brief (SPEC-GAS 14-jul): cache corto para la ruta de
+// voz, warm en corridaDiaria, la UI puede seguir en vivo. Read-only ⇒ solo TTL, sin invalidación.
+var _ESTADO_CACHE_TTL = 600;         // voz: 10 min
+var _ESTADO_CACHE_TTL_WARM = 21600;  // corridaDiaria calienta 6h → la consulta de la mañana es HIT
+
+/**
+ * Cache corto del estado para la VOZ. Espejo exacto de `briefCacheado_`: get endurecido (si el
+ * cache tira, se cae al render), put fail-safe (>100KB u otro error → sin cache, nunca rompe).
+ * Clave por idCliente ('SISTEMA' sin id). Devuelve el MISMO markdown que estadoVigente.
+ */
+function estadoCacheado_(idCliente) {
+  var cache = CacheService.getScriptCache();
+  var key = 'estado_v1_' + (idCliente ? String(idCliente) : 'SISTEMA');
+  var hit = null;
+  try { hit = cache.get(key); } catch (e) { /* get puede tirar por cuota → render */ }
+  if (hit) return hit;
+  var md = estadoVigente(idCliente || undefined);
+  try { cache.put(key, md, _ESTADO_CACHE_TTL); } catch (e) { /* fail-safe: sin cache, nunca rompe */ }
+  return md;
+}
+
+/**
+ * Calienta el cache del estado de SISTEMA al cierre de corridaDiaria (TTL 6h), junto al warm del
+ * brief. Falla-silenciosa: nunca rompe la corrida. (Solo SISTEMA — espejo del criterio del brief:
+ * el render de cliente es más liviano y su miss ocasional es tolerable.)
+ */
+function calentarEstadoCacheSistema_() {
+  try {
+    var md = estadoVigenteSistema_();
+    CacheService.getScriptCache().put('estado_v1_SISTEMA', md, _ESTADO_CACHE_TTL_WARM);
+    Logger.log('estado-cache SISTEMA calentado (TTL ' + _ESTADO_CACHE_TTL_WARM + 's)');
+  } catch (e) { try { Logger.log('calentarEstadoCache falló: ' + e); } catch (_e) {} }
+}
+
+/** Wrapper público (regla dura 16-jul: el desplegable del editor oculta los `_` finales). */
+function calentarEstadoCache() { return calentarEstadoCacheSistema_(); }
+
+/** Mide render(miss) vs cache(hit) del estado — correr en el editor. Esperado: hit <1s. */
+function verifEstadoCache() {
+  try { CacheService.getScriptCache().remove('estado_v1_SISTEMA'); } catch (e) {}
+  var t1 = Date.now(); estadoCacheado_(); var ms1 = Date.now() - t1;
+  var t2 = Date.now(); estadoCacheado_(); var ms2 = Date.now() - t2;
+  var msg = 'voz-timing estado render(miss)=' + ms1 + 'ms  cache(hit)=' + ms2 + 'ms  hit_rapido=' + (ms2 < 1000);
+  Logger.log(msg); try { console.log(msg); } catch (e) {}
+  return { render_ms: ms1, cache_ms: ms2, hit_rapido: ms2 < 1000 };
+}
+
 // ── F2 (16-jul) — CONTRATO DE STATUS REPORT v1 ───────────────────────────────
 //
 // Formato único y FIJO (10 secciones, orden inmutable) para todo reporte de estado.
@@ -1564,6 +1614,7 @@ function recomendacionesAbiertas() {
 
 /** CM: eventos de HOY a +7 días desde la pestaña Agenda, ordenados. Estado != cancelado. */
 function agendaSemana() {
+  _soloOwner_('agendaSemana');   // Fix D 27-jul: top-level ⇒ RPC-invocable (invariante X2); los callers de sistema pasan por _ctxSistema_
   var sh = getMaestro().getSheetByName('Agenda');
   if (!sh) return [];
   var hoy = hoyISO();
@@ -1577,13 +1628,64 @@ function agendaSemana() {
 
 /** Alta rápida de evento (CM o editor). fecha YYYY-MM-DD, hora HH:mm opcional. */
 function agendarEvento(fecha, hora, titulo, idCliente, notas) {
+  _soloOwner_('agendarEvento');   // Fix D 27-jul: ahora lo llama el front (calendario) — gate + alta en ENDPOINTS_UI
   if (!fecha || !titulo) throw new Error('agendarEvento: falta fecha o titulo.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) throw new Error('agendarEvento: fecha inválida (YYYY-MM-DD).');
   var sh = getMaestro().getSheetByName('Agenda');
   if (!sh) throw new Error('Falta la hoja Agenda — correr setup().');
   return conLock(function () {
     var id = nextId(sh, 'id', 'AGE', 4);
-    appendFila(sh, { id: id, fecha: String(fecha), hora: String(hora || ''), titulo: String(titulo), id_cliente: String(idCliente || ''), notas: String(notas || ''), estado: 'activo' });
+    appendFila(sh, { id: id, fecha: String(fecha), hora: String(hora || ''), titulo: String(titulo).slice(0, 200), id_cliente: String(idCliente || ''), notas: String(notas || '').slice(0, 500), estado: 'activo' });
     return id;
+  });
+}
+
+/**
+ * Fix D (27-jul) — edición de un evento. Whitelist DURA de campos editables; `id` y `estado` no
+ * entran (el estado se maneja con cancelarEvento — borrado lógico, append-only friendly).
+ * Fail-closed: id inexistente tira; campo fuera de whitelist se ignora.
+ */
+var AGENDA_CAMPOS_EDITABLES = ['fecha', 'hora', 'titulo', 'id_cliente', 'notas'];
+function actualizarEvento(id, campos) {
+  _soloOwner_('actualizarEvento');   // endpoint client-callable nuevo → gate + ENDPOINTS_UI (regla anti-drift)
+  var sh = getMaestro().getSheetByName('Agenda');
+  if (!sh) throw new Error('Falta la hoja Agenda — correr setup().');
+  if (!campos || typeof campos !== 'object') throw new Error('actualizarEvento: faltan campos.');
+  if (campos.fecha != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(campos.fecha))) throw new Error('actualizarEvento: fecha inválida.');
+  return conLock(function () {
+    var fila = leerTabla(sh).filter(function (f) { return String(f.id) === String(id); })[0];
+    if (!fila) throw new Error('actualizarEvento: no existe el evento ' + id);
+    var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    var tocados = 0;
+    AGENDA_CAMPOS_EDITABLES.forEach(function (c) {
+      if (campos[c] == null) return;
+      var ix = H.indexOf(c);
+      if (ix < 0) return;
+      var v = String(campos[c]);
+      if (c === 'titulo') v = v.slice(0, 200);
+      if (c === 'notas') v = v.slice(0, 500);
+      sh.getRange(fila._fila, ix + 1).setValue(sanitizarCelda(v));
+      tocados++;
+    });
+    return { id: String(id), campos_tocados: tocados };
+  });
+}
+
+/**
+ * Fix D (27-jul) — cancelación (borrado LÓGICO: estado='cancelado'; las vistas ya lo filtran).
+ * No se borra la fila: la Agenda es historial, y un borrado físico perdería trazabilidad.
+ */
+function cancelarEvento(id) {
+  _soloOwner_('cancelarEvento');   // endpoint client-callable nuevo → gate + ENDPOINTS_UI
+  var sh = getMaestro().getSheetByName('Agenda');
+  if (!sh) throw new Error('Falta la hoja Agenda — correr setup().');
+  return conLock(function () {
+    var fila = leerTabla(sh).filter(function (f) { return String(f.id) === String(id); })[0];
+    if (!fila) throw new Error('cancelarEvento: no existe el evento ' + id);
+    var ix = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].indexOf('estado');
+    if (ix < 0) throw new Error('cancelarEvento: la hoja Agenda no tiene columna estado.');
+    sh.getRange(fila._fila, ix + 1).setValue('cancelado');
+    return { id: String(id), estado: 'cancelado' };
   });
 }
 

@@ -1,0 +1,2 @@
+# Excluir del clasp push lo que es Node-only / local (el harness se perdió 2 veces por no estar versionado)
+_harness.js
