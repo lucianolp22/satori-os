@@ -700,3 +700,15 @@ function agregarVentasPorMes_(ventas) {
   return { filas: filas, canales: canales, desconocidos: Object.keys(desconocidosSet).sort(),
            excluidas: excluidas, mezcla_local: !!(crudosLocal['pos'] && crudosLocal['local']) };
 }
+
+/**
+ * Envoltorios sin-argumento para el botón "Ejecutar" del editor (que NO pasa parámetros).
+ * Mismo patrón que sincronizarVehemence(). Delegan en las funciones gated (probar/encender
+ * llevan _soloOwner_ adentro), así que no abren superficie nueva. Editor-only, no son endpoints UI.
+ */
+function probarDAM()   { return probarConector('CLI-004'); }
+function encenderDAM() { return encenderConector('CLI-004'); }
+function probarLC()    { return probarConector('CLI-003'); }
+function encenderLC()  { return encenderConector('CLI-003'); }
+function probarMQ()    { return probarConector('CLI-001'); }
+function encenderMQ()  { return encenderConector('CLI-001'); }
