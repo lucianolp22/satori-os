@@ -764,7 +764,13 @@ function agregarVentasPorMes_(ventas) {
  */
 function probarDAM()   { return probarConector('CLI-004'); }
 function encenderDAM() { return encenderConector('CLI-004'); }
+function apagarDAM()   { return apagarConector('CLI-004'); }
 function probarLC()    { return probarConector('CLI-003'); }
 function encenderLC()  { return encenderConector('CLI-003'); }
+function apagarLC()    { return apagarConector('CLI-003'); }
 function probarMQ()    { return probarConector('CLI-001'); }
 function encenderMQ()  { return encenderConector('CLI-001'); }
+function apagarMQ()    { return apagarConector('CLI-001'); }
+// 27-jul (incidente apagarMQ): le pedí a Luciano correr apagarMQ y NO EXISTÍA — solo estaban
+// probar/encender. REGLA (3ª vez que se paga): toda acción de operador va con su wrapper no-arg
+// COMPLETO (probar + encender + APAGAR) desde el día uno; el desplegable no pasa parámetros.

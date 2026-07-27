@@ -216,6 +216,12 @@ const mqPunto = ctx.mapearMovimientosMesaquince_([
 ]);
 chk(mqPunto.filas.length === 1 && mqPunto.filas[0].valor === -87.61,
     'MQ end-to-end: la fila TGSS real entra como −87,61, no −8.761');
+// Incidente 27-jul: se pidió correr apagarMQ y no existía. El TRÍO completo por cliente es contrato.
+for (const cli of ['DAM', 'LC', 'MQ']) {
+  for (const op of ['probar', 'encender', 'apagar']) {
+    chk(typeof ctx[op + cli] === 'function', 'wrapper de editor ' + op + cli + ' existe (trío completo)');
+  }
+}
 
 // ═══ 7 · Hilo: puras + espejo ════════════════════════════════════════════════
 seccion('Hilo (armado, semáforo, CSV)');
