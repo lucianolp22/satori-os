@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-25 08:42 · commit: d6b8222
+> Generado: 2026-07-27 20:12 · commit: 05dce67
 
 ## Módulos
 
@@ -16,7 +16,7 @@
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 17 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 57 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 26 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 27 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
@@ -24,15 +24,16 @@
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 25 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 3 |
-| `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 8 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 57 |
-| `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 20 |
+| `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 9 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 63 |
+| `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 26 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
 | `22_seguridad.js` | MÓDULO S (T3 · Bastión lidera). Seguridad del motor | 21 |
 | `23_evals.js` | Golden-set + runner de evals (T3 · MÓDULO M · M4, 21-jul-2026) | 6 |
 | `24_soul.js` | SOUL: identidad operativa de Satori OS (T3 · MÓDULO H · H1 · D11, 21-jul-2026) | 2 |
 | `25_hilo.js` | HILO DE TRABAJO por cliente (TC-W1 / W2 / W4 · 21-jul-2026) | 12 |
+| `99_tmp_hilos.js` | TEMPORAL (patrón 99_tmp: borrar tras correr). Cierre 27-jul-2026 | 1 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -130,7 +131,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -146,11 +147,11 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **16_salud.js:** saludTitulo_ saludAccion_ correrSalud 
 
-**17_bandeja.js:** esResearch_ capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
+**17_bandeja.js:** esResearch_ esPreparaReunion_ capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ calentarBriefCache verifBriefCache contratoStatusReport_ _tendencia_ _contrapeso_ _verificacion_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ registrarNorteDelDia_ _puntoSerieAccion_ _serieNorte_ _nsLista_ _nsPivots_ northStarTenant_ _pivotsTenant_ _hzLimpio_ metricasValidas_ sembrarNorthStarSatori_ sembrarNorthStarSatori cargarNorthStarSatori cargarNorthStarVehemence migrarObjetivosNorthStar _respaldarObjetivos_ _verificarRespaldo_ resetObjetivosYNorthStar restaurarObjetivosDesdeBackup limpiarErroresFantasma_ limpiarErroresFantasma verVehemence truncar_ _diasDesde_ recomendacionDelDia_ _pivotMuerto_ _recNorthStar_ _recCandidatas_ clienteKpiEnAlerta_ _valorOperativoDeKpi_ _nsSerieHoy_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento agendaRango registrarFeedback 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ calentarBriefCache verifBriefCache estadoCacheado_ calentarEstadoCacheSistema_ calentarEstadoCache verifEstadoCache contratoStatusReport_ _tendencia_ _contrapeso_ _verificacion_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ briefDiarioCliente_ northStarSatori_ registrarNorteDelDia_ _puntoSerieAccion_ _serieNorte_ _nsLista_ _nsPivots_ northStarTenant_ _pivotsTenant_ _hzLimpio_ metricasValidas_ sembrarNorthStarSatori_ sembrarNorthStarSatori cargarNorthStarSatori cargarNorthStarVehemence migrarObjetivosNorthStar _respaldarObjetivos_ _verificarRespaldo_ resetObjetivosYNorthStar restaurarObjetivosDesdeBackup limpiarErroresFantasma_ limpiarErroresFantasma verVehemence truncar_ _diasDesde_ recomendacionDelDia_ _pivotMuerto_ _recNorthStar_ _recCandidatas_ clienteKpiEnAlerta_ _valorOperativoDeKpi_ _nsSerieHoy_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento actualizarEvento cancelarEvento agendaRango registrarFeedback 
 
-**19_conectores.js:** sincronizarVehemence mapearLibroLcTravel_ mapearMovimientosMesaquince_ mapearFreshaDam_ sembrarConectoresHallados _mapaConectores_ _decidirConector_ mapearOperacionesGenerico_ _monedaConector_ sincronizarCliente_ sincronizarConectorOperaciones_ sincronizarConectores altaConector encenderConector apagarConector probarConector estadoConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ 
+**19_conectores.js:** sincronizarVehemence mapearLibroLcTravel_ mapearMovimientosMesaquince_ mapearFreshaDam_ sembrarConectoresHallados _mapaConectores_ _decidirConector_ mapearOperacionesGenerico_ _monedaConector_ sincronizarCliente_ sincronizarConectorOperaciones_ sincronizarConectores altaConector encenderConector apagarConector probarConector estadoConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ probarDAM encenderDAM probarLC encenderLC probarMQ encenderMQ 
 
 **20_killswitch.js:** _sistemaPausado_ pausarSistema reanudarSistema estadoPausa smokeKill 
 
@@ -163,4 +164,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **24_soul.js:** soulPrompt_ soulReglas_ 
 
 **25_hilo.js:** _armarHilo_ _semaforoHilo_ hiloCliente _numeroConectorCliente_ _ultimoEspejo_ repararHilo espejarHilo espejarHiloCSV _parseCSVLinea_ _seccionHilo_ _recDesdeHilo_ _clienteConHiloCaliente_ 
+
+**99_tmp_hilos.js:** espejarHilosDelDia 
 
