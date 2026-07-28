@@ -49,6 +49,15 @@ PRÓXIMO PASO (orden exacto):
 | Logos clientes | `Avatares Satori/clientes/` (4 ✓ · MesaQuince A CONFIRMAR · SIP falta) |
 | Runbook | `RUNBOOK-recuperacion-total.md` |
 
+
+## SISTEMA DE HILOS SIEMPRE VIVOS (protocolo, 28-jul)
+
+El Hilo de cada cliente tiene UNA fuente de verdad: su `.md` en el Cerebro del Mac; la hoja `hilo` del tenant es espejo (sube `_hilo_sync.sh`). Tres capas lo mantienen vivo:
+
+1. **Hábito de cierre (rige DESDE YA, sin código):** toda sesión de Cowork que trabaje un cliente CIERRA actualizando su `HILO - <Cliente>.md` + corriendo `_hilo_sync.sh`. Los "Copiar resumen" de los tableros de reunión alimentan esto: Luciano los pega en Cowork, Cowork ingesta al SGIC + actualiza el Hilo + sync. Igual con cada encargo procesado de la Bandeja.
+2. **Sato → Hilo (puentes ya construidos):** las charlas quedan en la hoja `charla` (memoria propia de Sato) y los ACUERDOS bajan por 2 vías con 1 acción: checklist de la ficha (ítems concretos) o "✉ Encargar a Cowork" (→ Bandeja con `[ENCARGO-COWORK · CLI-00X]`). Cuando Cowork procesa Bandeja/checklist, esos ítems entran al `.md` del Hilo → sync → la ficha los muestra. La charla en sí NO escribe el Hilo directo (el espejo es read-only por diseño — un chat no muta el plan sin curaduría).
+3. **ENCARGO (canal automático, para Code — spec):** tool nuevo del doPost `exportar_charlas` (secreto propio, whitelist, read-only) que devuelve los turnos nuevos de `charla` de cada tenant desde una marca de agua → script `_charla_pull.sh` en el Mac (curl + jq) los baja a `CHARLA - <Cliente>.md` en el Cerebro → Cowork los tiene LOCALES al actualizar cada Hilo, sin compartir Sheets de clientes. Estimación S-M. Hasta entonces, la capa 1+2 cubre el flujo real.
+
 <!-- HISTÓRICO desde acá ══════════════════════════════════════════════════════ -->
 
 ## HANDOFF (archivado 28-jul mañana) — Satori OS — 2026-07-28 (espejo vivo · SISTEMA EN PRODUCCIÓN REAL)

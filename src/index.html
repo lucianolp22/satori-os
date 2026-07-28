@@ -892,13 +892,18 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-orbe-leg .dlid::before{content:'◆ ';color:#D9B36C}
 .f360-orbe-leg .dale::before{content:'◆ ';color:var(--color-danger)}
 /* ── T1.4: SATO en la ficha — cajón de chat con memoria persistente.
-   v2 (feedback 28-jul): fondo OPACO (la transparencia mezclaba las burbujas con la ficha de
-   atrás — ilegible) y el board le RESERVA el carril: al abrir, el contenido se comprime con
-   .con-sato en vez de quedar tapado. En pantallas angostas el cajón cubre, pero opaco. ── */
-.f360-sato{position:absolute;top:64px;right:0;bottom:0;width:min(390px,92%);z-index:6;display:flex;flex-direction:column;background:rgba(18,14,11,.985);border-left:1px solid var(--color-border);box-shadow:-14px 0 34px -18px rgba(0,0,0,.8);border-radius:0 0 var(--radius-lg) 0;transform:translateX(102%);transition:transform .28s var(--ease-out)}
-.f360-sato.open{transform:none}
-.fichaboard.con-sato .f360-stats,.fichaboard.con-sato .f360-body,.fichaboard.con-sato .f360-foot{margin-right:392px;transition:margin-right .28s var(--ease-out)}
-@media (max-width:1200px){ .fichaboard.con-sato .f360-stats,.fichaboard.con-sato .f360-body,.fichaboard.con-sato .f360-foot{margin-right:0} }
+   v3 (feedback 28-jul): la ficha NO se achica ni se comprime — mantiene su tamaño y
+   disposición. El BLOQUE ENTERO (ficha + chat) convive centrado: la ficha se desplaza a la
+   izquierda media anchura del chat y el cajón vive PEGADO a su derecha (left:100%), del
+   mismo alto. Fondo opaco (legible siempre). En viewports sin lugar físico (<1700px), el
+   cajón cae a overlay opaco por encima — no hay píxeles para los dos enteros. ── */
+.f360-sato{position:absolute;left:100%;top:0;bottom:0;width:390px;z-index:6;display:none;flex-direction:column;background:rgba(18,14,11,.985);border:1px solid var(--color-border);border-left:0;box-shadow:14px 0 34px -18px rgba(0,0,0,.8);border-radius:0 var(--radius-lg) var(--radius-lg) 0}
+.f360-sato.open{display:flex}
+#centro .kboard.fichaboard.open.con-sato{transform:translateX(calc(-50% - 195px))}
+@media (max-width:1700px){
+  #centro .kboard.fichaboard.open.con-sato{transform:translateX(-50%)}
+  .f360-sato{left:auto;right:0;top:64px;width:min(390px,92%);border-left:1px solid var(--color-border);border-radius:0 0 var(--radius-lg) 0}
+}
 .f360-sato-h .vbtn{background:none;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-muted);font-size:12px;padding:3px 9px;cursor:pointer}
 .f360-sato-h .vbtn.on{color:var(--color-primary);border-color:var(--color-primary)}
 .f360-sato-h .vbtn.rec{color:var(--color-danger);border-color:var(--color-danger);animation:f360rec 1.2s ease-in-out infinite}
@@ -3300,8 +3305,14 @@ function fichaCargar_(id){
     .checklistCliente(id);
   // T1.3 · orbe del Cerebro del cliente + popover de encargo · T1.4 Sato
   f360EncargoInit_(); f360SatoInit_();
-  var satoBox=document.getElementById('f360Sato');
-  if(satoBox&&satoBox.classList.contains('open'))f360SatoCargar_();   // cambió el cliente con el cajón abierto
+  // v3 (feedback 28-jul): Sato SIEMPRE presente — el cajón abre cargado con la ficha.
+  var satoBox=document.getElementById('f360Sato'), satoBtn=document.getElementById('f360SatoBtn'), boardEl=document.getElementById('fichaboard');
+  if(satoBox&&!satoBox.classList.contains('open')){
+    satoBox.classList.add('open');
+    if(satoBtn)satoBtn.classList.add('activo');
+    if(boardEl)boardEl.classList.add('con-sato');
+  }
+  f360SatoCargar_();   // carga (o recarga al cambiar de cliente) la charla persistida
   google.script.run.withSuccessHandler(function(gr){ if(gen!==F360.gen)return; F360.grafo=gr||{nodos:[],aristas:[]}; f360Orbe_(); })
     .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.grafo={nodos:[],aristas:[]}; f360Orbe_(); })
     .cerebroGrafo(id);
