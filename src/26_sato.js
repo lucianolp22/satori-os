@@ -166,14 +166,28 @@ function satoVoz(texto) {
   var voz = String(getConfig('sato_voz_id') || SATO_VOZ_ID_DEF);
   try {
     // mp3_22050_32: liviano (≈4 KB/s) — viaja rápido por google.script.run y suena bien en voz hablada.
-    var resp = UrlFetchApp.fetch(
-      'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voz) + '?output_format=mp3_22050_32',
-      { method: 'post', contentType: 'application/json',
-        headers: { 'xi-api-key': key },
-        payload: JSON.stringify({ text: t, model_id: 'eleven_turbo_v2_5', language_code: 'es' }),
-        muteHttpExceptions: true });
+    function pegar_(conIdioma) {
+      var cuerpo = { text: t, model_id: 'eleven_turbo_v2_5' };
+      if (conIdioma) cuerpo.language_code = 'es';
+      return UrlFetchApp.fetch(
+        'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voz) + '?output_format=mp3_22050_32',
+        { method: 'post', contentType: 'application/json',
+          headers: { 'xi-api-key': key },
+          payload: JSON.stringify(cuerpo),
+          muteHttpExceptions: true });
+    }
+    var resp = pegar_(true);
     var code = resp.getResponseCode();
-    if (code !== 200) return { ok: false, motivo: 'proveedor_' + code };   // genérico, sin cuerpo crudo
+    // 400/422 con language_code: algunos modelos/planes lo rechazan → un reintento sin él.
+    if (code === 400 || code === 422) { resp = pegar_(false); code = resp.getResponseCode(); }
+    if (code !== 200) {
+      // Diagnóstico acotado: el cuerpo de error de ElevenLabs NO lleva credenciales (dice qué
+      // pasó: voz inexistente, cuota, key inválida). Se trunca y se devuelve para que la UI
+      // lo muestre — sin esto, "no anda la voz" es indepurable desde el navegador.
+      var det = '';
+      try { det = String(resp.getContentText() || '').replace(/\s+/g, ' ').slice(0, 180); } catch (e3) { /* opcional */ }
+      return { ok: false, motivo: 'proveedor_' + code, detalle: det };
+    }
 
     var b64 = Utilities.base64Encode(resp.getBlob().getBytes());
     // Costeo: ElevenLabs cobra por caracteres. Se registra como estimación declarada.
@@ -186,4 +200,22 @@ function satoVoz(texto) {
   } catch (e) {
     return { ok: false, motivo: 'fetch: ' + (e.message || e) };
   }
+}
+
+/**
+ * Diagnóstico de la voz — para correr A MANO en el editor de Apps Script cuando "no suena".
+ * Dice en el Registro exactamente dónde está el corte: key, voz, modelo o proveedor.
+ */
+function diagVoz() {
+  var out = [];
+  var k = '';
+  try { k = PropertiesService.getScriptProperties().getProperty('ELEVENLABS_API_KEY') || ''; } catch (e) {}
+  out.push('ELEVENLABS_API_KEY: ' + (k ? ('presente (' + k.length + ' chars, empieza ' + k.slice(0, 4) + '…)') : 'AUSENTE ← el problema'));
+  out.push('voz configurada: ' + (getConfig('sato_voz_id') || SATO_VOZ_ID_DEF + ' (default Sato)'));
+  out.push('sato_voz_on: ' + (getConfig('sato_voz_on') || '(vacío = encendida)'));
+  var r = satoVoz('Hola Luciano, soy Sato. Prueba de voz.');
+  out.push('satoVoz → ' + (r.ok ? ('OK · ' + r.chars + ' chars · mp3 base64 de ' + r.mp3.length + ' chars · $' + r.usd.toFixed(4))
+                                : ('FALLÓ · motivo=' + r.motivo + (r.detalle ? ' · detalle=' + r.detalle : ''))));
+  Logger.log(out.join('\n'));
+  return out.join('\n');
 }

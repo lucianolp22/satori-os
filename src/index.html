@@ -3637,18 +3637,22 @@ function f360SatoHablar_(texto){
   var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,700);
   if(!limpio)return;
   if(typeof EN_GAS==='undefined'||!EN_GAS){ f360SatoVozNavegador_(limpio); return; }
-  if(SATO_VOZ.sinKey){ f360SatoVozNavegador_(limpio); return; }   // ya sabemos que no hay TTS neuronal
+  // Sin latch permanente (fix 28-jul): si la key se pega DESPUÉS de abrir la página, el
+  // siguiente turno ya usa la voz buena. Solo se saltea 90 s tras un fallo, para no repetir
+  // una llamada que va a fallar en cada turno de una ráfaga.
+  if(SATO_VOZ.falloHasta&&Date.now()<SATO_VOZ.falloHasta){ f360SatoVozNavegador_(limpio); return; }
   var st=document.getElementById('f360SatoSt'); if(st)st.textContent='🔊 generando voz…';
   google.script.run.withSuccessHandler(function(r){
-      if(r&&r.ok&&r.mp3){ f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
+      if(r&&r.ok&&r.mp3){ SATO_VOZ.falloHasta=0; f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
         if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4)); return; }
-      var m=(r&&r.motivo)||'sin respuesta';
-      if(m==='sin_key'){ SATO_VOZ.sinKey=true;
-        cmToast('Falta ELEVENLABS_API_KEY en Script Properties — uso la voz del navegador hasta que la pegues (es la misma key del agente de voz).'); }
-      else if(m!=='apagada')cmToast('Voz de Sato: '+m+' — uso la del navegador.');
-      if(st)st.textContent='voz del navegador (fallback)';
+      var m=(r&&r.motivo)||'sin respuesta', det=(r&&r.detalle)?(' · '+r.detalle):'';
+      SATO_VOZ.falloHasta=Date.now()+90000;
+      if(st)st.textContent='voz navegador — '+m;                     // el motivo queda A LA VISTA
+      if(m==='sin_key')cmToast('Falta ELEVENLABS_API_KEY en Script Properties (la misma del agente de voz) — mientras tanto, voz del navegador.');
+      else if(m!=='apagada')cmToast('Voz de Sato falló: '+m+det+' — uso la del navegador.');
       f360SatoVozNavegador_(limpio); })
-    .withFailureHandler(function(e){ if(st)st.textContent='voz del navegador (fallback)';
+    .withFailureHandler(function(e){ SATO_VOZ.falloHasta=Date.now()+90000;
+      if(st)st.textContent='voz navegador — error de backend';
       cmToast('No pude generar la voz: '+((e&&e.message)||'')); f360SatoVozNavegador_(limpio); })
     .satoVoz(limpio);
 }
