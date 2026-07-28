@@ -891,9 +891,18 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-orbe-leg .dsis::before{content:'◆ ';color:#7BC4B8}
 .f360-orbe-leg .dlid::before{content:'◆ ';color:#D9B36C}
 .f360-orbe-leg .dale::before{content:'◆ ';color:var(--color-danger)}
-/* ── T1.4: SATO en la ficha — cajón de chat con memoria persistente ── */
-.f360-sato{position:absolute;top:64px;right:0;bottom:0;width:min(390px,92%);z-index:6;display:flex;flex-direction:column;background:var(--glass-strong);border-left:1px solid var(--color-border);border-radius:0 0 var(--radius-lg) 0;transform:translateX(102%);transition:transform .28s var(--ease-out)}
+/* ── T1.4: SATO en la ficha — cajón de chat con memoria persistente.
+   v2 (feedback 28-jul): fondo OPACO (la transparencia mezclaba las burbujas con la ficha de
+   atrás — ilegible) y el board le RESERVA el carril: al abrir, el contenido se comprime con
+   .con-sato en vez de quedar tapado. En pantallas angostas el cajón cubre, pero opaco. ── */
+.f360-sato{position:absolute;top:64px;right:0;bottom:0;width:min(390px,92%);z-index:6;display:flex;flex-direction:column;background:rgba(18,14,11,.985);border-left:1px solid var(--color-border);box-shadow:-14px 0 34px -18px rgba(0,0,0,.8);border-radius:0 0 var(--radius-lg) 0;transform:translateX(102%);transition:transform .28s var(--ease-out)}
 .f360-sato.open{transform:none}
+.fichaboard.con-sato .f360-stats,.fichaboard.con-sato .f360-body,.fichaboard.con-sato .f360-foot{margin-right:392px;transition:margin-right .28s var(--ease-out)}
+@media (max-width:1200px){ .fichaboard.con-sato .f360-stats,.fichaboard.con-sato .f360-body,.fichaboard.con-sato .f360-foot{margin-right:0} }
+.f360-sato-h .vbtn{background:none;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-muted);font-size:12px;padding:3px 9px;cursor:pointer}
+.f360-sato-h .vbtn.on{color:var(--color-primary);border-color:var(--color-primary)}
+.f360-sato-h .vbtn.rec{color:var(--color-danger);border-color:var(--color-danger);animation:f360rec 1.2s ease-in-out infinite}
+@keyframes f360rec{0%,100%{opacity:1}50%{opacity:.45}}
 .f360-sato-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--glass-border)}
 .f360-sato-h b{font-size:12.5px;letter-spacing:.06em}
 .f360-sato-h .st{font-size:9.5px;color:var(--color-text-subtle);letter-spacing:.06em;margin-left:auto}
@@ -1304,7 +1313,10 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     </div>
     <!-- T1.4: cajón de Sato — chat contextual con memoria persistente (hoja `charla` del tenant) -->
     <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
-      <div class="f360-sato-h"><b>🜂 Sato</b><span class="st" id="f360SatoSt">memoria: hoja charla del cliente</span>
+      <div class="f360-sato-h"><b>🜂 Sato</b>
+        <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
+        <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
+        <span class="st" id="f360SatoSt">memoria: hoja charla del cliente</span>
         <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div class="f360-sato-log" id="f360SatoLog"></div>
       <div class="f360-sato-in">
@@ -3361,16 +3373,64 @@ function f360Orbe_(){
    cliente y los últimos turnos. Sato propone; las acciones van por los botones (default-deny). */
 function f360SatoInit_(){
   var btn=document.getElementById('f360SatoBtn'), box=document.getElementById('f360Sato'),
-      x=document.getElementById('f360SatoX'), tx=document.getElementById('f360SatoTx');
+      x=document.getElementById('f360SatoX'), tx=document.getElementById('f360SatoTx'),
+      board=document.getElementById('fichaboard');
   if(!btn||!box||btn._wired)return; btn._wired=1;
   btn.addEventListener('click',function(){
     var abre=!box.classList.contains('open');
     box.classList.toggle('open',abre); btn.classList.toggle('activo',abre);
-    if(abre){ f360SatoCargar_(); tx.focus(); } });
-  x.addEventListener('click',function(){ box.classList.remove('open'); btn.classList.remove('activo'); });
+    if(board)board.classList.toggle('con-sato',abre);
+    if(abre){ f360SatoCargar_(); tx.focus(); } else f360SatoCallar_(); });
+  x.addEventListener('click',function(){ box.classList.remove('open'); btn.classList.remove('activo');
+    if(board)board.classList.remove('con-sato'); f360SatoCallar_(); });
   tx.addEventListener('keydown',function(e){
     if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); f360SatoEnviar_(); } });
+  f360SatoVozInit_();
 }
+/* ── T1.4b — VOZ del cajón (feedback 28-jul: "hablarle y que responda con voz").
+   Salida: speechSynthesis es — funciona dentro del iframe de GAS, SIEMPRE disponible.
+   Entrada: SpeechRecognition SI el navegador la permite dentro del iframe (Google no
+   declara allow=microphone en la web app → puede rechazar; se dice honesto y queda el
+   teclado + la PWA "Hablar con Sato" para voz completa). */
+var SATO_VOZ={on:false,rec:null,grabando:false};
+function f360SatoVozInit_(){
+  var bv=document.getElementById('f360SatoVoz'), bm=document.getElementById('f360SatoMic');
+  if(!bv||bv._wired)return; bv._wired=1;
+  bv.addEventListener('click',function(){
+    SATO_VOZ.on=!SATO_VOZ.on; bv.classList.toggle('on',SATO_VOZ.on);
+    if(!SATO_VOZ.on)f360SatoCallar_();
+    else if(!('speechSynthesis' in window)){ cmToast('Este navegador no tiene síntesis de voz'); SATO_VOZ.on=false; bv.classList.remove('on'); } });
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ bm.title='Micrófono no disponible en este navegador — usá el teclado o la PWA de voz'; bm.disabled=true; return; }
+  bm.addEventListener('click',function(){
+    if(SATO_VOZ.grabando){ try{SATO_VOZ.rec.stop();}catch(e){} return; }
+    var rec=new SR(); SATO_VOZ.rec=rec;
+    rec.lang='es-ES'; rec.interimResults=false; rec.maxAlternatives=1;
+    rec.onstart=function(){ SATO_VOZ.grabando=true; bm.classList.add('rec'); };
+    rec.onend=function(){ SATO_VOZ.grabando=false; bm.classList.remove('rec'); };
+    rec.onerror=function(ev){ SATO_VOZ.grabando=false; bm.classList.remove('rec');
+      if(ev.error==='not-allowed'||ev.error==='service-not-allowed')
+        cmToast('El sistema corre en un marco de Google sin permiso de micrófono — para voz completa usá "Hablar con Sato" (PWA); acá: teclado + respuesta hablada.');
+      else cmToast('Micrófono: '+ev.error); };
+    rec.onresult=function(ev){
+      var t=(ev.results[0]&&ev.results[0][0]&&ev.results[0][0].transcript)||'';
+      if(t){ var tx=document.getElementById('f360SatoTx'); if(tx){tx.value=t;} f360SatoEnviar_(); } };
+    try{ rec.start(); }catch(e){ cmToast('No pude iniciar el micrófono: '+e.message); }
+  });
+}
+function f360SatoHablar_(texto){
+  if(!SATO_VOZ.on||!('speechSynthesis' in window))return;
+  try{
+    window.speechSynthesis.cancel();
+    // El markdown no se lee: se limpia a prosa hablable.
+    var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,900);
+    var u=new SpeechSynthesisUtterance(limpio); u.lang='es-ES'; u.rate=1.04;
+    var voces=window.speechSynthesis.getVoices().filter(function(v){return /^es/.test(v.lang);});
+    if(voces.length)u.voice=voces.filter(function(v){return /ES|es-ES/.test(v.lang);})[0]||voces[0];
+    window.speechSynthesis.speak(u);
+  }catch(e){ /* la voz es un extra: si falla, el texto ya está en pantalla */ }
+}
+function f360SatoCallar_(){ try{ if('speechSynthesis' in window)window.speechSynthesis.cancel(); if(SATO_VOZ.rec&&SATO_VOZ.grabando)SATO_VOZ.rec.stop(); }catch(e){} }
 function f360SatoBurb_(rol,texto,ts){
   var log=document.getElementById('f360SatoLog'); if(!log)return null;
   var b=el('div','f360-burb '+rol,texto);
@@ -3400,6 +3460,7 @@ function f360SatoEnviar_(){
   google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
       if(esp)esp.remove(); tx.disabled=false; tx.focus();
       f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
+      if(r&&r.ok)f360SatoHablar_(r.texto);   // T1.4b: Sato responde con voz si el toggle está on
       var st=document.getElementById('f360SatoSt');
       if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4)); })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return;
@@ -3720,7 +3781,9 @@ function f360Prox_(dc,evs){
     cont.appendChild(el('div','f360-vacio','Agenda (30 días):'));
     mios.forEach(function(e){
       var r=el('div','f360-row');
-      r.appendChild(el('span','k mono',e.fecha+(e.hora?' '+e.hora:'')));
+      // Fix 28-jul: la hora llega como Date crudo de Sheets (época 1899) — se extrae HH:MM.
+      var hm=(String(e.hora||'').match(/(\d{1,2}):(\d{2})/)||[])[0]||'';
+      r.appendChild(el('span','k mono',e.fecha+(hm?' '+hm:'')));
       r.appendChild(el('span','v',e.titulo)); cont.appendChild(r);
     });
   }
