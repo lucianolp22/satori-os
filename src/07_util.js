@@ -163,7 +163,13 @@ function sanitizarCelda(v) {
  */
 function conLock(fn) {
   var lock = LockService.getScriptLock();
-  lock.waitLock(20000); // 20 s; lanza si no lo consigue (mejor que correr sin lock)
+  // 120 s (28-jul, fix del Lock timeout ×2 en selfTest): la espera de 20 s moría contra
+  // posesiones LEGÍTIMAS largas — una escritura del full-refresh de conectores (miles de
+  // filas de LC bajo su lock granular) tarda 60-90 s. El holder trabaja bien; el que espera
+  // debe aguantarlo. Efectos revisados: la voz no empeora (su cliente corta a 25 s con
+  // mensaje hablable, y ahora la captura SE COMPLETA server-side en vez de perderse); la UI
+  // espera y completa en vez de fallar; triggers con tope Workspace de 30 min — sobra.
+  lock.waitLock(120000); // lanza si no lo consigue (mejor que correr sin lock)
   try { return fn(); }
   finally { lock.releaseLock(); }
 }
