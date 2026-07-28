@@ -1,7 +1,7 @@
 # HANDOFF — Satori OS — 2026-07-28 tarde (espejo vivo · PRODUCCIÓN + FICHA 360 CONSTRUIDA)
 
 > Estado vigente arriba; todo lo que sigue del primer `<!-- HISTÓRICO` es archivo.
-> **Sesión 28-jul (Cowork): tanda T1 EJECUTADA Y CERTIFICADA — Ficha 360 construida+purgada (harness 107/0) · commit `4b26fe3` + clasp push a /dev HECHOS · selfTest en editor: PASA 581 / FALLA 0 (con el fix D10) · tablero LC Travel entregado · fix label promote.** `/exec` @32 INTOCADO. Pasos 1-2 del guion CUMPLIDOS → seguir en el 3 (eyeball de la Ficha) → 4 (promote @33).
+> **Sesión 28-jul (Cowork): T1 CERTIFICADA (selfTest 581/0, commit `4b26fe3`+fix D10) + T1.2 CONSTRUIDA — Ficha 360 v3 "dashboard del cliente": checklist persistente (hoja lazy `checklist` + 3 endpoints) · Situación (briefCliente, cache warm diario) · Sugerencias ancladas (0 API) · Novedades del rubro (Bitácora etiqueta `novedad-rubro` + tarea semanal `trig_01YEo84BGz6WusVT4UvHdKSN`, lunes 08:33) · Bitácora · botones Documentos (Config `docs_cliente_<id>`) y Sheet · orbe con aro-semáforo · layout 3 columnas + glass del sistema (fix del surface-2 light).** Harness **123/0** · render-check Chromium OK. `/exec` @32 INTOCADO. FALTA: commit+clasp push de T1.2 → selfTest (backend nuevo) → eyeball → promote @33.
 > **Fix D10 (28-jul tarde):** la rama del Hilo (W4b, 21-jul) en `recomendacionDelDia_` no era inyectable y, con los Hilos reales cargados, le ganaba a la rama kpi_cliente → D10 rojo por datos vivos (clase D15k). Ahora `pre.hiloRec` la aísla (patrón kpiAlerta; producción intacta) y quedó la regla: toda rama futura de la rec nace inyectable por `pre`.
 
 PRÓXIMO PASO (orden exacto):
@@ -41,7 +41,7 @@ PRÓXIMO PASO (orden exacto):
 | Prod /exec | @32 · `AKfycbxZJL4E…` · rollback @31 en `_promote_rollback.txt` |
 | /dev | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
 | Git | `4b26fe3` (tanda T1) + fix D10 + CAPABILITIES regen commiteados; GAS /dev == repo |
-| Tocados hoy | `src/08_webapp.js` (+`fichaCliente`) · `src/22_seguridad.js` (ENDPOINTS_UI) · `src/index.html` (F360) · `src/18_direccion.js`+`src/09_selftest.js` (fix D10) · `_harness.js` (107/0) · `_promote_exec.sh` (label) · `entregables/Tablero-Reunion-LCTravel-2026-07-28.html` · este HANDOFF |
+| Tocados hoy | `src/01_schema.js` (hoja `checklist` lazy) · `src/08_webapp.js` (fichaCliente + checklist* + briefCliente) · `src/22_seguridad.js` (ENDPOINTS_UI +5) · `src/index.html` (F360 v3) · `src/18_direccion.js`+`src/09_selftest.js` (fix D10) · `_harness.js` (123/0) · `_promote_exec.sh` · `entregables/` (tablero LC + logo SIP) · este HANDOFF |
 | Sheet MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` (compartir Lector a llopriore@gmail = gate) |
 | Harness | `_harness.js` **107/0** (Node, raíz del repo) |
 | Trigger reuniones | `trig_01DUPhtj1XvjpDkirLUdsdbd` (L-V 08:00 Madrid) — gateada por el paso 5 |

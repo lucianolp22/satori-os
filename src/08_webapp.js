@@ -857,14 +857,112 @@ function fichaCliente(idCliente) {
       });
   } catch (e) { /* espejo no accesible → lista vacía; la ficha muestra la sección igual */ }
 
-  var avatar = '';
+  var avatar = '', docs = '';
   try { avatar = String(getConfig('avatar_cliente_' + id) || ''); } catch (e) { /* sin key = sin logo, fail-closed */ }
+  try { docs = String(getConfig('docs_cliente_' + id) || ''); } catch (e) { /* sin key = sin botón Documentos */ }
 
   return {
-    ok: true, id_cliente: id, avatar_url: avatar,
+    ok: true, id_cliente: id, avatar_url: avatar, docs_url: docs,
     objetivos: objetivos, kpis: kpis, operacion: operacion, aprobaciones: aprobaciones,
     hoja_falta: { objetivos: objRaw === null, kpis: kpiRaw === null, operacion: opRaw === null }
   };
+}
+
+// ═══ T1.2 (28-jul) — CHECKLIST + SITUACIÓN de la Ficha 360 ═══════════════════
+// Hoja `checklist` del tenant: LAZY (patrón hilo — no está en CLIENTE_ORDEN; se crea acá a
+// demanda, oculta+protegida). Dos orígenes: 'manual' (ítems creados desde la ficha) y 'hilo'
+// (el tilde de un pendiente del Hilo se REGISTRA acá — el espejo del Hilo no se toca, que es
+// fuente derivada del .md; esta hoja guarda el rastro y la vista lo oculta de los pendientes).
+
+/** Hoja checklist del cliente, creándola si no existe (solo en escrituras). */
+function _checklistSheet_(ss, crear) {
+  var sh = ss.getSheetByName('checklist');
+  if (!sh && crear) {
+    sh = ensureSheet(ss, 'checklist', CLIENTE_SHEETS.checklist);
+    try { protegerSheet(sh, false); sh.hideSheet(); } catch (e) { /* estética, no bloquea */ }
+  }
+  return sh;
+}
+
+/** Lectura del checklist. Sin hoja = sin ítems (NO se crea en lectura). Cap defensivo 200. */
+function checklistCliente(idCliente) {
+  _soloOwner_('checklistCliente');
+  var id = String(idCliente || '').trim();
+  if (!id) return { ok: false, error: 'sin id' };
+  var ss;
+  try { ss = abrirCliente(id).ss; } catch (e) { return { ok: false, error: 'cliente no accesible' }; }
+  var sh = _checklistSheet_(ss, false);
+  var items = !sh ? [] : leerTabla(sh).slice(-200).map(function (f) {
+    return { id: String(f.id || ''), item: limpiarHostilTexto_(String(f.item || ''), 160),
+             detalle: limpiarHostilTexto_(String(f.detalle || ''), 240),
+             origen: String(f.origen || 'manual'), estado: String(f.estado || 'pendiente'),
+             creado_en: aFechaISO(f.creado_en) || '', tildado_en: aFechaISO(f.tildado_en) || '' };
+  });
+  return { ok: true, id_cliente: id, items: items };
+}
+
+/**
+ * Tilde/destilde. `ref`: 'CHK-0001' (ítem manual) o 'hilo::<texto del ítem>' (pendiente del
+ * Hilo — se upsertea la fila-registro acá; el espejo del Hilo NO se muta). Escritura de tenant
+ * de bajo riesgo (una fila propia), bajo conLock.
+ */
+function checklistMarcar(idCliente, ref, hecho) {
+  _soloOwner_('checklistMarcar');
+  var id = String(idCliente || '').trim(), r = limpiarHostilTexto_(String(ref || ''), 200);
+  if (!id || !r) return { ok: false, error: 'faltan datos' };
+  var ss;
+  try { ss = abrirCliente(id).ss; } catch (e) { return { ok: false, error: 'cliente no accesible' }; }
+  var sh = _checklistSheet_(ss, true);
+  var esHilo = r.indexOf('hilo::') === 0;
+  var estado = hecho ? 'hecho' : 'pendiente';
+  return conLock(function () {
+    var filas = leerTabla(sh), fila = null, rowIdx = -1;
+    for (var i = 0; i < filas.length; i++) {
+      var f = filas[i];
+      if (esHilo ? (String(f.origen) === 'hilo' && String(f.item) === r.slice(6)) : String(f.id) === r) { fila = f; rowIdx = i; break; }
+    }
+    if (!fila && esHilo) {
+      var nid = nextId(sh, 'id', 'CHK', 4);
+      appendFila(sh, { id: nid, item: r.slice(6), detalle: '', origen: 'hilo', estado: estado,
+                       creado_en: hoyISO(), tildado_en: hecho ? hoyISO() : '' });
+      return { ok: true, id: nid, estado: estado };
+    }
+    if (!fila) return { ok: false, error: 'ítem no encontrado' };
+    // +2: header es fila 1 y leerTabla es 0-based desde la 2.
+    var H = CLIENTE_SHEETS.checklist;
+    sh.getRange(rowIdx + 2, H.indexOf('estado') + 1).setValue(estado);
+    sh.getRange(rowIdx + 2, H.indexOf('tildado_en') + 1).setValue(hecho ? hoyISO() : '');
+    return { ok: true, id: String(fila.id), estado: estado };
+  });
+}
+
+/** Alta manual desde la ficha. Nace 'pendiente' con fecha. */
+function checklistAgregar(idCliente, texto) {
+  _soloOwner_('checklistAgregar');
+  var id = String(idCliente || '').trim(), t = limpiarHostilTexto_(String(texto || ''), 160);
+  if (!id || !t) return { ok: false, error: 'faltan datos' };
+  var ss;
+  try { ss = abrirCliente(id).ss; } catch (e) { return { ok: false, error: 'cliente no accesible' }; }
+  var sh = _checklistSheet_(ss, true);
+  return conLock(function () {
+    var nid = nextId(sh, 'id', 'CHK', 4);
+    appendFila(sh, { id: nid, item: t, detalle: '', origen: 'manual', estado: 'pendiente',
+                     creado_en: hoyISO(), tildado_en: '' });
+    return { ok: true, id: nid };
+  });
+}
+
+/**
+ * SITUACIÓN del cliente para la ficha: el brief diario REAL (contrato v1), por el cache que ya
+ * calienta corridaDiaria cada mañana (TTL warm) — mismo camino que la voz. Se actualiza solo,
+ * a diario; la ficha lo muestra plegado. Devuelve markdown (string).
+ */
+function briefCliente(idCliente) {
+  _soloOwner_('briefCliente');
+  var id = String(idCliente || '').trim();
+  if (!id) return '(sin id de cliente)';
+  try { return briefCacheado_(id); }
+  catch (e) { return '(no se pudo generar la situación: ' + String(e.message || e) + ')'; }
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────────

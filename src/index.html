@@ -824,7 +824,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-stat .v.warn{color:var(--color-warning)}
 .f360-stat .v.danger{color:var(--color-danger)}
 .f360-stat .v.muted{color:var(--color-text-muted);font-weight:400}
-.f360-body{flex:1;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:10px;padding:10px 14px;min-height:0;overflow:hidden}
+.f360-body{flex:1;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr) minmax(0,1.05fr);gap:10px;padding:10px 14px;min-height:0;overflow:hidden}
 .f360-col{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding-right:2px}
 .f360-sec{position:relative;background:var(--glass-bg);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px 14px;flex:0 0 auto;backdrop-filter:blur(var(--glass-blur)) saturate(1.25);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25)}
 .f360-sec>h4{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);display:flex;align-items:center;gap:8px}
@@ -851,6 +851,43 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-fuente{font-size:9.5px;color:var(--color-text-subtle);letter-spacing:.05em;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .f360-acts{margin-left:auto;display:flex;gap:8px;flex:0 0 auto}
 #f360Sel{margin-left:auto;max-width:210px}
+/* ── T1.2: checklist interactivo ── */
+.f360-chk{display:flex;gap:9px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--glass-border);font-size:12.5px}
+.f360-chk:last-child{border-bottom:0}
+.f360-chk input[type=checkbox]{appearance:none;-webkit-appearance:none;width:15px;height:15px;flex:0 0 15px;margin-top:1px;border:1.5px solid var(--color-border-strong,var(--color-border));border-radius:4px;background:transparent;cursor:pointer;display:grid;place-items:center;transition:all .14s var(--ease-out)}
+.f360-chk input[type=checkbox]:checked{background:var(--color-primary);border-color:var(--color-primary)}
+.f360-chk input[type=checkbox]:checked::after{content:'✓';font-size:10px;line-height:1;color:var(--color-on-primary,#1A0E07)}
+.f360-chk input[type=checkbox]:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
+.f360-chk .tx{min-width:0;flex:1}
+.f360-chk .og{flex:0 0 auto;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
+.f360-chk.hecha .tx{text-decoration:line-through;color:var(--color-text-muted)}
+.f360-chk .fx{flex:0 0 auto;font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.f360-chk-add{display:flex;gap:8px;margin-top:8px}
+.f360-chk-add input{flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:6px 10px;font-size:12px;color:var(--color-text)}
+.f360-chk-add input:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 2px color-mix(in srgb, var(--color-focus-ring) 40%, transparent)}
+.f360-chk-hechas{margin-top:8px;font-size:11px;color:var(--color-text-muted);cursor:pointer;user-select:none;background:none;border:0;padding:4px 0;display:block;text-align:left;width:100%}
+.f360-chk-hechas:hover{color:var(--color-text)}
+/* ── T1.2: situación (brief) plegada ── */
+.f360-brief{font-size:12px;line-height:1.5}
+.f360-brief .bb{font-weight:600;font-size:12.5px;margin-bottom:6px}
+.f360-brief .hh{font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-subtle);margin:8px 0 3px}
+.f360-brief .li{padding:1.5px 0;color:var(--color-text)}
+.f360-brief .li::before{content:'· ';color:var(--color-text-subtle)}
+.f360-mas{font-size:11px;color:var(--color-primary);cursor:pointer;background:none;border:0;padding:5px 0 0;display:block;text-align:left}
+/* ── T1.2: sugerencias ── */
+.f360-sug{padding:6px 0;border-bottom:1px solid var(--glass-border);font-size:12.5px}
+.f360-sug:last-child{border-bottom:0}
+.f360-sug .d{font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:2px}
+/* ── T1.2: orbe del cliente (aro por semáforo, glow del sistema) ── */
+.f360-avatar{position:relative;transition:box-shadow .32s var(--ease-out),border-color .32s var(--ease-out)}
+.f360-avatar.o-verde{border-color:var(--color-success);box-shadow:0 0 14px -3px var(--color-success),inset 0 0 8px -4px var(--color-success)}
+.f360-avatar.o-ambar{border-color:var(--color-warning);box-shadow:0 0 14px -3px var(--color-warning),inset 0 0 8px -4px var(--color-warning)}
+.f360-avatar.o-rojo{border-color:var(--color-danger);box-shadow:0 0 16px -3px var(--color-danger),inset 0 0 8px -4px var(--color-danger)}
+@media (prefers-reduced-motion:no-preference){
+  .f360-avatar.o-rojo{animation:f360pulse 2.6s ease-in-out infinite}
+  @keyframes f360pulse{0%,100%{box-shadow:0 0 16px -3px var(--color-danger)}50%{box-shadow:0 0 22px -1px var(--color-danger)}}
+}
+@media (max-width:1200px){ .f360-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);overflow-y:auto} .f360-col{overflow:visible;min-height:auto} .f360-col.der{grid-column:1 / -1} .f360-col.der .f360-sec.hilo{min-height:380px} }
 @media (max-width:900px){ .f360-stats{grid-template-columns:repeat(2,minmax(0,1fr))} .f360-body{grid-template-columns:1fr;overflow-y:auto} .f360-col{overflow:visible} .f360-col.der .f360-sec.hilo{min-height:340px} #f360Sel{display:none} }
 #centro .mnav{margin-left:auto; display:flex; gap:6px; align-items:center}
 #centro .mwrap{flex:1; overflow-y:auto; padding:var(--space-5)}
@@ -1194,18 +1231,27 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <!-- v2 dashboard: fila de stats — la puebla f360Tiles_() con datos reales (mock jamás). -->
     <div class="f360-stats" id="f360Stats" aria-label="Resumen del cliente"></div>
     <div class="f360-body">
-      <div class="f360-col izq">
+      <div class="f360-col a">
+        <section class="f360-sec"><h4>Situación <span class="cnt mono" id="f360SitN">brief diario</span></h4><div class="f360-cont" id="f360Sit"><div class="served">Cargando…</div></div></section>
         <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
         <section class="f360-sec"><h4>Números <span class="cnt mono" id="f360NumN"></span></h4><div class="f360-cont" id="f360Num"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>Próximos pasos <span class="cnt mono" id="f360ProxN"></span></h4><div class="f360-cont" id="f360Prox"><div class="served">Cargando…</div></div></section>
+      </div>
+      <div class="f360-col b">
+        <section class="f360-sec"><h4>Checklist <span class="cnt mono" id="f360ChkN"></span></h4><div class="f360-cont" id="f360Chk"><div class="served">Cargando…</div></div></section>
+        <section class="f360-sec"><h4>Pendientes <span class="cnt mono" id="f360ProxN"></span></h4><div class="f360-cont" id="f360Prox"><div class="served">Cargando…</div></div></section>
+        <section class="f360-sec"><h4>Sugerencias de Satori</h4><div class="f360-cont" id="f360Sug"><div class="served">Cargando…</div></div></section>
+        <section class="f360-sec"><h4>Novedades del rubro</h4><div class="f360-cont" id="f360Nov"><div class="served">Cargando…</div></div></section>
+        <section class="f360-sec"><h4>Bitácora</h4><div class="f360-cont" id="f360Bit"><div class="served">Cargando…</div></div></section>
       </div>
       <div class="f360-col der">
         <section class="f360-sec hilo"><h4>Avance — Hilo de trabajo</h4><div class="f360-cont" id="f360Hilo"><div class="served">Cargando…</div></div></section>
       </div>
     </div>
     <div class="f360-foot">
-      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango — datos del MAESTRO y del SGIC</span>
+      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango · checklistCliente · briefCliente</span>
       <span class="f360-acts">
+        <button class="btn btn-ghost btn-sm" id="f360Docs" hidden>⛁ Documentos</button>
+        <button class="btn btn-ghost btn-sm" id="f360Sheet" hidden>▤ Sheet del cliente</button>
         <button class="btn btn-ghost btn-sm" id="f360HiloFull">Hilo completo</button>
         <button class="btn btn-ghost btn-sm" id="f360Espacio" hidden>◈ Espacio 3D</button>
         <button class="btn btn-ghost btn-sm" id="f360Agendar">Agendar evento</button>
@@ -3133,9 +3179,11 @@ function f360Tiles_(){
 }
 function fichaCargar_(id){
   var gen=++F360.gen;
-  ['f360Plan','f360Num','f360Prox','f360Hilo'].forEach(function(i){
+  ['f360Plan','f360Num','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
     var c=document.getElementById(i); if(c){ clear(c); c.appendChild(el('div','served','Cargando…')); } });
-  ['f360PlanN','f360NumN','f360ProxN'].forEach(function(i){ var c=document.getElementById(i); if(c)c.textContent=''; });
+  ['f360PlanN','f360NumN','f360ProxN','f360ChkN'].forEach(function(i){ var c=document.getElementById(i); if(c)c.textContent=''; });
+  var bd=document.getElementById('f360Docs'), bs=document.getElementById('f360Sheet');
+  if(bd)bd.hidden=true; if(bs)bs.hidden=true;
   var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'),
       est=document.getElementById('f360Estado'), sem=document.getElementById('f360Sem'),
       av=document.getElementById('f360Avatar');
@@ -3144,32 +3192,207 @@ function fichaCargar_(id){
   if(sem)sem.className='f360-sem';
   if(av){clear(av);av.appendChild(document.createTextNode((id||'?').replace('CLI-','').replace(/^0+/,'')||'?'));}
   if(typeof EN_GAS==='undefined'||!EN_GAS){
-    F360.dc='err'; F360.fc={ok:false}; F360.h={sin_hilo:true}; F360.evs=[]; f360Tiles_();
-    ['f360Plan','f360Num','f360Prox','f360Hilo'].forEach(function(i){
+    F360.dc='err'; F360.fc={ok:false}; F360.h={sin_hilo:true}; F360.evs=[]; F360.chk=null; F360.brief=''; f360Tiles_();
+    ['f360Plan','f360Num','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
       var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
     return;
   }
-  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null;  // convergen en Plan/Próximos/stats
+  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null;
   f360Tiles_();   // v2: la fila de stats arranca en "…" y se completa fuente a fuente
-  google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); if(FC)f360Plan_(DC,FC); })
+  google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); f360Sug_(); f360Nov_(); f360Bit_(); if(FC)f360Plan_(DC,FC); })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; DC='err'; F360.dc='err';
       var c=document.getElementById('f360Plan'); if(c)f360Vacio_(c,'No se pudo leer el MAESTRO: '+((e&&e.message)||'sesión o permisos'));
-      f360Prox_('err',null); f360Tiles_(); })
+      var n=document.getElementById('f360Nov'); if(n)f360Vacio_(n,'Sin datos del MAESTRO.');
+      var b=document.getElementById('f360Bit'); if(b)f360Vacio_(b,'Sin datos del MAESTRO.');
+      f360Prox_('err',null); f360Tiles_(); f360Sug_(); })
     .datosCliente(id);
-  google.script.run.withSuccessHandler(function(f){ if(gen!==F360.gen)return; FC=f; F360.fc=f; f360Num_(f); f360AvatarSem_(f,null); f360Tiles_(); if(DC){f360Plan_(DC,FC); f360Prox_(DC,null);} })
-    .withFailureHandler(function(e){ if(gen!==F360.gen)return; F360.fc={ok:false}; f360Tiles_();
+  google.script.run.withSuccessHandler(function(f){ if(gen!==F360.gen)return; FC=f; F360.fc=f; f360Num_(f); f360AvatarSem_(f,null); f360Tiles_(); f360Sug_(); if(DC){f360Plan_(DC,FC); f360Prox_(DC,null);} })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; F360.fc={ok:false}; f360Tiles_(); f360Sug_();
       var c=document.getElementById('f360Num'); if(c)f360Vacio_(c,'No se pudo leer el SGIC: '+((e&&e.message)||'sesión o permisos')); })
     .fichaCliente(id);
   var hc=document.getElementById('f360Hilo');
   if(hc){ clear(hc);
-    google.script.run.withSuccessHandler(function(h){ if(gen!==F360.gen)return; F360.h=h||{sin_hilo:true}; hiloRender_(hc,h); f360AvatarSem_(null,h); f360Tiles_(); })
-      .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.h={sin_hilo:true}; f360Tiles_(); hiloRender_(hc,{sin_hilo:true,motivo:'no se pudo leer el Hilo (sesión o permisos)'}); })
+    google.script.run.withSuccessHandler(function(h){ if(gen!==F360.gen)return; F360.h=h||{sin_hilo:true}; hiloRender_(hc,h); f360AvatarSem_(null,h); f360Tiles_(); f360Sug_(); f360Check_(); })
+      .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.h={sin_hilo:true}; f360Tiles_(); f360Sug_(); f360Check_(); hiloRender_(hc,{sin_hilo:true,motivo:'no se pudo leer el Hilo (sesión o permisos)'}); })
       .hiloCliente(id);
   }
   var d0=new Date(), d1=new Date(Date.now()+30*86400000);
   google.script.run.withSuccessHandler(function(evs){ if(gen!==F360.gen)return; f360Prox_(DC,evs||[]); })
     .withFailureHandler(function(){ if(gen!==F360.gen)return; f360Prox_(DC,[]); })
     .agendaRango(calISO(d0),calISO(d1));
+  // T1.2 · checklist + situación (brief diario del cliente, cache warm de corridaDiaria)
+  google.script.run.withSuccessHandler(function(ck){ if(gen!==F360.gen)return; F360.chk=(ck&&ck.ok)?ck:{ok:false,items:[]}; f360Check_(); })
+    .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.chk={ok:false,items:[]}; f360Check_(); })
+    .checklistCliente(id);
+  google.script.run.withSuccessHandler(function(md){ if(gen!==F360.gen)return; F360.brief=String(md||''); f360Sit_(); })
+    .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.brief=''; f360Sit_(); })
+    .briefCliente(id);
+}
+/* T1.2 — SITUACIÓN: el brief diario del cliente (markdown → DOM propio, sin innerHTML),
+   plegado a las primeras líneas con "Ver completo". Se regenera solo cada mañana (warm). */
+function f360Sit_(){
+  var cont=document.getElementById('f360Sit'); if(!cont)return; clear(cont);
+  var md=F360.brief;
+  if(md===null){ cont.appendChild(el('div','served','Cargando…')); return; }
+  if(!md||md.indexOf('(no se pudo')===0){ f360Vacio_(cont,md||'Sin brief disponible.'); return; }
+  var box=el('div','f360-brief'), lineas=md.split('\n').filter(function(l){return l.trim()!=='';}), n=0, TOPE=9, resto=[];
+  lineas.forEach(function(l){
+    l=l.trim();
+    if(/^— generado/.test(l)||/^#[^#]/.test(l))return;   // firma y título: la ficha ya los da
+    var nodo;
+    if(/^\*\*.+\*\*$/.test(l)) nodo=el('div','bb',l.replace(/\*\*/g,''));
+    else if(/^##\s/.test(l)) nodo=el('div','hh',l.replace(/^##\s*/,''));
+    else if(/^-\s/.test(l)) nodo=el('div','li',l.replace(/^-\s*/,'').replace(/\*\*/g,''));
+    else nodo=el('div','li',l.replace(/\*\*/g,''));
+    if(n<TOPE){ box.appendChild(nodo); n++; } else resto.push(nodo);
+  });
+  cont.appendChild(box);
+  if(resto.length){
+    var mas=el('button','f360-mas','Ver la situación completa ('+resto.length+' líneas más) →');
+    mas.addEventListener('click',function(){ resto.forEach(function(x){box.appendChild(x);}); mas.remove(); });
+    cont.appendChild(mas);
+  }
+}
+/* T1.2 — CHECKLIST: merge de pendientes del Hilo (auto — se completan solos cuando el Hilo
+   avanza) + ítems manuales de la hoja `checklist`. Tildar persiste vía checklistMarcar; lo
+   hecho queda REGISTRADO y plegado bajo "N hechas", ordenado por fecha. */
+function f360Check_(){
+  var cont=document.getElementById('f360Chk'); if(!cont)return;
+  if(F360.chk===null||F360.h===null){ clear(cont); cont.appendChild(el('div','served','Cargando…')); return; }
+  clear(cont);
+  var items=(F360.chk&&F360.chk.items)||[], h=F360.h;
+  var hechasHoja={};   // clave de hilo ya registrada como hecha → se oculta de pendientes
+  var manualesPend=[], hechas=[];
+  items.forEach(function(it){
+    if(it.estado==='hecho'){ hechas.push(it); if(it.origen==='hilo')hechasHoja[it.item]=true; }
+    else if(it.origen==='manual') manualesPend.push(it);
+    // un ítem origen=hilo 'pendiente' en la hoja se ignora: la fuente del pendiente es el Hilo
+  });
+  var autos=((h&&!h.sin_hilo&&h.secciones&&h.secciones.pendiente)||[]).filter(function(p){ return !hechasHoja[p.item]; });
+  var nEl=document.getElementById('f360ChkN'); if(nEl)nEl.textContent=(autos.length+manualesPend.length)+' abiertas · '+hechas.length+' hechas';
+  function fila(texto,ref,og,extra){
+    var r=el('div','f360-chk');
+    var cb=document.createElement('input'); cb.type='checkbox'; cb.setAttribute('aria-label','Marcar: '+texto);
+    cb.addEventListener('change',function(){ f360Tildar_(ref,cb.checked,cb); });
+    r.appendChild(cb);
+    var tx=el('div','tx',texto); if(extra)tx.title=extra; r.appendChild(tx);
+    r.appendChild(el('span','og',og));
+    return r;
+  }
+  if(!autos.length&&!manualesPend.length)cont.appendChild(el('div','f360-vacio','Nada abierto en el checklist.'));
+  autos.forEach(function(p){ cont.appendChild(fila(p.item,'hilo::'+p.item,'hilo',p.detalle)); });
+  manualesPend.forEach(function(it){ cont.appendChild(fila(it.item,it.id,'manual',it.detalle)); });
+  // alta manual
+  var add=el('div','f360-chk-add');
+  var inp=document.createElement('input'); inp.type='text'; inp.maxLength=160; inp.placeholder='Nuevo ítem… (Enter agrega)';
+  inp.setAttribute('aria-label','Nuevo ítem del checklist');
+  inp.addEventListener('keydown',function(e){ if(e.key==='Enter'&&inp.value.trim())f360ChkAlta_(inp); });
+  add.appendChild(inp); cont.appendChild(add);
+  // hechas: registradas, ocultas y organizadas por fecha
+  if(hechas.length){
+    hechas.sort(function(a,b){ return String(b.tildado_en)<String(a.tildado_en)?-1:1; });
+    var ver=el('button','f360-chk-hechas',hechas.length+' hecha(s) — ver registro ▸');
+    var caja=el('div'); caja.hidden=true;
+    hechas.forEach(function(it){
+      var r=el('div','f360-chk hecha');
+      var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.setAttribute('aria-label','Desmarcar: '+it.item);
+      cb.addEventListener('change',function(){ f360Tildar_(it.origen==='hilo'?('hilo::'+it.item):it.id,cb.checked,cb); });
+      r.appendChild(cb); r.appendChild(el('div','tx',it.item));
+      r.appendChild(el('span','og',it.origen));
+      r.appendChild(el('span','fx',it.tildado_en||'')); caja.appendChild(r);
+    });
+    ver.addEventListener('click',function(){ caja.hidden=!caja.hidden; ver.textContent=hechas.length+' hecha(s) — '+(caja.hidden?'ver registro ▸':'ocultar ▾'); });
+    cont.appendChild(ver); cont.appendChild(caja);
+  }
+}
+function f360Tildar_(ref,hecho,cb){
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+  cb.disabled=true;
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
+      if(!(r&&r.ok)){ cmToast('No se pudo marcar: '+((r&&r.error)||'')); cb.checked=!hecho; cb.disabled=false; return; }
+      f360ChkRecargar_(); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; cmToast('No se pudo marcar: '+((e&&e.message)||'')); cb.checked=!hecho; cb.disabled=false; })
+    .checklistMarcar(F360.id,ref,!!hecho);
+}
+function f360ChkAlta_(inp){
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+  var t=inp.value.trim(); inp.disabled=true;
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
+      if(!(r&&r.ok)){ cmToast('No se pudo agregar: '+((r&&r.error)||'')); inp.disabled=false; return; }
+      f360ChkRecargar_(); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; cmToast('No se pudo agregar: '+((e&&e.message)||'')); inp.disabled=false; })
+    .checklistAgregar(F360.id,t);
+}
+function f360ChkRecargar_(){
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(ck){ if(gen!==F360.gen)return; F360.chk=(ck&&ck.ok)?ck:{ok:false,items:[]}; f360Check_(); })
+    .withFailureHandler(function(){ if(gen!==F360.gen)return; f360Check_(); })
+    .checklistCliente(F360.id);
+}
+/* T1.2 — SUGERENCIAS: reglas deterministas (0 API) sobre las fuentes ya cargadas, cada una
+   con el dato que la ancla (juicio anclado). Sin datos que lo justifiquen, se dice. */
+function f360Sug_(){
+  var cont=document.getElementById('f360Sug'); if(!cont)return; clear(cont);
+  var dc=F360.dc, fc=F360.fc, h=F360.h;
+  if(dc===null&&fc===null&&h===null){ cont.appendChild(el('div','served','Cargando…')); return; }
+  var sugs=[];
+  if(h&&!h.sin_hilo){
+    if(h.secciones.desviado.length)sugs.push({t:'Resolver el desvío del Hilo: '+h.secciones.desviado[0].item,d:'desviados='+h.conteos.desviado});
+    var pA=h.secciones.pendiente.filter(function(p){return p.prioridad==='A';})[0];
+    if(pA)sugs.push({t:'Cerrar el pendiente A del Hilo: '+pA.item+(pA.dueno?' ('+pA.dueno+')':''),d:'pendientes='+h.conteos.pendiente});
+  }
+  if(fc&&fc.ok){
+    var ka=fc.kpis.filter(function(k){return k.alerta;})[0];
+    if(ka)sugs.push({t:'Atender el KPI en alerta: '+ka.kpi+' = '+ka.valor+(ka.objetivo!=null?' (obj '+ka.objetivo+')':''),d:ka.alerta});
+    if(fc.aprobaciones.length)sugs.push({t:'Despachar '+fc.aprobaciones.length+' aprobación(es) pendiente(s) del cliente',d:'la más vieja espera tu decisión'});
+    if(!fc.objetivos.length&&!fc.hoja_falta.objetivos)sugs.push({t:'Definir el North Star del cliente — sin objetivo no hay medición',d:'objetivos=0'});
+    if(!fc.operacion.length)sugs.push({t:'Sin datos del conector: la operación entra a mano o a ciegas',d:'operacion=0'});
+  }
+  if(dc&&dc!=='err'){
+    var venc=(dc.proximos_pasos||[]).filter(function(t){return t.vencida;});
+    if(venc.length)sugs.push({t:'Cerrar '+venc.length+' tarea(s) vencida(s): '+venc[0].descripcion,d:'límite '+venc[0].fecha_limite});
+  }
+  if(!sugs.length){ cont.appendChild(el('div','f360-vacio','Sin sugerencias — el cliente está en orden con lo que el sistema ve.')); return; }
+  sugs.slice(0,4).forEach(function(s){
+    var r=el('div','f360-sug');
+    r.appendChild(el('div','t',s.t));
+    r.appendChild(el('div','d','ancla: '+s.d));
+    cont.appendChild(r);
+  });
+}
+/* T1.2 — NOVEDADES DEL RUBRO: Bitácora del MAESTRO con etiqueta rubro/novedad (las trae la
+   tarea semanal). Vacío honesto mientras no haya carga. */
+function f360Nov_(){
+  var cont=document.getElementById('f360Nov'); if(!cont)return; clear(cont);
+  var dc=F360.dc;
+  if(dc===null){ cont.appendChild(el('div','served','Cargando…')); return; }
+  if(dc==='err'){ f360Vacio_(cont,'Sin datos del MAESTRO.'); return; }
+  var novs=(dc.observaciones||[]).filter(function(o){ return /rubro|novedad/i.test(String(o.etiqueta||'')); })
+    .sort(function(a,b){ return String(b.fecha)<String(a.fecha)?-1:1; }).slice(0,4);
+  if(!novs.length){ f360Vacio_(cont,'Sin novedades cargadas — la tarea semanal del lunes las trae a la Bitácora.'); return; }
+  novs.forEach(function(o){
+    var r=el('div','f360-row');
+    r.appendChild(el('span','k mono',o.fecha||''));
+    r.appendChild(el('span','v',o.observacion||'')); cont.appendChild(r);
+  });
+}
+/* T1.2 — BITÁCORA: las últimas observaciones del cliente que NO son novedades de rubro. */
+function f360Bit_(){
+  var cont=document.getElementById('f360Bit'); if(!cont)return; clear(cont);
+  var dc=F360.dc;
+  if(dc===null){ cont.appendChild(el('div','served','Cargando…')); return; }
+  if(dc==='err'){ f360Vacio_(cont,'Sin datos del MAESTRO.'); return; }
+  var obs=(dc.observaciones||[]).filter(function(o){ return !/rubro|novedad/i.test(String(o.etiqueta||'')); })
+    .sort(function(a,b){ return String(b.fecha)<String(a.fecha)?-1:1; }).slice(0,4);
+  if(!obs.length){ f360Vacio_(cont,'Sin observaciones en la Bitácora de este cliente.'); return; }
+  obs.forEach(function(o){
+    var r=el('div','f360-row');
+    r.appendChild(el('span','k mono',o.fecha||''));
+    var v=el('span','v',o.observacion||''); if(o.etiqueta)v.title=o.etiqueta; r.appendChild(v);
+    cont.appendChild(r);
+  });
 }
 function f360Cabecera_(d){
   var c=(d&&d.cliente)||{};
@@ -3178,17 +3401,28 @@ function f360Cabecera_(d){
   if(sub)sub.textContent=(c.id_cliente||'')+' · '+(c.rubro||'—')+(c.responsable?' · '+c.responsable:'');
   if(est){ est.textContent=c.estado||'—';
     est.className='chip '+(c.estado==='activo'?'c-ok':c.estado==='activo-piloto'?'c-info':c.estado==='potencial'?'c-warn':'c-idle'); }
+  if(c.url_sheet_cliente){ var bs=document.getElementById('f360Sheet');
+    if(bs){ bs.hidden=false; bs.onclick=function(){ window.open(c.url_sheet_cliente,'_blank'); }; } }
 }
-/* Avatar (logo de Config si T2 lo sembró; inicial fail-closed) + semáforo del Hilo + última sync. */
+/* Avatar/ORBE (logo de Config si T2 lo sembró; inicial fail-closed) + aro por semáforo del
+   Hilo (T1.2 #8: la sanidad del negocio en el orbe del cliente) + última sync + botones. */
 function f360AvatarSem_(fc,h){
-  if(fc&&fc.avatar_url){ var av=document.getElementById('f360Avatar');
-    if(av){ clear(av); var im=document.createElement('img'); im.alt='';
-      im.onerror=function(){ clear(av); av.appendChild(document.createTextNode((F360.id||'?').replace('CLI-','').replace(/^0+/,'')||'?')); };
-      im.src=fc.avatar_url; av.appendChild(im); } }
+  var av=document.getElementById('f360Avatar');
+  if(fc&&fc.avatar_url&&av){ clear(av); var im=document.createElement('img'); im.alt='';
+    im.onerror=function(){ clear(av); av.appendChild(document.createTextNode((F360.id||'?').replace('CLI-','').replace(/^0+/,'')||'?')); };
+    im.src=fc.avatar_url; av.appendChild(im); }
   if(fc&&fc.operacion&&fc.operacion.length&&fc.operacion[0].fecha){
     var sub=document.getElementById('f360Sub');
     if(sub&&sub.textContent.indexOf('sync')<0)sub.textContent+=' · sync '+fc.operacion[0].fecha; }
-  if(h&&!h.sin_hilo){ var sem=document.getElementById('f360Sem'); if(sem)sem.className='f360-sem '+h.semaforo; }
+  if(h&&!h.sin_hilo){
+    var sem=document.getElementById('f360Sem'); if(sem)sem.className='f360-sem '+h.semaforo;
+    if(av){ av.classList.remove('o-verde','o-ambar','o-rojo');
+      if(h.semaforo!=='gris')av.classList.add('o-'+h.semaforo);
+      av.title='Hilo '+h.semaforo+' · desviado '+h.conteos.desviado+' · pendiente '+h.conteos.pendiente; }
+  }
+  // T1.2 #2 — accesos directos: carpeta de documentos (Config docs_cliente_<id>) y Sheet del cliente.
+  if(fc&&fc.docs_url){ var bd=document.getElementById('f360Docs');
+    if(bd){ bd.hidden=false; bd.onclick=function(){ window.open(fc.docs_url,'_blank'); }; } }
 }
 /* FILA 1 — El plan: objetivos del tenant (North Star del cliente) con barra de progreso REAL
    (KPI que matchea la métrica; sin match se dice) + proyectos del MAESTRO con % avance. */

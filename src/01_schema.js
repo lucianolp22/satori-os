@@ -91,6 +91,13 @@ var CLIENTE_SHEETS = {
   // (`_cerebro/HILO - <Cliente>.md`). GAS no puede leer el Mac: el espejo lo sube `_hilo_sync.sh`.
   // `seccion` ∈ plan|real|desviado|pendiente (vocabulario CERRADO — hiloCliente descarta lo demás).
   hilo: ['seccion', 'item', 'detalle', 'estado', 'evidencia', 'fecha', 'prioridad', 'dueno'],
+  // T1.2 (28-jul) — CHECKLIST de la Ficha 360. LAZY como `hilo` (no está en CLIENTE_ORDEN; la
+  // crean checklistMarcar/checklistAgregar a demanda, oculta+protegida). Dos orígenes:
+  //  · manual  ítems que Luciano crea desde la ficha (nacen 'pendiente', se tildan a 'hecho')
+  //  · hilo    tilde de un pendiente del Hilo: se REGISTRA acá como 'hecho' con la clave del ítem
+  //            (el pendiente vive en el espejo del Hilo; esta fila lo oculta de la vista y deja
+  //            el rastro organizado por fecha — lo tildado queda registrado, no se pierde).
+  checklist: ['id', 'item', 'detalle', 'origen', 'estado', 'creado_en', 'tildado_en'],
   // North Star enriquecido (20-jul): las 3 últimas son NUEVAS y se agregan al final por la
   // reconciliación ADITIVA de ensureSheet (no reordena ni borra; los tenants viejos no rompen).
   //  · metricas_extra      hasta 2 métricas más, separadas por '·'
@@ -107,15 +114,16 @@ var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 
 // Si en Etapa 3 el dueño del negocio abre su Sheet, no ve interna de gestión.
 // ⚠ INVARIANTE ROTO A PROPÓSITO (23-jul) — LEER ANTES DE CONSUMIR ESTA LISTA:
 // hasta la cadena, `CLIENTE_SHEETS_SENSIBLES` era **subconjunto de `CLIENTE_ORDEN`**, así que
-// `getSheetByName(n)` sobre un cliente sano nunca daba null. **Ya no.** Las 3 últimas
-// (`cerebro_log_archivo`, `cerebro_resumen`, `hilo`) son LAZY: no las crea `crearCliente`, las crean
-// `repararCerebro` / `comprimirMemoriaFria` / `repararHilo` / `espejarHilo` a demanda (siempre
-// ocultas+protegidas). En un cliente recién creado NO EXISTEN.
+// `getSheetByName(n)` sobre un cliente sano nunca daba null. **Ya no.** Las 4 últimas
+// (`cerebro_log_archivo`, `cerebro_resumen`, `hilo`, `checklist`) son LAZY: no las crea `crearCliente`,
+// las crean `repararCerebro` / `comprimirMemoriaFria` / `repararHilo` / `espejarHilo` /
+// `checklistMarcar` / `checklistAgregar` a demanda (siempre ocultas+protegidas). En un cliente
+// recién creado NO EXISTEN.
 //
 // ⇒ **Todo consumidor que abra estas hojas necesita null-guard.** El `selfTest` reventó con
 // `TypeError: null.isSheetHidden` justo por esto (incidente 23-jul); `securityScan_` sobrevivió
 // porque ya lo tenía. Regla de lista-contrato en CLAUDE.md.
-var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos', 'hilo'];
+var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos', 'hilo', 'checklist'];
 
 // T3 M3 / TC-W1 — DECISIÓN EXPLÍCITA: `cerebro_log_archivo`, `cerebro_resumen` y `hilo` NO entran en CLIENTE_ORDEN.
 // CLIENTE_ORDEN es el contrato que `correrSalud({full:true})` exige COMPLETO (falta ⇒ chequeo `crit`

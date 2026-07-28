@@ -70,7 +70,7 @@ vm.createContext(ctx);
 
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
-const MODULOS = ['07_util.js', '22_seguridad.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
+const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
                  '25_hilo.js', '18_direccion.js', '08_webapp.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -351,6 +351,47 @@ chk(String(ctx.fichaCliente).indexOf("_soloOwner_('fichaCliente')") >= 0, 'ficha
   chk(ctx.fichaCliente('').ok === false, 'id vacío → {ok:false}');
 
   ctx.abrirCliente = acOrig; ctx.leerTabla = ltOrig; ctx.getMaestro = gmOrig; ctx.getConfig = gcOrig;
+}
+
+// ═══ 12 · T1.2 (28-jul): checklist + situación de la Ficha 360 ═══════════════
+seccion('checklist + briefCliente (T1.2)');
+for (const fn of ['checklistCliente', 'checklistMarcar', 'checklistAgregar', 'briefCliente']) {
+  chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, fn + ' está en ENDPOINTS_UI (anti-drift)');
+  chk(String(ctx[fn]).indexOf("_soloOwner_('" + fn + "')") >= 0, fn + ' lleva _soloOwner_');
+}
+chk(ctx.CLIENTE_SHEETS.checklist && ctx.CLIENTE_SHEETS.checklist.indexOf('tildado_en') >= 0,
+    'CLIENTE_SHEETS declara la hoja checklist (con tildado_en)');
+chk(ctx.CLIENTE_ORDEN.indexOf('checklist') < 0, 'checklist NO está en CLIENTE_ORDEN (lazy, como hilo)');
+chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('checklist') >= 0, 'checklist es hoja sensible (oculta+protegida)');
+{
+  const acOrig = ctx.abrirCliente, ltOrig = ctx.leerTabla, apOrig = ctx.appendFila, niOrig = ctx.nextId, esOrig = ctx.ensureSheet;
+  ctx.SATORI_CTX_SISTEMA = true;
+  const escritas = [], sets = [];
+  const filas = [
+    { id: 'CHK-0001', item: 'llamar al gestor', detalle: '', origen: 'manual', estado: 'pendiente', creado_en: '2026-07-27', tildado_en: '' },
+    { id: 'CHK-0002', item: 'Deploy V22', detalle: '', origen: 'hilo', estado: 'hecho', creado_en: '2026-07-27', tildado_en: '2026-07-27' },
+  ];
+  const shStub = { getSheetByName: null, getRange: (r, c) => ({ setValue: (v) => sets.push({ r, c, v }) }) };
+  ctx.abrirCliente = () => ({ ss: { getSheetByName: (n) => (n === 'checklist' ? shStub : null) } });
+  ctx.leerTabla = () => filas;
+  ctx.appendFila = (sh, obj) => escritas.push(obj);
+  ctx.nextId = () => 'CHK-0003';
+  ctx.ensureSheet = () => shStub;
+
+  const cl = ctx.checklistCliente('CLI-001');
+  chk(cl.ok === true && cl.items.length === 2 && cl.items[1].estado === 'hecho' && cl.items[1].tildado_en === '2026-07-27',
+      'checklistCliente lee ítems con estado y fecha de tilde');
+  const m1 = ctx.checklistMarcar('CLI-001', 'hilo::Capturar la reunión del 22/07', true);
+  chk(m1.ok === true && escritas.length === 1 && escritas[0].origen === 'hilo' && escritas[0].estado === 'hecho',
+      'tilde de un pendiente del Hilo se REGISTRA como fila hecho (upsert, el espejo no se toca)');
+  const m2 = ctx.checklistMarcar('CLI-001', 'CHK-0001', true);
+  chk(m2.ok === true && sets.length === 2 && sets[0].r === 2,
+      'tilde manual actualiza estado+tildado_en en la fila correcta (i+2, patrón 12_cola)');
+  const a1 = ctx.checklistAgregar('CLI-001', 'texto\thostil\ncon saltos');
+  chk(a1.ok === true && escritas.length === 2 && escritas[1].item.indexOf('\t') < 0 && escritas[1].item.indexOf('\n') < 0,
+      'alta manual sanitiza el texto (limpiarHostilTexto_)');
+  chk(ctx.checklistMarcar('CLI-001', '', true).ok === false, 'ref vacía → ok:false sin tirar');
+  ctx.abrirCliente = acOrig; ctx.leerTabla = ltOrig; ctx.appendFila = apOrig; ctx.nextId = niOrig; ctx.ensureSheet = esOrig;
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────
