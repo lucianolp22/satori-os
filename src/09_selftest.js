@@ -342,14 +342,17 @@ function selfTest() {
       'D9 B2 rec sin cliente → ok:false con motivo (no inventa tenant)');
 
     // ── D10 (08-jul) A3: recomendación ANCLADA a un KPI de cliente (inyectada, determinística) ──
+    // Fix 28-jul: + hiloRec:null — la rama del Hilo (W4b, 21-jul) nació DESPUÉS de este assert y
+    // no era inyectable; con Hilos reales cargados le ganaba al KPI y el assert quedaba rojo por
+    // datos vivos (la clase D15k). Ahora las DOS ramas variables se aíslan por pre.
     var recK = recomendacionDelDia_({
       d: { estado: { aprobaciones_pendientes: 0 } }, sal: { global: 'ok', integridad: 100, hallazgos: [] },
-      abiertas: [], vencidas: [],
+      abiertas: [], vencidas: [], hiloRec: null,
       kpiAlerta: { id_cliente: r.id_cliente, cliente: '__TEST__ cli', kpi: 'margen_%', valor: 12, objetivo: 30, alerta: 'por debajo del piso' }
     });
     chk(recK.kpi === 'kpi_cliente' && String(recK.id_cliente) === String(r.id_cliente) && recK.texto.indexOf('margen_%') >= 0 && String(recK.dato).indexOf('kpi=margen_%') === 0,
       'D10 A3 recomendación anclada al KPI de cliente (id_cliente + dato)');
-    var recSinKpi = recomendacionDelDia_({ d: { estado: { aprobaciones_pendientes: 0 } }, sal: { global: 'ok', integridad: 100, hallazgos: [] }, abiertas: [], vencidas: [], kpiAlerta: null });
+    var recSinKpi = recomendacionDelDia_({ d: { estado: { aprobaciones_pendientes: 0 } }, sal: { global: 'ok', integridad: 100, hallazgos: [] }, abiertas: [], vencidas: [], hiloRec: null, kpiAlerta: null });
     chk(String(recSinKpi.kpi) === 'north_star' && String(recSinKpi.id_cliente) === '', 'D10 A3 sin KPI en alerta → NO ancla (cae a north_star, sin cliente)');
 
     // ── D11 (08-jul): quitarAgregada_ saca una fila del espejo por id → reflejo inmediato al resolver ──

@@ -1269,6 +1269,9 @@ function _diasDesde_(v) {
  * si el caller ya lo tiene (briefDiario); sin `pre` es self-contained (corridaDiaria).
  * `pre.kpiAlerta` (A3, 08-jul): inyectable para asserts; undefined → escanea las hojas
  * KPIs de los clientes (clienteKpiEnAlerta_) para anclar la rec a un cliente.
+ * `pre.hiloRec` (fix 28-jul): ídem para la rama del Hilo (W4b) — undefined → escanea
+ * (_clienteConHiloCaliente_); null → la rama no aplica. Toda rama futura que lea datos
+ * vivos DEBE nacer inyectable por pre, o rompe el determinismo de los asserts D10.
  *
  * Trillion-delta A2 (08-jul) — JUICIO ANCLADO: cada recomendación cita el dato real
  * que la sustenta (días vencida, integridad %, espera de la aprobación, progreso NS).
@@ -1388,7 +1391,10 @@ function _recCandidatas_(pre) {
   // bloquean todo) y antes del KPI: un desvío del Hilo es trabajo acordado que se salió del plan —
   // más accionable que un KPI en alerta, porque ya tiene dueño y contexto escritos.
   // Devuelve null si ningún cliente tiene Hilo cargado: la cadena sigue por las ramas de siempre.
-  cands.push(function () { return _clienteConHiloCaliente_(); });
+  // Fix 28-jul (D10 rojo post-Hilos): INYECTABLE vía pre.hiloRec, patrón exacto de kpiAlerta —
+  // esta rama nació después de D10 y no era aislable: con Hilos reales cargados le ganaba a la
+  // rama kpi_cliente y el assert (determinista por diseño) quedaba a merced de los datos vivos.
+  cands.push(function () { return (pre && pre.hiloRec !== undefined) ? pre.hiloRec : _clienteConHiloCaliente_(); });
 
   // A3 (08-jul): KPI de CLIENTE en alerta → recomendación ANCLADA al cliente (id_cliente set)
   // → el botón "→ Crear aprobación" cobra sentido en el uso real, sin depender de proyectos.
