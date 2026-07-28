@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '25_hilo.js', '18_direccion.js', '08_webapp.js', '09_selftest.js'];
+                 '25_hilo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -392,6 +392,53 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('checklist') >= 0, 'checklist es hoja s
       'alta manual sanitiza el texto (limpiarHostilTexto_)');
   chk(ctx.checklistMarcar('CLI-001', '', true).ok === false, 'ref vacía → ok:false sin tirar');
   ctx.abrirCliente = acOrig; ctx.leerTabla = ltOrig; ctx.appendFila = apOrig; ctx.nextId = niOrig; ctx.ensureSheet = esOrig;
+}
+
+// ═══ 13 · T1.4 (28-jul): Sato en la ficha — memoria persistente + espejo al cerebro ═══
+seccion('satoChat / satoCharla (T1.4)');
+for (const fn of ['satoChat', 'satoCharla']) {
+  chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, fn + ' está en ENDPOINTS_UI (anti-drift)');
+  chk(String(ctx[fn]).indexOf("_soloOwner_('" + fn + "')") >= 0, fn + ' lleva _soloOwner_');
+}
+chk(ctx.CLIENTE_SHEETS.charla && ctx.CLIENTE_SHEETS.charla.indexOf('rol') >= 0, 'CLIENTE_SHEETS declara la hoja charla');
+chk(ctx.CLIENTE_ORDEN.indexOf('charla') < 0, 'charla NO está en CLIENTE_ORDEN (lazy)');
+chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensible');
+{
+  const bk = {};
+  ['abrirCliente', 'leerTabla', 'appendFila', 'ensureSheet', 'llamadaAPI', 'upsertNodo', 'guardPresupuesto_',
+   'estadoVigente', 'checklistCliente', 'getConfig'].forEach(k => { bk[k] = ctx[k]; });
+  ctx.SATORI_CTX_SISTEMA = true;
+  const escritas = [];
+  const filas = [{ ts: '2026-07-28T10:00:00', rol: 'user', texto: 'hola', modulo: 'sato_ficha' },
+                 { ts: '2026-07-28T10:00:05', rol: 'sato', texto: 'hola Luciano', modulo: 'sato_ficha' }];
+  const shStub = {};
+  let nodoTocado = null, systemVisto = '';
+  ctx.abrirCliente = () => ({ ss: { getSheetByName: (n) => (n === 'charla' ? shStub : null) } });
+  ctx.leerTabla = () => filas;
+  ctx.appendFila = (sh, o) => escritas.push(o);
+  ctx.ensureSheet = () => shStub;
+  ctx.llamadaAPI = (id, mod, opts) => { systemVisto = String(opts.system || ''); return { ok: true, texto: 'respuesta de sato', usd: 0.002, tokens_in: 10, tokens_out: 20 }; };
+  ctx.upsertNodo = (t, n) => { nodoTocado = n; };
+  ctx.guardPresupuesto_ = () => ({});
+  ctx.estadoVigente = () => '# Estado vigente CLI-001';
+  ctx.checklistCliente = () => ({ ok: true, items: [{ item: 'ítem abierto', estado: 'pendiente' }] });
+  ctx.getConfig = () => '';
+
+  const ch = ctx.satoCharla('CLI-001', 10);
+  chk(ch.ok === true && ch.turnos.length === 2 && ch.turnos[1].rol === 'sato', 'satoCharla lee la transcripción persistida');
+  const r1 = ctx.satoChat('CLI-001', 'qué priorizo hoy\tcon\ttabs');
+  chk(r1.ok === true && r1.texto === 'respuesta de sato', 'satoChat responde con el texto del modelo');
+  chk(escritas.length === 2 && escritas[0].rol === 'user' && escritas[1].rol === 'sato', 'ambos lados de la charla se PERSISTEN (memoria real)');
+  chk(escritas[0].texto.indexOf('\t') < 0, 'la entrada se sanitiza antes de persistir');
+  chk(systemVisto.indexOf('Estado vigente') >= 0 && systemVisto.indexOf('hola Luciano') >= 0,
+      'el system lleva contexto vivo + conversación previa (Sato recuerda)');
+  chk(systemVisto.indexOf('NUNCA afirmes que ejecutaste') >= 0, 'el system fija la honestidad N9 (no inventa acciones)');
+  chk(!!nodoTocado && nodoTocado.tipo === 'charla_sato' && nodoTocado.dimension === 'lider', 'la charla se espeja al Cerebro como nodo (grafo navegable)');
+  ctx.getConfig = (k) => (k === 'sato_tope_turnos' ? '1' : '');
+  const r2 = ctx.satoChat('CLI-001', 'otro');
+  chk(r2.ok === false && String(r2.error).indexOf('tope') >= 0, 'tope diario de turnos aplica (no se come el mes)');
+  chk(ctx.satoChat('', 'x').ok === false && ctx.satoChat('CLI-001', '').ok === false, 'entradas vacías → ok:false');
+  Object.keys(bk).forEach(k => { ctx[k] = bk[k]; });
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

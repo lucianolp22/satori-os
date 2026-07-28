@@ -98,6 +98,9 @@ var CLIENTE_SHEETS = {
   //            (el pendiente vive en el espejo del Hilo; esta fila lo oculta de la vista y deja
   //            el rastro organizado por fecha — lo tildado queda registrado, no se pierde).
   checklist: ['id', 'item', 'detalle', 'origen', 'estado', 'creado_en', 'tildado_en'],
+  // T1.4 (28-jul) — CHARLA con Sato (transcripción completa, memoria persistente del chat de la
+  // Ficha 360). LAZY como checklist/hilo; sensible (contenido de trabajo con el cliente).
+  charla: ['ts', 'rol', 'texto', 'modulo'],
   // North Star enriquecido (20-jul): las 3 últimas son NUEVAS y se agregan al final por la
   // reconciliación ADITIVA de ensureSheet (no reordena ni borra; los tenants viejos no rompen).
   //  · metricas_extra      hasta 2 métricas más, separadas por '·'
@@ -123,7 +126,7 @@ var CLIENTE_ORDEN = ['Datos_operativos', 'KPIs', 'Aprobaciones', 'Excepciones', 
 // ⇒ **Todo consumidor que abra estas hojas necesita null-guard.** El `selfTest` reventó con
 // `TypeError: null.isSheetHidden` justo por esto (incidente 23-jul); `securityScan_` sobrevivió
 // porque ya lo tenía. Regla de lista-contrato en CLAUDE.md.
-var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos', 'hilo', 'checklist'];
+var CLIENTE_SHEETS_SENSIBLES = ['Aprobaciones', 'Costos_API', 'Reglas', 'Umbrales', 'Excepciones', 'nodos', 'aristas', 'cerebro_log', 'cerebro_log_archivo', 'cerebro_resumen', 'estado_actual', 'objetivos', 'hilo', 'checklist', 'charla'];
 
 // T3 M3 / TC-W1 — DECISIÓN EXPLÍCITA: `cerebro_log_archivo`, `cerebro_resumen` y `hilo` NO entran en CLIENTE_ORDEN.
 // CLIENTE_ORDEN es el contrato que `correrSalud({full:true})` exige COMPLETO (falta ⇒ chequeo `crit`

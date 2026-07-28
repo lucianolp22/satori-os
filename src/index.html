@@ -799,11 +799,15 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .day:focus-visible{outline:2px solid var(--color-primary); outline-offset:2px}
 #centro .kboard.calboard{inset:6vh auto auto 50%; height:88vh; width:min(1080px,94vw); transform:translateX(-50%) scale(.98)}
 #centro .kboard.calboard.open{transform:translateX(-50%)}
-/* ═══ FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul · v2 dashboard) — overlay patrón kboard.
+/* ═══ FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul · v3 dashboard) — overlay patrón kboard.
    Extensión del sistema (feedback eyeball 28-jul): las secciones usan EL MISMO glass de
    `#centro .card` (glass-bg + blur + color-border del scope oscuro del CM) — nada de
-   surface-2, que en este scope resolvía al token LIGHT del :root y cortaba la continuidad. */
-#centro .kboard.fichaboard{inset:3.5vh auto auto 50%; height:93vh; width:min(1240px,96vw); transform:translateX(-50%) scale(.98)}
+   surface-2, que en este scope resolvía al token LIGHT del :root y cortaba la continuidad.
+   T1.3 (feedback 28-jul tarde): board y scrim MÁS translúcidos — la Oficina de Akasha se ve
+   detrás (la ficha es una capa sobre la Oficina, no una salida). La legibilidad la sostienen
+   los paneles internos, que conservan su propio glass. */
+#centro .kboard.fichaboard{inset:3.5vh auto auto 50%; height:93vh; width:min(1240px,96vw); transform:translateX(-50%) scale(.98); background:rgba(20,16,13,.46)}
+#centro #fichascrim.kscrim{background:rgba(8,6,5,.30); backdrop-filter:blur(2.5px); -webkit-backdrop-filter:blur(2.5px)}
 #centro .kboard.fichaboard.open{transform:translateX(-50%)}
 .fichaboard .khead{gap:10px}
 .f360-avatar{width:42px;height:42px;border-radius:50%;flex:0 0 42px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:17px;font-style:italic;color:var(--color-text);background:rgba(255,255,255,.06);border:2px solid var(--color-primary);overflow:hidden}
@@ -878,6 +882,38 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-sug{padding:6px 0;border-bottom:1px solid var(--glass-border);font-size:12.5px}
 .f360-sug:last-child{border-bottom:0}
 .f360-sug .d{font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:2px}
+/* ── T1.3: ORBE del cliente — constelación del Cerebro (mini Núcleo Akasha por tenant) ── */
+.f360-orbe-sec .f360-cont{display:flex;flex-direction:column;align-items:center;gap:6px}
+#f360OrbeCv{width:100%;max-width:300px;height:172px;display:block;cursor:pointer}
+.f360-orbe-leg{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
+.f360-orbe-leg b{font-family:var(--font-mono);font-weight:600;color:var(--color-text-muted)}
+.f360-orbe-leg .dneg::before{content:'◆ ';color:#E8956D}
+.f360-orbe-leg .dsis::before{content:'◆ ';color:#7BC4B8}
+.f360-orbe-leg .dlid::before{content:'◆ ';color:#D9B36C}
+.f360-orbe-leg .dale::before{content:'◆ ';color:var(--color-danger)}
+/* ── T1.4: SATO en la ficha — cajón de chat con memoria persistente ── */
+.f360-sato{position:absolute;top:64px;right:0;bottom:0;width:min(390px,92%);z-index:6;display:flex;flex-direction:column;background:var(--glass-strong);border-left:1px solid var(--color-border);border-radius:0 0 var(--radius-lg) 0;transform:translateX(102%);transition:transform .28s var(--ease-out)}
+.f360-sato.open{transform:none}
+.f360-sato-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--glass-border)}
+.f360-sato-h b{font-size:12.5px;letter-spacing:.06em}
+.f360-sato-h .st{font-size:9.5px;color:var(--color-text-subtle);letter-spacing:.06em;margin-left:auto}
+.f360-sato-log{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.f360-burb{max-width:88%;padding:8px 11px;border-radius:12px;font-size:12.5px;line-height:1.45;white-space:pre-wrap;word-wrap:break-word}
+.f360-burb.user{align-self:flex-end;background:color-mix(in srgb, var(--color-primary) 26%, transparent);border:1px solid color-mix(in srgb, var(--color-primary) 40%, transparent);border-bottom-right-radius:4px}
+.f360-burb.sato{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
+.f360-burb.pensando{color:var(--color-text-muted);font-style:italic}
+.f360-burb .bts{display:block;font-size:9px;color:var(--color-text-subtle);margin-top:4px;font-family:var(--font-mono)}
+.f360-sato-in{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--glass-border)}
+.f360-sato-in textarea{flex:1;min-height:40px;max-height:110px;resize:none;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 10px;font-size:12.5px;color:var(--color-text);font-family:inherit}
+.f360-sato-in textarea:focus{outline:none;border-color:var(--color-primary)}
+#f360SatoBtn.activo{color:var(--color-primary);border-color:var(--color-primary)}
+/* ── T1.3: encargo a Cowork desde la ficha ── */
+.f360-enc{position:absolute;inset:auto 14px 54px auto;z-index:5;width:min(420px,80%);background:var(--glass-strong);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;box-shadow:var(--shadow-lg);display:none}
+.f360-enc.open{display:block}
+.f360-enc h5{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted)}
+.f360-enc textarea{width:100%;min-height:74px;resize:vertical;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 10px;font-size:12.5px;color:var(--color-text);font-family:inherit}
+.f360-enc textarea:focus{outline:none;border-color:var(--color-primary)}
+.f360-enc .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
 /* ── T1.2: orbe del cliente (aro por semáforo, glow del sistema) ── */
 .f360-avatar{position:relative;transition:box-shadow .32s var(--ease-out),border-color .32s var(--ease-out)}
 .f360-avatar.o-verde{border-color:var(--color-success);box-shadow:0 0 14px -3px var(--color-success),inset 0 0 8px -4px var(--color-success)}
@@ -1225,6 +1261,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
       <span class="chip c-idle" id="f360Estado">—</span>
       <span class="f360-sem" id="f360Sem" role="img" aria-label="Semáforo del Hilo"></span>
+      <button class="btn btn-ghost btn-sm" id="f360SatoBtn" title="Trabajar este cliente con Sato">🜂 Sato</button>
       <select id="f360Sel" class="cm-sel" aria-label="Cambiar de cliente"></select>
       <button class="icon-btn" id="f360Close" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
@@ -1232,6 +1269,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <div class="f360-stats" id="f360Stats" aria-label="Resumen del cliente"></div>
     <div class="f360-body">
       <div class="f360-col a">
+        <section class="f360-sec f360-orbe-sec"><h4>Cerebro del cliente <span class="cnt mono" id="f360OrbeN"></span></h4>
+          <div class="f360-cont">
+            <canvas id="f360OrbeCv" title="Abrir el Espacio 3D del cliente" aria-label="Orbe del Cerebro del cliente"></canvas>
+            <div class="f360-orbe-leg" id="f360OrbeLeg"></div>
+          </div>
+        </section>
         <section class="f360-sec"><h4>Situación <span class="cnt mono" id="f360SitN">brief diario</span></h4><div class="f360-cont" id="f360Sit"><div class="served">Cargando…</div></div></section>
         <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
         <section class="f360-sec"><h4>Números <span class="cnt mono" id="f360NumN"></span></h4><div class="f360-cont" id="f360Num"><div class="served">Cargando…</div></div></section>
@@ -1248,15 +1291,34 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
     </div>
     <div class="f360-foot">
-      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango · checklistCliente · briefCliente</span>
+      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango · checklistCliente · briefCliente · cerebroGrafo</span>
       <span class="f360-acts">
         <button class="btn btn-ghost btn-sm" id="f360Docs" hidden>⛁ Documentos</button>
         <button class="btn btn-ghost btn-sm" id="f360Sheet" hidden>▤ Sheet del cliente</button>
         <button class="btn btn-ghost btn-sm" id="f360HiloFull">Hilo completo</button>
         <button class="btn btn-ghost btn-sm" id="f360Espacio" hidden>◈ Espacio 3D</button>
         <button class="btn btn-ghost btn-sm" id="f360Agendar">Agendar evento</button>
+        <button class="btn btn-ghost btn-sm" id="f360Encargar">✉ Encargar a Cowork</button>
         <button class="btn btn-sm" id="f360Reunion">⚑ Encargar reunión</button>
       </span>
+    </div>
+    <!-- T1.4: cajón de Sato — chat contextual con memoria persistente (hoja `charla` del tenant) -->
+    <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
+      <div class="f360-sato-h"><b>🜂 Sato</b><span class="st" id="f360SatoSt">memoria: hoja charla del cliente</span>
+        <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="f360-sato-log" id="f360SatoLog"></div>
+      <div class="f360-sato-in">
+        <textarea id="f360SatoTx" maxlength="1200" placeholder="Trabajá el cliente con Sato… (Enter envía · Shift+Enter salto)" aria-label="Mensaje para Sato"></textarea>
+      </div>
+    </div>
+    <!-- T1.3: popover de encargo — captura a la Bandeja con el contexto del cliente -->
+    <div class="f360-enc" id="f360Enc" role="dialog" aria-label="Encargar a Cowork">
+      <h5>Encargo a Cowork · <span id="f360EncCli"></span></h5>
+      <textarea id="f360EncTx" maxlength="600" placeholder="Qué querés que Cowork trabaje sobre este cliente… (va a la Bandeja; lo tomo en la próxima sesión con todas las herramientas)"></textarea>
+      <div class="acts">
+        <button class="btn btn-ghost btn-sm" id="f360EncNo">Cancelar</button>
+        <button class="btn btn-sm" id="f360EncGo">Enviar a la Bandeja</button>
+      </div>
     </div>
   </div>
 
@@ -3192,13 +3254,13 @@ function fichaCargar_(id){
   if(sem)sem.className='f360-sem';
   if(av){clear(av);av.appendChild(document.createTextNode((id||'?').replace('CLI-','').replace(/^0+/,'')||'?'));}
   if(typeof EN_GAS==='undefined'||!EN_GAS){
-    F360.dc='err'; F360.fc={ok:false}; F360.h={sin_hilo:true}; F360.evs=[]; F360.chk=null; F360.brief=''; f360Tiles_();
+    F360.dc='err'; F360.fc={ok:false}; F360.h={sin_hilo:true}; F360.evs=[]; F360.chk=null; F360.brief=''; F360.grafo={nodos:[],aristas:[]}; f360Tiles_(); f360Orbe_();
     ['f360Plan','f360Num','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
       var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
     return;
   }
-  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null;
-  f360Tiles_();   // v2: la fila de stats arranca en "…" y se completa fuente a fuente
+  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null;
+  f360Tiles_(); f360Orbe_();   // v2/v3: stats y orbe arrancan en "cargando" y se completan fuente a fuente
   google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); f360Sug_(); f360Nov_(); f360Bit_(); if(FC)f360Plan_(DC,FC); })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; DC='err'; F360.dc='err';
       var c=document.getElementById('f360Plan'); if(c)f360Vacio_(c,'No se pudo leer el MAESTRO: '+((e&&e.message)||'sesión o permisos'));
@@ -3224,9 +3286,146 @@ function fichaCargar_(id){
   google.script.run.withSuccessHandler(function(ck){ if(gen!==F360.gen)return; F360.chk=(ck&&ck.ok)?ck:{ok:false,items:[]}; f360Check_(); })
     .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.chk={ok:false,items:[]}; f360Check_(); })
     .checklistCliente(id);
+  // T1.3 · orbe del Cerebro del cliente + popover de encargo · T1.4 Sato
+  f360EncargoInit_(); f360SatoInit_();
+  var satoBox=document.getElementById('f360Sato');
+  if(satoBox&&satoBox.classList.contains('open'))f360SatoCargar_();   // cambió el cliente con el cajón abierto
+  google.script.run.withSuccessHandler(function(gr){ if(gen!==F360.gen)return; F360.grafo=gr||{nodos:[],aristas:[]}; f360Orbe_(); })
+    .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.grafo={nodos:[],aristas:[]}; f360Orbe_(); })
+    .cerebroGrafo(id);
   google.script.run.withSuccessHandler(function(md){ if(gen!==F360.gen)return; F360.brief=String(md||''); f360Sit_(); })
     .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.brief=''; f360Sit_(); })
     .briefCliente(id);
+}
+/* T1.3 — ORBE del cliente: constelación 2D del Cerebro del tenant (mini Núcleo Akasha).
+   Datos REALES de cerebroGrafo(id) — ids opacos, dimensión y alerta; nada de etiquetas (Bastión).
+   Fibonacci sphere + rotación lenta; alertas pulsan; click → Espacio 3D del cliente. */
+function f360Orbe_(){
+  if(F360._raf){ cancelAnimationFrame(F360._raf); F360._raf=0; }
+  var cv=document.getElementById('f360OrbeCv'), leg=document.getElementById('f360OrbeLeg'), nEl=document.getElementById('f360OrbeN');
+  if(!cv)return;
+  var g=F360.grafo, N=(g&&g.nodos)||[], A=(g&&g.aristas)||[];
+  var cnt={negocio:0,sistema:0,lider:0,alerta:0};
+  N.forEach(function(n){ if(n.alert)cnt.alerta++; if(cnt[n.dim]!=null)cnt[n.dim]++; });
+  if(nEl)nEl.textContent=g===null?'…':(N.length+' nodos · '+A.length+' relaciones');
+  if(leg){ clear(leg);
+    if(g===null)leg.appendChild(el('span','','Cargando el Cerebro…'));
+    else if(!N.length)leg.appendChild(el('span','','Cerebro sin nodos — el Director lo puebla en la próxima corrida.'));
+    else{ leg.appendChild(el('span','dneg','negocio '));leg.lastChild.appendChild(el('b','',String(cnt.negocio)));
+      leg.appendChild(el('span','dsis','sistema '));leg.lastChild.appendChild(el('b','',String(cnt.sistema)));
+      leg.appendChild(el('span','dlid','líder '));leg.lastChild.appendChild(el('b','',String(cnt.lider)));
+      if(cnt.alerta){leg.appendChild(el('span','dale','alerta '));leg.lastChild.appendChild(el('b','',String(cnt.alerta)));} } }
+  var dpr=Math.min(window.devicePixelRatio||1,2), W=cv.clientWidth||300, H=cv.clientHeight||172;
+  cv.width=W*dpr; cv.height=H*dpr;
+  var ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  var COL={negocio:'#E8956D',sistema:'#7BC4B8',lider:'#D9B36C'};
+  // fibonacci sphere — determinístico por índice (sin Math.random: mismo orbe en cada render)
+  var pts=N.map(function(n,i){
+    var k=N.length>1?i/(N.length-1):0.5, y=1-2*k, r=Math.sqrt(Math.max(0,1-y*y)), th=2.39996*i;
+    return {x:Math.cos(th)*r, y:y, z:Math.sin(th)*r, dim:n.dim, alert:n.alert};
+  });
+  var quieto=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var R=Math.min(W,H)*0.40, cx=W/2, cy=H/2, gen=F360.gen;
+  function frame(t){
+    var bd=document.getElementById('fichaboard');
+    if(gen!==F360.gen||!bd||!bd.classList.contains('open'))return;  // cambió el cliente o cerró: morir en silencio
+    var rot=quieto?0.6:(t||0)*0.00012;
+    ctx.clearRect(0,0,W,H);
+    // aro exterior (identidad Núcleo)
+    ctx.beginPath(); ctx.arc(cx,cy,R+9,0,6.2832); ctx.strokeStyle='rgba(232,149,109,.30)'; ctx.lineWidth=1; ctx.stroke();
+    var P=pts.map(function(p){
+      var x=p.x*Math.cos(rot)-p.z*Math.sin(rot), z=p.x*Math.sin(rot)+p.z*Math.cos(rot);
+      var d=0.55+0.45*(z+1)/2;
+      return {sx:cx+x*R, sy:cy+p.y*R*0.92, d:d, dim:p.dim, alert:p.alert, z:z};
+    });
+    ctx.lineWidth=0.6;
+    for(var a=0;a<A.length;a++){ var p1=P[A[a][0]], p2=P[A[a][1]]; if(!p1||!p2)continue;
+      ctx.beginPath(); ctx.moveTo(p1.sx,p1.sy); ctx.lineTo(p2.sx,p2.sy);
+      ctx.strokeStyle='rgba(232,224,211,'+(0.05+0.07*(p1.d+p2.d)/2).toFixed(3)+')'; ctx.stroke(); }
+    P.sort(function(a,b){return a.z-b.z;});
+    P.forEach(function(p){
+      var rad=(p.alert?2.6:1.9)*p.d, col=p.alert?'#E36C5B':(COL[p.dim]||COL.negocio);
+      if(p.alert&&!quieto)rad*=1+0.25*Math.sin((t||0)*0.004);
+      ctx.beginPath(); ctx.arc(p.sx,p.sy,rad+2.2,0,6.2832); ctx.globalAlpha=0.12*p.d; ctx.fillStyle=col; ctx.fill(); ctx.globalAlpha=1;
+      ctx.beginPath(); ctx.arc(p.sx,p.sy,rad,0,6.2832); ctx.fillStyle=col; ctx.globalAlpha=0.35+0.65*p.d; ctx.fill(); ctx.globalAlpha=1; });
+    if(!N.length){ // orbe vacío honesto: solo el aro y un núcleo tenue
+      ctx.beginPath(); ctx.arc(cx,cy,3,0,6.2832); ctx.fillStyle='rgba(232,224,211,.25)'; ctx.fill(); }
+    if(!quieto)F360._raf=requestAnimationFrame(frame);
+  }
+  frame(0);
+  if(!cv._wired){ cv._wired=1; cv.addEventListener('click',function(){
+    var be=document.getElementById('f360Espacio'); if(be&&!be.hidden)be.click(); }); }
+}
+/* T1.4 — SATO EN LA FICHA: chat contextual con memoria persistente. El historial vive en la
+   hoja `charla` del tenant (transcripción completa); cada turno lleva el contexto vivo del
+   cliente y los últimos turnos. Sato propone; las acciones van por los botones (default-deny). */
+function f360SatoInit_(){
+  var btn=document.getElementById('f360SatoBtn'), box=document.getElementById('f360Sato'),
+      x=document.getElementById('f360SatoX'), tx=document.getElementById('f360SatoTx');
+  if(!btn||!box||btn._wired)return; btn._wired=1;
+  btn.addEventListener('click',function(){
+    var abre=!box.classList.contains('open');
+    box.classList.toggle('open',abre); btn.classList.toggle('activo',abre);
+    if(abre){ f360SatoCargar_(); tx.focus(); } });
+  x.addEventListener('click',function(){ box.classList.remove('open'); btn.classList.remove('activo'); });
+  tx.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); f360SatoEnviar_(); } });
+}
+function f360SatoBurb_(rol,texto,ts){
+  var log=document.getElementById('f360SatoLog'); if(!log)return null;
+  var b=el('div','f360-burb '+rol,texto);
+  if(ts)b.appendChild(el('span','bts',ts));
+  log.appendChild(b); log.scrollTop=log.scrollHeight; return b;
+}
+function f360SatoCargar_(){
+  var log=document.getElementById('f360SatoLog'); if(!log)return; clear(log);
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ f360SatoBurb_('sato','Sin backend (vista local).'); return; }
+  f360SatoBurb_('sato pensando','Cargando la charla…');
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return; clear(log);
+      if(!(r&&r.ok)){ f360SatoBurb_('sato','No pude leer la charla: '+((r&&r.error)||'')); return; }
+      if(!r.turnos.length)f360SatoBurb_('sato','Charla nueva con este cliente. Todo lo que hablemos queda registrado en su hoja `charla` y lo tengo presente en cada respuesta. ¿Por dónde arrancamos?');
+      r.turnos.forEach(function(t){ f360SatoBurb_(t.rol==='user'?'user':'sato',t.texto,t.ts); }); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; clear(log); f360SatoBurb_('sato','No pude leer la charla: '+((e&&e.message)||'')); })
+    .satoCharla(F360.id,30);
+}
+function f360SatoEnviar_(){
+  var tx=document.getElementById('f360SatoTx'); if(!tx)return;
+  var t=tx.value.trim(); if(!t)return;
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+  tx.value=''; tx.disabled=true;
+  f360SatoBurb_('user',t);
+  var esp=f360SatoBurb_('sato pensando','Sato está pensando…');
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
+      if(esp)esp.remove(); tx.disabled=false; tx.focus();
+      f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
+      var st=document.getElementById('f360SatoSt');
+      if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4)); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return;
+      if(esp)esp.remove(); tx.disabled=false;
+      f360SatoBurb_('sato','(no pude responder: '+((e&&e.message)||'sesión o permisos')+')'); })
+    .satoChat(F360.id,t);
+}
+/* T1.3 — Encargo a Cowork: cualquier pedido sobre el cliente → Bandeja (capturar), con id y
+   nombre en el texto. Cowork lo toma en la próxima sesión con todas sus herramientas. */
+function f360EncargoInit_(){
+  var b=document.getElementById('f360Encargar'), box=document.getElementById('f360Enc'),
+      tx=document.getElementById('f360EncTx'), no=document.getElementById('f360EncNo'), go=document.getElementById('f360EncGo');
+  if(!b||!box||b._wired)return; b._wired=1;
+  b.addEventListener('click',function(){
+    var c=(F360.clientes||[]).filter(function(x){return x.id===F360.id;})[0];
+    var e=document.getElementById('f360EncCli'); if(e)e.textContent=(c?c.nombre:F360.id)||'';
+    box.classList.add('open'); tx.value=''; tx.focus(); });
+  no.addEventListener('click',function(){ box.classList.remove('open'); });
+  go.addEventListener('click',function(){
+    var t=tx.value.trim(); if(!t)return;
+    if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+    go.disabled=true;
+    google.script.run.withSuccessHandler(function(id){ go.disabled=false; box.classList.remove('open');
+        cmToast('En la Bandeja ('+id+') — lo tomo en la próxima sesión de Cowork.'); })
+      .withFailureHandler(function(e2){ go.disabled=false; cmToast('No se pudo capturar: '+((e2&&e2.message)||'')); })
+      .capturar('[ENCARGO-COWORK · '+F360.id+'] '+t,'ficha-360'); });
 }
 /* T1.2 — SITUACIÓN: el brief diario del cliente (markdown → DOM propio, sin innerHTML),
    plegado a las primeras líneas con "Ver completo". Se regenera solo cada mañana (warm). */
