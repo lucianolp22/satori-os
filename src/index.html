@@ -3490,23 +3490,56 @@ function f360SatoVozInit_(){
     var tr=nel('div','font-size:13px;min-height:44px;max-width:350px','');
     var SRw=w.SpeechRecognition||w.webkitSpeechRecognition;
     if(!SRw){ st.textContent='Este navegador no tiene reconocimiento de voz en esta ventana.'; btn.disabled=true; return; }
-    st.textContent='Tocá el micrófono y hablá — lo dictado se envía solo al chat de Sato (la respuesta suena en la ventana grande). La primera vez el navegador te pide permiso: aceptalo.';
-    var esc=false,rec=null,principal=window;
-    function ronda(){
-      rec=new SRw(); rec.lang='es-ES'; rec.interimResults=true; rec.maxAlternatives=1;
-      rec.onstart=function(){ esc=true; btn.style.background='#B3261E'; btn.style.borderColor='#B3261E'; };
-      rec.onend=function(){ esc=false; btn.style.background='rgba(232,149,109,.12)'; btn.style.borderColor='#E8956D'; };
-      rec.onerror=function(ev2){ tr.textContent=(ev2.error==='not-allowed')?'Permiso denegado — dáselo en el candado de la barra de ESTA ventana y tocá de nuevo.':('Micrófono: '+ev2.error); };
-      rec.onresult=function(ev2){
-        var fin='',tmp='';
-        for(var i=0;i<ev2.results.length;i++){ if(ev2.results[i].isFinal)fin+=ev2.results[i][0].transcript; else tmp+=ev2.results[i][0].transcript; }
-        tr.textContent=fin||tmp;
-        if(fin){ try{ principal.postMessage({satori_mic:fin.trim()},'*'); tr.textContent='✓ enviado: '+fin.trim(); }catch(e){ tr.textContent='No pude enviar: '+e.message; } }
-      };
-      try{ rec.start(); }catch(e){ tr.textContent='No pude iniciar: '+e.message; }
+    st.textContent='UNA pulsación y queda escuchando — hablá cuando quieras, cada frase entra sola al chat. Se pausa sola mientras Sato habla (anti-eco). Tocá de nuevo para apagar.';
+    // v2 (feedback 28-jul): escucha CONTINUA con auto-rearranque + pausa anti-eco coordinada
+    // con el TTS de la ventana principal + es-AR (oído rioplatense). Una pulsación, listo.
+    var activo=false,esc=false,rec=null,principal=window,pausaTTS=false,enviadas=0;
+    function pinta(){
+      if(!activo){ btn.style.background='rgba(232,149,109,.12)'; btn.style.borderColor='#E8956D'; st.textContent='Apagado. UNA pulsación y queda escuchando de forma continua.'; }
+      else if(pausaTTS){ btn.style.background='rgba(217,179,108,.25)'; btn.style.borderColor='#D9B36C'; st.textContent='⏸ en pausa mientras Sato habla — se reanuda solo.'; }
+      else { btn.style.background='#B3261E'; btn.style.borderColor='#B3261E'; st.textContent='● Escuchando… hablá tranquilo. '+(enviadas?('Frases enviadas: '+enviadas+'.'):'')+' Tocá para apagar.'; }
     }
-    btn.addEventListener('click',function(){ if(esc){ try{rec.stop();}catch(e){} } else ronda(); });
-    cmToast('Hablale a Sato en la ventanita 🎙 — lo dictado entra solo al chat.');
+    function ronda(){
+      if(!activo||pausaTTS)return;
+      rec=new SRw(); rec.lang='es-AR'; rec.continuous=true; rec.interimResults=true; rec.maxAlternatives=1;
+      var base=0;
+      rec.onstart=function(){ esc=true; pinta(); };
+      rec.onend=function(){ esc=false; if(activo&&!pausaTTS)setTimeout(ronda,250); else pinta(); };  // se re-arma solo
+      rec.onerror=function(ev2){
+        if(ev2.error==='not-allowed'){ activo=false; tr.textContent='Permiso denegado — dáselo en el candado de ESTA ventana y volvé a tocar.'; pinta(); }
+        else if(ev2.error==='no-speech'||ev2.error==='aborted'){ /* silencio: la ronda se re-arma en onend */ }
+        else tr.textContent='Micrófono: '+ev2.error;
+      };
+      rec.onresult=function(ev2){
+        var tmp='';
+        for(var i=base;i<ev2.results.length;i++){
+          if(ev2.results[i].isFinal){
+            var fin=String(ev2.results[i][0].transcript||'').trim(); base=i+1;
+            if(fin){ try{ principal.postMessage({satori_mic:fin},'*'); enviadas++; tr.textContent='✓ '+fin; pinta(); }
+                     catch(e){ tr.textContent='No pude enviar: '+e.message; } }
+          } else tmp+=ev2.results[i][0].transcript;
+        }
+        if(tmp)tr.textContent='… '+tmp;
+      };
+      try{ rec.start(); }catch(e){ /* start doble tras resume: inofensivo */ }
+    }
+    btn.addEventListener('click',function(){
+      activo=!activo;
+      if(activo){ enviadas=0; ronda(); } else { try{rec&&rec.stop();}catch(e){} }
+      pinta();
+    });
+    // pausa anti-eco: la ventana principal avisa cuando Sato empieza y termina de hablar
+    w.addEventListener('message',function(ev2){
+      if(ev2.source!==principal)return;
+      if(ev2.data&&typeof ev2.data.sato_hablando==='boolean'){
+        pausaTTS=ev2.data.sato_hablando;
+        if(pausaTTS){ try{rec&&rec.stop();}catch(e){} } else if(activo)setTimeout(ronda,300);
+        pinta();
+      }
+    });
+    // arranque automático: si el permiso ya fue dado antes, queda escuchando sin tocar nada
+    activo=true; ronda(); pinta();
+    cmToast('Ventanita 🎙 escuchando en continuo — hablá cuando quieras; tocá el micrófono grande para apagar.');
   }
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ bm.title='Micrófono por ventanita'; bm.addEventListener('click',abrirMic_); return; }
@@ -3535,6 +3568,11 @@ function f360SatoHablar_(texto){
     var u=new SpeechSynthesisUtterance(limpio); u.lang='es-ES'; u.rate=1.04;
     var voces=window.speechSynthesis.getVoices().filter(function(v){return /^es/.test(v.lang);});
     if(voces.length)u.voice=voces.filter(function(v){return /ES|es-ES/.test(v.lang);})[0]||voces[0];
+    // Anti-eco: mientras Sato habla, la ventanita del micrófono se pausa sola y se reanuda al terminar.
+    function aviso(hablando){ try{ if(SATO_VOZ.popup&&!SATO_VOZ.popup.closed)SATO_VOZ.popup.postMessage({sato_hablando:hablando},'*'); }catch(e){} }
+    u.onstart=function(){ aviso(true); };
+    u.onend=function(){ aviso(false); };
+    u.onerror=function(){ aviso(false); };
     window.speechSynthesis.speak(u);
   }catch(e){ /* la voz es un extra: si falla, el texto ya está en pantalla */ }
 }
