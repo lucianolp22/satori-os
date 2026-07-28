@@ -3477,6 +3477,8 @@ function f360SatoVozInit_(){
     var w=window.open('','sato_mic','width=440,height=470');
     if(!w){ cmToast('El navegador bloqueó la ventanita — permití popups para este sitio.'); return; }
     SATO_VOZ.popup=w;
+    // Si vas a hablarle, querés oírlo: el modo voz se enciende solo con la ventanita.
+    if(!SATO_VOZ.on){ SATO_VOZ.on=true; var bv2=document.getElementById('f360SatoVoz'); if(bv2)bv2.classList.add('on'); }
     var d=w.document;
     d.open();
     d.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Micrófono de Sato</title></head><body></body></html>');
@@ -3528,10 +3530,26 @@ function f360SatoVozInit_(){
       if(activo){ enviadas=0; ronda(); } else { try{rec&&rec.stop();}catch(e){} }
       pinta();
     });
-    // pausa anti-eco: la ventana principal avisa cuando Sato empieza y termina de hablar
+    // LA VOZ DE SATO SUENA ACÁ (fix 28-jul): el iframe de Google bloquea speechSynthesis sin
+    // gesto propio — esta ventana es top-level con gesto vivo, igual que la PWA "Hablar con
+    // Sato". La principal manda el texto; el popup lo habla y se calla a sí mismo mientras
+    // (anti-eco local, sin coordinación remota).
     w.addEventListener('message',function(ev2){
       if(ev2.source!==principal)return;
-      if(ev2.data&&typeof ev2.data.sato_hablando==='boolean'){
+      if(ev2.data&&typeof ev2.data.sato_habla==='string'){
+        var texto=ev2.data.sato_habla;
+        try{
+          w.speechSynthesis.cancel();
+          var u=new w.SpeechSynthesisUtterance(texto); u.lang='es-ES'; u.rate=1.04;
+          var vs=w.speechSynthesis.getVoices().filter(function(v){return /^es/.test(v.lang);});
+          if(vs.length)u.voice=vs.filter(function(v){return /es-ES/.test(v.lang);})[0]||vs[0];
+          u.onstart=function(){ pausaTTS=true; try{rec&&rec.stop();}catch(e){} pinta(); };
+          function fin(){ pausaTTS=false; if(activo)setTimeout(ronda,350); pinta(); }
+          u.onend=fin; u.onerror=fin;
+          w.speechSynthesis.speak(u);
+        }catch(e){ pausaTTS=false; }
+      }
+      if(ev2.data&&typeof ev2.data.sato_hablando==='boolean'){   // compat: pausa remota simple
         pausaTTS=ev2.data.sato_hablando;
         if(pausaTTS){ try{rec&&rec.stop();}catch(e){} } else if(activo)setTimeout(ronda,300);
         pinta();
@@ -3561,18 +3579,20 @@ function f360SatoVozInit_(){
 }
 function f360SatoHablar_(texto){
   if(!SATO_VOZ.on||!('speechSynthesis' in window))return;
+  // El markdown no se lee: se limpia a prosa hablable.
+  var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,900);
+  // Fix 28-jul (Sato mudo): Chrome BLOQUEA speechSynthesis en el iframe de Google cuando el
+  // turno llega sin gesto propio (dictado por mensaje). La voz suena EN LA VENTANITA del
+  // micrófono (top-level con gesto, como la PWA); si no está abierta, se intenta local
+  // (con teclado hay gesto en el iframe y sí funciona).
+  if(SATO_VOZ.popup&&!SATO_VOZ.popup.closed){
+    try{ SATO_VOZ.popup.postMessage({sato_habla:limpio},'*'); return; }catch(e){ /* cae al local */ }
+  }
   try{
     window.speechSynthesis.cancel();
-    // El markdown no se lee: se limpia a prosa hablable.
-    var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,900);
     var u=new SpeechSynthesisUtterance(limpio); u.lang='es-ES'; u.rate=1.04;
     var voces=window.speechSynthesis.getVoices().filter(function(v){return /^es/.test(v.lang);});
     if(voces.length)u.voice=voces.filter(function(v){return /ES|es-ES/.test(v.lang);})[0]||voces[0];
-    // Anti-eco: mientras Sato habla, la ventanita del micrófono se pausa sola y se reanuda al terminar.
-    function aviso(hablando){ try{ if(SATO_VOZ.popup&&!SATO_VOZ.popup.closed)SATO_VOZ.popup.postMessage({sato_hablando:hablando},'*'); }catch(e){} }
-    u.onstart=function(){ aviso(true); };
-    u.onend=function(){ aviso(false); };
-    u.onerror=function(){ aviso(false); };
     window.speechSynthesis.speak(u);
   }catch(e){ /* la voz es un extra: si falla, el texto ya está en pantalla */ }
 }
