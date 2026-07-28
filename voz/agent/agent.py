@@ -434,31 +434,37 @@ class SatoriVoz(Agent):
         return f"Anotado: {texto}"
 
     @function_tool()
-    async def preparar_reunion(self, context: RunContext, id_cliente: str) -> str:
+    async def preparar_reunion(self, context: RunContext, cliente: str) -> str:
         """Encarga la preparación del documento de la PRÓXIMA REUNIÓN de un cliente.
 
         Usala cuando Luciano diga "armá/prepará la reunión de <cliente>". Esta tool SOLO deja el
         pedido registrado (captura la intención): el documento lo arma Cowork leyendo el Hilo del
         cliente y queda en el Centro de Mando — NO se genera en este momento, y no hay que
-        prometer que sí. El id_cliente tiene que ser un id REAL del roster (CLI-00X); si Luciano
-        nombra al cliente, resolvé el id con la lista de clientes que ya conocés, y si no estás
-        seguro repreguntá — jamás inventes un id.
+        prometer que sí.
+
+        REGLA DURA (incidente 27-jul: se registró CLI-004 para "LC Travel", que es CLI-003):
+        pasá el NOMBRE del cliente TAL CUAL lo dijo Luciano (ej. 'LC Travel', 'Vehemence').
+        NO lo traduzcas a un id CLI-00X vos — el sistema resuelve el roster server-side y si es
+        ambiguo lo escala. Solo pasá un id si Luciano dijo el id textualmente.
 
         Args:
-            id_cliente: id del cliente en el roster, formato CLI-00X (ej. 'CLI-003').
+            cliente: el nombre del cliente tal como lo dijo Luciano (o el id CLI-00X si lo dijo él).
         """
         context.disallow_interruptions()  # escritura: no dejarla a medias por una interrupción
-        idc = (id_cliente or "").strip().upper()
-        res = await _llamar_backend(
-            "capturar",
-            {"idCliente": idc, "texto": f"[PREPARAR_REUNION] {idc}"},
-        )
+        pedido = (cliente or "").strip()
+        p = pedido.upper()
+        args = {"texto": f"[PREPARAR_REUNION] {pedido}"}
+        # idCliente solo si YA es un id con formato del roster (el doPost lo valida contra Clientes);
+        # un nombre acá rebotaría con cliente_desconocido, así que el nombre viaja solo en el texto.
+        if p.startswith("CLI-") and len(p) == 7 and p[4:].isdigit():
+            args["idCliente"] = p
+        res = await _llamar_backend("capturar", args)
         # Timeout en ESCRITURA: no afirmar que quedó encargado (N5, no inventar acción).
         if res is _MSG_BACKEND_TIMEOUT:
             return ("El sistema tardó demasiado y no puedo confirmar si el pedido quedó registrado. "
                     "Volvé a pedírmelo en un rato y lo verifico.")
         # Honesto: encargado ≠ generado. El doc lo prepara Cowork y aparece en el Centro de Mando.
-        return (f"Anotado: te preparo la reunión de {idc}. El documento se arma con el Hilo del "
+        return (f"Anotado: te preparo la reunión de {pedido}. El documento se arma con el Hilo del "
                 "cliente y te queda en el Centro de Mando — no lo tengo ahora mismo.")
 
     @function_tool()

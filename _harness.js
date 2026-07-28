@@ -155,8 +155,28 @@ chk(ctx.esPreparaReunion_('[PREPARAR_REUNION] CLI-003') === true, '[PREPARAR_REU
 chk(ctx.esPreparaReunion_('preparar la reunión de CLI-003') === false, 'sin prefijo NO entra por la vía determinista');
 chk(ctx.BANDEJA_BINS.indexOf('preparar_reunion') >= 0 && ctx.BANDEJA_BINS.indexOf('research') >= 0,
     'los bins deterministas están en BANDEJA_BINS');
-chk(String(ctx.clasificarBandeja).indexOf('clienteExiste_') >= 0,
-    'clasificarBandeja re-valida el tenant del pedido de reunión contra el roster');
+chk(String(ctx.clasificarBandeja).indexOf('_resolverClientePrep_') >= 0,
+    'clasificarBandeja resuelve el cliente del pedido de reunión SERVER-SIDE (incidente BAN-0017)');
+// _resolverClientePrep_ con roster stub (se inyectan getMaestro/leerTabla/clienteExiste_ y se restauran)
+{
+  const gmOrig = ctx.getMaestro, ltOrig = ctx.leerTabla, ceOrig = ctx.clienteExiste_;
+  ctx.getMaestro = () => ({ getSheetByName: () => ({}) });
+  ctx.leerTabla = () => [
+    { id_cliente: 'CLI-001', nombre: 'MesaQuince' },
+    { id_cliente: 'CLI-002', nombre: 'Vehemence' },
+    { id_cliente: 'CLI-003', nombre: 'LC Travel' },
+    { id_cliente: 'CLI-004', nombre: 'DAM Barbers' },
+    { id_cliente: 'CLI-007', nombre: 'EJF' },
+  ];
+  ctx.clienteExiste_ = (id) => ['CLI-001', 'CLI-002', 'CLI-003', 'CLI-004', 'CLI-007'].includes(id);
+  chk(ctx._resolverClientePrep_('LC Travel') === 'CLI-003', 'resolver: "LC Travel" → CLI-003 (el caso del incidente)');
+  chk(ctx._resolverClientePrep_('lc travel') === 'CLI-003', 'resolver: case-insensitive');
+  chk(ctx._resolverClientePrep_('CLI-004') === 'CLI-004', 'resolver: un id válido pasa directo');
+  chk(ctx._resolverClientePrep_('CLI-099') === '', 'resolver: id fuera del roster = vacío (escala)');
+  chk(ctx._resolverClientePrep_('la reunión de mañana') === '', 'resolver: texto sin match = vacío (no adivina)');
+  chk(ctx._resolverClientePrep_('DAM') === 'CLI-004', 'resolver: prefijo único "DAM" matchea DAM Barbers');
+  ctx.getMaestro = gmOrig; ctx.leerTabla = ltOrig; ctx.clienteExiste_ = ceOrig;
+}
 
 // ═══ 5 · P0-bis: el error del sync no se traga ═══════════════════════════════
 seccion('sincronizarConectores: error visible');

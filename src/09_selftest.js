@@ -1826,8 +1826,9 @@ function _asertsD28_(chk, log, opts) {
   chk(BANDEJA_BINS.indexOf('preparar_reunion') >= 0, 'D28d preparar_reunion es un bin válido de la Bandeja');
   chk(esPreparaReunion_('[PREPARAR_REUNION] CLI-003') === true, 'D28d2 el prefijo literal se reconoce');
   chk(esPreparaReunion_('preparar la reunion de CLI-003') === false, 'D28d3 sin prefijo NO entra por la vía determinista');
-  chk(String(clasificarBandeja).indexOf('clienteExiste_') >= 0,
-      'D28d4 el ruteo re-valida el tenant contra el roster (id desconocido escala, no se adivina)');
+  chk(String(clasificarBandeja).indexOf('_resolverClientePrep_') >= 0,
+      'D28d4 el ruteo resuelve el cliente SERVER-SIDE contra el roster (incidente BAN-0017: la voz no traduce nombre→id)');
+  chk(_resolverClientePrep_('CLI-099') === '', 'D28d5 un id fuera del roster no resuelve (escala, no se adivina)');
 
   // ── Fix del 27-jul (noche) — importe MesaQuince: el warehouse escribe PUNTO decimal y el
   // parseo es-AR inflaba ×10/×100 (lo cazó Luciano: "MesaQuince maneja miles, no millones").

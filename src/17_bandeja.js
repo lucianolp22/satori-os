@@ -25,9 +25,29 @@ var BANDEJA_BINS = ['proyecto', 'tarea', 'idea', 'referencia', 'cliente', 'lead'
 var RESEARCH_PREFIJO = '[RESEARCH]';
 function esResearch_(texto) { return String(texto || '').trim().indexOf(RESEARCH_PREFIJO) === 0; }
 
-/** Fix C: prefijo estructurado del pedido "prepará la reunión de <CLI-00X>" dictado a Sato. */
+/** Fix C: prefijo estructurado del pedido "prepará la reunión de <cliente>" dictado a Sato. */
 var PREP_REUNION_PREFIJO = '[PREPARAR_REUNION]';
 function esPreparaReunion_(texto) { return String(texto || '').trim().indexOf(PREP_REUNION_PREFIJO) === 0; }
+
+/**
+ * Fix 27-jul (incidente BAN-0017: Sato dijo "LC Travel = CLI-004" y CLI-004 es DAM). El LLM de
+ * voz NO puede traducir nombre→id: adivina con confianza. Ahora el texto lleva lo que Luciano
+ * DIJO (nombre o id) y el roster se resuelve ACÁ, server-side, contra la hoja Clientes.
+ * Devuelve el id SOLO con match ÚNICO; '' = no resuelto → la rama escala (no se adivina).
+ */
+function _resolverClientePrep_(crudo) {
+  var t = _sinTildes_(String(crudo || '').toLowerCase().trim());
+  if (!t) return '';
+  if (/^cli-\d{3}$/.test(t)) { var up = t.toUpperCase(); return clienteExiste_(up) ? up : ''; }
+  var matches = [];
+  leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
+    var n = _sinTildes_(String(c.nombre || '').toLowerCase().trim());
+    if (!n) return;
+    if (n === t || n.indexOf(t) >= 0 || t.indexOf(n) >= 0) matches.push(String(c.id_cliente));
+  });
+  var unicos = matches.filter(function (v, i) { return matches.indexOf(v) === i; });
+  return unicos.length === 1 ? unicos[0] : '';
+}
 var BANDEJA_MAX_POR_CORRIDA = 25; // Purga F3: tope de items clasificados por corrida (anti-timeout 6min / quota UrlFetch)
 
 /** Captura un input crudo en la Bandeja (estado 'pendiente'). Lo dispara la UI o vos. @return {{id}} */
@@ -95,19 +115,20 @@ function clasificarBandeja() {
     // profundidad: el doPost ya validó args.idCliente, pero este texto pudo entrar por otra vía).
     // Un id que no existe NO se adivina: escala con aviso.
     if (esPreparaReunion_(f.texto)) {
-      var idPrep = limpiarHostilTexto_(String(f.texto).trim().slice(PREP_REUNION_PREFIJO.length), 24).trim();
-      if (!idPrep || !clienteExiste_(idPrep)) {
+      var crudoPrep = limpiarHostilTexto_(String(f.texto).trim().slice(PREP_REUNION_PREFIJO.length), 80).trim();
+      var idPrep = _resolverClientePrep_(crudoPrep);   // nombre O id → roster server-side (match único)
+      if (!idPrep) {
         setCol(f._fila, 'estado', 'escalado'); setCol(f._fila, 'procesado_en', ahoraISO());
-        setCol(f._fila, 'resumen', 'preparar_reunion con cliente desconocido: "' + idPrep + '"');
+        setCol(f._fila, 'resumen', 'preparar_reunion sin match único en el roster: "' + crudoPrep + '"');
         crearAviso({ origen: 'bandeja', tipo: 'bandeja_escalada',
-          mensaje: 'Bandeja [' + f.id + ']: pedido de reunión con cliente desconocido ("' + idPrep + '"). Revisá.' });
+          mensaje: 'Bandeja [' + f.id + ']: pedido de reunión sin match único ("' + crudoPrep + '"). Revisá.' });
         escalados++; procesados++; return;
       }
       setCol(f._fila, 'bin', 'preparar_reunion'); setCol(f._fila, 'confianza', 10); setCol(f._fila, 'slug', 'preparar-reunion');
-      setCol(f._fila, 'tags', 'reunion'); setCol(f._fila, 'resumen', 'Preparar la reunión de ' + idPrep);
+      setCol(f._fila, 'tags', 'reunion'); setCol(f._fila, 'resumen', 'Preparar la reunión de ' + idPrep + ' («' + crudoPrep + '»)');
       setCol(f._fila, 'id_cliente', idPrep);
       setCol(f._fila, 'procesado_en', ahoraISO()); setCol(f._fila, 'estado', 'clasificado');
-      feed_('Clasificador', 'exito', idPrep, 'Bandeja [' + f.id + '] → preparar_reunion: ' + idPrep, '', '');
+      feed_('Clasificador', 'exito', idPrep, 'Bandeja [' + f.id + '] → preparar_reunion: ' + idPrep + ' («' + crudoPrep + '»)', '', '');
       procesados++; return;
     }
     // B8 #6: la anonimización va acá, sobre el TEXTO DEL ITEM, antes de que entre al prompt.
