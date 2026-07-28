@@ -3490,9 +3490,43 @@ function f360SatoVozInit_(){
     var st=nel('div','font-size:13px;color:#B9AE9D;max-width:330px;line-height:1.45','');
     var btn=nel('button','width:112px;height:112px;border-radius:50%;border:2px solid #E8956D;background:rgba(232,149,109,.12);color:#ECE6DB;font-size:44px;cursor:pointer','🎙');
     var tr=nel('div','font-size:13px;min-height:44px;max-width:350px','');
+    // T1.5 — SELECTOR DE MICRÓFONO (como la PWA "Hablar con Sato", que lista los dispositivos).
+    // Prioriza el INTEGRADO del MacBook y evita el del iPhone (Continuidad), que se colaba.
+    // Nota honesta: la Web Speech API no acepta deviceId; se "reserva" el elegido con
+    // getUserMedia sostenido mientras escucha — en Chrome eso alcanza en la práctica. El
+    // default duro del sistema se fija una vez en chrome://settings/content/microphone.
+    var selMic=d.createElement('select');
+    selMic.style.cssText='max-width:330px;background:rgba(255,255,255,.06);color:#ECE6DB;border:1px solid rgba(244,238,226,.18);border-radius:8px;padding:5px 8px;font-size:12px';
+    b.insertBefore(selMic,btn);
+    var streamMic=null;
+    function poblarMics(){
+      if(!w.navigator.mediaDevices||!w.navigator.mediaDevices.enumerateDevices)return;
+      w.navigator.mediaDevices.enumerateDevices().then(function(ds){
+        var ins=ds.filter(function(x){return x.kind==='audioinput';});
+        while(selMic.firstChild)selMic.removeChild(selMic.firstChild);
+        ins.forEach(function(x,i){
+          var o=d.createElement('option'); o.value=x.deviceId;
+          o.textContent=x.label||('Micrófono '+(i+1)); selMic.appendChild(o);
+        });
+        // preferencia: Built-in / MacBook · nunca el iPhone si hay alternativa
+        var pref=ins.filter(function(x){return /built-?in|macbook|interno|integrado/i.test(x.label||'');})[0]
+              || ins.filter(function(x){return !/iphone|ipad|continuidad|continuity/i.test(x.label||'');})[0] || ins[0];
+        if(pref)selMic.value=(SATO_VOZ.micId&&ins.filter(function(x){return x.deviceId===SATO_VOZ.micId;})[0])?SATO_VOZ.micId:pref.deviceId;
+        SATO_VOZ.micId=selMic.value;
+      }).catch(function(){});
+    }
+    selMic.addEventListener('change',function(){ SATO_VOZ.micId=selMic.value; reservarMic(); });
+    function reservarMic(){
+      if(!w.navigator.mediaDevices||!w.navigator.mediaDevices.getUserMedia)return Promise.resolve();
+      try{ if(streamMic)streamMic.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+      var c=SATO_VOZ.micId?{audio:{deviceId:{exact:SATO_VOZ.micId}}}:{audio:true};
+      return w.navigator.mediaDevices.getUserMedia(c).then(function(s){ streamMic=s; poblarMics(); })
+        .catch(function(){ /* si el exact falla, sigue con el default del sistema */ });
+    }
     var SRw=w.SpeechRecognition||w.webkitSpeechRecognition;
     if(!SRw){ st.textContent='Este navegador no tiene reconocimiento de voz en esta ventana.'; btn.disabled=true; return; }
     st.textContent='UNA pulsación y queda escuchando — hablá cuando quieras, cada frase entra sola al chat. Se pausa sola mientras Sato habla (anti-eco). Tocá de nuevo para apagar.';
+    poblarMics();
     // v2 (feedback 28-jul): escucha CONTINUA con auto-rearranque + pausa anti-eco coordinada
     // con el TTS de la ventana principal + es-AR (oído rioplatense). Una pulsación, listo.
     var activo=false,esc=false,rec=null,principal=window,pausaTTS=false,enviadas=0;
@@ -3527,7 +3561,8 @@ function f360SatoVozInit_(){
     }
     btn.addEventListener('click',function(){
       activo=!activo;
-      if(activo){ enviadas=0; ronda(); } else { try{rec&&rec.stop();}catch(e){} }
+      if(activo){ enviadas=0; reservarMic().then(function(){ ronda(); pinta(); }); }
+      else { try{rec&&rec.stop();}catch(e){} try{ if(streamMic)streamMic.getTracks().forEach(function(t){t.stop();}); }catch(e2){} }
       pinta();
     });
     // LA VOZ DE SATO SUENA ACÁ (fix 28-jul): el iframe de Google bloquea speechSynthesis sin
@@ -3536,6 +3571,18 @@ function f360SatoVozInit_(){
     // (anti-eco local, sin coordinación remota).
     w.addEventListener('message',function(ev2){
       if(ev2.source!==principal)return;
+      // T1.5: MP3 de ElevenLabs (la voz REAL de Sato) — suena acá, con anti-eco local.
+      if(ev2.data&&typeof ev2.data.sato_mp3==='string'){
+        try{
+          if(w._sa){ try{w._sa.pause();}catch(e0){} }
+          var au=new w.Audio(ev2.data.sato_mp3); w._sa=au;
+          au.onplay=function(){ pausaTTS=true; try{rec&&rec.stop();}catch(e1){} pinta(); };
+          function finAu(){ pausaTTS=false; if(activo)setTimeout(ronda,350); pinta(); }
+          au.onended=finAu; au.onerror=finAu;
+          au.play().catch(function(){ finAu(); });
+        }catch(e2){ pausaTTS=false; }
+        return;
+      }
       if(ev2.data&&typeof ev2.data.sato_habla==='string'){
         var texto=ev2.data.sato_habla;
         try{
@@ -3556,7 +3603,7 @@ function f360SatoVozInit_(){
       }
     });
     // arranque automático: si el permiso ya fue dado antes, queda escuchando sin tocar nada
-    activo=true; ronda(); pinta();
+    activo=true; reservarMic().then(function(){ ronda(); pinta(); }); pinta();
     cmToast('Ventanita 🎙 escuchando en continuo — hablá cuando quieras; tocá el micrófono grande para apagar.');
   }
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -3577,17 +3624,49 @@ function f360SatoVozInit_(){
     try{ rec.start(); }catch(e){ SATO_VOZ.bloqueado=true; abrirMic_(); }
   });
 }
+/* T1.5 (28-jul) — LA VOZ REAL DE SATO. Feedback de Luciano: la sintética del navegador era
+   "horrible". Ahora suena la MISMA voz de "Hablar con Sato": ElevenLabs eleven_turbo_v2_5,
+   voz grave, vía el endpoint satoVoz() (GAS tiene la key, igual que el agente LiveKit).
+   El MP3 llega en base64 y se reproduce con <audio> — en la ventanita del micrófono si está
+   abierta (top-level con gesto → sin bloqueo de autoplay), si no, acá mismo.
+   Fallback declarado: si falta la key o falla el proveedor, se avisa UNA vez y se usa la voz
+   del navegador (mejor eso que mudo) — nunca se finge que habló con la voz buena. */
 function f360SatoHablar_(texto){
-  if(!SATO_VOZ.on||!('speechSynthesis' in window))return;
+  if(!SATO_VOZ.on)return;
   // El markdown no se lee: se limpia a prosa hablable.
-  var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,900);
-  // Fix 28-jul (Sato mudo): Chrome BLOQUEA speechSynthesis en el iframe de Google cuando el
-  // turno llega sin gesto propio (dictado por mensaje). La voz suena EN LA VENTANITA del
-  // micrófono (top-level con gesto, como la PWA); si no está abierta, se intenta local
-  // (con teclado hay gesto en el iframe y sí funciona).
-  if(SATO_VOZ.popup&&!SATO_VOZ.popup.closed){
-    try{ SATO_VOZ.popup.postMessage({sato_habla:limpio},'*'); return; }catch(e){ /* cae al local */ }
-  }
+  var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,700);
+  if(!limpio)return;
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ f360SatoVozNavegador_(limpio); return; }
+  if(SATO_VOZ.sinKey){ f360SatoVozNavegador_(limpio); return; }   // ya sabemos que no hay TTS neuronal
+  var st=document.getElementById('f360SatoSt'); if(st)st.textContent='🔊 generando voz…';
+  google.script.run.withSuccessHandler(function(r){
+      if(r&&r.ok&&r.mp3){ f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
+        if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4)); return; }
+      var m=(r&&r.motivo)||'sin respuesta';
+      if(m==='sin_key'){ SATO_VOZ.sinKey=true;
+        cmToast('Falta ELEVENLABS_API_KEY en Script Properties — uso la voz del navegador hasta que la pegues (es la misma key del agente de voz).'); }
+      else if(m!=='apagada')cmToast('Voz de Sato: '+m+' — uso la del navegador.');
+      if(st)st.textContent='voz del navegador (fallback)';
+      f360SatoVozNavegador_(limpio); })
+    .withFailureHandler(function(e){ if(st)st.textContent='voz del navegador (fallback)';
+      cmToast('No pude generar la voz: '+((e&&e.message)||'')); f360SatoVozNavegador_(limpio); })
+    .satoVoz(limpio);
+}
+/* Reproduce el MP3 donde HAY gesto: la ventanita del micrófono (top-level) o, si no está,
+   acá mismo. Anti-eco: se avisa al popup para que pause la escucha mientras suena. */
+function f360SatoReproducir_(dataUrl){
+  var pop=(SATO_VOZ.popup&&!SATO_VOZ.popup.closed)?SATO_VOZ.popup:null;
+  if(pop){ try{ pop.postMessage({sato_mp3:dataUrl},'*'); return; }catch(e){ /* cae a local */ } }
+  try{
+    if(SATO_VOZ.audio){ try{SATO_VOZ.audio.pause();}catch(e2){} }
+    var a=new Audio(dataUrl); SATO_VOZ.audio=a;
+    a.play().catch(function(){ cmToast('El navegador bloqueó el audio acá — abrí el 🎙 y suena en la ventanita.'); });
+  }catch(e3){ /* la voz es un extra */ }
+}
+function f360SatoVozNavegador_(limpio){
+  if(!('speechSynthesis' in window))return;
+  var pop=(SATO_VOZ.popup&&!SATO_VOZ.popup.closed)?SATO_VOZ.popup:null;
+  if(pop){ try{ pop.postMessage({sato_habla:limpio},'*'); return; }catch(e){} }
   try{
     window.speechSynthesis.cancel();
     var u=new SpeechSynthesisUtterance(limpio); u.lang='es-ES'; u.rate=1.04;

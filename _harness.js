@@ -441,6 +441,44 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensibl
   Object.keys(bk).forEach(k => { ctx[k] = bk[k]; });
 }
 
+// ═══ 14 · T1.5 (28-jul): satoVoz — la voz REAL (ElevenLabs, misma que "Hablar con Sato") ═══
+seccion('satoVoz · ElevenLabs (T1.5)');
+chk(ctx.ENDPOINTS_UI.indexOf('satoVoz') >= 0, 'satoVoz está en ENDPOINTS_UI (anti-drift)');
+chk(String(ctx.satoVoz).indexOf("_soloOwner_('satoVoz')") >= 0, 'satoVoz lleva _soloOwner_');
+chk(ctx.SATO_VOZ_ID_DEF === 'xcAUMhbpNX2WRGsuhjFy', 'la voz por defecto es la MISMA del agente LiveKit (voz grave de Sato)');
+{
+  const bk = {};
+  ['getConfig', 'PropertiesService', 'UrlFetchApp', 'Utilities', 'logCostoCliente', 'ahoraISO'].forEach(k => { bk[k] = ctx[k]; });
+  ctx.SATORI_CTX_SISTEMA = true;
+  let pedido = null; const costos = [];
+  ctx.getConfig = () => '';
+  ctx.PropertiesService = { getScriptProperties: () => ({ getProperty: (k) => (k === 'ELEVENLABS_API_KEY' ? 'sk_test' : '') }) };
+  ctx.Utilities = { base64Encode: () => 'QkFTRTY0' };
+  ctx.logCostoCliente = (id, f) => costos.push(f);
+  ctx.ahoraISO = () => '2026-07-28T19:00:00';
+  ctx.UrlFetchApp = { fetch: (url, opts) => { pedido = { url, opts }; return { getResponseCode: () => 200, getBlob: () => ({ getBytes: () => [1, 2, 3] }) }; } };
+
+  const r = ctx.satoVoz('hola, ¿cómo venimos con DAM?');
+  chk(r.ok === true && r.mp3 === 'QkFTRTY0', 'satoVoz devuelve el MP3 en base64');
+  chk(pedido.url.indexOf('api.elevenlabs.io/v1/text-to-speech/xcAUMhbpNX2WRGsuhjFy') >= 0, 'pega a ElevenLabs con la voz de Sato');
+  chk(JSON.parse(pedido.opts.payload).model_id === 'eleven_turbo_v2_5', 'usa eleven_turbo_v2_5 (mismo modelo que el agente de voz)');
+  chk(JSON.parse(pedido.opts.payload).language_code === 'es', 'idioma español, como el agente');
+  chk(pedido.opts.headers['xi-api-key'] === 'sk_test' && pedido.opts.muteHttpExceptions === true, 'key por header + muteHttpExceptions (fail-closed)');
+  chk(costos.length === 1 && costos[0].modulo === 'sato_voz' && costos[0].USD > 0, 'el consumo se registra en Costos_API (estimación declarada)');
+  // fail-closed: sin key, con la voz apagada y con error del proveedor
+  ctx.PropertiesService = { getScriptProperties: () => ({ getProperty: () => '' }) };
+  chk(ctx.satoVoz('hola').motivo === 'sin_key', 'sin ELEVENLABS_API_KEY → motivo sin_key (la UI cae a la voz del navegador y lo dice)');
+  ctx.PropertiesService = { getScriptProperties: () => ({ getProperty: () => 'sk_test' }) };
+  ctx.getConfig = (k) => (k === 'sato_voz_on' ? 'no' : '');
+  chk(ctx.satoVoz('hola').motivo === 'apagada', 'Config sato_voz_on=no apaga el TTS neuronal');
+  ctx.getConfig = () => '';
+  ctx.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 401, getBlob: () => ({ getBytes: () => [] }) }) };
+  const r401 = ctx.satoVoz('hola');
+  chk(r401.ok === false && r401.motivo === 'proveedor_401', 'error del proveedor → motivo genérico, sin cuerpo crudo');
+  chk(ctx.satoVoz('').ok === false, 'texto vacío → ok:false');
+  Object.keys(bk).forEach(k => { ctx[k] = bk[k]; });
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

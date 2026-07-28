@@ -132,3 +132,58 @@ function satoChat(idCliente, mensaje) {
 
   return { ok: r.ok, texto: texto, usd: r.usd || 0, error: r.ok ? null : r.error };
 }
+
+/* ═══ T1.5 (28-jul) — LA VOZ REAL DE SATO EN LA FICHA ════════════════════════
+ * Feedback de Luciano: "cambiaste la voz de Sato, es horrible — imitá tal cual Hablar con Sato".
+ * Tenía razón: la ficha usaba `speechSynthesis` (voz sintética del sistema operativo). La voz
+ * de "Hablar con Sato" es **ElevenLabs** — `eleven_turbo_v2_5`, español, voz grave (voice_id
+ * de `voz/agent/.env.local`, ver `voz/BLUEPRINT.md` §pipeline: Deepgram STT → GPT-4o-mini →
+ * ElevenLabs TTS). Este endpoint trae ESA MISMA voz al chat de la Ficha 360: GAS llama a la
+ * API y devuelve el MP3 en base64 para que el navegador lo reproduzca.
+ *
+ * Config (Script Properties): `ELEVENLABS_API_KEY` — la MISMA que usa el agente de voz.
+ * Config (hoja Config, opcionales): `sato_voz_id` (default = la voz grave de Sato),
+ * `sato_voz_on` ('no' apaga el TTS neuronal y la UI cae a la voz del navegador),
+ * `sato_voz_usd_1k` (tarifa estimada por 1.000 caracteres, default 0.10 — es ESTIMACIÓN
+ * declarada, no factura: ElevenLabs cobra por créditos según plan).
+ *
+ * Fail-closed y honesto: sin key → `{ok:false, motivo:'sin_key'}` y la UI lo dice (no finge
+ * que habló). Tope duro de caracteres para que un brief largo no queme créditos.
+ */
+var SATO_VOZ_ID_DEF = 'xcAUMhbpNX2WRGsuhjFy';   // voz grave de Sato (misma que el agente LiveKit)
+var SATO_VOZ_MAXCH = 700;                        // tope duro por turno hablado
+
+function satoVoz(texto) {
+  _soloOwner_('satoVoz');
+  var t = limpiarHostilTexto_(String(texto || ''), SATO_VOZ_MAXCH);
+  if (!t) return { ok: false, motivo: 'vacio' };
+  if (String(getConfig('sato_voz_on') || '').toLowerCase() === 'no') return { ok: false, motivo: 'apagada' };
+
+  var key = '';
+  try { key = PropertiesService.getScriptProperties().getProperty('ELEVENLABS_API_KEY') || ''; } catch (e) { /* fail-closed */ }
+  if (!key) return { ok: false, motivo: 'sin_key' };
+
+  var voz = String(getConfig('sato_voz_id') || SATO_VOZ_ID_DEF);
+  try {
+    // mp3_22050_32: liviano (≈4 KB/s) — viaja rápido por google.script.run y suena bien en voz hablada.
+    var resp = UrlFetchApp.fetch(
+      'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voz) + '?output_format=mp3_22050_32',
+      { method: 'post', contentType: 'application/json',
+        headers: { 'xi-api-key': key },
+        payload: JSON.stringify({ text: t, model_id: 'eleven_turbo_v2_5', language_code: 'es' }),
+        muteHttpExceptions: true });
+    var code = resp.getResponseCode();
+    if (code !== 200) return { ok: false, motivo: 'proveedor_' + code };   // genérico, sin cuerpo crudo
+
+    var b64 = Utilities.base64Encode(resp.getBlob().getBytes());
+    // Costeo: ElevenLabs cobra por caracteres. Se registra como estimación declarada.
+    var usd = (t.length / 1000) * (parseFloat(getConfig('sato_voz_usd_1k')) || 0.10);
+    try {
+      logCostoCliente('CLI-000', { timestamp: ahoraISO(), modulo: 'sato_voz',
+        endpoint: 'elevenlabs/eleven_turbo_v2_5', tokens_in: t.length, tokens_out: '', USD: usd });
+    } catch (e2) { /* el costeo no bloquea la voz */ }
+    return { ok: true, mp3: b64, chars: t.length, usd: usd };
+  } catch (e) {
+    return { ok: false, motivo: 'fetch: ' + (e.message || e) };
+  }
+}

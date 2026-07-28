@@ -130,7 +130,7 @@ var ENDPOINTS_UI = [
   // 08_webapp.js
   'setPrefUI', 'prefsUI', 'cerebroGrafo', 'cerebroNodo', 'estadoSistema', 'datosHoy', 'listaClientes',
   'datosCliente', 'fichaCliente', 'checklistCliente', 'checklistMarcar', 'checklistAgregar', 'briefCliente',
-  'satoChat', 'satoCharla',
+  'satoChat', 'satoCharla', 'satoVoz',
   'estadoAgentes', 'bootUniverso', 'bootResto', 'bootUnico', 'estadoSalud',
   'dispararAgenteUI', 'resolverAprobacionUI', 'metricasValidasUI', 'asignarMetricaUI',
   'tableroTareas', 'crearTarea', 'crearTareaQuick', 'moverTarea',
