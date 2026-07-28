@@ -799,6 +799,47 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .day:focus-visible{outline:2px solid var(--color-primary); outline-offset:2px}
 #centro .kboard.calboard{inset:6vh auto auto 50%; height:88vh; width:min(1080px,94vw); transform:translateX(-50%) scale(.98)}
 #centro .kboard.calboard.open{transform:translateX(-50%)}
+/* ═══ FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) — overlay denso patrón kboard, tokens del CM ═══ */
+#centro .kboard.fichaboard{inset:3.5vh auto auto 50%; height:93vh; width:min(1240px,96vw); transform:translateX(-50%) scale(.98)}
+#centro .kboard.fichaboard.open{transform:translateX(-50%)}
+.fichaboard .khead{gap:10px}
+.f360-avatar{width:42px;height:42px;border-radius:50%;flex:0 0 42px;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:17px;font-style:italic;color:var(--color-text);background:var(--color-surface-2);border:2px solid var(--color-primary);overflow:hidden}
+.f360-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.f360-tit{min-width:0}
+.f360-tit h3{margin:0;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f360-sub{font-size:10.5px;color:var(--color-text-muted);letter-spacing:.04em}
+.f360-sem{width:11px;height:11px;border-radius:50%;flex:0 0 11px;background:var(--color-border);box-shadow:0 0 8px -2px transparent}
+.f360-sem.verde{background:var(--color-success);box-shadow:0 0 9px -1px var(--color-success)}
+.f360-sem.ambar{background:var(--color-warning);box-shadow:0 0 9px -1px var(--color-warning)}
+.f360-sem.rojo{background:var(--color-danger);box-shadow:0 0 9px -1px var(--color-danger)}
+.f360-body{flex:1;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:10px;padding:10px 14px;min-height:0;overflow:hidden}
+.f360-col{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding-right:2px}
+.f360-sec{background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px 12px;flex:0 0 auto}
+.f360-sec>h4{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);display:flex;align-items:center;gap:8px}
+.f360-sec>h4 .cnt{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:10.5px}
+.f360-col.der .f360-sec.hilo{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+/* Rediseño del Hilo-en-panel (feedback 27-jul "se ve cortado, cuadro muy arriba"): dentro de la
+   ficha el Hilo ocupa la COLUMNA ENTERA con su propio scroll — nunca recortado ni flotando. */
+.f360-sec.hilo .f360-cont{flex:1;min-height:0;overflow-y:auto}
+.f360-sec.hilo .hilo-body{max-height:none;overflow:visible}
+.f360-row{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--color-border);font-size:12.5px}
+.f360-row:last-child{border-bottom:0}
+.f360-row .k{color:var(--color-text-muted);flex:0 0 auto;font-size:11px}
+.f360-row .v{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.f360-row .num{margin-left:auto;flex:0 0 auto;text-align:right;font-variant-numeric:tabular-nums}
+.f360-bar{position:relative;height:5px;border-radius:999px;background:var(--color-border);overflow:hidden;margin-top:4px}
+.f360-bar>i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--color-primary);transition:width .32s var(--ease-out)}
+.f360-obj{padding:7px 0;border-bottom:1px solid var(--color-border)}
+.f360-obj:last-child{border-bottom:0}
+.f360-obj .t{font-size:13px}
+.f360-obj .m{font-size:11px;color:var(--color-text-muted);margin-top:2px;display:flex;gap:8px;align-items:baseline}
+.f360-obj .m .num{margin-left:auto;font-variant-numeric:tabular-nums}
+.f360-vacio{font-size:12px;color:var(--color-text-muted);padding:6px 0}
+.f360-foot{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--color-border)}
+.f360-fuente{font-size:9.5px;color:var(--color-text-muted);letter-spacing:.05em;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.f360-acts{margin-left:auto;display:flex;gap:8px;flex:0 0 auto}
+#f360Sel{margin-left:auto;max-width:210px}
+@media (max-width:900px){ .f360-body{grid-template-columns:1fr;overflow-y:auto} .f360-col{overflow:visible} .f360-col.der .f360-sec.hilo{min-height:340px} #f360Sel{display:none} }
 #centro .mnav{margin-left:auto; display:flex; gap:6px; align-items:center}
 #centro .mwrap{flex:1; overflow-y:auto; padding:var(--space-5)}
 #centro .mhdr{display:grid; grid-template-columns:repeat(7,1fr); gap:var(--space-2); margin-bottom:var(--space-2)}
@@ -1119,6 +1160,43 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <div class="mwrap">
       <div class="mhdr"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
       <div class="mgrid" id="mgrid"></div>
+    </div>
+  </div>
+
+  <!-- FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) — overlay hermano del tablero/calendario.
+       Plan / Números / Próximos pasos + el Hilo con columna entera y scroll propio (rediseño del
+       Hilo-en-panel). Datos: datosCliente() + fichaCliente() + hiloCliente() + agendaRango(). -->
+  <div class="kscrim" id="fichascrim"></div>
+  <div class="kboard fichaboard" id="fichaboard" role="dialog" aria-modal="true" aria-label="Ficha de cliente 360">
+    <div class="khead">
+      <span class="f360-avatar" id="f360Avatar" aria-hidden="true">—</span>
+      <div class="f360-tit">
+        <h3 id="f360Nombre">Cliente</h3>
+        <div class="f360-sub mono" id="f360Sub">—</div>
+      </div>
+      <span class="chip c-idle" id="f360Estado">—</span>
+      <span class="f360-sem" id="f360Sem" role="img" aria-label="Semáforo del Hilo"></span>
+      <select id="f360Sel" class="cm-sel" aria-label="Cambiar de cliente"></select>
+      <button class="icon-btn" id="f360Close" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="f360-body">
+      <div class="f360-col izq">
+        <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
+        <section class="f360-sec"><h4>Números <span class="cnt mono" id="f360NumN"></span></h4><div class="f360-cont" id="f360Num"><div class="served">Cargando…</div></div></section>
+        <section class="f360-sec"><h4>Próximos pasos <span class="cnt mono" id="f360ProxN"></span></h4><div class="f360-cont" id="f360Prox"><div class="served">Cargando…</div></div></section>
+      </div>
+      <div class="f360-col der">
+        <section class="f360-sec hilo"><h4>Avance — Hilo de trabajo</h4><div class="f360-cont" id="f360Hilo"><div class="served">Cargando…</div></div></section>
+      </div>
+    </div>
+    <div class="f360-foot">
+      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango — datos del MAESTRO y del SGIC</span>
+      <span class="f360-acts">
+        <button class="btn btn-ghost btn-sm" id="f360HiloFull">Hilo completo</button>
+        <button class="btn btn-ghost btn-sm" id="f360Espacio" hidden>◈ Espacio 3D</button>
+        <button class="btn btn-ghost btn-sm" id="f360Agendar">Agendar evento</button>
+        <button class="btn btn-sm" id="f360Reunion">⚑ Encargar reunión</button>
+      </span>
     </div>
   </div>
 
@@ -2481,6 +2559,14 @@ function palComandos(){
     {label:'Cambiar tema (claro/oscuro)',k:'acción',run:function(){palCerrar();toggleTheme();}}
   ];
   (state.clientes||[]).forEach(function(c){base.push({label:'Cliente · '+c.nombre,k:c.id_cliente,run:function(){palCerrar();centroCerrar();loadCliente(c.id_cliente);}});});
+  /* T1 (28-jul): tecla rápida de la Ficha 360 = ⌘K → "Ficha …" (fuente: state.clientes o el cache
+     de la propia ficha; si ninguna cargó todavía, el ítem genérico abre la ficha del 1er cliente). */
+  var fcs=(state.clientes&&state.clientes.length)?state.clientes:(F360.clientes||[]);
+  fcs.forEach(function(c){base.push({label:'Ficha 360 · '+c.nombre,k:c.id_cliente,run:function(){palCerrar();fichaAbrir(c.id_cliente,'P9 palette');}});});
+  if(!fcs.length)base.push({label:'Ficha 360 de cliente…',k:'ficha',run:function(){palCerrar();
+    if(typeof EN_GAS==='undefined'||!EN_GAS){cmToast('Sin backend');return;}
+    google.script.run.withSuccessHandler(function(cs){ if(cs&&cs.length){F360.clientes=cs;fichaAbrir(cs[0].id_cliente,'P9 palette');} })
+      .withFailureHandler(function(){cmToast('No se pudo leer la cartera');}).listaClientes();}});
   return base;
 }
 function palAbrir(){
@@ -2532,6 +2618,8 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
      ahora hace falta, porque en modo modal Akasha le cede el Escape a quien está arriba. */
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape')return;
+    var fb=document.getElementById('fichaboard');
+    if(fb&&fb.classList.contains('open')){ e.stopPropagation(); fichaCerrar(); return; }
     var cb=document.getElementById('calboard');
     if(cb&&cb.classList.contains('open')){ e.stopPropagation(); calCerrar(); return; }
     if(kb&&kb.classList.contains('open')){ e.stopPropagation(); closeB(); }
@@ -2962,6 +3050,242 @@ function calCerrar(){
   if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open');
   akModal_(false);
 }
+
+/* ═══ FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) ═══════════════════════════════
+   Overlay denso hermano del tablero/calendario: mismo patrón kscrim/kboard + akModal_
+   (hereda el fix de overlays del 21-jul — el universo 3D se apaga detrás del modal).
+   4 lecturas EN PARALELO: datosCliente (MAESTRO) + fichaCliente (tenant, 1 endpoint nuevo
+   gateado) + hiloCliente (render por hiloRender_, LA fuente única del Hilo — acá con columna
+   entera y scroll propio: rediseño del Hilo-en-panel del feedback 27-jul) + agendaRango 30d.
+   Guardia de generación (patrón AK.gen): respuestas de una carga vieja se descartan.
+   Fail-closed por sección: cada una dice su vacío o su causa; nada se inventa. */
+var F360={id:null,gen:0,clientes:[],espacioCb:null,armado:0};
+function fichaAbrir(id,puerta,opts){
+  F360.id=String(id||''); F360.espacioCb=(opts&&opts.espacio)||null;
+  akModal_(true,puerta||'ficha360:otra');
+  var ks=document.getElementById('fichascrim'), kb=document.getElementById('fichaboard');
+  if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open');
+  var be=document.getElementById('f360Espacio'); if(be)be.hidden=!F360.espacioCb;
+  f360Sel_(); fichaCargar_(F360.id);
+}
+function fichaCerrar(){
+  var ks=document.getElementById('fichascrim'), kb=document.getElementById('fichaboard');
+  if(ks)ks.classList.remove('open'); if(kb)kb.classList.remove('open');
+  F360.gen++; akModal_(false);
+}
+/* Poblar el selector de cliente (cache 1 vez por sesión; fuentes: state.clientes del CM o listaClientes). */
+function f360Sel_(){
+  var sel=document.getElementById('f360Sel'); if(!sel)return;
+  function pinta(cs){
+    F360.clientes=cs||[]; sel.innerHTML='';
+    F360.clientes.forEach(function(c){ var o=el('option',null,(c.nombre||c.id_cliente)); o.value=c.id_cliente; sel.appendChild(o); });
+    sel.value=F360.id;
+    if(!sel._wired){ sel._wired=true; sel.addEventListener('change',function(){ F360.id=sel.value; fichaCargar_(F360.id); }); }
+  }
+  if(F360.clientes.length){ pinta(F360.clientes); return; }
+  if(window.state&&state.clientes&&state.clientes.length){ pinta(state.clientes); return; }
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ pinta([{id_cliente:F360.id,nombre:F360.id}]); return; }
+  google.script.run.withSuccessHandler(pinta)
+    .withFailureHandler(function(){ pinta([{id_cliente:F360.id,nombre:F360.id}]); }).listaClientes();
+}
+function f360Vacio_(cont,msg){ clear(cont); cont.appendChild(el('div','f360-vacio',msg)); }
+function fichaCargar_(id){
+  var gen=++F360.gen;
+  ['f360Plan','f360Num','f360Prox','f360Hilo'].forEach(function(i){
+    var c=document.getElementById(i); if(c){ clear(c); c.appendChild(el('div','served','Cargando…')); } });
+  ['f360PlanN','f360NumN','f360ProxN'].forEach(function(i){ var c=document.getElementById(i); if(c)c.textContent=''; });
+  var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'),
+      est=document.getElementById('f360Estado'), sem=document.getElementById('f360Sem'),
+      av=document.getElementById('f360Avatar');
+  if(nom)nom.textContent=id; if(sub)sub.textContent='leyendo…';
+  if(est){est.textContent='—';est.className='chip c-idle';}
+  if(sem)sem.className='f360-sem';
+  if(av){clear(av);av.appendChild(document.createTextNode((id||'?').replace('CLI-','').replace(/^0+/,'')||'?'));}
+  if(typeof EN_GAS==='undefined'||!EN_GAS){
+    ['f360Plan','f360Num','f360Prox','f360Hilo'].forEach(function(i){
+      var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
+    return;
+  }
+  var DC=null,FC=null; F360.fc=null; F360.evs=null;  // datosCliente + fichaCliente convergen en El plan y Próximos
+  google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; f360Cabecera_(d); f360Prox_(d,null); if(FC)f360Plan_(DC,FC); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; DC='err';
+      var c=document.getElementById('f360Plan'); if(c)f360Vacio_(c,'No se pudo leer el MAESTRO: '+((e&&e.message)||'sesión o permisos'));
+      f360Prox_('err',null); })
+    .datosCliente(id);
+  google.script.run.withSuccessHandler(function(f){ if(gen!==F360.gen)return; FC=f; F360.fc=f; f360Num_(f); f360AvatarSem_(f,null); if(DC){f360Plan_(DC,FC); f360Prox_(DC,null);} })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return;
+      var c=document.getElementById('f360Num'); if(c)f360Vacio_(c,'No se pudo leer el SGIC: '+((e&&e.message)||'sesión o permisos')); })
+    .fichaCliente(id);
+  var hc=document.getElementById('f360Hilo');
+  if(hc){ clear(hc);
+    google.script.run.withSuccessHandler(function(h){ if(gen!==F360.gen)return; hiloRender_(hc,h); f360AvatarSem_(null,h); })
+      .withFailureHandler(function(){ if(gen!==F360.gen)return; hiloRender_(hc,{sin_hilo:true,motivo:'no se pudo leer el Hilo (sesión o permisos)'}); })
+      .hiloCliente(id);
+  }
+  var d0=new Date(), d1=new Date(Date.now()+30*86400000);
+  google.script.run.withSuccessHandler(function(evs){ if(gen!==F360.gen)return; f360Prox_(DC,evs||[]); })
+    .withFailureHandler(function(){ if(gen!==F360.gen)return; f360Prox_(DC,[]); })
+    .agendaRango(calISO(d0),calISO(d1));
+}
+function f360Cabecera_(d){
+  var c=(d&&d.cliente)||{};
+  var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'), est=document.getElementById('f360Estado');
+  if(nom)nom.textContent=c.nombre||F360.id;
+  if(sub)sub.textContent=(c.id_cliente||'')+' · '+(c.rubro||'—')+(c.responsable?' · '+c.responsable:'');
+  if(est){ est.textContent=c.estado||'—';
+    est.className='chip '+(c.estado==='activo'?'c-ok':c.estado==='activo-piloto'?'c-info':c.estado==='potencial'?'c-warn':'c-idle'); }
+}
+/* Avatar (logo de Config si T2 lo sembró; inicial fail-closed) + semáforo del Hilo + última sync. */
+function f360AvatarSem_(fc,h){
+  if(fc&&fc.avatar_url){ var av=document.getElementById('f360Avatar');
+    if(av){ clear(av); var im=document.createElement('img'); im.alt='';
+      im.onerror=function(){ clear(av); av.appendChild(document.createTextNode((F360.id||'?').replace('CLI-','').replace(/^0+/,'')||'?')); };
+      im.src=fc.avatar_url; av.appendChild(im); } }
+  if(fc&&fc.operacion&&fc.operacion.length&&fc.operacion[0].fecha){
+    var sub=document.getElementById('f360Sub');
+    if(sub&&sub.textContent.indexOf('sync')<0)sub.textContent+=' · sync '+fc.operacion[0].fecha; }
+  if(h&&!h.sin_hilo){ var sem=document.getElementById('f360Sem'); if(sem)sem.className='f360-sem '+h.semaforo; }
+}
+/* FILA 1 — El plan: objetivos del tenant (North Star del cliente) con barra de progreso REAL
+   (KPI que matchea la métrica; sin match se dice) + proyectos del MAESTRO con % avance. */
+function f360Plan_(dc,fc){
+  var cont=document.getElementById('f360Plan'); if(!cont)return; clear(cont);
+  var objs=(fc&&fc.objetivos)||[], proys=(dc&&dc.proyectos)||[], kpis=(fc&&fc.kpis)||[];
+  var n=document.getElementById('f360PlanN'); if(n)n.textContent=objs.length+' obj · '+proys.length+' proy';
+  if(fc&&fc.hoja_falta&&fc.hoja_falta.objetivos)cont.appendChild(el('div','f360-vacio','El SGIC de este cliente no tiene hoja `objetivos`.'));
+  else if(!objs.length)cont.appendChild(el('div','f360-vacio','Sin North Star definido — definirlo es el primer paso.'));
+  objs.forEach(function(o){
+    var b=el('div','f360-obj');
+    b.appendChild(el('div','t',(o.horizonte?'['+o.horizonte+'] ':'')+(o.descripcion||'—')));
+    var m=el('div','m');
+    if(o.metrica){ m.appendChild(el('span',null,'meta '+o.metrica+(o.valor_objetivo!=null?' = '+o.valor_objetivo:''))); }
+    if(o.estado)m.appendChild(chip(o.estado,o.estado==='activo'?'c-ok':'c-idle'));
+    if(o.fecha_objetivo)m.appendChild(el('span','mono num',o.fecha_objetivo));
+    b.appendChild(m);
+    var k=o.metrica&&kpis.filter(function(x){return x.kpi&&x.kpi.toLowerCase()===o.metrica.toLowerCase()&&x.valor!=null;})[0];
+    if(k&&o.valor_objetivo){ var pct=Math.max(0,Math.min(100,k.valor/o.valor_objetivo*100));
+      var bar=el('div','f360-bar'); var f=el('i'); f.style.width=pct.toFixed(1)+'%'; bar.appendChild(f); b.appendChild(bar);
+      b.appendChild(el('div','m','progreso real: '+k.valor+' de '+o.valor_objetivo+' ('+pct.toFixed(0)+'%)'+(k.fecha?' · '+k.fecha:'')));
+    } else if(o.metrica){ b.appendChild(el('div','m','sin medición del KPI todavía — se dice, no se inventa')); }
+    cont.appendChild(b);
+  });
+  if(proys.length){
+    cont.appendChild(el('div','f360-vacio','Proyectos en curso:'));
+    proys.forEach(function(p){
+      var r=el('div','f360-obj');
+      r.appendChild(el('div','t',(p.nombre||p.id_proyecto)+(p.estado?' · '+p.estado:'')));
+      var av=Number(String(p.avance||'').replace('%',''))||0;
+      var bar=el('div','f360-bar'); var f=el('i'); f.style.width=Math.max(0,Math.min(100,av))+'%'; bar.appendChild(f); r.appendChild(bar);
+      var m=el('div','m'); m.appendChild(el('span',null,'avance '+av+'%'+(p.proximo_hito?' · próximo hito: '+p.proximo_hito:'')));
+      if(p.fecha_objetivo)m.appendChild(el('span','mono num',p.fecha_objetivo));
+      r.appendChild(m); cont.appendChild(r);
+    });
+  }
+}
+/* FILA 2 — Números: KPIs del tenant + operación reciente que escribió el conector. */
+function f360Num_(fc){
+  var cont=document.getElementById('f360Num'); if(!cont)return; clear(cont);
+  if(!fc||!fc.ok){ f360Vacio_(cont,(fc&&fc.error)||'SGIC no accesible.'); return; }
+  var n=document.getElementById('f360NumN'); if(n)n.textContent=fc.kpis.length+' KPI · '+fc.operacion.length+' mov';
+  if(fc.hoja_falta.kpis)cont.appendChild(el('div','f360-vacio','El SGIC no tiene hoja `KPIs`.'));
+  else if(!fc.kpis.length)cont.appendChild(el('div','f360-vacio','Sin KPIs cargados.'));
+  fc.kpis.forEach(function(k){
+    var r=el('div','f360-row');
+    r.appendChild(el('span','v',k.kpi||'—'));
+    if(k.alerta)r.appendChild(chip('⚠ '+k.alerta,'c-warn'));
+    var num=el('span','mono num',(k.valor!=null?k.valor:'—')+(k.objetivo!=null?' / obj '+k.objetivo:''));
+    r.appendChild(num); cont.appendChild(r);
+  });
+  cont.appendChild(el('div','f360-vacio','Operación reciente (conector):'));
+  if(fc.hoja_falta.operacion)cont.appendChild(el('div','f360-vacio','El SGIC no tiene hoja `Datos_operativos`.'));
+  else if(!fc.operacion.length)cont.appendChild(el('div','f360-vacio','Sin datos operativos todavía.'));
+  fc.operacion.forEach(function(o){
+    var r=el('div','f360-row');
+    r.appendChild(el('span','k mono',o.fecha||'—'));
+    var v=el('span','v',o.concepto||'—'); if(o.notas)v.title=o.notas; r.appendChild(v);
+    r.appendChild(el('span','mono num',o.valor!=null?String(o.valor):'—'));
+    cont.appendChild(r);
+  });
+}
+/* FILA 3 — Próximos pasos: tareas activas (vencidas marcadas) + aprobaciones pendientes +
+   eventos de agenda del cliente a 30 días. Se pinta al llegar CADA fuente (dc y agenda). */
+function f360Prox_(dc,evs){
+  var cont=document.getElementById('f360Prox'); if(!cont)return; clear(cont);
+  if(evs===null)evs=F360.evs; else F360.evs=evs;   // repintada parcial no pisa la agenda ya llegada
+  if(!dc&&!evs){ cont.appendChild(el('div','served','Cargando…')); return; }
+  var err=(dc==='err');   // el MAESTRO falló: se DICE — un error no se disfraza de "cero tareas"
+  var tareas=(!err&&dc&&dc.proximos_pasos)||[], aps=(F360.fc&&F360.fc.aprobaciones)||[];
+  var n=document.getElementById('f360ProxN');
+  var top=tareas.slice(0,5);
+  if(n)n.textContent=err?'—':(tareas.length+' tareas · '+aps.length+' aprob'+(evs&&evs.length?' · '+evs.filter(function(e){return e.id_cliente===F360.id;}).length+' eventos':''));
+  if(err)cont.appendChild(el('div','f360-vacio','No se pudieron leer las tareas del MAESTRO.'));
+  else if(!top.length)cont.appendChild(el('div','f360-vacio','Sin tareas abiertas de este cliente.'));
+  top.forEach(function(t){
+    var r=el('div','f360-row');
+    if(t.prioridad)r.appendChild(chip(t.prioridad,t.prioridad==='A'?'c-danger':t.prioridad==='B'?'c-warn':'c-idle'));
+    r.appendChild(el('span','v',t.descripcion||t.id_tarea));
+    if(t.vencida)r.appendChild(chip('vencida','c-danger'));
+    r.appendChild(el('span','mono num',t.fecha_limite||'—'));
+    cont.appendChild(r);
+  });
+  if(aps.length){
+    cont.appendChild(el('div','f360-vacio','Espera tu decisión:'));
+    aps.slice(0,4).forEach(function(a){
+      var r=el('div','f360-row');
+      r.appendChild(chip(a.id||'APR','c-info'));
+      r.appendChild(el('span','v',a.resumen||a.tipo||'—'));
+      if(a.monto!=null)r.appendChild(el('span','mono num',String(a.monto)));
+      cont.appendChild(r);
+    });
+  }
+  var mios=(evs||[]).filter(function(e){return e.id_cliente===F360.id;}).slice(0,4);
+  if(mios.length){
+    cont.appendChild(el('div','f360-vacio','Agenda (30 días):'));
+    mios.forEach(function(e){
+      var r=el('div','f360-row');
+      r.appendChild(el('span','k mono',e.fecha+(e.hora?' '+e.hora:'')));
+      r.appendChild(el('span','v',e.titulo)); cont.appendChild(r);
+    });
+  }
+}
+/* Cierre + botones del pie (cableado 1 vez). */
+(function(){
+  var ks=document.getElementById('fichascrim'), bx=document.getElementById('f360Close');
+  if(ks)ks.addEventListener('click',fichaCerrar);
+  if(bx)bx.addEventListener('click',fichaCerrar);
+  var bh=document.getElementById('f360HiloFull');
+  if(bh)bh.addEventListener('click',function(){
+    var hc=document.getElementById('f360Hilo'); if(!hc)return;
+    var mas=hc.querySelectorAll('.hilo-mas'); if(!mas.length){ cmToast('El Hilo ya está completo a la vista'); return; }
+    mas.forEach(function(m){ m.click(); });
+  });
+  var be=document.getElementById('f360Espacio');
+  if(be)be.addEventListener('click',function(){ var cb=F360.espacioCb; fichaCerrar(); if(cb)try{cb();}catch(e){} });
+  var ba=document.getElementById('f360Agendar');
+  if(ba)ba.addEventListener('click',function(){
+    var id=F360.id; fichaCerrar(); calAbrir(new Date(),'P6 ficha-360 agendar');
+    /* cfCliente se puebla ASYNC (calClientes_ → listaClientes): fijar el valor 2 veces —
+       al abrir el form y cuando las options ya llegaron (purga 28-jul, V3). */
+    setTimeout(function(){ try{ calFormAbrir(calISO(new Date()),null);
+      var fija=function(){ var s=document.getElementById('cfCliente'); if(s)s.value=id; };
+      fija(); setTimeout(fija,1400); }catch(e){} },380);
+  });
+  /* Encargar reunión: confirm-pattern de 2 clics (sin confirm() nativo, regla del calendario).
+     capturar('[PREPARAR_REUNION] CLI-00X') — id del roster local, NO adivinado (lección BAN-0017:
+     la resolución por nombre es para la VOZ; acá el id es first-party). El armado diario lo toma. */
+  var br=document.getElementById('f360Reunion');
+  if(br)br.addEventListener('click',function(){
+    var ahora=Date.now();
+    if(!F360.armado||ahora-F360.armado>4000){ F360.armado=ahora; br.textContent='¿Confirmar encargo?';
+      setTimeout(function(){ if(Date.now()-F360.armado>=3900){ br.textContent='⚑ Encargar reunión'; F360.armado=0; } },4100); return; }
+    F360.armado=0; br.textContent='⚑ Encargar reunión';
+    if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Encargo simulado (sin backend)'); return; }
+    cmToast('Encargando la reunión…');
+    google.script.run.withSuccessHandler(function(r){ cmToast('Encargo '+((r&&r.id)||'')+' en Bandeja — el armado diario de reuniones lo toma'); })
+      .withFailureHandler(function(e){ cmToast('No se pudo encargar: '+((e&&e.message)||'')); })
+      .capturar('[PREPARAR_REUNION] '+F360.id,'ficha-360');
+  });
+})();
 function calMes(){
   var g=document.getElementById('mgrid'), t=document.getElementById('calTitulo'); if(!g)return;
   if(t)t.textContent=CAL_MESES[CAL.m]+' '+CAL.y;
@@ -3838,6 +4162,7 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
         <div class="p-metrics">${c.kpis.map(k=>`<div class="stat"><span class="l">${k[0]}</span><span class="v" style="font-size:.92rem">${k[1]}</span></div>`).join('')}</div></div>
       ${aprobs.length?`<div class="p-aprob"><b>${aprobs.length} decisión ligada:</b> ${aprobs.map(a=>a.titulo).join(' · ')}</div><button class="btn btn-ghost" id="p3-muelle">Ir al Muelle a decidir</button>`:''}
       <div class="p-row" id="p3-hilo"><div class="l">Hilo de trabajo</div></div>
+      <button class="btn btn-primary" id="p3-ficha">⊞ Ficha 360 del cliente</button>
       <button class="btn btn-ghost" id="p3-cerebro">◈ Cerebro de este Espacio</button>
       <button class="btn btn-ghost" id="p3-historial">◷ Historial del Espacio</button>
       ${c.reg.length?`<button class="btn btn-ghost" id="p3-registro">Ver su registro en el Núcleo (${c.reg.length})</button>`:''}
@@ -3853,6 +4178,8 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     /* TC-W2 — la estación del Hilo dentro del Espacio. Usa `hiloRender_`, la misma función que el
        panel del CM: no hay una "versión Akasha" del Hilo que pueda divergir. */
     const bhilo=$('p3-hilo'); if(bhilo){ const cH=document.createElement('div'); bhilo.appendChild(cH); hiloCargar_(c.id, cH); }
+    /* T1 (28-jul): la Ficha 360 desde el Espacio — tercer acceso del encargo. */
+    const bf=$('p3-ficha'); if(bf) bf.addEventListener('click',()=>fichaAbrir(c.id,'P8 Espacio 3D de Akasha'),{once:true});
     const bc=$('p3-cerebro'); if(bc){ bc.textContent = mapaCli===c.id ? '◈ Ocultar el Cerebro' : '◈ Cerebro de este Espacio';
       bc.addEventListener('click',()=>toggleMapaCerebro(c)); }
   }
@@ -4776,7 +5103,8 @@ window.AKASHA = (function () {
         '<span class="' + CLI_CHIP[c.estado] + '">' + esc(c.chip) + '</span>' +
         '<div class="fc-t"><b>' + esc(c.flujo[0][1]) + '</b> <span class="mono">· ' + esc(c.flujo[0][0]) + '</span></div>' +
         (c.aprob.length ? '<div class="fc-t" style="color:var(--_red-400)">● ' + c.aprob.length + ' decisión ligada a este Espacio</div>' : '');
-      card.addEventListener('click', function () { toast(c.nombre + ' — ' + c.chip + ' · ' + c.flujo[0][1]); });
+      /* T1 (28-jul): en Vista Plana el click también abre la Ficha 360 (antes era un toast informativo). */
+      card.addEventListener('click', function () { fichaAbrir(c.id, 'P7 vista plana'); });
       gc.appendChild(card);
     });
     cont.appendChild(gc);
@@ -4899,7 +5227,11 @@ window.AKASHA = (function () {
       it.innerHTML = '<span class="ag-dot" style="--ac:' + aro + ';font-style:italic">' + esc(c.ini) + '</span>' +
         '<span class="bd"><span class="nm">' + esc(c.nombre) + '</span><br><span class="ac mono">' + esc(c.ns) + ' · ' + esc(c.flujo[0][0]) + '</span></span>' +
         '<span class="chip sm ' + CLI_CHIP[c.estado].split(' ')[1] + '">' + esc(c.chip) + '</span>';
-      it.addEventListener('click', function () { if (S.engine && S.modo === 'cosmos') S.engine.irACliente(c.id); });
+      /* T1 (28-jul, encargo tanda UI): click en el cliente de la cartera → FICHA 360 (antes volaba
+         al Espacio 3D; el viaje queda como botón "◈ Espacio 3D" dentro de la ficha). */
+      it.addEventListener('click', function () {
+        fichaAbrir(c.id, 'P5 cartera del Atril', { espacio: function () { if (S.engine && S.modo === 'cosmos') S.engine.irACliente(c.id); } });
+      });
       ct.appendChild(it);
     });
 

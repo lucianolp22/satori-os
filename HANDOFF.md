@@ -1,4 +1,105 @@
-# HANDOFF — Satori OS — 2026-07-27 (espejo vivo · CIERRE INTEGRAL ejecutado por Cowork)
+# HANDOFF — Satori OS — 2026-07-28 tarde (espejo vivo · PRODUCCIÓN + FICHA 360 CONSTRUIDA)
+
+> Estado vigente arriba; todo lo que sigue del primer `<!-- HISTÓRICO` es archivo.
+> **Sesión 28-jul (Cowork): tanda T1 EJECUTADA — Ficha de Cliente 360 construida, purgada y verificada offline (harness 107/0) + reunión LC Travel armada (tablero entregado) + fix label promote.** `/exec` @32 INTOCADO. Falta el tramo de credenciales: `bash _tanda_f360_2026-07-28.sh` (git+clasp) → selfTest editor → eyeball /dev → promote.
+
+PRÓXIMO PASO (orden exacto):
+1. **Terminal:** `bash _tanda_f360_2026-07-28.sh` (dry-run primero; `--go` = add por lista + commit + push + guardia drift + clasp push a /dev). El script ABORTA si GAS tiene ediciones desconocidas.
+2. **Editor GAS (MAESTRO):** correr `selfTest` — debe seguir **TODO OK** (mi tanda no agrega asserts D; D19c ahora cuenta 1 endpoint más: `fichaCliente`, ya gateado).
+3. **Eyeball de la FICHA 360 en /dev** (guion): (a) Akasha → Atril → click en un cliente de la cartera → se abre la Ficha (ya NO vuela al Espacio; eso quedó como botón «◈ Espacio 3D» del pie). (b) Revisar las 4 zonas: El plan (objetivos+proyectos con barras) · Números (KPIs + operación del conector) · Próximos pasos (tareas/aprobaciones/agenda 30d) · Hilo con columna entera y scroll propio (el rediseño del feedback «se ve cortado»). (c) Selector de cliente en el header cambia sin cerrar. (d) Botones del pie: Hilo completo · Agendar evento (abre el calendario con el cliente preseleccionado) · ⚑ Encargar reunión (2 clics → deja `[PREPARAR_REUNION] CLI-00X` en Bandeja). (e) Los otros 3 accesos: Vista Plana (click en card) · panel del Espacio 3D (botón «⊞ Ficha 360») · ⌘K («Ficha 360 · nombre»). (f) Escape y scrim cierran.
+4. **Promote** si el eyeball está OK: `bash _promote_exec.sh --go` → @33 (el label ahora sale del último commit — fix de esta sesión) + `launchctl kickstart -k gui/501/com.satori.voz.agent` NO hace falta (la voz no cambió).
+5. **GATE tarea diaria (1 min, único bloqueante externo):** compartir el Sheet MAESTRO como **Lector** con `llopriore@gmail.com` — VERIFICADO HOY que sigue sin acceso («Requested entity was not found»). Sin esto la tarea de reuniones (L-V 08:00) avisa «sin acceso» y termina.
+6. **Rotar OWNER_TOKEN de Vehemence** (comprometido; editor GAS DE VEHEMENCE): `Logger.log(Utilities.getUuid() + Utilities.getUuid())` → valor SIN guiones a Script Property `OWNER_TOKEN` → actualizar el marcador `?k=`.
+7. **Reunión LC Travel: LISTA.** Tablero en `entregables/Tablero-Reunion-LCTravel-2026-07-28.html` (repo) — 9 secciones precargadas del Hilo v2 23-jul (junio −2.636.739 · modelo Cabify · $3M/mes choferes · honorarios Lucas · fiscal contadora · insumos mayo). Abrirlo en el navegador; al cerrar, «Copiar resumen» → pegar en el chat (ingesta al SGIC). BAN-0017 (CLI-004 errado) DESCARTADA — el encargo correcto se puede disparar desde la propia ficha («⚑ Encargar reunión»).
+8. **Re-probar Sato** (pendiente del guion anterior): «prepará la reunión de LC Travel» → sin CLI en boca de Sato · «el estado del sistema» 2× (2ª <2 s). Revisar también la corrida 07:00 del 28 en el CM (Operación reciente DAM/LC/MQ + sin `conector_error` + AVI-0031 no reapareció).
+9. **Decisiones abiertas (responder en el chat y Cowork ejecuta):** X4 (gatear las 35 con `_soloOwner_`) — ¿OK? · EJF y el North Star 6/6 — ¿pasa a `activo-piloto`? · logo MesaQuince — ¿la marca es «The Brasa Club»? (archivo `MesaQuince-TheBrasaClub-CONFIRMAR.jpg`) · logo SIP para conseguir por web.
+
+## Estado vigente (28-jul, tarde)
+
+**PRODUCCIÓN `/exec` @32 intocada** (cierre integral 27-jul completo). **Working tree del Mac con la tanda T1 de hoy** (5 archivos + tablero + este HANDOFF): commitear con el script del paso 1.
+
+**FICHA DE CLIENTE 360 (T1) — CONSTRUIDA Y PURGADA (verificación offline completa):**
+- **Backend:** `fichaCliente(id)` en `08_webapp.js` — lo del TENANT que `datosCliente` no trae: objetivos + KPIs + operación reciente (conector) + aprobaciones del espejo + `avatar_url` (lee `Config avatar_cliente_<id>`, T2-ready). Read-only, 1 apertura del Sheet cliente, trilogía de tipos (hostil→limpiar, número→Number, fecha→ISO), `hoja_falta` explícito por hoja (lección lista-lazy). Gate `_soloOwner_` + alta en `ENDPOINTS_UI` en el MISMO commit.
+- **Frontend:** overlay `fichaboard` (patrón kboard hermano del calendario, `akModal_` hereda el fix de overlays del 21-jul). Cabecera (avatar/inicial + estado + semáforo del Hilo + selector) · El plan (North Star del cliente con barra de progreso REAL solo si un KPI matchea la métrica — sin match se dice; proyectos con % avance) · Números (KPIs + operación del conector) · Próximos pasos (tareas top-5 con vencidas, aprobaciones «espera tu decisión», agenda 30d del cliente) · **Hilo con columna entera y scroll propio** (rediseño del Hilo-en-panel; `hiloRender_` sigue siendo LA fuente única). Guardia de generación anti-respuestas-viejas. Estados de carga/vacío/error honestos por sección.
+- **4 accesos:** cartera del Atril (click = ficha; el vuelo 3D queda como botón del pie) · Vista Plana · panel del Espacio 3D (`⊞ Ficha 360`) · ⌘K. Escape/scrim cierran (la ficha primero en la cadena).
+- **Acciones del pie:** Hilo completo (expande top-N) · Agendar evento (calendario con `cfCliente` prefijado, doble-set por población async) · ⚑ Encargar reunión (2 clics, `capturar('[PREPARAR_REUNION] '+id,'ficha-360')` — id first-party del roster local, NO el camino de la voz).
+- **PURGA de cierre (3 hallazgos, 3 remediados):** (1) **Alto — stub divergente cazado**: el espejo `Aprobaciones_agregadas` NO tiene `resumen`/`prioridad`; columnas reales `descripcion`/`tipo_accion`/`monto` (01_schema.js:22) — corregidos backend+front+harness. (2) Medio — error del MAESTRO ya no se disfraza de «cero tareas». (3) Bajo — `cfCliente` async: doble-set. V1 verificada: `fichaboard` DENTRO de `#centro` (clase-BUG-A ausente).
+- **Verificado:** `node --check` de 08_webapp/22_seguridad + script inline del index (256 KB) · HTML balanceado (380/380 divs, styles 2/2) · **harness 107/0** (93 base + 14 de la ficha, con columnas reales del espejo). Falta SOLO: selfTest editor + eyeball (render = eyeball, regla de siempre).
+
+**REUNIÓN LC TRAVEL — ARMADA.** `entregables/Tablero-Reunion-LCTravel-2026-07-28.html` (chasis v1.0 byte-idéntico + SPEC 9 secciones · 38 campos, precargado del Hilo v2 23-jul): estado general → junio real (one-shot ≈ −2.636.739, artefacto 4/8 depósitos explicado) → ingesta Cabify (carpeta Drive, mail, liquidación 13/07) → palanca choferes ($3M/mes + TODOs web) → honorarios Lucas (interno: deuda TC ~$6M, «cierra solo si Lucas sostiene») → fiscal contadora (VEP/IIBB/encuadre/MP/VISA/Mauro) → insumos mayo → compromisos+próxima. Moneda ARS.
+
+**FIX `_promote_exec.sh`:** el paso 3/5 commiteaba SIEMPRE «B0.5…» con lista stale y ese subject se volvía el label del deploy. Ahora: add solo de lo que el script muta (CAPABILITIES/HANDOFF/el script) + mensaje dinámico con fecha (`PROMOTE_MSG` override). `bash -n` OK.
+
+**GATE DRIVE VERIFICADO HOY:** el MAESTRO sigue SIN compartir a `llopriore@gmail.com` (metadata 404 con el conector de esta sesión = el mismo que usan las tareas programadas). Paso 5 del guion.
+
+**AVISOS/BANDEJA:** sin cambios desde la mañana (AVI-0007/0026 activos · BAN-0017 a descartar). La revisión de la corrida 07:00 quedó para el eyeball (paso 8) — no se llegó a mirar por Chrome en esta sesión.
+
+## Artefactos
+| Tipo | Valor |
+|---|---|
+| Prod /exec | @32 · `AKfycbxZJL4E…` · rollback @31 en `_promote_rollback.txt` |
+| /dev | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
+| Git | base `4e14443`; tanda T1 de hoy SIN commitear → `_tanda_f360_2026-07-28.sh` |
+| Tocados hoy | `src/08_webapp.js` (+`fichaCliente`) · `src/22_seguridad.js` (ENDPOINTS_UI) · `src/index.html` (F360) · `_harness.js` (107/0) · `_promote_exec.sh` (label) · `entregables/Tablero-Reunion-LCTravel-2026-07-28.html` · este HANDOFF |
+| Sheet MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` (compartir Lector a llopriore@gmail = gate) |
+| Harness | `_harness.js` **107/0** (Node, raíz del repo) |
+| Trigger reuniones | `trig_01DUPhtj1XvjpDkirLUdsdbd` (L-V 08:00 Madrid) — gateada por el paso 5 |
+| Logos clientes | `Avatares Satori/clientes/` (4 ✓ · MesaQuince A CONFIRMAR · SIP falta) |
+| Runbook | `RUNBOOK-recuperacion-total.md` |
+
+<!-- HISTÓRICO desde acá ══════════════════════════════════════════════════════ -->
+
+## HANDOFF (archivado 28-jul mañana) — Satori OS — 2026-07-28 (espejo vivo · SISTEMA EN PRODUCCIÓN REAL)
+
+> Estado vigente arriba; todo lo que sigue del primer `<!-- HISTÓRICO` es archivo.
+> **Sesión 27-jul (día completo) CERRADA: el Satori OS quedó operando en producción real.** `/exec` @32 = cierre integral + cartera + fixes de datos. Este HANDOFF quedó modificado en el working tree — commitearlo en el primer push de la próxima sesión.
+
+PRÓXIMO PASO (sesión fresca — retomar con "retomemos Satori OS"; ORDEN recomendado):
+1. **FICHA DE CLIENTE 360** — prioridad #1 de Luciano. Encargo completo con sus criterios en `claude/ENCARGO-TANDA-UI-CLIENTE-2026-07-27.md` (Project). Diseñarla de cero (satori-design, registro A, overlay kboard): plan/progresos/avance/próximos pasos del cliente de un vistazo + drill-down por botones. Backend 0 nuevo (datosCliente+hiloCliente+agendaRango). El rediseño fino del Hilo-en-panel va ADENTRO de esta ficha (feedback: "se ve cortado, cuadro muy arriba").
+2. **Armar la REUNIÓN DE LC TRAVEL** — pedido REAL de Luciano por voz (27-jul 23:09). ⚠ La fila `BAN-0017` quedó `[PREPARAR_REUNION] CLI-004` (id ERRÓNEO que adivinó Sato; CLI-004 es DAM) → DESCARTARLA; el pedido real es **CLI-003 LC Travel**. Armar con `_cerebro/HILO - LC Travel.md` + skill `tablero-de-reunion` → entregar + guardar en el Mac.
+3. **Re-probar Sato** (el agente ya se reinició el 28 a la mañana con el fix): "prepará la reunión de LC Travel" → NO debe mencionar ningún CLI (el nombre viaja al server y el roster se resuelve allá; ambiguo = escala). También "el estado del sistema" 2× (la 2ª <2 s).
+4. **Activar la tarea programada de reuniones** (`trig_01DUPhtj1XvjpDkirLUdsdbd`, L-V 08:00 Madrid, YA creada): requiere UNA acción de Luciano — compartir el Sheet MAESTRO como **Lector** con `llopriore@gmail.com` (el conector Drive de las sesiones automáticas autentica con esa cuenta; verificado 27-jul que hoy NO lo ve). Sin eso la tarea avisa "sin acceso" y termina limpia.
+5. **Rotar OWNER_TOKEN de Vehemence** (comprometido: estuvo publicado en el DOC hasta el 27-jul; el DOC ya está purgado). En el editor GAS DE VEHEMENCE: correr `Logger.log(Utilities.getUuid() + Utilities.getUuid())`, pegar el valor SIN guiones como Script Property `OWNER_TOKEN`, actualizar el marcador `?k=` de Luciano.
+6. **Revisar la corrida de las 07:00 del 28-jul** (primera con los 3 conectores ON): brief/CM → "Operación reciente" de DAM, LC y MesaQuince poblada; si un conector falló, ahora AVISA (`conector_error`). Verificar también que AVI-0031 no reapareció (el fix de visibilidad del resolver está en HEAD).
+7. **Pendientes menores:** resolver AVI-0007/0026 (restos de pruebas de voz) · confirmar logo MesaQuince (¿la marca es "The Brasa Club"? archivo en `Avatares Satori/clientes/`) + conseguir logo SIP (web) · decidir estado de EJF si el North Star 6/6 no debe darse por cumplido (activo-piloto = 1 celda) · X4 (gatear las 35 funciones con escritura — espera OK explícito) · arreglar el label cosmético de `_promote_exec.sh` (commitea/etiqueta "B0.5…" hardcodeado).
+
+## Estado vigente (28-jul, mañana)
+
+**PRODUCCIÓN `/exec` @32** = TODO el cierre del 27-jul: P0 full-refresh + `conector_error` visible + `estadoCacheado_` (voz) + parser Hilos v2 + Hilos cargados (58/40/43) + calendario funcional (alta/edición/cancelación gated) + `preparar_reunion` + cartera formal + fix importe MQ + resolver cliente server-side + tríos probar/encender/apagar. Voz reiniciada con el agent.py nuevo. Git `4e14443 == origin/main`; GAS HEAD == repo (28 archivos); harness **93/0**; selfTest del 27: **PASA 576 / FALLA 0**.
+
+**CARTERA (formalizada 27-jul):** CLI-001 MesaQuince · CLI-002 Vehemence (piloto) · CLI-003 LC Travel · CLI-004 DAM Barbers · CLI-005 SIP Coffee Roasters (potencial) · CLI-007 EJF (activo, Música — NUEVO) · CLI-000 Oficina Virtual · CLI-006 DEMO ELIMINADO (Sheet en papelera hasta ~26-ago). Logos en `Avatares Satori/clientes/` (Vehemence/DAM/LC/EJF ✓ · MesaQuince=The Brasa Club A CONFIRMAR · SIP falta).
+
+**CONECTORES — LOS 3 ENCENDIDOS Y VALIDADOS AL PESO (27-jul):**
+- **DAM** (`fresha_dam`): €100.240 — exacto contra la lectura validada del 26-jul. ✓
+- **LC Travel** (`libro_lctravel`): −14.729.067 ARS ≈ **EBITDA operativo anual** del SGIC (−14.585.617, desvío 1%). El neto difiere por los financieros (motor EERR aparte) — por diseño: el conector mide OPERACIÓN. El 1% ≈ one-shot Cabify de junio aún sin correr en el SGIC de LC. ✓
+- **MesaQuince** (`movimientos_mesaquince`): +33.904 € acumulado 2026, tras el **fix ×10/×100** — el warehouse escribe importes con PUNTO decimal ("-87.61") y el parseo es-AR se lo arrancaba. Cazado por Luciano ("maneja miles, no millones"), confirmado contra el crudo por gviz, fijado con `_importeMQ_` + asserts D28f + 8 checks harness. Sheet compartido como Lector a luciano@satori. ✓
+
+**INCIDENTES DEL 27 (lecciones — las 4 ya fijadas en código/asserts/CLAUDE.md):**
+1. **`apagarMQ` no existía** cuando se le pidió correrlo a Luciano (3ª vez de la clase wrappers). Regla: toda acción de operador nace con el TRÍO no-arg completo (probar+encender+apagar). Fijada con check de trío en harness.
+2. **Sato tradujo "LC Travel"→CLI-004** (BAN-0017): el LLM de voz NO traduce nombre→id nunca más — el texto lleva lo que Luciano DIJO y `_resolverClientePrep_` resuelve server-side contra Clientes (match único o escala). Asserts D28d4/d5 + 7 checks harness.
+3. **Formato del dato ≠ esquema del dato:** el barrido A3 validó columnas de MQ pero no el FORMATO del importe. Regla nueva: al integrar una fuente, verificar una MUESTRA CRUDA del dato (gviz), no solo los headers.
+4. **`git add -A` arrastró ~4GB de videos** (commit c29ddb9, deshecho con reset --soft; GitHub rechaza >100MB). `.gitignore` ampliado (mov/zip/VIDEOS PRUEBA/Grabaci*/_to_delete/three.r128/512). Regla: add SIEMPRE por lista explícita o con gitignore que tape los pesados.
+
+**TAREA PROGRAMADA NUEVA:** «Satori OS · Reuniones pedidas a Sato (armado diario)» — `trig_01DUPhtj1XvjpDkirLUdsdbd`, L-V 06:00 UTC (08:00 Madrid), push ON. Lee la Bandeja del MAESTRO vía conector Drive [GATE: compartir el MAESTRO con llopriore@gmail como Lector], arma el doc de reunión desde el Hilo del cliente (tablero-de-reunion) y lo entrega. Ignora BAN-0017 explícitamente. Fail-honesta si no hay acceso.
+
+**AVISOS ACTIVOS:** solo AVI-0007/0026 (voz_acceso, restos de pruebas 13/16-jul, no intrusiones). AVI-0031 resuelto y verificado en hoja viva.
+
+## Artefactos
+| Tipo | Valor |
+|---|---|
+| Prod /exec | @32 · `AKfycbxZJL4E…` (label dice "B0.5…" — cosmético, bug del script de promote) · rollback @31 en `_promote_rollback.txt` |
+| /dev | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
+| Git | `4e14443` == origin (`github.com/lucianolp22/satori-os`) · este HANDOFF quedó M sin commitear |
+| Sheet MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` (compartir como Lector a llopriore@gmail = gate de la tarea diaria) |
+| Harness | `_harness.js` 93/0 (Node, raíz del repo) · `.claspignore` |
+| Encargo vigente | `claude/ENCARGO-TANDA-UI-CLIENTE-2026-07-27.md` (Ficha 360 → avatares/nombres → iPhone) |
+| Trigger reuniones | `trig_01DUPhtj1XvjpDkirLUdsdbd` (L-V 08:00 Madrid) |
+| Logos clientes | `Avatares Satori/clientes/` (5 listos, 1 a confirmar, SIP falta) |
+| Runbook | `RUNBOOK-recuperacion-total.md` |
+
+<!-- HISTÓRICO desde acá ══════════════════════════════════════════════════════ -->
+
+## HANDOFF (archivado 27-jul tarde) — Satori OS — 2026-07-27 (espejo vivo · CIERRE INTEGRAL ejecutado por Cowork)
 
 > Estado vigente arriba. Todo lo que sigue del `<!-- HISTÓRICO` para abajo es archivo — no es el estado de hoy.
 > **Cierre integral 27-jul (tarde): Cowork construyó y verificó TODO el encargo eyeball (P0 + A/B/C/D) + el micro-encargo del 24 (harness/claspignore/X4) + salud fantasma + tokens.** Queda el tramo de credenciales de Luciano (script único + editor).

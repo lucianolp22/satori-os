@@ -78,7 +78,7 @@ if [ "${1:-}" != "--go" ]; then
   echo "Con --go va a hacer:"
   echo "  1. instalar hook pre-push (drift-checker CAPABILITIES)"
   echo "  2. regenerar CAPABILITIES.md (hoy esta stale: falta _filaConsumoCore_ de B5)"
-  echo "  3. commit: B0.5 completo + HANDOFF post-eyeball + fix guardia b3"
+  echo "  3. commit: CAPABILITIES + HANDOFF (mensaje dinamico con fecha; override PROMOTE_MSG)"
   echo "  4. clasp deploy -i (promueve version nueva a /exec: CM + voz/kill-switch #7)"
   echo "  5. git push a GitHub (si falla auth, no bloquea; queda instruido)"
   exit 0
@@ -94,12 +94,17 @@ echo "-- 2/5 regenerar CAPABILITIES.md"
 bash _capabilities_gen.sh || { echo "ABORT: fallo la regeneracion de CAPABILITIES"; exit 3; }
 
 echo "-- 3/5 commit"
-git add CLAUDE.md PIPELINE-SatoriOS.md docs/CRITERIO-arquitectura-agentes.md _hooks/pre-push _install_hooks.sh _promote_exec.sh CAPABILITIES.md HANDOFF.md _b3_code.sh voz/web/voz.html voz/launchagents
+# Fix 28-jul (pendiente #7 del HANDOFF): el commit era el hardcode "B0.5..." con lista de archivos
+# stale — y como el label del deploy (4/5) toma el subject del ULTIMO commit, todo promote quedaba
+# etiquetado "B0.5...". Ahora: add SOLO de lo que este script muta (CAPABILITIES + HANDOFF + el
+# propio script) y mensaje dinamico con fecha; override con PROMOTE_MSG.
+git add CAPABILITIES.md HANDOFF.md _promote_exec.sh
 if git diff --cached --quiet; then
   echo "nada nuevo para commitear — sigo"
 else
-  git commit -m "B0.5: CLAUDE.md raiz plantado + PIPELINE al repo + criterio arquitectura agentes + drift-checker pre-push; CAPABILITIES regen (_filaConsumoCore_); HANDOFF post-eyeball; fix guardia b3" || { echo "ABORT: git commit fallo"; exit 4; }
-  echo "commit OK"
+  MSG="${PROMOTE_MSG:-promote /exec: CAPABILITIES regen + HANDOFF al $(date +%d-%m-%Y)}"
+  git commit -m "$MSG" || { echo "ABORT: git commit fallo"; exit 4; }
+  echo "commit OK: $MSG"
 fi
 
 echo "-- 4/5 promocion a /exec"

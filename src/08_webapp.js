@@ -788,6 +788,85 @@ function consumoApiCliente(url) {
   }
 }
 
+/**
+ * FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul-2026): lo del TENANT que datosCliente NO trae —
+ * objetivos (North Star del cliente), KPIs, operación reciente (lo que escribe el conector) y
+ * aprobaciones pendientes del espejo del MAESTRO. UNA llamada = UNA apertura del Sheet cliente
+ * (datosCliente queda intacto: extenderlo encarecía al panel legacy que no usa nada de esto).
+ * Read-only. Trilogía de tipos (16-jul): strings del SGIC = dato hostil ⇒ limpiarHostilTexto_,
+ * números ⇒ Number(), fechas ⇒ aFechaISO. Hojas del tenant pueden NO existir (lección lista-lazy
+ * 23-jul) ⇒ null-guard por hoja y se DICE en `hoja_falta` — nunca un vacío que parezca "en orden".
+ * Endpoint client-callable ⇒ gate _soloOwner_ + alta en ENDPOINTS_UI en ESTE commit (anti-drift).
+ */
+function fichaCliente(idCliente) {
+  _soloOwner_('fichaCliente');   // S1: endpoint client-callable — gate de identidad
+  var id = String(idCliente || '').trim();
+  if (!id) return { ok: false, error: 'sin id de cliente' };
+
+  var cs = null;
+  try { cs = abrirCliente(id).ss; } catch (e) { return { ok: false, error: 'cliente no accesible' }; }
+  function leer_(p) { var sh = cs.getSheetByName(p); return sh ? leerTabla(sh) : null; }  // null = la hoja no existe
+
+  var objRaw = leer_('objetivos');
+  var objetivos = (objRaw || []).slice(0, 10).map(function (o) {
+    return {
+      horizonte: limpiarHostilTexto_(String(o.horizonte || ''), 30),
+      descripcion: limpiarHostilTexto_(String(o.descripcion || ''), 200),
+      metrica: limpiarHostilTexto_(String(o.metrica || ''), 60),
+      valor_objetivo: (o.valor_objetivo === '' || o.valor_objetivo == null) ? null : Number(o.valor_objetivo),
+      estado: limpiarHostilTexto_(String(o.estado || ''), 30),
+      fecha_objetivo: aFechaISO(o.fecha_objetivo) || ''
+    };
+  });
+
+  var kpiRaw = leer_('KPIs');
+  var kpis = (kpiRaw || []).slice(-8).map(function (k) {
+    return {
+      kpi: limpiarHostilTexto_(String(k.kpi || ''), 60),
+      valor: (k.valor === '' || k.valor == null) ? null : Number(k.valor),
+      objetivo: (k.objetivo === '' || k.objetivo == null) ? null : Number(k.objetivo),
+      alerta: limpiarHostilTexto_(String(k.alerta || ''), 80),
+      fecha: aFechaISO(k.fecha) || ''
+    };
+  });
+
+  var opRaw = leer_('Datos_operativos');
+  var operacion = (opRaw || []).slice(-6).reverse().map(function (o) {
+    return {
+      fecha: aFechaISO(o.fecha) || '',
+      concepto: limpiarHostilTexto_(String(o.concepto || ''), 100),
+      valor: (o.valor === '' || o.valor == null) ? null : Number(o.valor),
+      notas: limpiarHostilTexto_(String(o.notas || ''), 200),
+      fuente: limpiarHostilTexto_(String(o.fuente || ''), 80)
+    };
+  });
+
+  // Aprobaciones del cliente: el espejo del MAESTRO lleva SOLO estado==='pendiente' (criterio de
+  // syncMaestro) — no se re-filtra acá para no divergir del criterio único.
+  // Columnas REALES del espejo (01_schema.js:22, verificado en la purga 28-jul): descripcion /
+  // tipo_accion / monto — no existe "resumen" ni "prioridad" (stub divergente cazado a tiempo).
+  var aprobaciones = [];
+  try {
+    aprobaciones = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas'))
+      .filter(function (a) { return String(a.id_cliente) === id; })
+      .slice(0, 10)
+      .map(function (a) {
+        return { id: String(a.id || ''), resumen: limpiarHostilTexto_(String(a.descripcion || ''), 140),
+                 tipo: limpiarHostilTexto_(String(a.tipo_accion || ''), 40),
+                 monto: (a.monto === '' || a.monto == null) ? null : Number(a.monto) };
+      });
+  } catch (e) { /* espejo no accesible → lista vacía; la ficha muestra la sección igual */ }
+
+  var avatar = '';
+  try { avatar = String(getConfig('avatar_cliente_' + id) || ''); } catch (e) { /* sin key = sin logo, fail-closed */ }
+
+  return {
+    ok: true, id_cliente: id, avatar_url: avatar,
+    objetivos: objetivos, kpis: kpis, operacion: operacion, aprobaciones: aprobaciones,
+    hoja_falta: { objetivos: objRaw === null, kpis: kpiRaw === null, operacion: opRaw === null }
+  };
+}
+
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 // PURGA #23: soporte D/E (antes solo A/B/C; D/E caían al peso por defecto).

@@ -299,6 +299,60 @@ ctx.SATORI_CTX_SISTEMA = true;   // atravesar el gate para probar la validación
 try { ctx.agendarEvento('27/07/2026', '', 'x', '', ''); } catch (e) { rechazoFecha = /fecha/i.test(e.message); }
 chk(rechazoFecha, 'agendarEvento rechaza fecha no-ISO antes de tocar la hoja');
 
+// ═══ 11 · Ficha de Cliente 360 (T1 tanda UI · 28-jul): fichaCliente ══════════
+seccion('fichaCliente (endpoint de la Ficha 360)');
+chk(ctx.ENDPOINTS_UI.indexOf('fichaCliente') >= 0, 'fichaCliente está en ENDPOINTS_UI (anti-drift, mismo commit)');
+chk(String(ctx.fichaCliente).indexOf("_soloOwner_('fichaCliente')") >= 0, 'fichaCliente lleva _soloOwner_ (introspección del código real)');
+{
+  // Inyección + restore (patrón _resolverClientePrep_): stubs de I/O muerto, jamás lógica de negocio.
+  const acOrig = ctx.abrirCliente, ltOrig = ctx.leerTabla, gmOrig = ctx.getMaestro, gcOrig = ctx.getConfig;
+  ctx.SATORI_CTX_SISTEMA = true;
+  const hojas = {
+    objetivos: [{ horizonte: '12m', descripcion: 'Facturar más', metrica: 'ventas_mes', valor_objetivo: '30000', estado: 'activo', fecha_objetivo: '2026-12-31' }],
+    KPIs: [{ kpi: 'ventas_mes', valor: '21500', objetivo: '30000', alerta: '', fecha: '2026-07-20' }],
+    Datos_operativos: [
+      { fecha: '2026-07-01', concepto: 'viejo', valor: '1', notas: '', fuente: 'SGIC x' },
+      { fecha: '2026-07-27', concepto: 'ventas\tjulio\ncrudas', valor: '33904', notas: 'n', fuente: 'SGIC · sync' },
+    ],
+  };
+  ctx.abrirCliente = (id) => { if (id !== 'CLI-001') throw new Error('no existe'); return { ss: { getSheetByName: (n) => (n in hojas ? { _n: n } : null) } }; };
+  // Columnas REALES de Aprobaciones_agregadas (01_schema.js:22) — regla del stub divergente:
+  // el stub v1 usaba "resumen"/"prioridad" (inexistentes) y daba verde falso; cazado en la purga 28-jul.
+  ctx.leerTabla = (sh) => (sh && sh._n === 'AGG' ? [
+    { id: 'APR-0009', fecha_creacion: '2026-07-27', id_cliente: 'CLI-001', cliente: 'MesaQuince', modulo: 'director',
+      patron: '', tipo_accion: 'crear_objetivo', descripcion: 'decidir X', payload: '{}', monto: '1500', 'confianza_%': 80, estado: 'pendiente' },
+    { id: 'APR-0010', fecha_creacion: '2026-07-27', id_cliente: 'CLI-002', cliente: 'Vehemence', modulo: 'director',
+      patron: '', tipo_accion: 'otro', descripcion: 'de otro', payload: '{}', monto: '', 'confianza_%': 70, estado: 'pendiente' },
+  ] : (sh && hojas[sh._n]) || []);
+  ctx.getMaestro = () => ({ getSheetByName: (n) => ({ _n: 'AGG' }) });
+  ctx.getConfig = (k) => (k === 'avatar_cliente_CLI-001' ? 'https://drive.google.com/thumbnail?id=F&sz=w512' : '');
+
+  const f = ctx.fichaCliente('CLI-001');
+  chk(f.ok === true && f.id_cliente === 'CLI-001', 'camino feliz: ok:true con el id');
+  chk(f.objetivos.length === 1 && f.objetivos[0].valor_objetivo === 30000 && f.objetivos[0].fecha_objetivo === '2026-12-31',
+      'objetivos: valor_objetivo → Number, fecha → ISO (trilogía de tipos)');
+  chk(f.kpis.length === 1 && f.kpis[0].valor === 21500 && f.kpis[0].objetivo === 30000, 'kpis: valor/objetivo numéricos');
+  chk(f.operacion[0].fecha === '2026-07-27' && f.operacion[1].fecha === '2026-07-01', 'operación: la más reciente PRIMERO');
+  chk(f.operacion[0].concepto.indexOf('\t') < 0 && f.operacion[0].concepto.indexOf('\n') < 0,
+      'operación: celda del SGIC pasa por limpiarHostilTexto_ (dato hostil)');
+  chk(f.aprobaciones.length === 1 && f.aprobaciones[0].id === 'APR-0009', 'aprobaciones: SOLO las del cliente pedido');
+  chk(f.aprobaciones[0].resumen === 'decidir X' && f.aprobaciones[0].tipo === 'crear_objetivo' && f.aprobaciones[0].monto === 1500,
+      'aprobaciones: resumen sale de `descripcion`, tipo de `tipo_accion`, monto Number (columnas REALES del espejo)');
+  chk(f.avatar_url.indexOf('thumbnail') > 0, 'avatar: lee Config avatar_cliente_<id> (T2-ready)');
+  chk(f.hoja_falta.objetivos === false && f.hoja_falta.kpis === false, 'hoja_falta en false cuando las hojas existen');
+
+  delete hojas.KPIs;
+  const f2 = ctx.fichaCliente('CLI-001');
+  chk(f2.ok === true && f2.hoja_falta.kpis === true && f2.kpis.length === 0,
+      'hoja KPIs ausente → hoja_falta.kpis=true y lista vacía (se DICE, no se inventa)');
+
+  const f3 = ctx.fichaCliente('CLI-099');
+  chk(f3.ok === false && !!f3.error, 'cliente inaccesible → {ok:false} sin tirar (fail-closed)');
+  chk(ctx.fichaCliente('').ok === false, 'id vacío → {ok:false}');
+
+  ctx.abrirCliente = acOrig; ctx.leerTabla = ltOrig; ctx.getMaestro = gmOrig; ctx.getConfig = gcOrig;
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;
