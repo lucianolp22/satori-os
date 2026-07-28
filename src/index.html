@@ -3459,8 +3459,13 @@ function f360SatoVozInit_(){
   // MISMA app en una VENTANITA top-level (#satomic) donde el permiso sí existe; lo dictado
   // vuelve por postMessage verificado por origen y se envía solo. La ventanita queda abierta
   // al costado para seguir hablando turno tras turno.
+  // Bastión: se acepta el mensaje si viene de MI ventanita (identidad de source — no
+  // falsificable desde otra ventana) o de mi propio origen. La URL interna del wrapper
+  // (userCodeAppPanel) NO es re-abrible top-level (quedaba en blanco): la ventanita se
+  // ESCRIBE a sí misma (about:blank hereda el origen y es top-level → permiso posible).
   window.addEventListener('message',function(ev){
-    if(ev.origin!==location.origin)return;                        // Bastión: solo mi propio origen
+    var esMio=(SATO_VOZ.popup&&ev.source===SATO_VOZ.popup)||ev.origin===location.origin;
+    if(!esMio)return;
     var t=ev.data&&ev.data.satori_mic;
     if(typeof t!=='string'||!t.trim())return;
     var tx2=document.getElementById('f360SatoTx');
@@ -3469,10 +3474,39 @@ function f360SatoVozInit_(){
     if(tx2){ tx2.value=t.trim(); f360SatoEnviar_(); }
   });
   function abrirMic_(){
-    var w=window.open(location.href.split('#')[0]+'#satomic','sato_mic','width=430,height=420');
+    var w=window.open('','sato_mic','width=440,height=470');
     if(!w){ cmToast('El navegador bloqueó la ventanita — permití popups para este sitio.'); return; }
     SATO_VOZ.popup=w;
-    cmToast('Hablale a Sato en la ventanita 🎙 — la respuesta vuelve acá (y suena con 🔊 voz).');
+    var d=w.document;
+    d.open();
+    d.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Micrófono de Sato</title></head><body></body></html>');
+    d.close();
+    var b=d.body;
+    b.style.cssText='margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:96vh;background:#14100d;color:#ECE6DB;font-family:system-ui,sans-serif;text-align:center;padding:18px';
+    function nel(tag,css,txt){var e=d.createElement(tag);if(css)e.style.cssText=css;if(txt!=null)e.textContent=txt;b.appendChild(e);return e;}
+    nel('div','font-size:17px;font-weight:600','🜂 Micrófono de Sato');
+    var st=nel('div','font-size:13px;color:#B9AE9D;max-width:330px;line-height:1.45','');
+    var btn=nel('button','width:112px;height:112px;border-radius:50%;border:2px solid #E8956D;background:rgba(232,149,109,.12);color:#ECE6DB;font-size:44px;cursor:pointer','🎙');
+    var tr=nel('div','font-size:13px;min-height:44px;max-width:350px','');
+    var SRw=w.SpeechRecognition||w.webkitSpeechRecognition;
+    if(!SRw){ st.textContent='Este navegador no tiene reconocimiento de voz en esta ventana.'; btn.disabled=true; return; }
+    st.textContent='Tocá el micrófono y hablá — lo dictado se envía solo al chat de Sato (la respuesta suena en la ventana grande). La primera vez el navegador te pide permiso: aceptalo.';
+    var esc=false,rec=null,principal=window;
+    function ronda(){
+      rec=new SRw(); rec.lang='es-ES'; rec.interimResults=true; rec.maxAlternatives=1;
+      rec.onstart=function(){ esc=true; btn.style.background='#B3261E'; btn.style.borderColor='#B3261E'; };
+      rec.onend=function(){ esc=false; btn.style.background='rgba(232,149,109,.12)'; btn.style.borderColor='#E8956D'; };
+      rec.onerror=function(ev2){ tr.textContent=(ev2.error==='not-allowed')?'Permiso denegado — dáselo en el candado de la barra de ESTA ventana y tocá de nuevo.':('Micrófono: '+ev2.error); };
+      rec.onresult=function(ev2){
+        var fin='',tmp='';
+        for(var i=0;i<ev2.results.length;i++){ if(ev2.results[i].isFinal)fin+=ev2.results[i][0].transcript; else tmp+=ev2.results[i][0].transcript; }
+        tr.textContent=fin||tmp;
+        if(fin){ try{ principal.postMessage({satori_mic:fin.trim()},'*'); tr.textContent='✓ enviado: '+fin.trim(); }catch(e){ tr.textContent='No pude enviar: '+e.message; } }
+      };
+      try{ rec.start(); }catch(e){ tr.textContent='No pude iniciar: '+e.message; }
+    }
+    btn.addEventListener('click',function(){ if(esc){ try{rec.stop();}catch(e){} } else ronda(); });
+    cmToast('Hablale a Sato en la ventanita 🎙 — lo dictado entra solo al chat.');
   }
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ bm.title='Micrófono por ventanita'; bm.addEventListener('click',abrirMic_); return; }
