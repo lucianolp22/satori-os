@@ -1527,6 +1527,50 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 </div>
 
 <script>
+/* ═══ T1.4c (28-jul) — MODO MICRÓFONO DE SATO ═══════════════════════════════
+   El wrapper de Google sirve la app en un iframe SIN allow=microphone → la Web Speech API
+   está bloqueada ADENTRO. La manera: la app se abre A SÍ MISMA en una ventanita top-level
+   (#satomic) donde el navegador sí pide el permiso; lo dictado vuelve al cajón de Sato por
+   postMessage VERIFICADO por origen (Bastión: nunca '*' al escuchar). En esa ventana NO
+   arranca ni Akasha ni el CM (los dos inits están gateados por esta bandera). */
+var SATO_MIC_MODE = /satomic/.test(location.hash);
+function montarMicSato_(){
+  document.title = 'Micrófono de Sato';
+  var b = document.body; while (b.firstChild) b.removeChild(b.firstChild);
+  b.style.cssText = 'margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-height:100vh;background:#14100d;color:#ECE6DB;font-family:system-ui,sans-serif;text-align:center;padding:18px';
+  var h = document.createElement('div'); h.textContent = '🜂 Micrófono de Sato'; h.style.cssText = 'font-size:17px;font-weight:600'; b.appendChild(h);
+  var st = document.createElement('div'); st.style.cssText = 'font-size:13px;color:#B9AE9D;max-width:320px;line-height:1.45'; b.appendChild(st);
+  var btn = document.createElement('button');
+  btn.style.cssText = 'width:112px;height:112px;border-radius:50%;border:2px solid #E8956D;background:rgba(232,149,109,.12);color:#ECE6DB;font-size:44px;cursor:pointer';
+  btn.textContent = '🎙'; b.appendChild(btn);
+  var tr = document.createElement('div'); tr.style.cssText = 'font-size:13px;color:#ECE6DB;min-height:40px;max-width:340px'; b.appendChild(tr);
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { st.textContent = 'Este navegador no tiene reconocimiento de voz.'; btn.disabled = true; return; }
+  if (!window.opener) { st.textContent = 'Abrí esta ventana desde el botón 🎙 del chat de Sato en la ficha.'; }
+  else st.textContent = 'Tocá el micrófono y hablá — lo dictado se envía solo al chat de Sato en la ventana principal (la respuesta suena allá).';
+  var esc = false, rec = null;
+  function ronda(){
+    rec = new SR(); rec.lang = 'es-ES'; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.onstart = function(){ esc = true; btn.style.background = '#B3261E'; btn.style.borderColor = '#B3261E'; };
+    rec.onend = function(){ esc = false; btn.style.background = 'rgba(232,149,109,.12)'; btn.style.borderColor = '#E8956D'; };
+    rec.onerror = function(ev){ tr.textContent = (ev.error === 'not-allowed') ? 'Permiso de micrófono denegado — dale permiso al sitio en el candado de la barra del navegador.' : ('Micrófono: ' + ev.error); };
+    rec.onresult = function(ev){
+      var fin = '', tmp = '';
+      for (var i = 0; i < ev.results.length; i++) { if (ev.results[i].isFinal) fin += ev.results[i][0].transcript; else tmp += ev.results[i][0].transcript; }
+      tr.textContent = fin || tmp;
+      if (fin && window.opener) {
+        try { window.opener.postMessage({ satori_mic: fin.trim() }, location.origin); tr.textContent = '✓ enviado: ' + fin.trim(); }
+        catch (e) { tr.textContent = 'No pude enviar a la ventana principal: ' + e.message; }
+      }
+    };
+    try { rec.start(); } catch (e) { tr.textContent = 'No pude iniciar: ' + e.message; }
+  }
+  btn.addEventListener('click', function(){ if (esc) { try { rec.stop(); } catch (e) {} } else ronda(); });
+}
+if (SATO_MIC_MODE) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', montarMicSato_);
+  else montarMicSato_();
+}
 // ── helpers DOM (sin innerHTML con datos: todo por textContent → escapado) ──
 function el(tag, cls, txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
 function chip(txt, kind){var c=el('span','chip'+(kind?' '+kind:''),txt);return c;}
@@ -3411,22 +3455,41 @@ function f360SatoVozInit_(){
     SATO_VOZ.on=!SATO_VOZ.on; bv.classList.toggle('on',SATO_VOZ.on);
     if(!SATO_VOZ.on)f360SatoCallar_();
     else if(!('speechSynthesis' in window)){ cmToast('Este navegador no tiene síntesis de voz'); SATO_VOZ.on=false; bv.classList.remove('on'); } });
+  // T1.4c — la vía del micrófono: el iframe de Google lo bloquea, así que el 🎙 abre la
+  // MISMA app en una VENTANITA top-level (#satomic) donde el permiso sí existe; lo dictado
+  // vuelve por postMessage verificado por origen y se envía solo. La ventanita queda abierta
+  // al costado para seguir hablando turno tras turno.
+  window.addEventListener('message',function(ev){
+    if(ev.origin!==location.origin)return;                        // Bastión: solo mi propio origen
+    var t=ev.data&&ev.data.satori_mic;
+    if(typeof t!=='string'||!t.trim())return;
+    var tx2=document.getElementById('f360SatoTx');
+    var box2=document.getElementById('f360Sato');
+    if(box2&&!box2.classList.contains('open')){ var b2=document.getElementById('f360SatoBtn'); if(b2)b2.click(); }
+    if(tx2){ tx2.value=t.trim(); f360SatoEnviar_(); }
+  });
+  function abrirMic_(){
+    var w=window.open(location.href.split('#')[0]+'#satomic','sato_mic','width=430,height=420');
+    if(!w){ cmToast('El navegador bloqueó la ventanita — permití popups para este sitio.'); return; }
+    SATO_VOZ.popup=w;
+    cmToast('Hablale a Sato en la ventanita 🎙 — la respuesta vuelve acá (y suena con 🔊 voz).');
+  }
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ bm.title='Micrófono no disponible en este navegador — usá el teclado o la PWA de voz'; bm.disabled=true; return; }
+  if(!SR){ bm.title='Micrófono por ventanita'; bm.addEventListener('click',abrirMic_); return; }
   bm.addEventListener('click',function(){
+    if(SATO_VOZ.bloqueado){ abrirMic_(); return; }               // ya sabemos que el iframe lo niega
     if(SATO_VOZ.grabando){ try{SATO_VOZ.rec.stop();}catch(e){} return; }
     var rec=new SR(); SATO_VOZ.rec=rec;
     rec.lang='es-ES'; rec.interimResults=false; rec.maxAlternatives=1;
     rec.onstart=function(){ SATO_VOZ.grabando=true; bm.classList.add('rec'); };
     rec.onend=function(){ SATO_VOZ.grabando=false; bm.classList.remove('rec'); };
     rec.onerror=function(ev){ SATO_VOZ.grabando=false; bm.classList.remove('rec');
-      if(ev.error==='not-allowed'||ev.error==='service-not-allowed')
-        cmToast('El sistema corre en un marco de Google sin permiso de micrófono — para voz completa usá "Hablar con Sato" (PWA); acá: teclado + respuesta hablada.');
+      if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ SATO_VOZ.bloqueado=true; abrirMic_(); }
       else cmToast('Micrófono: '+ev.error); };
     rec.onresult=function(ev){
       var t=(ev.results[0]&&ev.results[0][0]&&ev.results[0][0].transcript)||'';
       if(t){ var tx=document.getElementById('f360SatoTx'); if(tx){tx.value=t;} f360SatoEnviar_(); } };
-    try{ rec.start(); }catch(e){ cmToast('No pude iniciar el micrófono: '+e.message); }
+    try{ rec.start(); }catch(e){ SATO_VOZ.bloqueado=true; abrirMic_(); }
   });
 }
 function f360SatoHablar_(texto){
@@ -6189,8 +6252,10 @@ window.AKASHA = (function () {
     if (akDisp_() && window.SATORI_VISTA !== 'despacho') entrar();
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if (!window.SATO_MIC_MODE) {   // T1.4c: en la ventanita del micrófono NO arranca Akasha
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  }
 
   /* E3.15 — MODO MODAL. Lo llaman los modales del CM (tablero/calendario) al abrir y cerrar,
      desde AFUERA de este IIFE (por eso va en la API pública). Idempotente y no-op desde el
@@ -6229,7 +6294,7 @@ window.AKASHA = (function () {
 })();
 
 
-window.addEventListener('DOMContentLoaded', init);
+if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4c: mic-only no bootea el CM
 </script>
 </body>
 </html>
