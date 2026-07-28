@@ -1,7 +1,8 @@
 # HANDOFF — Satori OS — 2026-07-28 tarde (espejo vivo · PRODUCCIÓN + FICHA 360 CONSTRUIDA)
 
 > Estado vigente arriba; todo lo que sigue del primer `<!-- HISTÓRICO` es archivo.
-> **Sesión 28-jul (Cowork): tanda T1 EJECUTADA — Ficha de Cliente 360 construida, purgada y verificada offline (harness 107/0) + reunión LC Travel armada (tablero entregado) + fix label promote.** `/exec` @32 INTOCADO. Falta el tramo de credenciales: `bash _tanda_f360_2026-07-28.sh` (git+clasp) → selfTest editor → eyeball /dev → promote.
+> **Sesión 28-jul (Cowork): tanda T1 EJECUTADA Y CERTIFICADA — Ficha 360 construida+purgada (harness 107/0) · commit `4b26fe3` + clasp push a /dev HECHOS · selfTest en editor: PASA 581 / FALLA 0 (con el fix D10) · tablero LC Travel entregado · fix label promote.** `/exec` @32 INTOCADO. Pasos 1-2 del guion CUMPLIDOS → seguir en el 3 (eyeball de la Ficha) → 4 (promote @33).
+> **Fix D10 (28-jul tarde):** la rama del Hilo (W4b, 21-jul) en `recomendacionDelDia_` no era inyectable y, con los Hilos reales cargados, le ganaba a la rama kpi_cliente → D10 rojo por datos vivos (clase D15k). Ahora `pre.hiloRec` la aísla (patrón kpiAlerta; producción intacta) y quedó la regla: toda rama futura de la rec nace inyectable por `pre`.
 
 PRÓXIMO PASO (orden exacto):
 1. **Terminal:** `bash _tanda_f360_2026-07-28.sh` (dry-run primero; `--go` = add por lista + commit + push + guardia drift + clasp push a /dev). El script ABORTA si GAS tiene ediciones desconocidas.
@@ -39,8 +40,8 @@ PRÓXIMO PASO (orden exacto):
 |---|---|
 | Prod /exec | @32 · `AKfycbxZJL4E…` · rollback @31 en `_promote_rollback.txt` |
 | /dev | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
-| Git | base `4e14443`; tanda T1 de hoy SIN commitear → `_tanda_f360_2026-07-28.sh` |
-| Tocados hoy | `src/08_webapp.js` (+`fichaCliente`) · `src/22_seguridad.js` (ENDPOINTS_UI) · `src/index.html` (F360) · `_harness.js` (107/0) · `_promote_exec.sh` (label) · `entregables/Tablero-Reunion-LCTravel-2026-07-28.html` · este HANDOFF |
+| Git | `4b26fe3` (tanda T1) + fix D10 + CAPABILITIES regen commiteados; GAS /dev == repo |
+| Tocados hoy | `src/08_webapp.js` (+`fichaCliente`) · `src/22_seguridad.js` (ENDPOINTS_UI) · `src/index.html` (F360) · `src/18_direccion.js`+`src/09_selftest.js` (fix D10) · `_harness.js` (107/0) · `_promote_exec.sh` (label) · `entregables/Tablero-Reunion-LCTravel-2026-07-28.html` · este HANDOFF |
 | Sheet MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` (compartir Lector a llopriore@gmail = gate) |
 | Harness | `_harness.js` **107/0** (Node, raíz del repo) |
 | Trigger reuniones | `trig_01DUPhtj1XvjpDkirLUdsdbd` (L-V 08:00 Madrid) — gateada por el paso 5 |
