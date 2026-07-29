@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-28 20:59 · commit: 807715e
+> Generado: 2026-07-28 21:34 · commit: 27b4c53
 
 ## Módulos
 
@@ -33,7 +33,7 @@
 | `23_evals.js` | Golden-set + runner de evals (T3 · MÓDULO M · M4, 21-jul-2026) | 6 |
 | `24_soul.js` | SOUL: identidad operativa de Satori OS (T3 · MÓDULO H · H1 · D11, 21-jul-2026) | 2 |
 | `25_hilo.js` | HILO DE TRABAJO por cliente (TC-W1 / W2 / W4 · 21-jul-2026) | 12 |
-| `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 5 |
+| `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 6 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -166,5 +166,5 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **25_hilo.js:** _armarHilo_ _semaforoHilo_ hiloCliente _numeroConectorCliente_ _ultimoEspejo_ repararHilo espejarHilo espejarHiloCSV _parseCSVLinea_ _seccionHilo_ _recDesdeHilo_ _clienteConHiloCaliente_ 
 
-**26_sato.js:** _charlaSheet_ satoCharla _satoContexto_ satoChat satoVoz 
+**26_sato.js:** _charlaSheet_ satoCharla _satoContexto_ satoChat satoVoz diagVoz 
 
