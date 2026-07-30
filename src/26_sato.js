@@ -70,11 +70,15 @@ function _satoContexto_(id) {
  * UN turno de chat con Sato sobre un cliente. Persiste ambos lados SIEMPRE (aun si la API
  * falla, queda registrado el intento con la respuesta de error — la memoria no miente).
  */
-function satoChat(idCliente, mensaje) {
+function satoChat(idCliente, mensaje, opts) {
   _soloOwner_('satoChat');
   var id = String(idCliente || '').trim();
   var msg = limpiarHostilTexto_(String(mensaje || ''), 1200);
   if (!id || !msg) return { ok: false, error: 'faltan datos' };
+  // T1.5c (28-jul, fix latencia): con `opts.voz` el turno se resuelve en UNA sola llamada
+  // (texto + MP3 juntos). Antes eran dos round-trips a GAS en fila y el overhead de GAS
+  // —no ElevenLabs— era el grueso de la espera. Además, hablado ⇒ respuesta CORTA.
+  var conVoz = !!(opts && opts.voz);
   var ss;
   try { ss = abrirCliente(id).ss; } catch (e) { return { ok: false, error: 'cliente no accesible' }; }
   var sh = _charlaSheet_(ss, true);
@@ -103,6 +107,7 @@ function satoChat(idCliente, mensaje) {
     '(3) NUNCA afirmes que ejecutaste una acción — no ejecutás nada: proponés, y Luciano actúa con los botones',
     'de la ficha (checklist, encargo a Cowork, aprobaciones); (4) si te piden algo que requiere herramientas',
     'que no tenés (archivos, web, código), decilo y sugerí el botón "Encargar a Cowork".',
+    conVoz ? 'ESTA RESPUESTA SE ESCUCHA EN VOZ ALTA: contestá en 2 a 4 oraciones, sin listas ni markdown, como si hablaras.' : '',
     '',
     '=== CONTEXTO VIVO DEL CLIENTE (fuentes del sistema) ===',
     _satoContexto_(id),
@@ -113,7 +118,7 @@ function satoChat(idCliente, mensaje) {
   conLock(function () { appendFila(sh, { ts: ahoraISO(), rol: 'user', texto: msg, modulo: 'sato_ficha' }); });
 
   var r = llamadaAPI(id, 'sato_ficha', {
-    prompt: msg, system: system, maxTokens: SATO_MAXTOK,
+    prompt: msg, system: system, maxTokens: conVoz ? 300 : SATO_MAXTOK,   // hablado = corto = rápido
     modelo: getConfig('sato_modelo') || undefined
   });
   var texto = r.ok ? String(r.texto || '').trim()
@@ -130,7 +135,16 @@ function satoChat(idCliente, mensaje) {
     });
   } catch (ec) { /* el grafo es espejo: si falla, la charla igual quedó registrada */ }
 
-  return { ok: r.ok, texto: texto, usd: r.usd || 0, error: r.ok ? null : r.error };
+  // Voz en el MISMO viaje: el navegador recibe texto + MP3 de una (un round-trip de GAS menos).
+  var mp3 = '', usdVoz = 0, vozErr = '';
+  if (conVoz && r.ok) {
+    var v = satoVoz(texto);
+    if (v.ok) { mp3 = v.mp3; usdVoz = v.usd || 0; }
+    else vozErr = v.motivo + (v.detalle ? (' · ' + v.detalle) : '');
+  }
+
+  return { ok: r.ok, texto: texto, usd: (r.usd || 0) + usdVoz, error: r.ok ? null : r.error,
+           mp3: mp3, voz_error: vozErr };
 }
 
 /* ═══ T1.5 (28-jul) — LA VOZ REAL DE SATO EN LA FICHA ════════════════════════
@@ -166,11 +180,19 @@ function satoVoz(texto) {
   var voz = String(getConfig('sato_voz_id') || SATO_VOZ_ID_DEF);
   try {
     // mp3_22050_32: liviano (≈4 KB/s) — viaja rápido por google.script.run y suena bien en voz hablada.
+    // `speed` (Config `sato_voz_speed`, default 1.08): el ritmo por defecto de la voz sonaba
+    // lento para trabajar. Rango válido de ElevenLabs 0.7-1.2 — se clampea.
+    // `optimize_streaming_latency=3`: menos espera de generación (el resto de la latencia era
+    // el doble round-trip a GAS, ya resuelto fusionando el turno).
+    var vel = parseFloat(getConfig('sato_voz_speed'));
+    if (isNaN(vel)) vel = 1.08;
+    vel = Math.max(0.7, Math.min(1.2, vel));
     function pegar_(conIdioma) {
-      var cuerpo = { text: t, model_id: 'eleven_turbo_v2_5' };
+      var cuerpo = { text: t, model_id: 'eleven_turbo_v2_5', voice_settings: { speed: vel } };
       if (conIdioma) cuerpo.language_code = 'es';
       return UrlFetchApp.fetch(
-        'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voz) + '?output_format=mp3_22050_32',
+        'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent(voz) +
+          '?output_format=mp3_22050_32&optimize_streaming_latency=3',
         { method: 'post', contentType: 'application/json',
           headers: { 'xi-api-key': key },
           payload: JSON.stringify(cuerpo),

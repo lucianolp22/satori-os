@@ -3718,13 +3718,18 @@ function f360SatoEnviar_(){
   google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
       if(esp)esp.remove(); tx.disabled=false; tx.focus();
       f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
-      if(r&&r.ok)f360SatoHablar_(r.texto);   // T1.4b: Sato responde con voz si el toggle está on
       var st=document.getElementById('f360SatoSt');
-      if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4)); })
+      // T1.5c: el MP3 viene EN LA MISMA respuesta (un round-trip menos ⇒ mucho más rápido).
+      if(r&&r.ok&&r.mp3){ f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
+        if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4)); }
+      else if(r&&r.ok&&SATO_VOZ.on&&r.voz_error){ if(st)st.textContent='SIN VOZ — '+r.voz_error;
+        cmToast('La voz de Sato no se pudo generar: '+r.voz_error); }
+      else if(r&&r.ok&&SATO_VOZ.on){ f360SatoHablar_(r.texto); }   // red de seguridad
+      else if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4)); })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return;
       if(esp)esp.remove(); tx.disabled=false;
       f360SatoBurb_('sato','(no pude responder: '+((e&&e.message)||'sesión o permisos')+')'); })
-    .satoChat(F360.id,t);
+    .satoChat(F360.id,t,{voz:!!SATO_VOZ.on});
 }
 /* T1.3 — Encargo a Cowork: cualquier pedido sobre el cliente → Bandeja (capturar), con id y
    nombre en el texto. Cowork lo toma en la próxima sesión con todas sus herramientas. */

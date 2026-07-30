@@ -437,6 +437,19 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensibl
       'el system lleva contexto vivo + conversación previa (Sato recuerda)');
   chk(systemVisto.indexOf('NUNCA afirmes que ejecutaste') >= 0, 'el system fija la honestidad N9 (no inventa acciones)');
   chk(!!nodoTocado && nodoTocado.tipo === 'charla_sato' && nodoTocado.dimension === 'lider', 'la charla se espeja al Cerebro como nodo (grafo navegable)');
+  // T1.5c — turno hablado: UNA sola llamada devuelve texto + MP3 (un round-trip de GAS menos)
+  const bkVoz = ctx.satoVoz;
+  ctx.satoVoz = () => ({ ok: true, mp3: 'TEST64', usd: 0.003 });
+  systemVisto = '';
+  const rv = ctx.satoChat('CLI-001', 'contame de DAM', { voz: true });
+  chk(rv.ok === true && rv.mp3 === 'TEST64', 'satoChat({voz:true}) devuelve el MP3 en la MISMA respuesta');
+  chk(rv.usd > 0.003, 'el costo del turno suma texto + voz');
+  chk(systemVisto.indexOf('SE ESCUCHA EN VOZ ALTA') >= 0, 'hablado ⇒ el system pide respuesta corta (2-4 oraciones)');
+  ctx.satoVoz = () => ({ ok: false, motivo: 'proveedor_401' });
+  const rv2 = ctx.satoChat('CLI-001', 'otra', { voz: true });
+  chk(rv2.ok === true && !rv2.mp3 && rv2.voz_error.indexOf('401') >= 0,
+      'si la voz falla, el texto igual llega y el motivo viaja (nunca otra voz)');
+  ctx.satoVoz = bkVoz;
   ctx.getConfig = (k) => (k === 'sato_tope_turnos' ? '1' : '');
   const r2 = ctx.satoChat('CLI-001', 'otro');
   chk(r2.ok === false && String(r2.error).indexOf('tope') >= 0, 'tope diario de turnos aplica (no se come el mes)');
