@@ -3466,6 +3466,8 @@ function f360SatoVozInit_(){
   window.addEventListener('message',function(ev){
     var esMio=(SATO_VOZ.popup&&ev.source===SATO_VOZ.popup)||ev.origin===location.origin;
     if(!esMio)return;
+    // Handshake: la ventanita nueva se anuncia → recién ahí se le manda el MP3 de ElevenLabs.
+    if(ev.data&&ev.data.sato_hello){ SATO_VOZ.popupV2=(ev.data.sato_hello>=2); return; }
     var t=ev.data&&ev.data.satori_mic;
     if(typeof t!=='string'||!t.trim())return;
     var tx2=document.getElementById('f360SatoTx');
@@ -3476,7 +3478,7 @@ function f360SatoVozInit_(){
   function abrirMic_(){
     var w=window.open('','sato_mic','width=440,height=470');
     if(!w){ cmToast('El navegador bloqueó la ventanita — permití popups para este sitio.'); return; }
-    SATO_VOZ.popup=w;
+    SATO_VOZ.popup=w; SATO_VOZ.popupV2=false;   // hasta que la ventanita salude (handshake)
     // Si vas a hablarle, querés oírlo: el modo voz se enciende solo con la ventanita.
     if(!SATO_VOZ.on){ SATO_VOZ.on=true; var bv2=document.getElementById('f360SatoVoz'); if(bv2)bv2.classList.add('on'); }
     var d=w.document;
@@ -3602,6 +3604,9 @@ function f360SatoVozInit_(){
         pinta();
       }
     });
+    // handshake con la ventana principal: le confirma que ESTA ventanita sabe reproducir el
+    // MP3 de ElevenLabs (v2). Sin esto, la principal reproduce el audio de su lado.
+    try{ principal.postMessage({sato_hello:2},'*'); }catch(e){}
     // arranque automático: si el permiso ya fue dado antes, queda escuchando sin tocar nada
     activo=true; reservarMic().then(function(){ ronda(); pinta(); }); pinta();
     cmToast('Ventanita 🎙 escuchando en continuo — hablá cuando quieras; tocá el micrófono grande para apagar.');
@@ -3631,53 +3636,57 @@ function f360SatoVozInit_(){
    abierta (top-level con gesto → sin bloqueo de autoplay), si no, acá mismo.
    Fallback declarado: si falta la key o falla el proveedor, se avisa UNA vez y se usa la voz
    del navegador (mejor eso que mudo) — nunca se finge que habló con la voz buena. */
+/* T1.5b (28-jul, fix "suena como un peruano") — LA VOZ DE SATO ES **SOLO** ELEVENLABS.
+   Diagnóstico: la voz rara era el FALLBACK `speechSynthesis` (macOS elige una voz latina).
+   Decisión de Luciano: la misma voz que "Hablar con Sato", o ninguna. El fallback al
+   navegador queda ELIMINADO — si ElevenLabs no puede, se dice y NO suena nada.
+   Equivalencia con el agente LiveKit (verificada leyendo el plugin instalado en
+   `voz/agent/.venv/…/plugins/elevenlabs/tts.py`): mismo `model_id` (eleven_turbo_v2_5),
+   mismo `voice_id`, `language_code=es`, y SIN `voice_settings` — el agente tampoco los manda,
+   así que ambos usan los ajustes guardados en la voz de la cuenta. Misma configuración. */
 function f360SatoHablar_(texto){
   if(!SATO_VOZ.on)return;
-  // El markdown no se lee: se limpia a prosa hablable.
-  var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim().slice(0,700);
+  if(typeof EN_GAS==='undefined'||!EN_GAS)return;
+  // El markdown no se lee. 420 chars: lo que se escucha bien de un turno hablado (y el MP3
+  // viaja liviano por google.script.run — un base64 gigante es la otra causa de silencio).
+  var limpio=String(texto).replace(/[#*_`>|-]+/g,' ').replace(/\s+/g,' ').trim();
   if(!limpio)return;
-  if(typeof EN_GAS==='undefined'||!EN_GAS){ f360SatoVozNavegador_(limpio); return; }
-  // Sin latch permanente (fix 28-jul): si la key se pega DESPUÉS de abrir la página, el
-  // siguiente turno ya usa la voz buena. Solo se saltea 90 s tras un fallo, para no repetir
-  // una llamada que va a fallar en cada turno de una ráfaga.
-  if(SATO_VOZ.falloHasta&&Date.now()<SATO_VOZ.falloHasta){ f360SatoVozNavegador_(limpio); return; }
+  if(limpio.length>420){ var corte=limpio.slice(0,420); var p=corte.lastIndexOf('. ');
+    limpio=(p>200?corte.slice(0,p+1):corte)+' …'; }
   var st=document.getElementById('f360SatoSt'); if(st)st.textContent='🔊 generando voz…';
   google.script.run.withSuccessHandler(function(r){
-      if(r&&r.ok&&r.mp3){ SATO_VOZ.falloHasta=0; f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
+      if(r&&r.ok&&r.mp3){ f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
         if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4)); return; }
       var m=(r&&r.motivo)||'sin respuesta', det=(r&&r.detalle)?(' · '+r.detalle):'';
-      SATO_VOZ.falloHasta=Date.now()+90000;
-      if(st)st.textContent='voz navegador — '+m;                     // el motivo queda A LA VISTA
-      if(m==='sin_key')cmToast('Falta ELEVENLABS_API_KEY en Script Properties (la misma del agente de voz) — mientras tanto, voz del navegador.');
-      else if(m!=='apagada')cmToast('Voz de Sato falló: '+m+det+' — uso la del navegador.');
-      f360SatoVozNavegador_(limpio); })
-    .withFailureHandler(function(e){ SATO_VOZ.falloHasta=Date.now()+90000;
-      if(st)st.textContent='voz navegador — error de backend';
-      cmToast('No pude generar la voz: '+((e&&e.message)||'')); f360SatoVozNavegador_(limpio); })
+      if(st)st.textContent='SIN VOZ — '+m;      // honesto: no suena una voz que no es la de Sato
+      cmToast(m==='sin_key'
+        ? 'Falta ELEVENLABS_API_KEY en Script Properties — sin eso Sato no habla (no uso otra voz).'
+        : 'La voz de Sato no se pudo generar: '+m+det); })
+    .withFailureHandler(function(e){ if(st)st.textContent='SIN VOZ — error de backend';
+      cmToast('No pude generar la voz de Sato: '+((e&&e.message)||'')); })
     .satoVoz(limpio);
 }
-/* Reproduce el MP3 donde HAY gesto: la ventanita del micrófono (top-level) o, si no está,
-   acá mismo. Anti-eco: se avisa al popup para que pause la escucha mientras suena. */
+/* Reproduce el MP3. Prefiere la ventanita del micrófono SOLO si confirmó ser la versión
+   nueva (handshake `sato_hello`) — una ventanita vieja abierta de antes ignoraba el MP3 y
+   el turno quedaba mudo. Si no, suena acá; si Chrome bloquea el autoplay, aparece el botón
+   "Activar audio" (mismo patrón que la PWA de voz). */
 function f360SatoReproducir_(dataUrl){
-  var pop=(SATO_VOZ.popup&&!SATO_VOZ.popup.closed)?SATO_VOZ.popup:null;
+  var pop=(SATO_VOZ.popup&&!SATO_VOZ.popup.closed&&SATO_VOZ.popupV2)?SATO_VOZ.popup:null;
   if(pop){ try{ pop.postMessage({sato_mp3:dataUrl},'*'); return; }catch(e){ /* cae a local */ } }
   try{
     if(SATO_VOZ.audio){ try{SATO_VOZ.audio.pause();}catch(e2){} }
     var a=new Audio(dataUrl); SATO_VOZ.audio=a;
-    a.play().catch(function(){ cmToast('El navegador bloqueó el audio acá — abrí el 🎙 y suena en la ventanita.'); });
+    a.play().catch(function(){ f360SatoBotonAudio_(a); });
   }catch(e3){ /* la voz es un extra */ }
 }
-function f360SatoVozNavegador_(limpio){
-  if(!('speechSynthesis' in window))return;
-  var pop=(SATO_VOZ.popup&&!SATO_VOZ.popup.closed)?SATO_VOZ.popup:null;
-  if(pop){ try{ pop.postMessage({sato_habla:limpio},'*'); return; }catch(e){} }
-  try{
-    window.speechSynthesis.cancel();
-    var u=new SpeechSynthesisUtterance(limpio); u.lang='es-ES'; u.rate=1.04;
-    var voces=window.speechSynthesis.getVoices().filter(function(v){return /^es/.test(v.lang);});
-    if(voces.length)u.voice=voces.filter(function(v){return /ES|es-ES/.test(v.lang);})[0]||voces[0];
-    window.speechSynthesis.speak(u);
-  }catch(e){ /* la voz es un extra: si falla, el texto ya está en pantalla */ }
+/* Desbloqueo de autoplay: un botón que el usuario toca UNA vez (como "Activar audio" en la PWA). */
+function f360SatoBotonAudio_(a){
+  var h=document.querySelector('.f360-sato-h'); if(!h)return;
+  var b=document.getElementById('f360SatoUnlock');
+  if(!b){ b=el('button','vbtn','▶ activar audio'); b.id='f360SatoUnlock';
+    h.insertBefore(b,h.querySelector('.st')); }
+  b.onclick=function(){ a.play().then(function(){ b.remove(); }).catch(function(){}); };
+  var st=document.getElementById('f360SatoSt'); if(st)st.textContent='tocá "activar audio" (1 vez)';
 }
 function f360SatoCallar_(){ try{ if('speechSynthesis' in window)window.speechSynthesis.cancel(); if(SATO_VOZ.rec&&SATO_VOZ.grabando)SATO_VOZ.rec.stop(); }catch(e){} }
 function f360SatoBurb_(rol,texto,ts){

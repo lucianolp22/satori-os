@@ -409,8 +409,11 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensibl
    'estadoVigente', 'checklistCliente', 'getConfig'].forEach(k => { bk[k] = ctx[k]; });
   ctx.SATORI_CTX_SISTEMA = true;
   const escritas = [];
-  const filas = [{ ts: '2026-07-28T10:00:00', rol: 'user', texto: 'hola', modulo: 'sato_ficha' },
-                 { ts: '2026-07-28T10:00:05', rol: 'sato', texto: 'hola Luciano', modulo: 'sato_ficha' }];
+  // Fecha DERIVADA de hoyISO() (no clavada): un ts hardcodeado hace que el assert del tope
+  // diario falle en cuanto cambia el día — misma clase que el D10 (assert atado a datos vivos).
+  const HOY = ctx.hoyISO();
+  const filas = [{ ts: HOY + 'T10:00:00', rol: 'user', texto: 'hola', modulo: 'sato_ficha' },
+                 { ts: HOY + 'T10:00:05', rol: 'sato', texto: 'hola Luciano', modulo: 'sato_ficha' }];
   const shStub = {};
   let nodoTocado = null, systemVisto = '';
   ctx.abrirCliente = () => ({ ss: { getSheetByName: (n) => (n === 'charla' ? shStub : null) } });
