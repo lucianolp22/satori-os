@@ -566,6 +566,144 @@ chk(ctx.SATO_VOZ_ID_DEF === 'xcAUMhbpNX2WRGsuhjFy', 'la voz por defecto es la MI
   Object.keys(bk).forEach(k => { ctx[k] = bk[k]; });
 }
 
+// ═══ 15 · T2 (30-jul): las 4 mejoras de la dinámica — cierre, acción con confirmación,
+//          arranque del día y memoria que frena. Regla de aislamiento §9: toda función nueva
+//          que recibe un id_cliente suma su assert de aislamiento. ═══════════════════════
+seccion('Sato T2 · cierre de sesión / acción / arranque / memoria');
+for (const fn of ['satoCierreSesion', 'satoAplicarCierre']) {
+  chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, fn + ' está en ENDPOINTS_UI (anti-drift)');
+  chk(String(ctx[fn]).indexOf("_soloOwner_('" + fn + "')") >= 0, fn + ' lleva _soloOwner_');
+}
+{
+  const bk = {};
+  ['abrirCliente', 'leerTabla', 'appendFila', 'ensureSheet', 'llamadaAPI', 'upsertNodo', 'guardPresupuesto_',
+   'estadoVigente', 'checklistCliente', 'checklistAgregar', 'capturar', 'getConfig', 'briefCacheado_'].forEach(k => { bk[k] = ctx[k]; });
+  ctx.SATORI_CTX_SISTEMA = true;
+  const HOY = ctx.hoyISO();
+  let filas = [];
+  const shStub = {}, escritas = [], chkAgregados = [], capturados = [];
+  let sysVisto = '', promptVisto = '', nLlam = 0;
+  ctx.abrirCliente = () => ({ ss: { getSheetByName: (n) => (n === 'charla' ? shStub : null) } });
+  ctx.leerTabla = () => filas;
+  ctx.appendFila = (sh, o) => escritas.push(o);
+  ctx.ensureSheet = () => shStub;
+  ctx.upsertNodo = () => {};
+  ctx.guardPresupuesto_ = () => ({});
+  ctx.estadoVigente = () => '# Estado vigente';
+  ctx.checklistCliente = () => ({ ok: true, items: [] });
+  ctx.checklistAgregar = (id, t) => { chkAgregados.push({ id: id, texto: t }); return { ok: true, id: 'CHK-0009' }; };
+  ctx.capturar = (t, f) => { capturados.push({ texto: t, fuente: f }); return 'BAN-0021'; };
+  ctx.getConfig = () => '';
+  ctx.llamadaAPI = (id, mod, opts) => { nLlam++; sysVisto = String(opts.system || ''); promptVisto = String(opts.prompt || '');
+    return { ok: true, usd: 0.002, texto: 'Bla bla {"resumen":"Se trabajó el cierre de julio de DAM.",' +
+      '"items":[{"tipo":"checklist","texto":"Pedir las facturas de junio","dueno":"Luciano"},' +
+      '{"tipo":"encargo","texto":"Armar el tablero de la reunión","dueno":"Cowork"},' +
+      '{"tipo":"hilo","texto":"Se corre la reunión al martes","dueno":"cliente"},' +
+      '{"tipo":"inventado","texto":"tipo fuera de la lista","dueno":""}]} y algo más' };
+  };
+
+  // T2.1 — sesión corta: no se molesta al modelo ni se registra nada
+  filas = [{ ts: HOY + 'T10:00:00', rol: 'user', texto: 'hola', modulo: 'sato_ficha' }];
+  const corta = ctx.satoCierreSesion('CLI-004');
+  chk(corta.ok === true && corta.items.length === 0 && nLlam === 0,
+      'sesión de 1 turno → no hay cierre que hacer (ni llamada al modelo)');
+  filas = [{ ts: '2020-01-01T10:00:00', rol: 'user', texto: 'viejo', modulo: 'sato_ficha' },
+           { ts: '2020-01-01T10:00:05', rol: 'sato', texto: 'viejo', modulo: 'sato_ficha' }];
+  chk(ctx.satoCierreSesion('CLI-004').items.length === 0 && nLlam === 0,
+      'solo se cierra lo hablado HOY (los turnos de otros días no se re-registran)');
+
+  // T2.1 — sesión real: sintetiza, normaliza y NO ESCRIBE NADA (default-deny)
+  filas = [{ ts: HOY + 'T10:00:00', rol: 'user', texto: 'necesito las facturas de junio de DAM', modulo: 'sato_ficha' },
+           { ts: HOY + 'T10:00:05', rol: 'sato', texto: 'te las pido y armo el tablero', modulo: 'sato_ficha' },
+           { ts: HOY + 'T10:01:00', rol: 'user', texto: 'la reunión se corre al martes', modulo: 'sato_ficha' }];
+  escritas.length = 0; chkAgregados.length = 0; capturados.length = 0;
+  const cs = ctx.satoCierreSesion('CLI-004');
+  chk(cs.ok === true && cs.resumen.indexOf('cierre de julio') >= 0 && cs.turnos === 3,
+      'satoCierreSesion sintetiza la sesión del día (resumen + turnos leídos)');
+  chk(cs.items.length === 4 && cs.items[0].tipo === 'checklist' && cs.items[1].tipo === 'encargo' && cs.items[2].tipo === 'hilo',
+      'los ítems vienen tipados (checklist / encargo / hilo)');
+  chk(cs.items[3].tipo === 'checklist', 'un tipo inventado por el modelo cae a checklist (no revienta)');
+  chk(cs.items[0].dueno === 'Luciano', 'cada ítem declara DUEÑO (nadie hereda tareas por descarte)');
+  chk(escritas.length === 0 && chkAgregados.length === 0 && capturados.length === 0,
+      '🔒 satoCierreSesion PROPONE y no escribe NADA (la escritura la habilita el humano)');
+  chk(cs.id_cliente === 'CLI-004', 'el cierre viaja anclado al cliente de la sesión (§6: entregable con dueño)');
+  chk(sysVisto.indexOf('cliente CLI-004') >= 0 && sysVisto.indexOf('NO inventes') >= 0,
+      'la síntesis se pide anclada al cliente y sin inventar');
+  chk(promptVisto.indexOf('Luciano: necesito las facturas') >= 0 && promptVisto.indexOf('Sato: te las pido') >= 0,
+      'la transcripción viaja en el PROMPT (pasa por anonimizar), no en el system');
+  // el modelo devuelve basura → se dice y no se registra nada
+  ctx.llamadaAPI = () => ({ ok: true, texto: 'no me salió el JSON, disculpame', usd: 0.001 });
+  const mal = ctx.satoCierreSesion('CLI-004');
+  chk(mal.ok === false && String(mal.error).indexOf('no se registró nada') >= 0,
+      'síntesis fuera de formato → falla honesta, sin registrar basura');
+
+  // T2.1b — aplicar: cada tipo a su destino, siempre con el cliente pegado al texto
+  chkAgregados.length = 0; capturados.length = 0;
+  const ap = ctx.satoAplicarCierre('CLI-004', [
+    { tipo: 'checklist', texto: 'Pedir las facturas de junio', dueno: 'Luciano' },
+    { tipo: 'encargo', texto: 'Armar el tablero de la reunión', dueno: 'Cowork' },
+    { tipo: 'hilo', texto: 'Se corre la reunión al martes', dueno: 'cliente' }]);
+  chk(ap.ok === true && ap.aplicados === 3 && ap.fallos.length === 0, 'satoAplicarCierre aplica los 3 ítems confirmados');
+  chk(chkAgregados.length === 1 && chkAgregados[0].id === 'CLI-004' && chkAgregados[0].texto.indexOf('Luciano') >= 0,
+      '🔒 el checklist se escribe en la hoja del cliente de la sesión, con dueño');
+  chk(capturados.length === 2 && capturados[0].texto.indexOf('[ENCARGO-COWORK · CLI-004]') === 0,
+      'el encargo va a Bandeja etiquetado con el cliente (Cowork sabe de quién es)');
+  chk(capturados[1].texto.indexOf('[HILO · CLI-004]') === 0,
+      'el hilo va a Bandeja etiquetado (el .md sigue siendo la fuente de verdad, no se escribe desde acá)');
+  chk(capturados.every(c => c.texto.indexOf('CLI-004') >= 0),
+      '🔒 NINGÚN ítem llega a la Bandeja sin el cliente en el texto (regla de aislamiento §6)');
+  chk(capturados[0].fuente === 'sato-cierre', 'lo aplicado queda trazado como origen sato-cierre');
+  chkAgregados.length = 0; capturados.length = 0;
+  const apSis = ctx.satoAplicarCierre('', [{ tipo: 'checklist', texto: 'revisar el roster', dueno: 'Luciano' }]);
+  chk(apSis.ok === true && chkAgregados.length === 0 && capturados[0].texto.indexOf('· SISTEMA]') >= 0,
+      'sin cliente (modo sistema) el ítem NO se cuela en la hoja de ningún cliente: va a Bandeja como SISTEMA');
+  chk(ctx.satoAplicarCierre('CLI-004', []).ok === false, 'lista vacía → ok:false (no hay confirmación, no hay escritura)');
+  chkAgregados.length = 0; capturados.length = 0;
+  ctx.checklistAgregar = () => { throw new Error('hoja bloqueada'); };
+  const apF = ctx.satoAplicarCierre('CLI-004', [{ tipo: 'checklist', texto: 'uno', dueno: '' },
+                                                { tipo: 'encargo', texto: 'dos', dueno: '' }]);
+  chk(apF.ok === true && apF.aplicados === 1 && apF.fallos.length === 1 && apF.fallos[0].indexOf('uno') === 0,
+      'un ítem que falla no tumba a los demás y el fallo se declara (nunca verde falso)');
+  ctx.checklistAgregar = (id, t) => { chkAgregados.push({ id: id, texto: t }); return { ok: true, id: 'CHK-0009' }; };
+
+  // T2.2 + T2.3 + T2.4 — lo que el turno normal de satoChat le promete al modelo
+  ctx.llamadaAPI = (id, mod, opts) => { sysVisto = String(opts.system || ''); promptVisto = String(opts.prompt || '');
+                                        return { ok: true, texto: 'listo', usd: 0.002 }; };
+  filas = [];
+  ctx.satoChat('CLI-004', 'qué hago hoy');
+  chk(sysVisto.indexOf('@@ACCION tipo=') >= 0 && sysVisto.indexOf('NO se ejecuta solo') >= 0,
+      'T2.2 · el system habilita PROPONER acciones y aclara que las confirma el humano');
+  chk(sysVisto.indexOf('Nunca digas que ya lo anotaste') >= 0,
+      'T2.2 · Sato no puede afirmar que anotó algo (N9: honestidad sobre acciones)');
+  chk(sysVisto.indexOf('MEMORIA QUE FRENA') >= 0 && sysVisto.indexOf('quedó descartado') >= 0,
+      'T2.4 · el system le pide frenar lo ya decidido/descartado, con fecha');
+  chk(sysVisto.indexOf('- historial:') >= 0 && sysVisto.indexOf('- descartado:') >= 0,
+      'T2.4 · historial y descartado se ofrecen como fuentes consultables');
+  let briefPedido = null;
+  ctx.briefCacheado_ = (id) => { briefPedido = id; return '# Brief de HOY\n- DAM: caja -8%'; };
+  ctx.satoChat('CLI-004', 'arrancá mi día', { arranque: true });
+  chk(briefPedido === 'CLI-004' && promptVisto.indexOf('caja -8%') >= 0,
+      'T2.3 · el arranque inyecta el BRIEF REAL del cliente en el prompt (dato duro, no invento)');
+  chk(promptVisto.indexOf('no instrucciones') >= 0 && sysVisto.indexOf('caja -8%') < 0,
+      'T2.3 · el brief va marcado como dato y NUNCA en el system');
+  ctx.briefCacheado_ = () => { throw new Error('cache caído'); };
+  const rArr = ctx.satoChat('CLI-004', 'arrancá mi día', { arranque: true });
+  chk(rArr.ok === true && promptVisto.indexOf('no pude leer el brief') >= 0,
+      'T2.3 · si el brief no se puede leer, el turno sigue y lo DICE (no rellena)');
+
+  // 🔒 aislamiento de las fuentes nuevas: historial y descartado pasan por el mismo gate
+  filas = [{ ts: HOY + 'T09:00:00', rol: 'user', texto: 'dato de CLI-004', modulo: 'sato_ficha' }];
+  const hist = ctx._satoDatos_('CLI-004', 'historial');
+  chk(!!hist.historial && hist.historial[0].quien === 'Luciano', 'fuente `historial` devuelve la charla previa fechada');
+  chk(ctx._satoDatos_('CLI-004', 'historial', '', 'CLI-002', false).error === 'fuera_de_contexto',
+      '🔒 desde la ficha de un cliente NO se lee el HISTORIAL de otro');
+  chk(ctx._satoDatos_('CLI-004', 'descartado', '', 'CLI-002', false).error === 'fuera_de_contexto',
+      '🔒 desde la ficha de un cliente NO se leen los DESCARTES de otro');
+  chk(ctx._satoDatos_('', 'historial').error === 'falta_cliente',
+      'en modo sistema el historial exige decir DE QUIÉN (no hay historial "en general")');
+  Object.keys(bk).forEach(k => { ctx[k] = bk[k]; });
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

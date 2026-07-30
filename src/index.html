@@ -897,12 +897,14 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
    izquierda media anchura del chat y el cajón vive PEGADO a su derecha (left:100%), del
    mismo alto. Fondo opaco (legible siempre). En viewports sin lugar físico (<1700px), el
    cajón cae a overlay opaco por encima — no hay píxeles para los dos enteros. ── */
-.f360-sato{position:absolute;left:100%;top:0;bottom:0;width:390px;z-index:6;display:none;flex-direction:column;background:rgba(18,14,11,.985);border:1px solid var(--color-border);border-left:0;box-shadow:14px 0 34px -18px rgba(0,0,0,.8);border-radius:0 var(--radius-lg) var(--radius-lg) 0}
+/* T1.7: SATO ÚNICO — panel FIJO del sistema (ya no vive dentro de la ficha). Está disponible
+   en todo el OS: sin ficha abierta habla en modo sistema; con ficha, del cliente abierto. */
+.f360-sato{position:fixed;right:0;top:3.5vh;bottom:3.5vh;width:390px;z-index:41;display:none;flex-direction:column;background:rgba(18,14,11,.985);border:1px solid var(--color-border);border-right:0;box-shadow:-14px 0 34px -18px rgba(0,0,0,.8);border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
 .f360-sato.open{display:flex}
 #centro .kboard.fichaboard.open.con-sato{transform:translateX(calc(-50% - 195px))}
 @media (max-width:1700px){
   #centro .kboard.fichaboard.open.con-sato{transform:translateX(-50%)}
-  .f360-sato{left:auto;right:0;top:64px;width:min(390px,92%);border-left:1px solid var(--color-border);border-radius:0 0 var(--radius-lg) 0}
+  .f360-sato{width:min(390px,92%)}
 }
 .f360-sato-h .vbtn{background:none;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-muted);font-size:12px;padding:3px 9px;cursor:pointer}
 .f360-sato-h .vbtn.on{color:var(--color-primary);border-color:var(--color-primary)}
@@ -921,6 +923,21 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-sato-in textarea{flex:1;min-height:40px;max-height:110px;resize:none;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 10px;font-size:12.5px;color:var(--color-text);font-family:inherit}
 .f360-sato-in textarea:focus{outline:none;border-color:var(--color-primary)}
 #f360SatoBtn.activo{color:var(--color-primary);border-color:var(--color-primary)}
+/* ── T2 (30-jul): cierre de sesión · acción propuesta · arranque del día ── */
+.f360-sato-acts{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--glass-border);flex-wrap:wrap}
+.f360-sato-acts .vbtn{font-size:11px}
+.f360-prop{margin:6px 0 0;padding:8px 10px;background:color-mix(in srgb, var(--color-primary) 12%, transparent);border:1px solid color-mix(in srgb, var(--color-primary) 38%, transparent);border-radius:10px;font-size:12px}
+.f360-prop .q{display:block;margin-bottom:6px;color:var(--color-text)}
+.f360-prop .bs{display:flex;gap:6px}
+.f360-cierre{position:fixed;right:404px;top:12vh;z-index:42;width:min(430px,42vw);max-height:72vh;overflow-y:auto;background:rgba(18,14,11,.99);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:14px;box-shadow:0 22px 60px -24px rgba(0,0,0,.9);display:none}
+.f360-cierre.open{display:block}
+.f360-cierre h5{margin:0 0 4px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted)}
+.f360-cierre .res{font-size:12.5px;color:var(--color-text);margin:0 0 10px;line-height:1.45}
+.f360-cierre .it{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--glass-border);font-size:12.5px}
+.f360-cierre .it:last-of-type{border-bottom:0}
+.f360-cierre .it .tg{flex:0 0 auto;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle);border:1px solid var(--color-border);border-radius:6px;padding:1px 5px;margin-top:1px}
+.f360-cierre .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+@media (max-width:1200px){ .f360-cierre{right:12px;width:min(430px,92vw)} }
 /* ── T1.3: encargo a Cowork desde la ficha ── */
 .f360-enc{position:absolute;inset:auto 14px 54px auto;z-index:5;width:min(420px,80%);background:var(--glass-strong);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px;box-shadow:var(--shadow-lg);display:none}
 .f360-enc.open{display:block}
@@ -1077,6 +1094,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <div class="t"><span>API del mes</span><span class="mono" id="cmBudgetTxt">—</span></div>
         <div class="bar"><i id="cmBudgetBar"></i></div>
       </div>
+      <button class="cm-btn" id="cmSato" title="Sato — te acompaña en todo el sistema (memoria propia + ve toda la cartera)">🜂 Sato</button>
       <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_blank" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
       <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
       <button class="cm-btn akasha" id="cmAkasha" title="Entrar a la Oficina Universo">⟶ Akasha</button>
@@ -1265,6 +1283,33 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <!-- FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) — overlay hermano del tablero/calendario.
        Plan / Números / Próximos pasos + el Hilo con columna entera y scroll propio (rediseño del
        Hilo-en-panel). Datos: datosCliente() + fichaCliente() + hiloCliente() + agendaRango(). -->
+    <!-- T1.4/T1.7: SATO ÚNICO — vive a nivel de #centro (todo el OS), no dentro de la ficha.
+       Sin cliente = modo sistema (memoria propia, ve la cartera); con ficha abierta = ese cliente. -->
+    <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
+      <div class="f360-sato-h"><b>🜂 Sato</b>
+        <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
+        <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
+        <span class="st" id="f360SatoSt">memoria persistente</span>
+        <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="f360-sato-log" id="f360SatoLog"></div>
+      <div class="f360-sato-acts">
+        <button class="vbtn" id="f360SatoDia" title="El arranque del día, hablado">☀ mi día</button>
+        <button class="vbtn" id="f360SatoCerrar" title="Cerrar la sesión: convertir lo hablado en trabajo registrado">✓ cerrar sesión</button>
+      </div>
+      <div class="f360-sato-in">
+        <textarea id="f360SatoTx" maxlength="1200" placeholder="Hablá con Sato… (Enter envía · Shift+Enter salto)" aria-label="Mensaje para Sato"></textarea>
+      </div>
+    </div>
+    <!-- T2.1: panel de cierre de sesión — Sato propone, Luciano tilda, el sistema registra -->
+    <div class="f360-cierre" id="f360Cierre" role="dialog" aria-label="Cierre de sesión">
+      <h5>Cierre de sesión · <span id="f360CierreCli"></span></h5>
+      <p class="res" id="f360CierreRes"></p>
+      <div id="f360CierreItems"></div>
+      <div class="acts">
+        <button class="btn btn-ghost btn-sm" id="f360CierreNo">Después</button>
+        <button class="btn btn-sm" id="f360CierreGo">Registrar lo tildado</button>
+      </div>
+    </div>
   <div class="kscrim" id="fichascrim"></div>
   <div class="kboard fichaboard" id="fichaboard" role="dialog" aria-modal="true" aria-label="Ficha de cliente 360">
     <div class="khead">
@@ -1315,18 +1360,6 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <button class="btn btn-ghost btn-sm" id="f360Encargar">✉ Encargar a Cowork</button>
         <button class="btn btn-sm" id="f360Reunion">⚑ Encargar reunión</button>
       </span>
-    </div>
-    <!-- T1.4: cajón de Sato — chat contextual con memoria persistente (hoja `charla` del tenant) -->
-    <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
-      <div class="f360-sato-h"><b>🜂 Sato</b>
-        <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
-        <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
-        <span class="st" id="f360SatoSt">memoria: hoja charla del cliente</span>
-        <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-      <div class="f360-sato-log" id="f360SatoLog"></div>
-      <div class="f360-sato-in">
-        <textarea id="f360SatoTx" maxlength="1200" placeholder="Trabajá el cliente con Sato… (Enter envía · Shift+Enter salto)" aria-label="Mensaje para Sato"></textarea>
-      </div>
     </div>
     <!-- T1.3: popover de encargo — captura a la Bandeja con el contexto del cliente -->
     <div class="f360-enc" id="f360Enc" role="dialog" aria-label="Encargar a Cowork">
@@ -2029,6 +2062,8 @@ function centroCerrar(){
 document.getElementById('cmdBtn').addEventListener('click',centroAbrir);
 document.getElementById('navCentro').addEventListener('click',function(){centroAbrir();toggleSide(false);});
 document.getElementById('cmClose').addEventListener('click',function(){centroCerrar();loadHoy();});
+/* T1.7 — Sato desde el Centro de Mando: el MISMO panel, en modo sistema (sin ficha abierta). */
+document.getElementById('cmSato').addEventListener('click',function(){ satoPanel_(); });
 document.getElementById('cmCapturar').addEventListener('click',function(){ // Fase 1: captura única a la Bandeja
   var t=window.prompt('Capturá a la bandeja (idea, tarea, link, lead — lo que sea):');
   if(!t||!t.trim())return;
@@ -3350,13 +3385,7 @@ function fichaCargar_(id){
   // T1.3 · orbe del Cerebro del cliente + popover de encargo · T1.4 Sato
   f360EncargoInit_(); f360SatoInit_();
   // v3 (feedback 28-jul): Sato SIEMPRE presente — el cajón abre cargado con la ficha.
-  var satoBox=document.getElementById('f360Sato'), satoBtn=document.getElementById('f360SatoBtn'), boardEl=document.getElementById('fichaboard');
-  if(satoBox&&!satoBox.classList.contains('open')){
-    satoBox.classList.add('open');
-    if(satoBtn)satoBtn.classList.add('activo');
-    if(boardEl)boardEl.classList.add('con-sato');
-  }
-  f360SatoCargar_();   // carga (o recarga al cambiar de cliente) la charla persistida
+  satoPanel_(true);   // T1.7: el panel se abre (o se re-titula y recarga) con ESTE cliente
   google.script.run.withSuccessHandler(function(gr){ if(gen!==F360.gen)return; F360.grafo=gr||{nodos:[],aristas:[]}; f360Orbe_(); })
     .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.grafo={nodos:[],aristas:[]}; f360Orbe_(); })
     .cerebroGrafo(id);
@@ -3426,18 +3455,177 @@ function f360Orbe_(){
 /* T1.4 — SATO EN LA FICHA: chat contextual con memoria persistente. El historial vive en la
    hoja `charla` del tenant (transcripción completa); cada turno lleva el contexto vivo del
    cliente y los últimos turnos. Sato propone; las acciones van por los botones (default-deny). */
+/* ═══ T2 (30-jul) — LAS 4 MEJORAS DE LA DINÁMICA ═════════════════════════════
+   2.1 CIERRE DE SESIÓN: lo hablado → trabajo registrado, con tu tilde. Manual (botón) o
+       PROPUESTO SOLO tras 20 min sin actividad / al cerrar el panel con sesión abierta.
+   2.2 ACCIÓN PROPUESTA: si Sato cierra con @@ACCION ...@@, aparece un botón de confirmación.
+       Nunca escribe solo — el default-deny del sistema no se toca.
+   2.3 ARRANQUE DEL DÍA: botón que trae el brief real, hablado.
+   2.4 MEMORIA QUE FRENA: vive en el backend (system + fuentes historial/descartado). */
+var SATO_SESION = { turnos: 0, timer: 0, cerrando: false, propuesto: false };
+
+function satoActividad_(){                       // se llama en cada turno enviado
+  SATO_SESION.turnos++;
+  if(SATO_SESION.timer)clearTimeout(SATO_SESION.timer);
+  var min=parseInt((F360.satoInactMin||20),10)||20;
+  SATO_SESION.timer=setTimeout(function(){ satoProponerCierre_('pasaron '+min+' minutos sin actividad'); }, min*60000);
+}
+function satoProponerCierre_(motivo){
+  if(SATO_SESION.propuesto||SATO_SESION.turnos<2)return;         // sesión mínima para valer la pena
+  var box=document.getElementById('f360Sato');
+  if(!box||!box.classList.contains('open'))return;
+  SATO_SESION.propuesto=true;
+  var b=f360SatoBurb_('sato','Che, '+motivo+'. ¿Cerramos la sesión? Reviso lo que hablamos y te propongo qué registrar.');
+  if(!b)return;
+  var caja=el('div','f360-prop'); caja.appendChild(el('span','q','Cerrar la sesión y registrar lo acordado'));
+  var bs=el('div','bs');
+  var si=el('button','btn btn-sm','Sí, cerremos'); si.addEventListener('click',function(){ caja.remove(); satoCerrarSesion_(); });
+  var no=el('button','btn btn-ghost btn-sm','Seguimos'); no.addEventListener('click',function(){ caja.remove(); satoActividad_(); SATO_SESION.propuesto=false; });
+  bs.appendChild(si); bs.appendChild(no); caja.appendChild(bs); b.appendChild(caja);
+  var log=document.getElementById('f360SatoLog'); if(log)log.scrollTop=log.scrollHeight;
+}
+/* T2.1 — pide la síntesis al backend y muestra la lista para tildar. NO escribe nada todavía. */
+function satoCerrarSesion_(){
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+  if(SATO_SESION.cerrando)return; SATO_SESION.cerrando=true;
+  var st=document.getElementById('f360SatoSt'); if(st)st.textContent='revisando la sesión…';
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(r){ SATO_SESION.cerrando=false; if(gen!==F360.gen)return;
+      if(st)st.textContent='memoria persistente';
+      if(!(r&&r.ok)){ cmToast('No pude cerrar la sesión: '+((r&&r.error)||'')); return; }
+      if(!r.items.length){ f360SatoBurb_('sato',r.resumen||'No encontré nada accionable para registrar.'); return; }
+      satoPintarCierre_(r); })
+    .withFailureHandler(function(e){ SATO_SESION.cerrando=false; if(st)st.textContent='memoria persistente';
+      cmToast('No pude cerrar la sesión: '+((e&&e.message)||'')); })
+    .satoCierreSesion(satoCtx_());
+}
+function satoPintarCierre_(r){
+  var box=document.getElementById('f360Cierre'), cont=document.getElementById('f360CierreItems');
+  if(!box||!cont)return; clear(cont);
+  var cli=document.getElementById('f360CierreCli'); if(cli)cli.textContent=satoTitulo_().replace('Sato · ','');
+  var res=document.getElementById('f360CierreRes'); if(res)res.textContent=r.resumen||'';
+  var TG={checklist:'checklist',encargo:'a cowork',hilo:'al hilo'};
+  r.items.forEach(function(it,i){
+    var row=el('div','it');
+    var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.i=String(i);
+    cb.setAttribute('aria-label','Registrar: '+it.texto);
+    row.appendChild(cb);
+    var tx=el('div','tx',it.texto+(it.dueno?(' · '+it.dueno):'')); tx.style.flex='1'; row.appendChild(tx);
+    row.appendChild(el('span','tg',TG[it.tipo]||it.tipo));
+    cont.appendChild(row);
+  });
+  box._items=r.items; box.classList.add('open');
+}
+function satoAplicarCierre_(){
+  var box=document.getElementById('f360Cierre'); if(!box||!box._items)return;
+  var sel=[].slice.call(box.querySelectorAll('input[type=checkbox]'))
+    .filter(function(c){return c.checked;}).map(function(c){ return box._items[parseInt(c.dataset.i,10)]; });
+  if(!sel.length){ box.classList.remove('open'); return; }
+  var go=document.getElementById('f360CierreGo'); if(go)go.disabled=true;
+  var gen=F360.gen;
+  google.script.run.withSuccessHandler(function(r){ if(go)go.disabled=false; if(gen!==F360.gen)return;
+      box.classList.remove('open');
+      if(!(r&&r.ok)){ cmToast('No se pudo registrar: '+((r&&r.error)||'')); return; }
+      f360SatoBurb_('sato','Registrado: '+r.aplicados+' ítem(s).'+(r.fallos.length?(' No pude con '+r.fallos.length+': '+r.fallos.join(' · ')):''));
+      SATO_SESION.turnos=0; SATO_SESION.propuesto=false;
+      f360ChkRecargar_();                                  // el checklist de la ficha se refresca
+      cmToast('Sesión cerrada · '+r.aplicados+' ítem(s) registrados.'); })
+    .withFailureHandler(function(e){ if(go)go.disabled=false; cmToast('No se pudo registrar: '+((e&&e.message)||'')); })
+    .satoAplicarCierre(satoCtx_(),sel);
+}
+/* T2.2 — la acción que Sato propone: se limpia del texto y se ofrece con un botón. */
+function satoAccionPropuesta_(texto,burbuja){
+  var m=String(texto||'').match(/@@ACCION\s+tipo\s*=\s*(checklist|encargo)\s+texto\s*=\s*([^@]+)@@/i);
+  if(!m||!burbuja)return texto;
+  var tipo=m[1].toLowerCase(), accion=m[2].trim();
+  var limpio=String(texto).replace(m[0],'').trim();
+  burbuja.textContent=limpio||'(sin texto)';
+  var caja=el('div','f360-prop');
+  caja.appendChild(el('span','q',(tipo==='checklist'?'Anotar en el checklist: ':'Encargar a Cowork: ')+accion));
+  var bs=el('div','bs');
+  var si=el('button','btn btn-sm','Confirmar');
+  si.addEventListener('click',function(){
+    si.disabled=true;
+    /* Sin cliente en foco NO hay hoja de checklist donde escribir: cae a Bandeja como SISTEMA
+       (mismo criterio que satoAplicarCierre, regla de aislamiento §6 — nada sin dueño). */
+    var aChk=(tipo==='checklist'&&!!satoCtx_());
+    google.script.run.withSuccessHandler(function(r){
+        /* checklistAgregar devuelve {ok}, capturar devuelve el id de la Bandeja: se VERIFICA
+           el retorno antes de cantar éxito (nunca un verde falso). */
+        var ok=aChk?!!(r&&r.ok):!!r;
+        if(!ok){ si.disabled=false; cmToast('No pude anotarlo: '+((r&&r.error)||'sin confirmación del backend')); return; }
+        caja.remove();
+        cmToast(aChk?'Anotado en el checklist.':'En la Bandeja — lo tomo en la próxima sesión.');
+        if(aChk)f360ChkRecargar_(); })
+      .withFailureHandler(function(e){ si.disabled=false; cmToast('No pude: '+((e&&e.message)||'')); })
+      [aChk?'checklistAgregar':'capturar'](
+        aChk?satoCtx_():('['+(tipo==='checklist'?'CHECKLIST':'ENCARGO-COWORK')+' · '+(satoCtx_()||'SISTEMA')+'] '+accion),
+        aChk?accion:'sato-chat');
+  });
+  var no=el('button','btn btn-ghost btn-sm','No'); no.addEventListener('click',function(){ caja.remove(); });
+  bs.appendChild(si); bs.appendChild(no); caja.appendChild(bs); burbuja.appendChild(caja);
+  return limpio;
+}
+/* T2.3 — arranque del día: el brief real, hablado, en un botón. */
+function satoArranqueDia_(){
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+  var tx=document.getElementById('f360SatoTx'); if(tx)tx.disabled=true;
+  f360SatoBurb_('user','☀ Arrancá mi día');
+  var esp=f360SatoBurb_('sato pensando','Leyendo el brief de hoy…');
+  var gen=F360.gen;
+  if(!SATO_VOZ.on){ SATO_VOZ.on=true; var bv=document.getElementById('f360SatoVoz'); if(bv)bv.classList.add('on'); }
+  google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
+      if(esp)esp.remove(); if(tx)tx.disabled=false;
+      var b=f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
+      if(r&&r.ok&&r.mp3)f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
+      satoActividad_(); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; if(esp)esp.remove(); if(tx)tx.disabled=false;
+      f360SatoBurb_('sato','(no pude leer el brief: '+((e&&e.message)||'')+')'); })
+    .satoChat(satoCtx_(),'Arrancá mi día.',{voz:!!SATO_VOZ.on,arranque:true});
+}
+function satoCierreInit_(){
+  var b1=document.getElementById('f360SatoDia'), b2=document.getElementById('f360SatoCerrar'),
+      no=document.getElementById('f360CierreNo'), go=document.getElementById('f360CierreGo');
+  if(!b1||b1._wired)return; b1._wired=1;
+  b1.addEventListener('click',satoArranqueDia_);
+  b2.addEventListener('click',function(){ satoCerrarSesion_(); });
+  no.addEventListener('click',function(){ document.getElementById('f360Cierre').classList.remove('open'); });
+  go.addEventListener('click',satoAplicarCierre_);
+}
+/* T1.7 — el contexto del cajón: si la Ficha 360 está abierta, habla DE ese cliente; si no,
+   modo sistema (memoria propia + cartera completa). Un solo Sato, dos focos. */
+function satoCtx_(){
+  var bd=document.getElementById('fichaboard');
+  return (bd&&bd.classList.contains('open'))?(F360.id||''):'';
+}
+function satoTitulo_(){
+  var id=satoCtx_(); if(!id)return 'Sato · sistema';
+  var c=(F360.clientes||[]).filter(function(x){return x.id===id;})[0];
+  return 'Sato · '+((c&&c.nombre)||id);
+}
+/* Abre/cierra el panel desde cualquier parte del OS (botón del CM o de la ficha). */
+function satoPanel_(abrir){
+  var box=document.getElementById('f360Sato'), board=document.getElementById('fichaboard'),
+      bF=document.getElementById('f360SatoBtn'), bC=document.getElementById('cmSato');
+  if(!box)return;
+  var v=(abrir===undefined)?!box.classList.contains('open'):!!abrir;
+  box.classList.toggle('open',v);
+  if(bF)bF.classList.toggle('activo',v);
+  if(bC)bC.classList.toggle('activo',v);
+  if(board)board.classList.toggle('con-sato',v);
+  if(v){ f360SatoInit_(); satoCierreInit_(); var h=document.querySelector('.f360-sato-h b'); if(h)h.textContent='🜂 '+satoTitulo_();
+    f360SatoCargar_(); var tx=document.getElementById('f360SatoTx'); if(tx)tx.focus(); }
+  else { f360SatoCallar_();
+    // T2.1 — cerrar el panel con una sesión viva ofrece el cierre (no se pierde lo hablado)
+    if(SATO_SESION.turnos>=2&&!SATO_SESION.propuesto){ box.classList.add('open'); satoProponerCierre_('cerraste el panel'); } }
+}
 function f360SatoInit_(){
   var btn=document.getElementById('f360SatoBtn'), box=document.getElementById('f360Sato'),
       x=document.getElementById('f360SatoX'), tx=document.getElementById('f360SatoTx'),
       board=document.getElementById('fichaboard');
   if(!btn||!box||btn._wired)return; btn._wired=1;
-  btn.addEventListener('click',function(){
-    var abre=!box.classList.contains('open');
-    box.classList.toggle('open',abre); btn.classList.toggle('activo',abre);
-    if(board)board.classList.toggle('con-sato',abre);
-    if(abre){ f360SatoCargar_(); tx.focus(); } else f360SatoCallar_(); });
-  x.addEventListener('click',function(){ box.classList.remove('open'); btn.classList.remove('activo');
-    if(board)board.classList.remove('con-sato'); f360SatoCallar_(); });
+  btn.addEventListener('click',function(){ satoPanel_(); });
+  x.addEventListener('click',function(){ satoPanel_(false); });
   tx.addEventListener('keydown',function(e){
     if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); f360SatoEnviar_(); } });
   f360SatoVozInit_();
@@ -3705,7 +3893,7 @@ function f360SatoCargar_(){
       if(!r.turnos.length)f360SatoBurb_('sato','Charla nueva con este cliente. Todo lo que hablemos queda registrado en su hoja `charla` y lo tengo presente en cada respuesta. ¿Por dónde arrancamos?');
       r.turnos.forEach(function(t){ f360SatoBurb_(t.rol==='user'?'user':'sato',t.texto,t.ts); }); })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; clear(log); f360SatoBurb_('sato','No pude leer la charla: '+((e&&e.message)||'')); })
-    .satoCharla(F360.id,30);
+    .satoCharla(satoCtx_(),30);
 }
 function f360SatoEnviar_(){
   var tx=document.getElementById('f360SatoTx'); if(!tx)return;
@@ -3717,19 +3905,22 @@ function f360SatoEnviar_(){
   var gen=F360.gen;
   google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
       if(esp)esp.remove(); tx.disabled=false; tx.focus();
-      f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
+      var burb=f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
+      if(r&&r.ok&&r.texto)satoAccionPropuesta_(r.texto,burb);   // T2.2: acción con confirmación
+      satoActividad_();                                         // T2.1: reinicia el reloj de inactividad
       var st=document.getElementById('f360SatoSt');
       // T1.5c: el MP3 viene EN LA MISMA respuesta (un round-trip menos ⇒ mucho más rápido).
+      var fu=(r&&r.fuentes&&r.fuentes.length)?(' · leyó '+r.fuentes.join(', ')):'';   // T1.6: trazabilidad
       if(r&&r.ok&&r.mp3){ f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
-        if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4)); }
+        if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4))+fu; }
       else if(r&&r.ok&&SATO_VOZ.on&&r.voz_error){ if(st)st.textContent='SIN VOZ — '+r.voz_error;
         cmToast('La voz de Sato no se pudo generar: '+r.voz_error); }
       else if(r&&r.ok&&SATO_VOZ.on){ f360SatoHablar_(r.texto); }   // red de seguridad
-      else if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4)); })
+      else if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4))+fu; })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return;
       if(esp)esp.remove(); tx.disabled=false;
       f360SatoBurb_('sato','(no pude responder: '+((e&&e.message)||'sesión o permisos')+')'); })
-    .satoChat(F360.id,t,{voz:!!SATO_VOZ.on});
+    .satoChat(satoCtx_(),t,{voz:!!SATO_VOZ.on});
 }
 /* T1.3 — Encargo a Cowork: cualquier pedido sobre el cliente → Bandeja (capturar), con id y
    nombre en el texto. Cowork lo toma en la próxima sesión con todas sus herramientas. */
