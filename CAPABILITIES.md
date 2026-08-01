@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-07-30 10:12 · commit: 57d6885
+> Generado: 2026-07-30 12:41 · commit: b7554a4
 
 ## Módulos
 
@@ -101,18 +101,18 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Script Properties (nombres, sin valores)
 
+- alertas_email_on
 - API_BUDGET_MENSUAL_USD
 - AUTOHEAL_ON
+- brief_push_on
 - BRIEFPUSH_ultimo
 - CLAUDE_API_KEY
 - ELEVENLABS_API_KEY
 - OFICINA_SYNC_SECRET
 - OWNER_EMAIL
+- voz_alerta_fecha
 - VOZ_TOOL_SECRET
 - WORKER
-- alertas_email_on
-- brief_push_on
-- voz_alerta_fecha
 
 ## Funciones por módulo (apéndice)
 
