@@ -767,6 +767,7 @@ function datosCliente(idCliente) {
  * cliente. Devuelve totales y últimas filas. No estima tokens/USD aún (Etapa 2).
  */
 function consumoApiCliente(url) {
+  _soloOwner_('consumoApiCliente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var vacio = { llamadas: 0, tokens_in: 0, tokens_out: 0, usd: 0, por_modulo: {}, ultimas: [], error: '' };
   if (!url) return vacio;
   try {
@@ -974,6 +975,7 @@ var PRIORIDAD_PESO = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 
 /** Tareas no terminales, ordenadas por prioridad (A>B>C) y luego fecha_límite. */
 function tareasActivasOrdenadas(tareas) {
+  _soloOwner_('tareasActivasOrdenadas');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   return tareas.filter(function (t) {
     return ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) < 0;
   }).sort(function (a, b) {

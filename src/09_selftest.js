@@ -2036,7 +2036,22 @@ function _asertsD31_(chk, log, opts) {
   chk(String(vozRechazo_).indexOf('_crearAviso_') >= 0 && String(vozRechazo_).indexOf(' crearAviso(') < 0,
       'D31e3 vozRechazo_ avisa por el sumidero interno (la alerta de intrusión sobrevive al gate)');
 
-  log.push('   ↳ D31 X4: ' + ENDPOINTS_UI.length + ' endpoints con puerta · ' +
+  // ── D31f (TC-1b) · el gate EJECUTÁNDOSE en el runtime real de GAS, no leído del source. ──
+  // Solo LECTURAS de X4b: si alguna NO cortara, lo peor que pasa es una lectura. Ejecutar acá los
+  // endpoints de escritura sería probar el gate contra los Sheets reales de los clientes.
+  var d31fCtx = SATORI_CTX_SISTEMA, d31fOwner = _OWNER_OK_, d31fNo = [];
+  try {
+    SATORI_CTX_SISTEMA = false; _OWNER_OK_ = false;
+    ['getConfig', 'estadoPausa', 'estadoTriggerBackup', 'urlMaestro'].forEach(function (fn) {
+      var msg = '';
+      try { eval(fn)('__x__'); } catch (e) { msg = String((e && e.message) || e); }
+      if (msg !== 'no_autorizado') d31fNo.push(fn + (msg ? ':' + msg : ':NO tiró'));
+    });
+  } finally { SATORI_CTX_SISTEMA = d31fCtx; _OWNER_OK_ = d31fOwner; }
+  chk(d31fNo.length === 0, 'D31f las lecturas de X4b CORTAN de verdad al ejecutarse sin contexto ni owner' +
+      (d31fNo.length ? ' — NO cortaron: ' + d31fNo.join(', ') : ''));
+
+  log.push('   ↳ D31 X4+X4b: ' + ENDPOINTS_UI.length + ' endpoints con puerta · ' +
            ENTRY_POINTS_SISTEMA.length + ' entry points de sistema con el orden ctx→gate');
 }
 

@@ -205,6 +205,7 @@ function instalarTriggerBackup() {
 
 /** Estado del trigger (verificar sin abrir el panel de Activadores). */
 function estadoTriggerBackup() {
+  _soloOwner_('estadoTriggerBackup');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var t = ScriptApp.getProjectTriggers().filter(function (x) { return x.getHandlerFunction() === 'backupSemanal'; });
   var out = { instalado: t.length > 0, cantidad: t.length };
   Logger.log('estadoTriggerBackup: ' + JSON.stringify(out));

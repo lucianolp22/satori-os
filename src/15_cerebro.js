@@ -431,6 +431,7 @@ function actualizarCerebroIndex_(tenant, datos) {
 
 /** Lee el estado materializado del tenant como { seccion: { clave: valor } }. */
 function leerEstado(tenant) {
+  _soloOwner_('leerEstado');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = abrirCliente(tenant).ss.getSheetByName('estado_actual');
   if (!sh) throw new Error('tenant ' + tenant + ' sin estado_actual (corré repararCerebro)');
   var out = {};

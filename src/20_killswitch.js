@@ -42,7 +42,10 @@ function reanudarSistema() {
   return { ok: true, estado: 'activo' };
 }
 
-function estadoPausa() { return { pausado: _sistemaPausado_() }; }
+function estadoPausa() {
+  _soloOwner_('estadoPausa');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return { pausado: _sistemaPausado_() };
+}
 
 /**
  * smokeKill — verificación del kill switch (correr desde el editor de Apps Script).

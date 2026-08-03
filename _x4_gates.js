@@ -55,6 +55,31 @@ const X4 = {
   '26_sato.js': ['diagVoz']
 };
 
+// ── X4b (TC-1b, aprobado por Luciano 03-ago noche): las 16 de LECTURA ─────────
+// Quedaban documentadas como residual en TC-1 porque el criterio del 27-jul acotaba X4 a
+// escritura. Devuelven datos del negocio con argumentos serializables ⇒ SÍ son explotables por
+// RPC (a diferencia de `leerTabla`/`getMaestro`, que reciben o devuelven objetos de Spreadsheet).
+//
+// Precaución de TC-1b, la misma que salvó a `vozRechazo_`: se verificó por alcanzabilidad que
+// NINGUNA de estas 16 corre en un camino sin contexto de sistema. Los caminos sin contexto son
+// exactamente dos — `doPost` antes de cada `_ctxSistema_()` (líneas 88-101 y 106-107) y `doGet`
+// antes de `_puertaOwner_` — y el cierre transitivo de ambos da 23 funciones, todas privadas o
+// ya exentas. Los 6 handlers de trigger declaran contexto en su segunda línea.
+// `getConfig` se llama desde todos lados: el sobrecosto es una comparación de string contra el
+// veredicto ya memoizado en `_esOwner_` (TC-1), no una llamada a servicio.
+const X4B = {
+  '02_setup.js': ['urlMaestro'],
+  '06_avisos.js': ['mapaProyectoCliente', 'clienteDeProyecto'],
+  '07_util.js': ['getConfig'],
+  '08_webapp.js': ['consumoApiCliente', 'tareasActivasOrdenadas'],
+  '11_aprobaciones.js': ['clasificarAccion', 'umbralPara'],
+  '15_cerebro.js': ['leerEstado'],
+  '18_direccion.js': ['estadoVigente', 'briefDiario', 'verifBriefCache', 'verifEstadoCache', 'verVehemence'],
+  '20_killswitch.js': ['estadoPausa'],
+  '21_backup.js': ['estadoTriggerBackup']
+};
+for (const f of Object.keys(X4B)) X4[f] = (X4[f] || []).concat(X4B[f]);
+
 let total = 0, puestos = 0, yaTenian = 0;
 const fallos = [];
 

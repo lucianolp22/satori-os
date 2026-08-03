@@ -14,6 +14,7 @@
 
 /** Snapshot markdown del estado vigente. @param {string} [idCliente] @return {string} markdown */
 function estadoVigente(idCliente) {
+  _soloOwner_('estadoVigente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var md = idCliente ? estadoVigenteCliente_(String(idCliente)) : estadoVigenteSistema_();
   Logger.log(md);
   return md;
@@ -151,6 +152,7 @@ function objetoAConteo_(o) {
  * paso opt-in aparte). Borrador para revisión: la lógica del BLUF la afinás vos.
  */
 function briefDiario(idCliente) {
+  _soloOwner_('briefDiario');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var md = idCliente ? briefDiarioCliente_(String(idCliente)) : briefDiarioSistema_();
   Logger.log(md);
   return md;
@@ -214,7 +216,10 @@ function calentarBriefCache() {
   return calentarBriefCacheSistema_();
 }
 /** Mide render(miss) vs cache(hit) del brief. */
-function verifBriefCache() { return verifBriefCache_(); }
+function verifBriefCache() {
+  _soloOwner_('verifBriefCache');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return verifBriefCache_();
+}
 
 // ── Fix A (27-jul) — cache del ESTADO para la voz ────────────────────────────
 // Medido: `voz-timing tool=estado ms=14108`. El tool `estado` llamaba `estadoVigente(id)` en vivo
@@ -261,6 +266,7 @@ function calentarEstadoCache() {
 
 /** Mide render(miss) vs cache(hit) del estado — correr en el editor. Esperado: hit <1s. */
 function verifEstadoCache() {
+  _soloOwner_('verifEstadoCache');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   try { CacheService.getScriptCache().remove('estado_v1_SISTEMA'); } catch (e) {}
   var t1 = Date.now(); estadoCacheado_(); var ms1 = Date.now() - t1;
   var t2 = Date.now(); estadoCacheado_(); var ms2 = Date.now() - t2;
@@ -1255,6 +1261,7 @@ function limpiarErroresFantasma() {
 
 /** Ver Vehemence (CLI-002) desde el editor: loguea su estado vigente + su brief. No-arg. */
 function verVehemence() {
+  _soloOwner_('verVehemence');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   estadoVigente('CLI-002');
   briefDiario('CLI-002');
   return 'estado vigente + brief de Vehemence (CLI-002) — ver el log';

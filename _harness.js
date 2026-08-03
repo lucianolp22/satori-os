@@ -729,13 +729,8 @@ seccion('D31 · X4 · partición de la superficie RPC (toda pública: gateada o 
     probarDAM: 'delega en gateada', encenderDAM: 'delega en gateada', apagarDAM: 'delega en gateada',
     probarLC: 'delega en gateada', encenderLC: 'delega en gateada', apagarLC: 'delega en gateada',
     probarMQ: 'delega en gateada', encenderMQ: 'delega en gateada', apagarMQ: 'delega en gateada',
-    // (e) X4b — LECTURAS de datos. Sin decisión de Luciano todavía: quedan anotadas, no gateadas.
-    urlMaestro: 'X4b lectura', getConfig: 'X4b lectura', consumoApiCliente: 'X4b lectura',
-    tareasActivasOrdenadas: 'X4b lectura', clasificarAccion: 'X4b lectura', umbralPara: 'X4b lectura',
-    mapaProyectoCliente: 'X4b lectura', clienteDeProyecto: 'X4b lectura', estadoVigente: 'X4b lectura',
-    briefDiario: 'X4b lectura', verifBriefCache: 'X4b lectura', verifEstadoCache: 'X4b lectura',
-    verVehemence: 'X4b lectura', leerEstado: 'X4b lectura', estadoPausa: 'X4b lectura',
-    estadoTriggerBackup: 'X4b lectura'
+    // (e) X4b: las 16 lecturas se GATEARON en TC-1b (03-ago). Ya no son exentas — si alguna
+    // volviera a aparecer acá, D31b3 lo cantaría como lista que miente sobre el estado real.
   };
   // Se mide la LLAMADA al gate sobre el código sin comentarios: `doPost` menciona `_soloOwner_`
   // en un comentario y sin esto figuraba gateado sin tener puerta (mismo verde falso que se
@@ -815,6 +810,69 @@ seccion('D31 · X4 · partición de la superficie RPC (toda pública: gateada o 
       'D31e2 vozRechazo_ usa el sumidero interno (la alerta sobrevive al gate: corre antes del ctx)');
   chk(ctx.ENDPOINTS_UI.filter((n) => cuerpos.has(n) && !gateado(cuerpos.get(n).cuerpo)).length === 0,
       'D31f todo nombre declarado en ENDPOINTS_UI tiene el gate en su cuerpo real');
+
+  // ── D31g · el gate EJECUTÁNDOSE, no leído. Todo lo de arriba es introspección de código: si
+  // `_soloOwner_` estuviera roto, la palabra seguiría ahí y todo daría verde. Acá se llama de
+  // verdad, sin contexto de sistema y sin identidad de owner, y tiene que CORTAR antes de tocar
+  // dato alguno. Se prueban lecturas de TC-1b, que son las que recién estrenan puerta.
+  // Las candidatas se eligen SOLAS: declaradas en ENDPOINTS_UI, presentes en este contexto, y
+  // cuyo objeto VIVO conserva el gate en su source. Ese último filtro no es adorno — el harness
+  // reemplaza `estadoVigente` por un stub en la línea 140 y no lo restaura, así que probarla
+  // habría medido el stub y no la función real (la lección D25e, al revés: rojo por stub).
+  const ctxPrev = ctx.SATORI_CTX_SISTEMA, ownerPrev = ctx._OWNER_OK_;
+  try {
+    ctx.SATORI_CTX_SISTEMA = false; ctx._OWNER_OK_ = false;
+    const probables = ctx.ENDPOINTS_UI.filter((n) => typeof ctx[n] === 'function' && gateado(String(ctx[n])));
+    const noCortaron = [];
+    for (const fn of probables) {
+      let msg = '';
+      try { ctx[fn]('__x__'); } catch (e) { msg = String((e && e.message) || e); }
+      if (msg !== 'no_autorizado') noCortaron.push(fn + (msg ? ':' + msg.slice(0, 40) : ':NO tiró'));
+    }
+    // Un assert que no probó nada no certifica nada: si el filtro deja 0 candidatas, es rojo.
+    chk(probables.length >= 10, `D31g hay endpoints reales que ejecutar (${probables.length} candidatas, ${ctx.ENDPOINTS_UI.length} declaradas)`);
+    chk(noCortaron.length === 0,
+        `D31g2 los ${probables.length} endpoints reales cargados CORTAN en ejecución sin contexto ni owner` +
+        (noCortaron.length ? ' — NO cortaron: ' + noCortaron.join(', ') : ''));
+    // Y con contexto de sistema el gate deja pasar: si cortara igual, los triggers morirían.
+    ctx.SATORI_CTX_SISTEMA = true;
+    let pasa = '';
+    try { ctx.getConfig('__x__'); } catch (e) { pasa = String((e && e.message) || e); }
+    chk(pasa !== 'no_autorizado', 'D31g3 con contexto de sistema el gate NO corta (el trigger sigue vivo)');
+  } finally { ctx.SATORI_CTX_SISTEMA = ctxPrev; ctx._OWNER_OK_ = ownerPrev; }
+
+  // ── D31h · NADA gateado corre en un camino SIN contexto de sistema. ──────────
+  // Es el análisis que en TC-1 detectó que `vozRechazo_` llamaba a `crearAviso` recién gateada,
+  // y el que en TC-1b habilitó gatear las 16 lecturas. Vivía en un script suelto: acá queda
+  // permanente, para que agregar mañana un `getConfig()` en el camino pre-auth se cante solo.
+  //
+  // Caminos SIN contexto (los únicos dos):
+  //   · doPost, antes de CADA `_ctxSistema_()`: el bloque oficina_sync (hasta su ctx) y, tras el
+  //     `return` de ese bloque, el bloque de voz (hasta el suyo).
+  //   · doGet, antes de `_puertaOwner_` — que corta ahí mismo, así que no alcanza nada.
+  // Los 6 handlers de trigger declaran contexto en su segunda línea (D31c/D31d).
+  const cuerpoDoPost = (cuerpos.get('doPost') || {}).cuerpo || '';
+  chk((limpio(cuerpoDoPost).match(/_ctxSistema_\(/g) || []).length === 2,
+      'D31h doPost conserva sus DOS _ctxSistema_ — si cambió de forma, revisar las semillas de abajo');
+  const SEMILLAS = ['vozRechazo_', 'vozOut_', 'oficinaSyncAuth_', '_secretoVencido_', 'vozAuth_'];
+  chk(SEMILLAS.every((s) => new RegExp('\\b' + s + '\\s*\\(').test(limpio(cuerpoDoPost))),
+      'D31h2 las semillas pre-contexto siguen siendo las que doPost invoca antes de autenticar');
+  const llamadasDe = (n) => {
+    const s = new Set();
+    for (const m of limpio((cuerpos.get(n) || {}).cuerpo || '').matchAll(/\b([A-Za-z_$][\w$]*)\s*\(/g)) {
+      if (cuerpos.has(m[1]) && m[1] !== n) s.add(m[1]);
+    }
+    return s;
+  };
+  const alcanzables = new Set(SEMILLAS);
+  // el gate mismo: si algo que `_soloOwner_` usa quedara gateado, sería recursión infinita
+  for (const g of ['_soloOwner_', '_esOwner_', '_ctxSistema_']) for (const c of llamadasDe(g)) alcanzables.add(c);
+  const pend = [...alcanzables];
+  while (pend.length) { for (const c of llamadasDe(pend.pop())) if (!alcanzables.has(c)) { alcanzables.add(c); pend.push(c); } }
+  const gateadasPreAuth = [...alcanzables].filter((n) => n !== '_soloOwner_' && gateado(cuerpos.get(n).cuerpo));
+  chk(gateadasPreAuth.length === 0,
+      `D31h3 ninguna función gateada es alcanzable sin contexto de sistema (${alcanzables.size} alcanzables)` +
+      (gateadasPreAuth.length ? ' — MORIRÍA EN SILENCIO: ' + gateadasPreAuth.join(', ') : ''));
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

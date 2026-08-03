@@ -193,6 +193,7 @@ function abrirCliente(idCliente) {
 
 /** Lee un valor de Config por clave (string). '' si no existe. */
 function getConfig(clave) {
+  _soloOwner_('getConfig');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = getMaestro().getSheetByName('Config');
   var vals = sh.getDataRange().getValues();
   for (var i = 1; i < vals.length; i++) if (vals[i][0] === clave) return String(vals[i][1]);

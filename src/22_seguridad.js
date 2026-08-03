@@ -191,10 +191,7 @@ var ENDPOINTS_UI = [
   //   · puerta propia: doGet (owner) · doPost (secreto fail-closed)
   //   · wrappers no-arg que delegan en funciones YA gateadas (decisión 27-jul, comentada en
   //     19_conectores.js): probarDAM/encenderDAM/apagarDAM · …LC · …MQ
-  //   · X4b — LECTURAS de datos, sin decisión tomada todavía: urlMaestro · getConfig ·
-  //     consumoApiCliente · tareasActivasOrdenadas · clasificarAccion · umbralPara ·
-  //     mapaProyectoCliente · clienteDeProyecto · estadoVigente · briefDiario · verifBriefCache ·
-  //     verifEstadoCache · verVehemence · leerEstado · estadoPausa · estadoTriggerBackup
+  // (X4b ya NO está acá: las 16 lecturas se gatearon en TC-1b — ver el bloque de abajo.)
   'setup', 'repararFormatosTexto',                                              // 02_setup.js
   'crearCliente', 'cargaInicialClientes',                                       // 03_cliente.js
   'syncMaestro',                                                                // 04_sync.js
@@ -222,7 +219,25 @@ var ENDPOINTS_UI = [
   'backupListar', 'drillRestore',
   'securityScan',                                                               // 22_seguridad.js
   'correrEvals', 'correrEvalsConApi',                                           // 23_evals.js
-  'diagVoz'                                                                     // 26_sato.js
+  'diagVoz',                                                                    // 26_sato.js
+
+  // ── X4b (03-ago, TC-1b): las 16 de LECTURA. Devuelven datos del negocio con argumentos
+  // serializables ⇒ explotables por RPC, a diferencia de `leerTabla`/`getMaestro` (que reciben o
+  // devuelven objetos de Spreadsheet y por eso siguen exentas). Verificado antes de gatear, por
+  // alcanzabilidad: ninguna corre en un camino sin contexto de sistema — los únicos caminos sin
+  // contexto son `doPost` antes de cada `_ctxSistema_()` y `doGet` antes de `_puertaOwner_`, y su
+  // cierre transitivo (23 funciones) no toca ninguna de éstas. Misma precaución que salvó a
+  // `vozRechazo_` en TC-1.
+  'urlMaestro',                                                                 // 02_setup.js
+  'mapaProyectoCliente', 'clienteDeProyecto',                                   // 06_avisos.js
+  'getConfig',                                                                  // 07_util.js
+  'consumoApiCliente', 'tareasActivasOrdenadas',                                // 08_webapp.js
+  'clasificarAccion', 'umbralPara',                                             // 11_aprobaciones.js
+  'leerEstado',                                                                 // 15_cerebro.js
+  'estadoVigente', 'briefDiario', 'verifBriefCache', 'verifEstadoCache',        // 18_direccion.js
+  'verVehemence',
+  'estadoPausa',                                                                // 20_killswitch.js
+  'estadoTriggerBackup'                                                         // 21_backup.js
 ];
 
 /**

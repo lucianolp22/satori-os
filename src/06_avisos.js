@@ -395,6 +395,7 @@ function hace(dias) {
  */
 var _mapaPC = null;
 function mapaProyectoCliente() {
+  _soloOwner_('mapaProyectoCliente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   if (_mapaPC) return _mapaPC;
   _mapaPC = {};
   leerTabla(getMaestro().getSheetByName('Proyectos')).forEach(function (p) {
@@ -409,6 +410,7 @@ function invalidarMapaPC() {
 
 /** id_cliente al que pertenece un id_proyecto (vía mapa memoizado). */
 function clienteDeProyecto(idProyecto) {
+  _soloOwner_('clienteDeProyecto');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   return mapaProyectoCliente()[idProyecto] || '';
 }
 

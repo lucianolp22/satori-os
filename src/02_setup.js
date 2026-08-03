@@ -45,6 +45,7 @@ function setup() {
 
 /** Devuelve la URL del MAESTRO (útil para abrirlo desde logs). */
 function urlMaestro() {
+  _soloOwner_('urlMaestro');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var u = getMaestro().getUrl();
   Logger.log(u);
   return u;

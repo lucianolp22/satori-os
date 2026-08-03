@@ -21,6 +21,7 @@
  * @return {{patron:string, motivo:string}}
  */
 function clasificarAccion(idCliente, tipoAccion, monto) {
+  _soloOwner_('clasificarAccion');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var explicito = getConfig('clasif_' + tipoAccion);
   if (explicito) return { patron: explicito, motivo: 'config' };
 
@@ -109,6 +110,7 @@ function ejecutarCrearObjetivo_(idCliente, payload) {
 
 /** Fila de Umbrales del cliente para un tipo de acción, o null. */
 function umbralPara(idCliente, tipoAccion) {
+  _soloOwner_('umbralPara');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = abrirCliente(idCliente).ss.getSheetByName('Umbrales');
   if (!sh) return null;
   return leerTabla(sh).filter(function (u) { return String(u.tipo_accion) === String(tipoAccion); })[0] || null;
