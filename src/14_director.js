@@ -23,6 +23,7 @@
  */
 function correrDirector(tenant) {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('correrDirector');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
     if (tenant) return c.id_cliente === tenant;
     return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0;
@@ -123,6 +124,7 @@ function poblarCerebro_(idCliente, objetivos) {
  */
 function chequeoLivianoDirector() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('chequeoLivianoDirector');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) return { pausado: true };
   var pend = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')).length;
   var cola = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) {
@@ -138,6 +140,7 @@ function chequeoLivianoDirector() {
  * la cuota multi-tenant antes de prenderlo en producción (supuesto 2 del plano).
  */
 function instalarTriggerDirector() {
+  _soloOwner_('instalarTriggerDirector');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var existe = ScriptApp.getProjectTriggers().some(function (t) {
     return t.getHandlerFunction() === 'chequeoLivianoDirector';
   });

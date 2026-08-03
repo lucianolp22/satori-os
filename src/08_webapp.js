@@ -475,7 +475,9 @@ function vozRechazo_(motivo) {
     if (props.getProperty('voz_alerta_fecha') === hoy) return;   // ya avisé hoy → corto (anti-flood)
     props.setProperty('voz_alerta_fecha', hoy);
     vozLog_('RECHAZO:' + motivo, false, 'primer rechazo del día');
-    crearAviso({ origen: 'voz', tipo: 'voz_acceso_no_autorizado',
+    // `_crearAviso_` (sumidero interno), NO `crearAviso`: acá todavía NO hay contexto de sistema
+    // (el secreto no validó) y el gate X4 tiraría dentro del catch de abajo → alerta silenciada.
+    _crearAviso_({ origen: 'voz', tipo: 'voz_acceso_no_autorizado',
       mensaje: 'Voz: rechazo de seguridad en el tool-backend hoy (' + motivo + '). Revisá Voz_log; si no fuiste vos, rotá VOZ_TOOL_SECRET.' });
   } catch (_x) {}
 }

@@ -82,6 +82,7 @@ function saludAccion_(nombre, estado) {
  *   hallazgos: {nombre, estado, detalle, titulo, accion} — `titulo`/`accion` son la capa humana H2.
  */
 function correrSalud(opts) {
+  _soloOwner_('correrSalud');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   opts = opts || {};
   var ss = getMaestro();
   var hallazgos = [];

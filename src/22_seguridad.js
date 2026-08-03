@@ -86,13 +86,28 @@ function _puertaOwner_(who, owner) {
   return who === owner;
 }
 
+/**
+ * Cache POR EJECUCIÓN del veredicto de identidad. GAS levanta un contexto V8 nuevo por
+ * invocación, así que no hay fuga entre ejecuciones ni entre usuarios (mismo argumento que
+ * SATORI_CTX_SISTEMA), y dentro de UNA ejecución la identidad del usuario activo no cambia.
+ *
+ * POR QUÉ (X4, 03-ago): al gatear 68 funciones más, un flujo del CM o del selfTest pasa por
+ * `_soloOwner_` decenas o cientos de veces. Sin cache, cada paso son DOS llamadas a servicio
+ * (Session + Properties): latencia y cuota que no compran nada, porque la respuesta es siempre
+ * la misma. El camino de sistema ya salía gratis (SATORI_CTX_SISTEMA corta antes); esto empareja
+ * el camino del owner. `null` = todavía no se preguntó.
+ */
+var _OWNER_OK_ = null;
+
 /** ¿El usuario activo es el owner? Mismo criterio que doGet (una sola fuente). */
 function _esOwner_() {
+  if (_OWNER_OK_ !== null) return _OWNER_OK_;
   var who = '';
   try { who = Session.getActiveUser().getEmail() || ''; } catch (_e) { who = ''; }
   var owner = '';
   try { owner = PropertiesService.getScriptProperties().getProperty('OWNER_EMAIL') || ''; } catch (_p) { owner = ''; }
-  return _puertaOwner_(who, owner);
+  _OWNER_OK_ = _puertaOwner_(who, owner);
+  return _OWNER_OK_;
 }
 
 /**
@@ -158,7 +173,72 @@ var ENDPOINTS_UI = [
   // 19_conectores.js — gateadas en la purga del 23-jul; faltaba el alta en el registro.
   // `altaConector` era la excepción: se le puso el gate en X2 (sus tres hermanas ya lo tenían).
   'altaConector', 'encenderConector', 'apagarConector', 'sembrarConectoresHallados',
-  'probarConector', 'estadoConectores'
+  'probarConector', 'estadoConectores',
+
+  // ── X4 (03-ago, TC-1): las 68 top-level que MUTAN estado o CONSUMEN servicios y seguían
+  // sin puerta. Criterio aplicado (re-derivado contra el repo real, script `_x4_gates.js`):
+  // escribe Sheets/Properties/Drive/Cache · instala triggers · manda mail · gasta API paga ·
+  // muta estado global en memoria. Los 7 entry points de sistema llevan el gate DESPUÉS de
+  // `_ctxSistema_()` (antes rompería los triggers).
+  //
+  // FUERA de X4 a propósito (46) — si alguien las gatea después, que sea con decisión, no por inercia:
+  //   · no explotables por RPC (reciben un Sheet/Spreadsheet/función, o devuelven un Spreadsheet:
+  //     `google.script.run` no puede construir ni serializar esos argumentos):
+  //     ensureSheet · appendFila · leerTabla · protegerSheet · aplicarFormatoTexto · conLock ·
+  //     nextId · getMaestro · abrirCliente
+  //   · puras sin I/O: ping · anonimizar · hace · ahoraISO · hoyISO · mesISO · aFechaISO ·
+  //     sanitizarCelda · esVencida · parseRecurrencia · parseQuickAdd
+  //   · puerta propia: doGet (owner) · doPost (secreto fail-closed)
+  //   · wrappers no-arg que delegan en funciones YA gateadas (decisión 27-jul, comentada en
+  //     19_conectores.js): probarDAM/encenderDAM/apagarDAM · …LC · …MQ
+  //   · X4b — LECTURAS de datos, sin decisión tomada todavía: urlMaestro · getConfig ·
+  //     consumoApiCliente · tareasActivasOrdenadas · clasificarAccion · umbralPara ·
+  //     mapaProyectoCliente · clienteDeProyecto · estadoVigente · briefDiario · verifBriefCache ·
+  //     verifEstadoCache · verVehemence · leerEstado · estadoPausa · estadoTriggerBackup
+  'setup', 'repararFormatosTexto',                                              // 02_setup.js
+  'crearCliente', 'cargaInicialClientes',                                       // 03_cliente.js
+  'syncMaestro',                                                                // 04_sync.js
+  'llamadaAPI', 'logCostoCliente', 'consolidarCostosMes',                       // 05_costos.js
+  'probarAlertaEmail', 'probarBriefPush', 'crearAviso', 'corridaDiaria',        // 06_avisos.js
+  'encolarVigiaClientesActivos', 'detectarVencimientos', 'detectarTareasEstancadas',
+  'detectarProyectosSinMovimiento', 'expirarAprobaciones', 'invalidarMapaPC', 'instalarTriggers',
+  'selfTest', 'selfTestF2', 'debugE21', 'limpiarTodoTest', 'borrarFilasDonde',  // 09_selftest.js
+  'bootstrap',                                                                  // 10_bootstrap.js
+  'expirarPendientes',                                                          // 11_aprobaciones.js
+  'encolar', 'drenarCola', 'verifArchivoCola', 'archivarColaViejaREAL',         // 12_cola.js
+  'encolarAgente',                                                              // 13_agentes.js
+  'correrDirector', 'chequeoLivianoDirector', 'instalarTriggerDirector',        // 14_director.js
+  'upsertNodo', 'upsertArista', 'logEvento', 'comprimirMemoriaFria',            // 15_cerebro.js
+  'comprimirMemoria', 'materializarEstado', 'repararCerebro', 'migrarCerebroSchema',
+  'cargarObjetivo', 'cargarObjetivosPiloto', 'sembrarDatosEjemplo',
+  'correrSalud',                                                                // 16_salud.js
+  'clasificarBandeja', 'instalarTriggerBandeja',                                // 17_bandeja.js
+  'calentarBriefCache', 'calentarEstadoCache', 'sembrarNorthStarSatori',        // 18_direccion.js
+  'cargarNorthStarSatori', 'cargarNorthStarVehemence', 'limpiarErroresFantasma',
+  'registrarRecomendacionDelDia',
+  'sincronizarVehemence', 'sincronizarConectores',                              // 19_conectores.js
+  'smokeKill',                                                                  // 20_killswitch.js
+  'backupSemanal', 'backupAhora', 'instalarTriggerBackup', 'smokeBackup',       // 21_backup.js
+  'backupListar', 'drillRestore',
+  'securityScan',                                                               // 22_seguridad.js
+  'correrEvals', 'correrEvalsConApi',                                           // 23_evals.js
+  'diagVoz'                                                                     // 26_sato.js
+];
+
+/**
+ * Entry points de SISTEMA: los únicos que declaran `_ctxSistema_()`. Lista-contrato (X4, 03-ago).
+ *
+ * ⚠ INVARIANTE: en estos siete el `_soloOwner_` va **DESPUÉS** de `_ctxSistema_()`. Al revés
+ * rompe los triggers: una ejecución sin usuario activo no tiene el flag todavía, así que el gate
+ * tiraría `no_autorizado` y `corridaDiaria`/`drenarCola`/`backupSemanal` morirían de noche, sin
+ * nadie mirando. El orden lo asera D31b (selfTest) y el harness offline.
+ * ⚠ INVARIANTE 2: todo handler de `ScriptApp.newTrigger('X')` tiene que estar en esta lista —
+ * un trigger apuntando a una función que no declara contexto es la misma rotura. Lo asera el harness.
+ * Agregar un entry point de sistema = agregarlo acá en el MISMO commit.
+ */
+var ENTRY_POINTS_SISTEMA = [
+  'corridaDiaria', 'drenarCola', 'sincronizarConectores', 'clasificarBandeja',
+  'backupSemanal', 'chequeoLivianoDirector', 'correrDirector'
 ];
 
 /**
@@ -167,19 +247,47 @@ var ENDPOINTS_UI = [
  * el source: se reporta como tal, JAMÁS como ok — un scan que miente es peor que ninguno).
  */
 function _tieneGate_(nombre) {
-  if (!/^[A-Za-z_$][\w$]*$/.test(String(nombre || ''))) return 'no_verificable';  // el eval de abajo solo ve identificadores
+  var src = _srcDe_(nombre);
+  if (src === null) return 'no_existe';
+  if (src === '') return 'no_verificable';
+  // La LLAMADA, no la palabra: `Function.toString()` conserva los comentarios, así que un
+  // `// … atraviesa los _soloOwner_ de los endpoints …` daba 'ok' sin puerta ninguna (verde
+  // falso hallado el 03-ago con `doPost`). Se miden llamadas sobre el source sin comentarios.
+  return /_soloOwner_\s*\(/.test(_sinComentarios_(src)) ? 'ok' : 'sin_gate';
+}
+
+/**
+ * Quita comentarios de un fragmento de código. Los strings se neutralizan PRIMERO para que un
+ * `'https://…'` no se coma media línea. Fail-closed a propósito: si esta limpieza se pasa de
+ * agresiva, el gate se reporta ausente (rojo revisable), nunca presente de más.
+ */
+function _sinComentarios_(src) {
+  return String(src == null ? '' : src)
+    .replace(/'(\\.|[^'\\])*'/g, "''")
+    .replace(/"(\\.|[^"\\])*"/g, '""')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ');
+}
+
+/**
+ * Source de una función top-level por nombre. `null` = no existe · `''` = existe pero el runtime
+ * no deja leerla (nativa o toString bloqueado). Una sola implementación de esta resolución frágil:
+ * la usan `_tieneGate_` (scan + D19c) y D31b (orden ctx→gate). Duplicarla sería el próximo drift.
+ */
+function _srcDe_(nombre) {
+  if (!/^[A-Za-z_$][\w$]*$/.test(String(nombre || ''))) return '';  // el eval de abajo solo ve identificadores
   var f;
   // Tres vías: el global de V8, el `this` del scope global, y eval como último recurso.
   // GAS resuelve las declaraciones top-level de formas distintas según runtime/contexto;
-  // si NINGUNA funciona se devuelve 'no_verificable' — jamás 'ok' por defecto.
+  // si NINGUNA funciona se reporta como tal — jamás se asume que está bien.
   try { if (typeof globalThis !== 'undefined' && globalThis) f = globalThis[nombre]; } catch (_g) {}
   if (typeof f !== 'function') { try { f = this[nombre]; } catch (_t) {} }
-  if (typeof f !== 'function') { try { f = eval(nombre); } catch (_ev) { return 'no_existe'; } }
-  if (typeof f !== 'function') return 'no_existe';
+  if (typeof f !== 'function') { try { f = eval(nombre); } catch (_ev) { return null; } }
+  if (typeof f !== 'function') return null;
   var src = '';
-  try { src = String(f); } catch (_s) { return 'no_verificable'; }
-  if (!src || src.indexOf('[native code]') >= 0) return 'no_verificable';
-  return src.indexOf('_soloOwner_') >= 0 ? 'ok' : 'sin_gate';
+  try { src = String(f); } catch (_s) { return ''; }
+  if (!src || src.indexOf('[native code]') >= 0) return '';
+  return src;
 }
 
 // ═══ S2 — credencial con vencimiento ════════════════════════════════════════
@@ -450,4 +558,7 @@ function securityScan_(opts) {
 }
 
 /** Wrapper PÚBLICO (el desplegable del editor no lista funciones con guión bajo final). */
-function securityScan(opts) { var r = securityScan_(opts || { full: false }); Logger.log(JSON.stringify(r, null, 2)); return r; }
+function securityScan(opts) {
+  _soloOwner_('securityScan');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  var r = securityScan_(opts || { full: false }); Logger.log(JSON.stringify(r, null, 2)); return r;
+}

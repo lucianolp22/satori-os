@@ -245,6 +245,7 @@ function correrAgente_(clave, args, tareaId, idCliente) {
  * `aprobacionDesdeRecomendacion`: tenant real o rechazo claro. Reusa el roster EXISTENTE.
  */
 function encolarAgente(idCliente, clave, args) {
+  _soloOwner_('encolarAgente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   if (!AGENTES[clave]) throw new Error('agente desconocido');
   if (!idCliente) throw new Error('falta id_cliente');
   idCliente = String(idCliente).trim();

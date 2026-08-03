@@ -10,6 +10,7 @@
  * Aviso y se deja ultima_sync_estado = "parcial".
  */
 function syncMaestro() {
+  _soloOwner_('syncMaestro');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var ss = getMaestro();
   var shClientes = ss.getSheetByName('Clientes');
   var shAgg = ss.getSheetByName('Aprobaciones_agregadas');

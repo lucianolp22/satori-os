@@ -51,6 +51,7 @@ function estadoPausa() { return { pausado: _sistemaPausado_() }; }
  * liviano (chequeoLivianoDirector, 0 API) y RESTAURA el estado previo. Sin efectos.
  */
 function smokeKill() {
+  _soloOwner_('smokeKill');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var props = PropertiesService.getScriptProperties();
   var antes = props.getProperty(PROP_SISTEMA_PAUSADO);
   var rep = [];

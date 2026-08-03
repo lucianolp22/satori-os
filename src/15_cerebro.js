@@ -74,6 +74,7 @@ function dimensionDeTipo_(tipo) { return DIMENSION_POR_TIPO[String(tipo)] || 'ne
  * @return {{id_nodo:string, creado:boolean}}
  */
 function upsertNodo(tenant, nodo, snap) {
+  _soloOwner_('upsertNodo');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   nodo = nodo || {};
   var sh = cerebroSheet_(tenant, 'nodos');
   var tipo = nodo.tipo || 'generico';
@@ -101,6 +102,7 @@ function upsertNodo(tenant, nodo, snap) {
  * @return {{id_arista:string, creado:boolean}}
  */
 function upsertArista(tenant, arista, snap) {
+  _soloOwner_('upsertArista');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   arista = arista || {};
   if (!arista.origen || !arista.destino) throw new Error('arista sin origen/destino');
   var sh = cerebroSheet_(tenant, 'aristas');
@@ -126,6 +128,7 @@ function upsertArista(tenant, arista, snap) {
  * @param {Object} ev  { evento, id_nodo?, id_arista?, origen?(actor), detalle? }
  */
 function logEvento(tenant, ev) {
+  _soloOwner_('logEvento');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   ev = ev || {};
   appendFila(cerebroSheet_(tenant, 'cerebro_log'), {
     ts: ahoraISO(),
@@ -248,6 +251,7 @@ function _eventosArchivados_(ssCli) {
  * @return {{archivadas:number, calientes:number, periodos:number, ilegibles:number}}
  */
 function comprimirMemoriaFria(tenant, dias) {
+  _soloOwner_('comprimirMemoriaFria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var ssCli = abrirCliente(tenant).ss;
   var shLog = ssCli.getSheetByName('cerebro_log');
   if (!shLog) return { archivadas: 0, calientes: 0, periodos: 0, ilegibles: 0, omitido: 'sin cerebro_log' };
@@ -312,7 +316,10 @@ function comprimirMemoriaFriaTodos_() {
 }
 
 /** No-arg para correr del editor sobre toda la cartera. */
-function comprimirMemoria() { return comprimirMemoriaFriaTodos_(); }
+function comprimirMemoria() {
+  _soloOwner_('comprimirMemoria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return comprimirMemoriaFriaTodos_();
+}
 
 /**
  * Reconstruye estado_actual del tenant (snapshot derivado de nodos+aristas+log+objetivos)
@@ -323,6 +330,7 @@ function comprimirMemoria() { return comprimirMemoriaFriaTodos_(); }
  * @return {{nodos:number, aristas:number, eventos:number, objetivos_activos:number}}
  */
 function materializarEstado(tenant) {
+  _soloOwner_('materializarEstado');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var ssCli = abrirCliente(tenant).ss;
   // purga X3 #12: sub-hoja faltante ⇒ tabla vacía, no `leerTabla(null)` reventando. Un tenant al
   // que le falta una hoja del cerebro (cliente viejo, repararCerebro sin correr, hoja borrada a
@@ -440,6 +448,7 @@ function leerEstado(tenant) {
  * como el resto de la interna. Idempotente (ensureSheet no pisa lo existente). Correr a mano.
  */
 function repararCerebro() {
+  _soloOwner_('repararCerebro');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   ensureSheet(getMaestro(), 'Cerebro_index', MAESTRO_SHEETS['Cerebro_index']);
   var n = 0;
   leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
@@ -465,6 +474,7 @@ function repararCerebro() {
  * Idempotente. Correr a mano UNA vez tras desplegar el retrofit. @return {{nodos, aristas}}
  */
 function migrarCerebroSchema() {
+  _soloOwner_('migrarCerebroSchema');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var add = { nodos: 0, aristas: 0 };
   leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
     if (!c.url_sheet_cliente) return;
@@ -507,6 +517,7 @@ function agregarColumnasFaltantes_(sh, headersCanon, defaults) {
  * @return {{id, creado}}
  */
 function cargarObjetivo(idCliente, obj) {
+  _soloOwner_('cargarObjetivo');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   obj = obj || {};
   if (!obj.descripcion && !obj.metrica) throw new Error('el objetivo necesita descripcion y/o metrica');
   var sh = cerebroSheet_(idCliente, 'objetivos');
@@ -535,6 +546,7 @@ function cargarObjetivo(idCliente, obj) {
  * con solo tener datos en Datos_operativos).
  */
 function cargarObjetivosPiloto() {
+  _soloOwner_('cargarObjetivosPiloto');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   // ↓↓↓ Cambiá idCliente y los objetivos por los reales del cliente piloto ↓↓↓
   cargarObjetivo('CLI-001', { descripcion: 'Subir el ticket promedio', metrica: 'ticket_promedio_eur', valor_objetivo: 25, horizonte: '12m', prioridad: 'A' });
   // cargarObjetivo('CLI-001', { descripcion: 'Bajar la merma de stock', metrica: 'merma_pct', valor_objetivo: 5, prioridad: 'B' });
@@ -547,6 +559,7 @@ function cargarObjetivosPiloto() {
  * cuando cargues las reales. Resto de Barcelona, 2 semanas.
  */
 function sembrarDatosEjemplo(idCliente) {
+  _soloOwner_('sembrarDatosEjemplo');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   idCliente = idCliente || 'CLI-001';
   var sh = abrirCliente(idCliente).ss.getSheetByName('Datos_operativos');
   if (!sh) throw new Error(idCliente + ' sin Datos_operativos');

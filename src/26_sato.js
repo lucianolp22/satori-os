@@ -420,6 +420,7 @@ function satoVoz(texto) {
  * Dice en el Registro exactamente dónde está el corte: key, voz, modelo o proveedor.
  */
 function diagVoz() {
+  _soloOwner_('diagVoz');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var out = [];
   var k = '';
   try { k = PropertiesService.getScriptProperties().getProperty('ELEVENLABS_API_KEY') || ''; } catch (e) {}

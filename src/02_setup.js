@@ -6,6 +6,7 @@
  * faltantes. Corre a mano una sola vez desde el editor (o vía clasp run).
  */
 function setup() {
+  _soloOwner_('setup');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty(PROP_MAESTRO_ID);
   var ss;
@@ -55,6 +56,7 @@ function urlMaestro() {
  * No reescribe valores: solo aplica formato '@' a las columnas de COLUMNAS_TEXTO.
  */
 function repararFormatosTexto() {
+  _soloOwner_('repararFormatosTexto');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var ss = getMaestro();
   MAESTRO_ORDEN.forEach(function (n) { var sh = ss.getSheetByName(n); if (sh) aplicarFormatoTexto(sh); });
   var n = 0;

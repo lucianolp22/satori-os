@@ -704,6 +704,119 @@ for (const fn of ['satoCierreSesion', 'satoAplicarCierre']) {
   Object.keys(bk).forEach(k => { ctx[k] = bk[k]; });
 }
 
+// ═══ D31 · X4 — la PARTICIÓN completa de la superficie RPC ═══════════════════
+// Esto solo se puede aserir acá: el selfTest introspecciona funciones POR NOMBRE (no puede
+// enumerar el árbol), el harness lee los .js de verdad. Regla: toda función top-level pública
+// (sin `_` final ⇒ invocable por google.script.run) o tiene `_soloOwner_`, o está declarada
+// exenta ABAJO con su motivo. Una función pública nueva sin puerta y sin exención = ❌ acá,
+// antes de que llegue al editor. Es el anti-drift que el scan por lista no puede dar.
+seccion('D31 · X4 · partición de la superficie RPC (toda pública: gateada o exenta declarada)');
+{
+  // Exentas por motivo. Si alguna de estas se vuelve peligrosa, se saca de acá y se gatea.
+  const EXENTAS = {
+    // (a) NO explotables por RPC: reciben un Sheet/Spreadsheet/función, o devuelven un
+    // Spreadsheet. `google.script.run` no puede construir ni serializar esos argumentos.
+    ensureSheet: 'recibe Spreadsheet', appendFila: 'recibe Sheet', leerTabla: 'recibe Sheet',
+    protegerSheet: 'recibe Sheet', aplicarFormatoTexto: 'recibe Sheet', conLock: 'recibe función',
+    nextId: 'recibe Sheet', getMaestro: 'devuelve Spreadsheet', abrirCliente: 'devuelve Spreadsheet',
+    // (b) puras, sin I/O ni datos
+    ping: 'pura', anonimizar: 'pura', hace: 'pura', ahoraISO: 'pura', hoyISO: 'pura', mesISO: 'pura',
+    aFechaISO: 'pura', sanitizarCelda: 'pura', esVencida: 'pura', parseRecurrencia: 'pura',
+    parseQuickAdd: 'pura',
+    // (c) puerta propia
+    doGet: 'gate de owner propio', doPost: 'secreto fail-closed propio',
+    // (d) wrappers no-arg que delegan en funciones YA gateadas (decisión 27-jul)
+    probarDAM: 'delega en gateada', encenderDAM: 'delega en gateada', apagarDAM: 'delega en gateada',
+    probarLC: 'delega en gateada', encenderLC: 'delega en gateada', apagarLC: 'delega en gateada',
+    probarMQ: 'delega en gateada', encenderMQ: 'delega en gateada', apagarMQ: 'delega en gateada',
+    // (e) X4b — LECTURAS de datos. Sin decisión de Luciano todavía: quedan anotadas, no gateadas.
+    urlMaestro: 'X4b lectura', getConfig: 'X4b lectura', consumoApiCliente: 'X4b lectura',
+    tareasActivasOrdenadas: 'X4b lectura', clasificarAccion: 'X4b lectura', umbralPara: 'X4b lectura',
+    mapaProyectoCliente: 'X4b lectura', clienteDeProyecto: 'X4b lectura', estadoVigente: 'X4b lectura',
+    briefDiario: 'X4b lectura', verifBriefCache: 'X4b lectura', verifEstadoCache: 'X4b lectura',
+    verVehemence: 'X4b lectura', leerEstado: 'X4b lectura', estadoPausa: 'X4b lectura',
+    estadoTriggerBackup: 'X4b lectura'
+  };
+  // Se mide la LLAMADA al gate sobre el código sin comentarios: `doPost` menciona `_soloOwner_`
+  // en un comentario y sin esto figuraba gateado sin tener puerta (mismo verde falso que se
+  // corrigió en `_tieneGate_`). Ídem `newTrigger('X')` dentro de un comentario de documentación.
+  const limpio = (s) => ctx._sinComentarios_(s);
+  const gateado = (s) => /_soloOwner_\s*\(/.test(limpio(s));
+  // Extracción por balanceo de llaves (una función de UNA línea no puede cortarse en el primer `}`).
+  const cuerpos = new Map();
+  for (const f of fs.readdirSync(SRC).filter((x) => x.endsWith('.js'))) {
+    const L = fs.readFileSync(path.join(SRC, f), 'utf8').split('\n');
+    for (let i = 0; i < L.length; i++) {
+      const m = L[i].match(/^function ([A-Za-z_$][\w$]*)\s*\(/);
+      if (!m) continue;
+      let d = 0, cuerpo = '';
+      for (let j = i; j < L.length; j++) {
+        const s = L[j].replace(/'(\\.|[^'\\])*'/g, "''").replace(/"(\\.|[^"\\])*"/g, '""').replace(/\/\/.*$/, '');
+        cuerpo += L[j] + '\n';
+        for (const c of s) { if (c === '{') d++; else if (c === '}') d--; }
+        if (d === 0 && cuerpo.indexOf('{') >= 0) break;
+      }
+      cuerpos.set(m[1], { archivo: f, cuerpo });
+    }
+  }
+  const publicas = [...cuerpos.keys()].filter((n) => !n.endsWith('_'));
+  const huerfanas = publicas.filter((n) => !gateado(cuerpos.get(n).cuerpo) && !EXENTAS[n]);
+  chk(huerfanas.length === 0,
+      'D31 toda función pública tiene puerta o exención declarada' +
+      (huerfanas.length ? ' — SIN DECLARAR: ' + huerfanas.join(', ') : ' (' + publicas.length + ' públicas)'));
+  const exentasFantasma = Object.keys(EXENTAS).filter((n) => !cuerpos.has(n));
+  chk(exentasFantasma.length === 0,
+      'D31b2 ninguna exención apunta a una función que ya no existe' +
+      (exentasFantasma.length ? ' — FANTASMA: ' + exentasFantasma.join(', ') : ''));
+  const exentasGateadas = Object.keys(EXENTAS).filter((n) => cuerpos.has(n) && gateado(cuerpos.get(n).cuerpo));
+  chk(exentasGateadas.length === 0,
+      'D31b3 ninguna exención quedó ADEMÁS gateada (la lista mentiría sobre el estado real)' +
+      (exentasGateadas.length ? ' — ' + exentasGateadas.join(', ') : ''));
+
+  // Los 7 de sistema: contexto ANTES que puerta. Invertirlo mata los triggers de noche.
+  for (const fn of ctx.ENTRY_POINTS_SISTEMA) {
+    const c = limpio((cuerpos.get(fn) || {}).cuerpo || '');
+    const iCtx = c.indexOf('_ctxSistema_('), iGate = c.indexOf('_soloOwner_(');
+    chk(iCtx >= 0 && iGate >= 0 && iCtx < iGate, `D31c ${fn}: _ctxSistema_ va ANTES del _soloOwner_`);
+  }
+  // Y al revés: todo handler de trigger declara contexto de sistema. Un trigger apuntando a una
+  // función que no lo declara muere con `no_autorizado` a las 4 de la mañana.
+  const handlers = new Set();
+  for (const f of fs.readdirSync(SRC).filter((x) => x.endsWith('.js'))) {
+    // Acá NO sirve `limpio` (neutraliza los strings y se lleva puesto el nombre del handler):
+    // alcanza con descartar las líneas de comentario de doc, que es donde vive el `newTrigger('X')`
+    // del ejemplo. Si esto se saltea, el assert cuenta 1 trigger y pasa en verde sin mirar nada.
+    const txt = fs.readFileSync(path.join(SRC, f), 'utf8').split('\n')
+      .filter((l) => !/^\s*(\*|\/\/)/.test(l)).join('\n');
+    for (const m of txt.matchAll(/newTrigger\(\s*(?:'([^']+)'|([A-Za-z_$][\w$]*))\s*\)/g)) {
+      handlers.add(m[1] || `var:${m[2]}`);
+    }
+  }
+  const varsTrigger = [...handlers].filter((h) => h.startsWith('var:')).map((h) => h.slice(4));
+  // Las constantes viven en 06_avisos.js, que este harness no carga: se resuelven del source.
+  const fuentes = fs.readdirSync(SRC).filter((x) => x.endsWith('.js'))
+    .map((x) => fs.readFileSync(path.join(SRC, x), 'utf8')).join('\n');
+  const resolverVar = (v) => {
+    const m = fuentes.match(new RegExp('var ' + v + "\\s*=\\s*'([^']+)'"));
+    return m ? m[1] : 'NO-RESUELTA:' + v;
+  };
+  const nombresTrigger = [...handlers].filter((h) => !h.startsWith('var:'))
+    .concat(varsTrigger.map(resolverVar));
+  const sinCtx = nombresTrigger.filter((h) => ctx.ENTRY_POINTS_SISTEMA.indexOf(h) < 0);
+  chk(sinCtx.length === 0,
+      'D31d todo handler de newTrigger está declarado en ENTRY_POINTS_SISTEMA' +
+      (sinCtx.length ? ' — SIN CONTEXTO: ' + sinCtx.join(', ') : ' (' + nombresTrigger.length + ' triggers)'));
+
+  // La lección del 03-ago: la alerta de intrusión corre pre-auth y no puede morir por el gate.
+  chk(!gateado((cuerpos.get('_crearAviso_') || {}).cuerpo || ''),
+      'D31e _crearAviso_ es el sumidero interno SIN puerta (privado ⇒ fuera de la superficie RPC)');
+  chk(/_crearAviso_\(/.test(limpio((cuerpos.get('vozRechazo_') || {}).cuerpo || '')) &&
+      !/[^_]crearAviso\(/.test(limpio((cuerpos.get('vozRechazo_') || {}).cuerpo || '')),
+      'D31e2 vozRechazo_ usa el sumidero interno (la alerta sobrevive al gate: corre antes del ctx)');
+  chk(ctx.ENDPOINTS_UI.filter((n) => cuerpos.has(n) && !gateado(cuerpos.get(n).cuerpo)).length === 0,
+      'D31f todo nombre declarado en ENDPOINTS_UI tiene el gate en su cuerpo real');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

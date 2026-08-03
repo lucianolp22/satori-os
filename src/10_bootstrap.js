@@ -7,6 +7,7 @@
  * diario instalado y la primera sync hecha.
  */
 function bootstrap() {
+  _soloOwner_('bootstrap');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var out = {};
   out.setup = setup();                       // paso 2: MAESTRO + pestañas + Config
   out.clientes = cargaInicialClientes();     // paso 4: clientes reales

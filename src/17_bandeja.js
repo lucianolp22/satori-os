@@ -75,6 +75,7 @@ function bandejaUmbral_() { var n = parseInt(getConfig('bandeja_umbral_confianza
  */
 function clasificarBandeja() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('clasificarBandeja');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) return { procesados: 0, escalados: 0, pausado: true };
   var ss = getMaestro();
   var sh = ss.getSheetByName('Bandeja');
@@ -244,6 +245,7 @@ function llamadaClasificador_(prompt, maxTokens) {
 
 /** Instala (idempotente) el trigger del clasificador cada 30 min. OPT-IN (cuota de triggers). */
 function instalarTriggerBandeja() {
+  _soloOwner_('instalarTriggerBandeja');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var existe = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'clasificarBandeja'; });
   if (existe) return { ya_existia: true };
   ScriptApp.newTrigger('clasificarBandeja').timeBased().everyMinutes(30).create();

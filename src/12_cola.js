@@ -31,6 +31,7 @@ function colsCola_(sh) {
 
 /** Encolar: inserta pendiente (durable) y devuelve id. */
 function encolar(worker, tipo, payload) {
+  _soloOwner_('encolar');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = hojaCola_();
   var id = Utilities.getUuid();
   appendFila(sh, {
@@ -114,6 +115,7 @@ function reclamarColgadas_() {
  */
 function drenarCola() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('drenarCola');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: drenarCola omitida'); return { pausado: true }; }
   reclamarColgadas_();
   var worker = workerActual_();
@@ -251,7 +253,10 @@ function verifArchivoCola_() {
  * terminan en guión bajo, y ESTA es la que hay que poder correr ANTES de dejar que el archivo
  * corra solo (dice cuántas filas movería, sin mover nada). (Lección del 14-jul con sgicConsulta_.)
  */
-function verifArchivoCola() { return verifArchivoCola_(); }
+function verifArchivoCola() {
+  _soloOwner_('verifArchivoCola');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return verifArchivoCola_();
+}
 
 /**
  * Wrapper PÚBLICO — corre el archivo de cola REAL a mano (la diaria lo hace sola después).
@@ -262,7 +267,10 @@ function verifArchivoCola() { return verifArchivoCola_(); }
  * hoja, y msgBox tira desde el editor en ese contexto.)
  * Antes de correr esta: `verifArchivoCola()` dice cuántas filas movería SIN mover nada.
  */
-function archivarColaViejaREAL() { return archivarColaVieja_(); }
+function archivarColaViejaREAL() {
+  _soloOwner_('archivarColaViejaREAL');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return archivarColaVieja_();
+}
 
 // ── helpers locales ─────────────────────────────────────────────────────────
 

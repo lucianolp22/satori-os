@@ -45,6 +45,7 @@ var TARIFAS = {
  * @return {{ok, texto, usd, tokens_in, tokens_out, status, error}}
  */
 function llamadaAPI(idCliente, modulo, opts) {
+  _soloOwner_('llamadaAPI');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   opts = opts || {};
   var ts = ahoraISO();
   var proveedor = opts.proveedor || 'anthropic';
@@ -123,6 +124,7 @@ function costearUSD_(modelo, tin, tout) {
 
 /** Escribe una fila en Costos_API del Sheet del cliente indicado. */
 function logCostoCliente(idCliente, fila) {
+  _soloOwner_('logCostoCliente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = abrirCliente(idCliente).ss.getSheetByName('Costos_API');
   if (!sh) throw new Error('cliente ' + idCliente + ' sin pestaña Costos_API');
   appendFila(sh, fila);
@@ -190,6 +192,7 @@ function desanonimizar(texto, mapa) {
  * @return {{mes:string, filas:number, alertas:number}}
  */
 function consolidarCostosMes() {
+  _soloOwner_('consolidarCostosMes');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var ss = getMaestro();
   var shCons = ss.getSheetByName('Costos_API_consolidado');
   var H = shCons.getRange(1, 1, 1, shCons.getLastColumn()).getValues()[0];

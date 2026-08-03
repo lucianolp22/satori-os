@@ -30,6 +30,7 @@ function alertaEmail_(asunto, cuerpo, dedupKey) {
 }
 /** Verificacion manual (editor): manda un email de prueba si alertas_email_on=true. */
 function probarAlertaEmail() {
+  _soloOwner_('probarAlertaEmail');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sent = alertaEmail_('Prueba de alerta', 'Si recibis esto, las alertas por email de Satori OS funcionan.', null);
   return { enviado: sent, nota: sent ? 'email enviado a OWNER_EMAIL' : 'alertas_email_on=false o falta OWNER_EMAIL' };
 }
@@ -61,11 +62,27 @@ function briefPush_() {
 
 /** Verificacion manual (editor): fuerza un envio del brief-push (ignora el dedupe del dia, respeta opt-in). */
 function probarBriefPush() {
+  _soloOwner_('probarBriefPush');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   PropertiesService.getScriptProperties().deleteProperty('BRIEFPUSH_ultimo');
   return briefPush_();
 }
 
 function crearAviso(a) {
+  _soloOwner_('crearAviso');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return _crearAviso_(a);
+}
+
+/**
+ * Sumidero INTERNO de avisos (mismo cuerpo, sin puerta). Existe por un caso concreto y crítico:
+ * `vozRechazo_` (08_webapp.js) avisa de un POST NO autorizado, y corre a propósito ANTES de
+ * `_ctxSistema_()` — un request sin secreto válido jamás obtiene contexto de sistema (invariante
+ * X1/M1a). Con el gate de X4 sobre `crearAviso`, esa llamada tiraba `no_autorizado` dentro del
+ * `catch` vacío de `vozRechazo_`: el rechazo seguía devolviendo `unauthorized`, pero **el aviso de
+ * intrusión no nacía nunca**. Endurecer la puerta apagaba la alarma, en silencio.
+ * Es privada (`_` final ⇒ NO invocable por google.script.run), así que no reabre la superficie RPC
+ * que X4 vino a cerrar. Todo camino que NO sea pre-auth debe seguir usando `crearAviso`.
+ */
+function _crearAviso_(a) {
   var sh = getMaestro().getSheetByName('Avisos');
   return conLock(function () { // PURGA #4: dedupe + nextId + append, atómico
     var activos = leerTabla(sh).filter(function (f) { return String(f.estado) === 'activo'; });
@@ -94,6 +111,7 @@ function crearAviso(a) {
  */
 function corridaDiaria() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('corridaDiaria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
   var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
@@ -172,6 +190,7 @@ function corridaDiaria() {
 
 /** Encola una corrida de Vigía por cada cliente activo. Devuelve cuántas encoló. */
 function encolarVigiaClientesActivos() {
+  _soloOwner_('encolarVigiaClientesActivos');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var activos = ['activo', 'activo-piloto'];
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
     return activos.indexOf(String(c.estado).toLowerCase()) >= 0;
@@ -182,6 +201,7 @@ function encolarVigiaClientesActivos() {
 
 /** Tareas con fecha_límite pasada y estado no terminal → aviso. */
 function detectarVencimientos() {
+  _soloOwner_('detectarVencimientos');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = getMaestro().getSheetByName('Tareas');
   var hoy = hoyISO();
   var n = 0;
@@ -213,6 +233,7 @@ function detectarVencimientos() {
 var ESTANCADAS_MAX = 3;
 
 function detectarTareasEstancadas() {
+  _soloOwner_('detectarTareasEstancadas');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var dias = parseInt(getConfig('dias_estancamiento_tarea') || '7', 10);
   var sh = getMaestro().getSheetByName('Tareas');
   var limite = hace(dias);
@@ -275,6 +296,7 @@ function resolverAvisosDonde_(pred) {
 
 /** Proyectos sin movimiento > N días (fecha_ultimo_movimiento). */
 function detectarProyectosSinMovimiento() {
+  _soloOwner_('detectarProyectosSinMovimiento');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var dias = parseInt(getConfig('dias_estancamiento_proyecto') || '7', 10);
   var sh = getMaestro().getSheetByName('Proyectos');
   var limite = hace(dias);
@@ -300,6 +322,7 @@ function detectarProyectosSinMovimiento() {
  * la fila pendiente, no se borra.
  */
 function expirarAprobaciones(soloCliente) {
+  _soloOwner_('expirarAprobaciones');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var dias = parseInt(getConfig('expiracion_aprobaciones_dias') || '7', 10);
   var limite = hace(dias);
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes'));
@@ -379,7 +402,10 @@ function mapaProyectoCliente() {
   });
   return _mapaPC;
 }
-function invalidarMapaPC() { _mapaPC = null; }
+function invalidarMapaPC() {
+  _soloOwner_('invalidarMapaPC');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  _mapaPC = null;
+}
 
 /** id_cliente al que pertenece un id_proyecto (vía mapa memoizado). */
 function clienteDeProyecto(idProyecto) {
@@ -391,6 +417,7 @@ function clienteDeProyecto(idProyecto) {
  * Cuota consumer: un solo trigger batched, no uno por flujo (0.4).
  */
 function instalarTriggers() {
+  _soloOwner_('instalarTriggers');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   // E1.2 T3: + sincronizarConectores cada 8h (frescura intradía de ventas de clientes, decisión a de
   // Vehemence). SOLO el sync de conectores — el brief y los avisos siguen 1×/día en corridaDiaria.
   // sincronizarConectores es seguro suelto: solo sincroniza (conLock), no manda emails ni avisos.

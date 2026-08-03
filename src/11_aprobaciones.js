@@ -391,7 +391,10 @@ function crearReglaDesdeExcepcion(idCliente, condicion, accion, origen) {
  * Aprobaciones pendientes > N días → "expirada" + aviso. Alias del expirador de E1
  * (06_avisos.js) con el nombre que usa la spec de E2. El silencio NUNCA aprueba.
  */
-function expirarPendientes() { return expirarAprobaciones(); }
+function expirarPendientes() {
+  _soloOwner_('expirarPendientes');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return expirarAprobaciones();
+}
 
 // ── helpers locales ─────────────────────────────────────────────────────────
 

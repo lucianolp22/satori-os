@@ -10,6 +10,7 @@
  * Limpia su cliente de prueba al final (lo manda a la papelera — reversible).
  */
 function selfTest() {
+  _soloOwner_('selfTest');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var log = [], salida = '';
   function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) throw new Error('FALLO: ' + msg); }
 
@@ -568,7 +569,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ },
    { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ },
    { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ },
-   { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ }].forEach(function (t) {
+   { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ },
+   { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1972,6 +1974,72 @@ function _asertsD30_(chk, log, opts) {
   log.push('   ↳ D30 Sato: aislamiento T1.8 + memoria por tenant + cierre T2.1 verificados contra Sheets');
 }
 
+/**
+ * D31 · X4 — la puerta `_soloOwner_` sobre las top-level que mutan estado o gastan servicios.
+ * TODO liviano: introspección de código + funciones puras. Cero Sheets, cero API, cero LLM →
+ * corre igual en `selfTest()` y en `selfTestF2()` (no necesita `opts.completo`).
+ * Nada de conteos clavados a mano: lo que se cuenta se deriva de `ENDPOINTS_UI` / `ENTRY_POINTS_SISTEMA`.
+ */
+function _asertsD31_(chk, log, opts) {
+  // ── D31a · cobertura: el scan no encuentra UN endpoint declarado sin puerta. ──
+  // Es el mismo criterio de D19c pero por el camino del scan (el que corre en correrSalud),
+  // así el chequeo 7 de salud y el selfTest no pueden divergir.
+  var d31scan = securityScan_({ endpoints: ENDPOINTS_UI });
+  var d31a = (d31scan.hallazgos || []).filter(function (h) { return String(h.que).indexOf('endpoints sin _soloOwner_') === 0; });
+  chk(d31a.length === 0, 'D31a securityScan_ no halla NINGÚN endpoint sin _soloOwner_' +
+      (d31a.length ? ' — ' + d31a[0].que : ' (' + ENDPOINTS_UI.length + ' declarados)'));
+  var d31raros = (d31scan.hallazgos || []).filter(function (h) { return String(h.que).indexOf('endpoints no verificables') === 0; });
+  chk(d31raros.length === 0, 'D31a2 ningún endpoint queda "no verificable" (un scan que no puede leer el source no certifica nada)' +
+      (d31raros.length ? ' — ' + d31raros[0].que : ''));
+
+  // ── D31b · el orden en los entry points de SISTEMA: contexto ANTES que puerta. ──
+  // Invertirlo mata los triggers de noche. Se mide sobre el source real, por posición.
+  ENTRY_POINTS_SISTEMA.forEach(function (fn) {
+    var src = _srcDe_(fn) || '';
+    var iCtx = src.indexOf('_ctxSistema_(');
+    var iGate = src.indexOf('_soloOwner_(');
+    chk(iCtx >= 0 && iGate >= 0 && iCtx < iGate,
+        'D31b ' + fn + ' declara _ctxSistema_ ANTES del _soloOwner_ (al revés rompe el trigger)');
+  });
+
+  // ── D31c · el gate corta de verdad: sin contexto de sistema y sin identidad de owner, TIRA. ──
+  // Se fuerza el veredicto de identidad por el cache (no se toca Session ni OWNER_EMAIL: un test
+  // que escriba esa property y muera a mitad deja a Luciano afuera de su propio CM — ver D19a).
+  var d31ctxPrev = SATORI_CTX_SISTEMA, d31ownerPrev = _OWNER_OK_;
+  try {
+    SATORI_CTX_SISTEMA = false; _OWNER_OK_ = false;
+    var d31tiro = '';
+    try { _soloOwner_('__test_d31__'); } catch (e) { d31tiro = String((e && e.message) || e); }
+    chk(d31tiro === 'no_autorizado', 'D31c sin contexto de sistema y sin owner, _soloOwner_ TIRA no_autorizado');
+    SATORI_CTX_SISTEMA = true;
+    var d31pasa = '';
+    try { _soloOwner_('__test_d31__'); } catch (e2) { d31pasa = String((e2 && e2.message) || e2); }
+    chk(d31pasa === '', 'D31c2 con contexto de sistema (trigger/doPost autenticado) el gate deja pasar');
+  } finally { SATORI_CTX_SISTEMA = d31ctxPrev; _OWNER_OK_ = d31ownerPrev; }
+
+  // ── D31d · la memoización del veredicto de identidad (por qué: 68 gates nuevos × 2 llamadas a
+  // servicio cada uno era latencia y cuota que no compran nada). Una vez preguntado, no se repregunta.
+  var d31mPrev = _OWNER_OK_;
+  try {
+    _OWNER_OK_ = null;
+    var d31v1 = _esOwner_();
+    chk(_OWNER_OK_ !== null, 'D31d _esOwner_ deja el veredicto cacheado por ejecución (no repregunta a Session)');
+    chk(_esOwner_() === d31v1, 'D31d2 el veredicto cacheado es estable dentro de la misma ejecución');
+  } finally { _OWNER_OK_ = d31mPrev; }
+
+  // ── D31e · la lección del 03-ago: endurecer la puerta no puede apagar la alarma. ──
+  // `vozRechazo_` avisa de un POST no autorizado y corre ANTES de `_ctxSistema_()` a propósito
+  // (un request sin secreto jamás obtiene contexto). Si usara `crearAviso` (gateada), el throw
+  // caería en su catch vacío y el aviso de intrusión no nacería NUNCA — en silencio.
+  chk(String(crearAviso).indexOf('_soloOwner_') >= 0, 'D31e crearAviso conserva su puerta (endpoint público)');
+  chk(String(_crearAviso_).indexOf('_soloOwner_') < 0, 'D31e2 _crearAviso_ es el sumidero interno SIN puerta (privado: no lo alcanza google.script.run)');
+  chk(String(vozRechazo_).indexOf('_crearAviso_') >= 0 && String(vozRechazo_).indexOf(' crearAviso(') < 0,
+      'D31e3 vozRechazo_ avisa por el sumidero interno (la alerta de intrusión sobrevive al gate)');
+
+  log.push('   ↳ D31 X4: ' + ENDPOINTS_UI.length + ' endpoints con puerta · ' +
+           ENTRY_POINTS_SISTEMA.length + ' entry points de sistema con el orden ctx→gate');
+}
+
 function selfTestF2_() {
   var log = [], fallos = [];
   // chk ACUMULATIVO (16-jul): registra y SIGUE. El chk fatal de selfTest() devolvía UN rojo por
@@ -2004,7 +2072,10 @@ function selfTestF2_() {
  * que terminan en guión bajo (son privadas por convención GAS). Sin esto, Luciano no la puede correr.
  * Misma lección que el 14-jul con sgicConsulta_, ya anotada en el HANDOFF.
  */
-function selfTestF2() { return selfTestF2_(); }
+function selfTestF2() {
+  _soloOwner_('selfTestF2');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return selfTestF2_();
+}
 
 /**
  * Diagnóstico aislado de E2-1 (correr a mano en el editor). NO es un fix: instrumenta
@@ -2012,6 +2083,7 @@ function selfTestF2() { return selfTestF2_(); }
  * corrida. Crea un cliente __TEST__ y lo manda a papelera al final.
  */
 function debugE21() {
+  _soloOwner_('debugE21');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var out = [];
   function L(x) { out.push(String(x)); Logger.log(String(x)); }
   var r = null;
@@ -2084,6 +2156,7 @@ function debugE21() {
  * Sirve también para limpiar restos de una corrida que falló antes del cleanup.
  */
 function limpiarTodoTest() {
+  _soloOwner_('limpiarTodoTest');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var ss = getMaestro();
   var shClientes = ss.getSheetByName('Clientes');
   var testClientes = leerTabla(shClientes).filter(function (f) {
@@ -2153,6 +2226,7 @@ function limpiarTodoTest() {
 /** Borra filas de una pestaña según un predicado. PURGA #25: era (sh,columna,valor,pred)
  * con la rama por igualdad muerta — todos los llamadores usaban solo pred. */
 function borrarFilasDonde(sh, pred) {
+  _soloOwner_('borrarFilasDonde');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var filas = leerTabla(sh);
   // de abajo hacia arriba para no desfasar índices
   for (var i = filas.length - 1; i >= 0; i--) {

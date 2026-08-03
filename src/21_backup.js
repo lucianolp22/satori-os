@@ -167,6 +167,7 @@ function _ejecutarBackup_() {
 /** Trigger semanal: respeta la pausa operativa (kill switch). */
 function backupSemanal() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('backupSemanal');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: backupSemanal omitida'); return { pausado: true }; }
   try {
     return _ejecutarBackup_();
@@ -181,6 +182,7 @@ function backupSemanal() {
 
 /** Backup manual desde el editor (deliberado → ignora la pausa). */
 function backupAhora() {
+  _soloOwner_('backupAhora');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var r = _ejecutarBackup_();
   Logger.log('backupAhora: ' + JSON.stringify(r));
   return r;
@@ -188,6 +190,7 @@ function backupAhora() {
 
 /** Instala (idempotente) el trigger semanal: domingo 04:00 Europe/Madrid. */
 function instalarTriggerBackup() {
+  _soloOwner_('instalarTriggerBackup');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var existe = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === 'backupSemanal'; });
   var out;
   if (existe) {
@@ -215,6 +218,7 @@ function estadoTriggerBackup() {
  * TODO a la papelera. Correr desde el editor. pass=false indica qué op falló.
  */
 function smokeBackup() {
+  _soloOwner_('smokeBackup');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var rep = [];
   var tmp = null, sub = null, copiaId = null;
   try {
@@ -252,6 +256,7 @@ function smokeBackup() {
  * archivos tiene cada una. Correr desde el editor.
  */
 function backupListar() {
+  _soloOwner_('backupListar');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var root = _backupRootFolder_();
   var out = [];
   var it = root.getFolders();
@@ -276,6 +281,7 @@ function backupListar() {
  * Prueba que el backup ES restaurable (no asumido). Correr desde el editor.
  */
 function drillRestore() {
+  _soloOwner_('drillRestore');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var r = _drillRestore_();
   Logger.log('drillRestore: ' + JSON.stringify(r));
   return r;

@@ -209,7 +209,10 @@ function verifBriefCache_() {
 // bajo (privada por convención GAS). TODA función que Luciano corra a mano DEBE tener un wrapper
 // público sin guion bajo. Violada 2 veces hoy (selfTestF2_, calentarBriefCacheSistema_) — basta.
 /** Recalienta el cache del brief de sistema (correr POST-promote: el cache sobrevive al deploy). */
-function calentarBriefCache() { return calentarBriefCacheSistema_(); }
+function calentarBriefCache() {
+  _soloOwner_('calentarBriefCache');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return calentarBriefCacheSistema_();
+}
 /** Mide render(miss) vs cache(hit) del brief. */
 function verifBriefCache() { return verifBriefCache_(); }
 
@@ -251,7 +254,10 @@ function calentarEstadoCacheSistema_() {
 }
 
 /** Wrapper público (regla dura 16-jul: el desplegable del editor oculta los `_` finales). */
-function calentarEstadoCache() { return calentarEstadoCacheSistema_(); }
+function calentarEstadoCache() {
+  _soloOwner_('calentarEstadoCache');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return calentarEstadoCacheSistema_();
+}
 
 /** Mide render(miss) vs cache(hit) del estado — correr en el editor. Esperado: hit <1s. */
 function verifEstadoCache() {
@@ -922,7 +928,10 @@ function sembrarNorthStarSatori_() {
  * terminan en guión bajo. Es un paso de puesta en marcha que corre Luciano a mano: tiene que verla.
  * (Lección del 14-jul con sgicConsulta_.)
  */
-function sembrarNorthStarSatori() { return sembrarNorthStarSatori_(); }
+function sembrarNorthStarSatori() {
+  _soloOwner_('sembrarNorthStarSatori');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return sembrarNorthStarSatori_();
+}
 
 /**
  * Puesta en marcha — EDITAR y correr desde el editor para fijar/cambiar el North Star de Satori.
@@ -930,6 +939,7 @@ function sembrarNorthStarSatori() { return sembrarNorthStarSatori_(); }
  * descartados van UNO POR LÍNEA como 'fecha·qué·porqué'. Los 3 campos nuevos son OPCIONALES.
  */
 function cargarNorthStarSatori(extra) {
+  _soloOwner_('cargarNorthStarSatori');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   extra = extra || {};
   setConfig('ns_satori_desc', extra.desc || 'Gestionar 6 clientes pagos en paralelo, cada mes, entre servicios (resto de 2026)');
   setConfig('ns_satori_metrica', extra.metrica || 'clientes_pagos_paralelo');
@@ -960,6 +970,7 @@ function cargarNorthStarSatori(extra) {
  * Reusa cargarObjetivo (15_cerebro) → escribe en la pestaña `objetivos` del Sheet de Vehemence.
  */
 function cargarNorthStarVehemence(extra) {
+  _soloOwner_('cargarNorthStarVehemence');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   // Vehemence opera en ARS. AOV real ≈ $104k/orden (may/jun 2026) → target propuesto $120.000 (+~15%); ajustar.
   // id_objetivo:'OBJ-0001' → actualiza el objetivo existente en lugar (no duplica).
   // OJO (20-jul): OBJ-0001 hoy está en estado 'reemplazado' (lo reemplazaron OBJ-0002/0003, que son
@@ -1237,7 +1248,10 @@ function limpiarErroresFantasma_() {
 }
 
 /** Wrapper PÚBLICO (el dropdown del editor no lista funciones con guión bajo). Lo corre Luciano. */
-function limpiarErroresFantasma() { return limpiarErroresFantasma_(); }
+function limpiarErroresFantasma() {
+  _soloOwner_('limpiarErroresFantasma');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return limpiarErroresFantasma_();
+}
 
 /** Ver Vehemence (CLI-002) desde el editor: loguea su estado vigente + su brief. No-arg. */
 function verVehemence() {
@@ -1527,6 +1541,7 @@ function _nsSerieHoy_() {
  * efectivo); el brief solo la MUESTRA (no escribe).
  */
 function registrarRecomendacionDelDia() {
+  _soloOwner_('registrarRecomendacionDelDia');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var sh = getMaestro().getSheetByName('Recomendaciones');
   if (!sh) return { ok: false, motivo: 'falta hoja Recomendaciones (correr setup)' };
   var r = recomendacionDelDia_();

@@ -238,6 +238,7 @@ function _evalEstructuraClasificacion_(c) {
  * @return {{total:number, ok:number, fallos:Array, por_familia:Object, api:boolean}}
  */
 function correrEvals(opts) {
+  _soloOwner_('correrEvals');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   opts = opts || {};
   var casos = EVALS_GOLDEN.filter(function (c) {
     if (opts.familia && c.familia !== opts.familia) return false;
@@ -269,4 +270,7 @@ function correrEvals(opts) {
 }
 
 /** No-arg del editor: corre TODO, incluida la familia LLM (gasta API). */
-function correrEvalsConApi() { return correrEvals({ conApi: true }); }
+function correrEvalsConApi() {
+  _soloOwner_('correrEvalsConApi');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
+  return correrEvals({ conApi: true });
+}

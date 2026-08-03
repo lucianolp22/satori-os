@@ -28,6 +28,7 @@ var CONECTOR_AVISO_FILAS = 50000;
 
 /** Conector de Vehemence (CLI-002): no-arg para correr del editor. Lee DB_VENTAS → Datos_operativos. */
 function sincronizarVehemence() {
+  _soloOwner_('sincronizarVehemence');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   return sincronizarConectorVentas_('CLI-002', VEHEMENCE_DB_ID, 'DB_VENTAS', 'Vehemence SGIC · DB_VENTAS');
 }
 
@@ -466,6 +467,7 @@ function sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad, cfg) 
  */
 function sincronizarConectores() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
+  _soloOwner_('sincronizarConectores');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   var out = { corridos: 0, omitidos: [], errores: [] };
   var mapa = {};
   try { mapa = _mapaConectores_(leerTabla(getMaestro().getSheetByName('Config'))); }

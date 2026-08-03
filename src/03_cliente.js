@@ -11,6 +11,7 @@
  * @return {Object} { id_cliente, url, ya_existia }
  */
 function crearCliente(datos) {
+  _soloOwner_('crearCliente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   if (!datos || !datos.nombre) throw new Error('crearCliente: falta nombre.');
   var ss = getMaestro();
   var shClientes = ss.getSheetByName('Clientes');
@@ -71,6 +72,7 @@ function crearCliente(datos) {
  * @return {Array} resultados de cada crearCliente()
  */
 function cargaInicialClientes() {
+  _soloOwner_('cargaInicialClientes');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   // 27-jul: nombres FORMALIZADOS por Luciano (aplicados en prod por aplicarCartera2707). La
   // idempotencia de crearCliente es POR NOMBRE: esta lista debe usar los nombres vigentes o un
   // re-seed duplicaría clientes. DEMO fuera (baja definitiva 27-jul); EJF adentro.
