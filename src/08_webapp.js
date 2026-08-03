@@ -1048,9 +1048,12 @@ function estadoAgentes() {
   // E1.1: avatar_url por agente desde Config (una sola lectura). Vacío => el CM cae al placeholder.
   var avatares = configPrefijo_('avatar_');
   var agentes = Object.keys(AGENTES).map(function (k) {
-    var a = AGENTES[k];
+    // TC-9: la UI muestra el estado EFECTIVO (con el override de `Agentes_estado`), no el default
+    // del código — si no, un agente promovido seguiría figurando "en laboratorio" en el CM.
+    var a = agenteEfectivo_(k);
     return { clave: k, nombre: a.nombre, rol: a.rol, activo: a.activo, gate: a.gate, estado: estados[k] || 'idle',
-             hoy: hoyAg[k] || { total: 0, ok: 0 }, ultimo: ultimoDe[a.nombre] || '', avatar_url: avatares[k] || '' };
+             hoy: hoyAg[k] || { total: 0, ok: 0 }, ultimo: ultimoDe[a.nombre] || '', avatar_url: avatares[k] || '',
+             promovido: a.promovido, promovido_en: a.promovido_en };
   });
   // Director (orquestador, no vive en AGENTES): carga real = encoladas de hoy en la cola.
   agentes.push({ clave: 'director', nombre: 'Director', rol: 'Orquestación', activo: true, gate: false,

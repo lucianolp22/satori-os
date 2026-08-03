@@ -34,6 +34,15 @@ function setup() {
     if (!existentes[par[0]]) shConfig.appendRow([par[0], par[1]]);
   });
 
+  // TC-9 · Forge: `Agentes_estado` decide qué agentes pueden correr y gastar API. Se protege y se
+  // oculta por la misma razón que las hojas sensibles del cliente: no es una hoja para editar a
+  // mano de pasada. Los caminos legítimos son `promoverAgente` (con aprobación) y `demoverAgente`.
+  // Idempotente y no fatal: si la protección falla, el sistema funciona igual — pero se registra.
+  try {
+    var shAg = ss.getSheetByName('Agentes_estado');
+    if (shAg) { protegerSheet(shAg, false); if (!shAg.isSheetHidden()) shAg.hideSheet(); }
+  } catch (eAg) { try { Logger.log('Agentes_estado sin proteger/ocultar: ' + eAg.message); } catch (_e) {} }
+
   // Quitar la pestaña por defecto "Sheet1"/"Hoja 1" si quedó vacía.
   var def = ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1') || ss.getSheetByName('Hoja1');
   if (def && ss.getSheets().length > 1) { try { ss.deleteSheet(def); } catch (e) {} }

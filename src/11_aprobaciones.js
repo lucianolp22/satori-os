@@ -326,6 +326,12 @@ function ejecutarAprobada(idCliente, id) {
       case 'crear_objetivo':
         res = ejecutarCrearObjetivo_(idCliente, payload);
         break;
+      // TC-9 · Forge: ÚNICO camino por el que un agente de laboratorio se enciende. Llegar hasta
+      // acá exige estado aprobada/editada, o sea una decisión humana explícita sobre una
+      // aprobación que llevaba el test-gate adjunto y a la vista.
+      case 'promover_agente':
+        res = _forgeAplicarPromocion_(payload);
+        break;
       default:
         // Sin sistema externo cableado todavía (Etapa 3): se registra como ejecutada.
         res = { ok: true, detalle: 'acción "' + a.tipo_accion + '" registrada (sin destino externo en E2)' };

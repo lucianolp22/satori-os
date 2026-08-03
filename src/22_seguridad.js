@@ -248,6 +248,10 @@ var ENDPOINTS_UI = [
   // es el endpoint más sensible del sistema en términos de contenido.
   'exportarCharlas', 'rotarSecretoCharlaExport',                                // 26_sato.js / 22_seguridad.js
 
+  // ── TC-9 (03-ago) · Forge. `promoverAgente` NO enciende nada (crea la aprobación), pero
+  // `demoverAgente` SÍ muta el estado al instante: apagar es libre, no anónimo.
+  'promoverAgente', 'demoverAgente', 'agentesEstado',                           // 28_forge.js
+
   // ── TC-3 (03-ago) · actividad inter-agentes: read-only, pero cruza TODOS los tenants (es la
   // vista de sistema del CM), así que la puerta importa más, no menos.
   'datosActividadAgentes'                                                       // 08_webapp.js
@@ -454,7 +458,7 @@ function _rotarSecreto_(propSecreto, propExpira, destino) {
 // Esto NO reemplaza el default-deny de Umbrales (montos, 11_aprobaciones): lo complementa.
 // Aquél decide "cuánto"; éste decide "qué clase de cosa".
 
-var RIESGO_TIPOS = ['leer_tenant', 'escribir_tenant', 'ejecutar_agente', 'accion_externa', 'tocar_config', 'tocar_secretos'];
+var RIESGO_TIPOS = ['leer_tenant', 'escribir_tenant', 'ejecutar_agente', 'accion_externa', 'tocar_config', 'tocar_secretos', 'promover_agente'];
 var RIESGO_MODOS = ['permitir', 'aprobar', 'bloquear'];
 var RIESGO_SIEMBRA = {
   leer_tenant:     'permitir',   // lectura del propio roster, ya gateada por _soloOwner_/doPost
@@ -462,7 +466,11 @@ var RIESGO_SIEMBRA = {
   ejecutar_agente: 'permitir',   // los agentes con gate ya proponen vía crearAprobacion; bloquear acá mataría el CM
   accion_externa:  'bloquear',   // nada sale del sistema sin decisión explícita de Luciano
   tocar_config:    'bloquear',   // Config se edita desde el editor/hoja, jamás por un camino automático
-  tocar_secretos:  'bloquear'    // Script Properties: solo rotarSecreto*() a mano
+  tocar_secretos:  'bloquear',   // Script Properties: solo rotarSecreto*() a mano
+  // TC-9 (Forge): promover un agente de laboratorio a producción. `aprobar`, nunca `permitir`:
+  // le da permiso de gastar API y de proponer sobre datos de clientes. Si alguien lo pone en
+  // `bloquear`, Forge deja de poder promover y lo DICE — que es el comportamiento correcto.
+  promover_agente: 'aprobar'
 };
 
 /** Cache por-ejecución de la matriz (evita releer Config en cada acción de la cola). */

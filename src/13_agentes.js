@@ -73,11 +73,76 @@ function registrarConsumoAgente_(usd, clave) {
   });
 }
 
+// ═══ TC-9 · FORGE — el estado EFECTIVO de un agente (código + datos) ════════
+//
+// El roster de arriba define los DEFAULTS. La hoja `Agentes_estado` del MAESTRO los overridea en
+// runtime: eso es el hot-reload — encender o apagar un agente deja de ser editar este archivo y
+// hacer `clasp push`. Todo el que pregunte por `activo`/`gate`/`maxDia` tiene que pasar por acá;
+// leer `AGENTES[clave]` directo se saltea el override y devuelve el estado de ayer.
+//
+// TRES REGLAS DURAS:
+//  1. La hoja solo MODULA. Un `id_agente` que no existe en el roster del código se IGNORA: los
+//     datos no pueden inventar un agente, solo cambiarle el estado a uno que ya existe.
+//  2. FAIL-SAFE HACIA APAGADO. Si la hoja no se puede leer, se usan los defaults del código — que
+//     para los 8 del laboratorio es `activo:false`. Un error de lectura nunca ENCIENDE nada.
+//  3. Cache por ejecución, no entre ejecuciones. El hot-reload es entre corridas; dentro de una
+//     misma corrida el estado no debe cambiar bajo los pies del que ya decidió.
+
+var _AGENTES_EFECTIVO_ = null;
+
+/** Lee `Agentes_estado` y arma el override por clave. Tolerante: una fila rota se ignora. */
+function _agentesOverride_() {
+  if (_AGENTES_EFECTIVO_) return _AGENTES_EFECTIVO_;
+  var m = {};
+  try {
+    var sh = getMaestro().getSheetByName('Agentes_estado');
+    if (sh) {
+      leerTabla(sh).forEach(function (f) {
+        var k = String(f.id_agente || '').trim();
+        if (!k || !AGENTES[k]) return;                       // regla 1: la hoja no inventa agentes
+        var o = {};
+        var act = String(f.activo).trim().toLowerCase();
+        if (act === 'true' || act === 'false') o.activo = (act === 'true');
+        var g = String(f.gate).trim().toLowerCase();
+        if (g === 'true' || g === 'false') o.gate = (g === 'true');
+        var md = parseInt(f.max_dia, 10);
+        if (isFinite(md) && md >= 0) o.maxDia = md;
+        o.promovido_en = String(f.promovido_en || '');
+        o.promovido_por = String(f.promovido_por || '');
+        m[k] = o;
+      });
+    }
+  } catch (e) {
+    // regla 2: sin overrides, mandan los defaults del código (los del lab siguen apagados).
+    try { Logger.log('Agentes_estado ilegible, se usan los defaults del código: ' + e.message); } catch (_l) {}
+    m = {};
+  }
+  _AGENTES_EFECTIVO_ = m;
+  return m;
+}
+
+/**
+ * Estado EFECTIVO de un agente: defaults del código + override de datos.
+ * @return {Object|null} copia (nunca la referencia del roster: nadie muta el default sin querer)
+ */
+function agenteEfectivo_(clave) {
+  var base = AGENTES[clave];
+  if (!base) return null;
+  var o = _agentesOverride_()[clave] || {};
+  return { nombre: base.nombre, rol: base.rol,
+           activo: (o.activo === undefined ? base.activo : o.activo),
+           gate: (o.gate === undefined ? base.gate : o.gate),
+           maxDia: (o.maxDia === undefined ? base.maxDia : o.maxDia),
+           promovido_en: o.promovido_en || '', promovido_por: o.promovido_por || '',
+           promovido: !!(o.activo === true && base.activo === false) };
+}
+
 /** Guard de cupo/presupuesto. {ok} o {ok:false, motivo}. Vigía nunca se pausa por tope mensual. */
 function guardPresupuesto_(clave) {
   var c = filaConsumoAgentes_(), tope = budgetMensualUSD_();
   var hoy = c.corridas[clave + ':' + hoyISO()] || 0;
-  if (hoy >= AGENTES[clave].maxDia) return { ok: false, motivo: 'cupo diario alcanzado (' + AGENTES[clave].maxDia + ')' };
+  var maxDia = (agenteEfectivo_(clave) || AGENTES[clave]).maxDia;   // TC-9: el cupo también es hot-reload
+  if (hoy >= maxDia) return { ok: false, motivo: 'cupo diario alcanzado (' + maxDia + ')' };
   if (c.gasto >= tope && clave !== 'vigia') return { ok: false, motivo: 'tope mensual de API alcanzado (USD ' + tope + ')' };
   if (c.gasto >= tope * 0.8 && c.gasto < tope) {
     var flag = 'AVISO80_' + mesISO();
@@ -216,7 +281,9 @@ var RUNNERS = {
 
 /** Punto de entrada único (lo llama la cola). */
 function correrAgente_(clave, args, tareaId, idCliente) {
-  var ag = AGENTES[clave];
+  // TC-9: estado EFECTIVO (código + override de datos). Leer AGENTES[clave] directo acá se
+  // saltearía el hot-reload: un agente promovido seguiría "en el laboratorio" hasta el próximo push.
+  var ag = agenteEfectivo_(clave);
   if (!ag) return { status: 'error', detalle: 'agente desconocido' };
   if (!ag.activo) { // laboratorio: error honesto, nunca corre (caso 10)
     feed_(ag.nombre, 'info', idCliente || '', ag.nombre + ' está en el laboratorio (no activo).', tareaId, '');
@@ -246,7 +313,7 @@ function correrAgente_(clave, args, tareaId, idCliente) {
  */
 function encolarAgente(idCliente, clave, args) {
   _soloOwner_('encolarAgente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
-  if (!AGENTES[clave]) throw new Error('agente desconocido');
+  if (!AGENTES[clave]) throw new Error('agente desconocido');   // el universo lo define el CÓDIGO
   if (!idCliente) throw new Error('falta id_cliente');
   idCliente = String(idCliente).trim();
   if (!clienteExiste_(idCliente)) throw new Error('tenant desconocido: ' + idCliente);

@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-04 01:09 · commit: 216f074
+> Generado: 2026-08-04 01:36 · commit: 84202e2
 
 ## Módulos
 
@@ -16,11 +16,11 @@
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 65 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 32 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 33 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
-| `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
+| `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 14 |
 | `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 10 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 25 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 3 |
@@ -35,6 +35,7 @@
 | `25_hilo.js` | HILO DE TRABAJO por cliente (TC-W1 / W2 / W4 · 21-jul-2026) | 12 |
 | `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 15 |
 | `27_decisiones.js` | DECISION LOG (TC-2 · F4b). Las decisiones de dirección, con su porqué | 6 |
+| `28_forge.js` | FORGE (TC-9 · adenda 03-ago). Promoción laboratorio → producción de agentes | 8 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -79,7 +80,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Pestañas
 
-**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Cola_archivo, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Recomendaciones, Agenda, Direcciones, NS_serie, Decisiones, Config
+**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Cola_archivo, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Recomendaciones, Agenda, Direcciones, NS_serie, Decisiones, Agentes_estado, Config
 
 **Cliente:** Datos_operativos, KPIs, Aprobaciones, Excepciones, Umbrales, Costos_API, Reglas, nodos, aristas, cerebro_log, estado_actual, objetivos
 
@@ -135,7 +136,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **08_webapp.js:** doGet doPost vozOut_ vozAuth_ charlaExportAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -143,7 +144,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **12_cola.js:** workerActual_ hojaCola_ colsCola_ encolar tomar_ setFilaCola_ completar_ fallar_ reclamarColgadas_ drenarCola ejecutarTarea_ archivarColaVieja_ _colaArchivable_ verifArchivoCola_ verifArchivoCola archivarColaViejaREAL aFechaHora_ 
 
-**13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
+**13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ _agentesOverride_ agenteEfectivo_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
 
 **14_director.js:** correrDirector _pmNodoId_ _pmFoto_ _pmValorMetrica_ _pmDelta_ _pmVencido_ _pmPregunta_ poblarCerebro_ chequeoLivianoDirector instalarTriggerDirector 
 
@@ -172,4 +173,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **26_sato.js:** _charlaSheet_ _charlaQuien_ _charlaMd_ exportarCharlas satoCharla _satoClienteValido_ _satoDatos_ _satoPedido_ _satoContexto_ satoChat satoVoz diagVoz _satoTurnosHoy_ satoCierreSesion satoAplicarCierre 
 
 **27_decisiones.js:** _decisionVisible_ _decisionNormalizar_ registrarDecision decisionesVigentes revertirDecision sembrarDecisionInicial 
+
+**28_forge.js:** _forgeSlop_ _forgeTestGateDet_ _forgeTestGate_ promoverAgente demoverAgente _forgeEstadoUpsert_ _forgeAplicarPromocion_ agentesEstado 
 

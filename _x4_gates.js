@@ -88,6 +88,8 @@ X4['08_webapp.js'] = (X4['08_webapp.js'] || []).concat(['datosActividadAgentes']
 // TC-5: export de charlas (read-only pero devuelve todo lo hablado) + su rotación de secreto.
 X4['26_sato.js'] = (X4['26_sato.js'] || []).concat(['exportarCharlas']);
 X4['22_seguridad.js'] = (X4['22_seguridad.js'] || []).concat(['rotarSecretoCharlaExport']);
+// TC-9 (Forge): promover crea una aprobacion; demover muta el estado al instante.
+X4['28_forge.js'] = ['promoverAgente', 'demoverAgente', 'agentesEstado'];
 
 let total = 0, puestos = 0, yaTenian = 0;
 const fallos = [];

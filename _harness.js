@@ -70,7 +70,7 @@ vm.createContext(ctx);
 
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
-const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
+const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
                  '25_hilo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -1217,6 +1217,139 @@ seccion('D34 · exportarCharlas: cap declarado, filtro por fecha y 🔒 aislamie
   } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
 
   chk(ctx.ENDPOINTS_UI.indexOf('exportarCharlas') >= 0, 'D34j exportarCharlas dado de alta en ENDPOINTS_UI');
+}
+
+// ═══ D37 · TC-9 · FORGE: promoción lab→prod con estado en datos ══════════════
+seccion('D37 · Forge: el mecanismo, con NINGÚN agente encendido');
+{
+  // ── el piso anti-slop (puro): forma, no contenido ───────────────────────
+  chk(ctx._forgeSlop_({ status: 'ok', detalle: 'El margen bajó 3 puntos contra junio.' }).ok === true,
+      'D37a una salida con status válido y detalle real PASA');
+  chk(ctx._forgeSlop_({ status: 'ok', detalle: '' }).ok === false,
+      'D37a2 detalle vacío NO pasa (una respuesta sin contenido no es una respuesta)');
+  chk(ctx._forgeSlop_({ status: 'inventado', detalle: 'algo largo y razonable acá' }).ok === false,
+      'D37a3 un status fuera del vocabulario cerrado NO pasa');
+  chk(ctx._forgeSlop_({ status: 'ok', detalle: 'Como modelo de lenguaje no puedo analizar eso' }).ok === false,
+      'D37a4 el slop clásico se detecta por FORMA (no se juzga si el análisis es bueno: eso es criterio)');
+  chk(ctx._forgeSlop_(null).ok === false, 'D37a5 sin salida, no hay nada que aprobar');
+
+  // ── estado efectivo: código + datos, y las tres reglas duras ────────────
+  const bk = { getMaestro: ctx.getMaestro, leerTabla: ctx.leerTabla, appendFila: ctx.appendFila,
+               conLock: ctx.conLock, crearAprobacion: ctx.crearAprobacion, feed_: ctx.feed_,
+               getConfig: ctx.getConfig, _soloOwner_: ctx._soloOwner_ };
+  try {
+    let HOJA = [];               // filas de Agentes_estado
+    let escritas = [], aprobaciones = [];
+    // Stub FIEL: `setValue` escribe de verdad en HOJA. Con un no-op, el camino de UPDATE de
+    // `_forgeEstadoUpsert_` no se ejercitaba y el assert de demover daba rojo por el test, no por
+    // el código — que es la otra cara de la lección D25e (un stub que no matchea miente).
+    const COLS = ['id_agente', 'activo', 'gate', 'max_dia', 'promovido_en', 'promovido_por', 'notas'];
+    ctx.getMaestro = () => ({ getSheetByName: (n) => ({
+      __hoja: n, getLastColumn: () => COLS.length, getLastRow: () => HOJA.length + 1,
+      getRange: (row, col) => ({
+        getValues: () => [COLS.slice()],
+        setValue: (v) => { if (row >= 2 && HOJA[row - 2]) HOJA[row - 2][COLS[col - 1]] = v; }
+      })
+    }) });
+    ctx.leerTabla = (sh) => (sh && sh.__hoja === 'Agentes_estado' ? HOJA : []);
+    ctx.appendFila = (sh, o) => { escritas.push(o); HOJA.push(o); };
+    ctx.conLock = (fn) => fn();
+    ctx.feed_ = () => {};
+    ctx.getConfig = () => '';
+    ctx.crearAprobacion = (tenant, mod, tipo, payload, opts) => {
+      aprobaciones.push({ tenant, mod, tipo, payload, opts }); return { id: 'APR-FORGE-1' };
+    };
+
+    ctx._AGENTES_EFECTIVO_ = null;
+    chk(ctx.agenteEfectivo_('lift').activo === false,
+        'D37b sin fila en la hoja manda el default del código (lift sigue en el laboratorio)');
+    chk(ctx.agenteEfectivo_('vigia').activo === true, 'D37b2 y los activos de piloto siguen activos');
+    chk(ctx.agenteEfectivo_('no_existe') === null, 'D37b3 una clave que no está en el roster no existe, punto');
+
+    HOJA = [{ id_agente: 'lift', activo: 'true', gate: 'false', max_dia: '3', promovido_en: '2026-08-03', promovido_por: 'owner', notas: '' }];
+    ctx._AGENTES_EFECTIVO_ = null;
+    const lift = ctx.agenteEfectivo_('lift');
+    chk(lift.activo === true && lift.maxDia === 3 && lift.promovido === true,
+        'D37c el override de DATOS enciende el agente en runtime — eso es el hot-reload (sin clasp push)');
+
+    HOJA = [{ id_agente: 'agente_fantasma', activo: 'true', gate: 'false', max_dia: '9' }];
+    ctx._AGENTES_EFECTIVO_ = null;
+    chk(ctx.agenteEfectivo_('agente_fantasma') === null && Object.keys(ctx._agentesOverride_()).length === 0,
+        'D37c2 🔒 la hoja NO puede inventar un agente: el código define el universo, los datos solo modulan');
+
+    // fail-safe: hoja ilegible ⇒ defaults ⇒ el laboratorio sigue APAGADO
+    ctx.leerTabla = () => { throw new Error('hoja rota'); };
+    ctx._AGENTES_EFECTIVO_ = null;
+    chk(ctx.agenteEfectivo_('lift').activo === false,
+        'D37d 🔒 con la hoja ilegible se cae a los defaults: un error de lectura NUNCA enciende un agente');
+    ctx.leerTabla = (sh) => (sh && sh.__hoja === 'Agentes_estado' ? HOJA : []);
+
+    // ── promover: crea aprobación y NO activa ────────────────────────────
+    HOJA = []; ctx._AGENTES_EFECTIVO_ = null; aprobaciones = [];
+    const pr = ctx.promoverAgente('lift', {});
+    chk(pr.ok === true && pr.aprobacion_id === 'APR-FORGE-1' && pr.activado === false,
+        'D37e promoverAgente crea la APROBACIÓN y devuelve activado:false');
+    chk(ctx.agenteEfectivo_('lift').activo === false,
+        'D37e2 🔒 y el agente sigue APAGADO: proponer no es encender');
+    chk(aprobaciones[0].tipo === 'promover_agente' && aprobaciones[0].payload.id_agente === 'lift',
+        'D37e3 la aprobación lleva el tipo de acción y el agente en el payload');
+    chk(!!aprobaciones[0].payload.test_gate && aprobaciones[0].payload.test_gate.checks.length > 0,
+        'D37f el TEST-GATE viaja ADJUNTO en la aprobación (no se pierde)');
+    chk(aprobaciones[0].opts.descripcion.indexOf('TEST-GATE') >= 0,
+        'D37f2 y su veredicto está en la DESCRIPCIÓN, que es lo que Luciano lee antes de decidir');
+    chk(aprobaciones[0].payload.test_gate.salida_probada === false &&
+        aprobaciones[0].opts.descripcion.indexOf('NO se ejecutó') >= 0,
+        'D37f3 si el dry-run no corrió se DICE — un test-gate que dice ok sin ejecutar nada sería verde falso');
+
+    // ── test-gate FALLIDO: la aprobación se crea IGUAL, con el veredicto adverso a la vista ──
+    aprobaciones = [];
+    const prMal = ctx.promoverAgente('vigia', {});   // ya activo ⇒ el determinístico falla
+    chk(prMal.ok === true && prMal.test_gate.ok === false,
+        'D37g con test-gate FALLIDO la aprobación se crea igual (esconderla dejaría creer que nadie probó)');
+    chk(aprobaciones[0].opts.descripcion.indexOf('FALLÓ') >= 0 &&
+        aprobaciones[0].opts.descripcion.indexOf('NO APROBAR') >= 0,
+        'D37g2 y nace diciendo que FALLÓ y recomendando NO APROBAR');
+    chk(aprobaciones[0].opts.confianza < 20, 'D37g3 con la confianza en el piso (' + aprobaciones[0].opts.confianza + ')');
+
+    // ── aprobar ⇒ ejecutar ⇒ recién ahí se enciende ──────────────────────
+    HOJA = []; ctx._AGENTES_EFECTIVO_ = null;
+    const ap = ctx._forgeAplicarPromocion_({ id_agente: 'lift' });
+    chk(ap.ok === true && ap.activo === true, 'D37h el ejecutor de la aprobación SÍ enciende');
+    chk(ctx.agenteEfectivo_('lift').activo === true,
+        'D37h2 y el runner lo ve en runtime por la hoja, sin tocar código');
+    chk(HOJA.length === 1 && HOJA[0].id_agente === 'lift' && String(HOJA[0].activo) === 'true',
+        'D37h3 la fila queda en Agentes_estado con su fecha y quién');
+
+    // ── demover: inmediato, sin aprobación ───────────────────────────────
+    aprobaciones = [];
+    const dm = ctx.demoverAgente('lift', 'lo probamos y no rinde');
+    chk(dm.ok === true && dm.activo === false && aprobaciones.length === 0,
+        'D37i demoverAgente apaga AL INSTANTE y sin aprobación (apagar siempre se puede)');
+    ctx._AGENTES_EFECTIVO_ = null;
+    chk(ctx.agenteEfectivo_('lift').activo === false, 'D37i2 y el agente queda efectivamente apagado');
+
+    // ── caso 10 sigue verde: un agente de laboratorio NO corre ───────────
+    HOJA = []; ctx._AGENTES_EFECTIVO_ = null;
+    const lab = ctx.correrAgente_('lift', {}, 'T1', 'CLI-002');
+    chk(lab.status === 'error' && /laboratorio/i.test(lab.detalle),
+        'D37j caso10 intacto: sin promoción aprobada, el agente de laboratorio NO corre');
+  } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); ctx._AGENTES_EFECTIVO_ = null; }
+
+  // ── la línea roja de la tanda: NINGÚN agente lab encendido en el CÓDIGO ──
+  const LAB = ['flux', 'relay', 'scout', 'prism', 'atlas', 'spark', 'forge', 'lift'];
+  const encendidos = LAB.filter((k) => ctx.AGENTES[k].activo === true);
+  chk(encendidos.length === 0,
+      'D37k 🔒 los 8 del laboratorio siguen activo:false en el código — Forge entrega el MECANISMO, no enciende nada'
+      + (encendidos.length ? ' — ENCENDIDOS: ' + encendidos.join(', ') : ''));
+  chk(ctx.RIESGO_TIPOS.indexOf('promover_agente') >= 0 && ctx.RIESGO_SIEMBRA.promover_agente === 'aprobar',
+      'D37l la matriz de riesgo declara promover_agente=aprobar (si no, caería en tipo-que-nadie-declaró ⇒ bloquear)');
+  chk(ctx.gateRiesgo_('promover_agente', { con_aprobacion: true }).ok === true,
+      'D37l2 y con aprobación el gate deja proponer');
+  chk(ctx.gateRiesgo_('promover_agente', {}).error === 'requiere_aprobacion',
+      'D37l3 sin aprobación, no');
+  ['promoverAgente', 'demoverAgente', 'agentesEstado'].forEach((fn) => {
+    chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, 'D37m ' + fn + ' dado de alta en ENDPOINTS_UI');
+  });
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

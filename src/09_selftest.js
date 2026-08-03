@@ -573,7 +573,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ },
    { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ },
    { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ },
-   { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_ }].forEach(function (t) {
+   { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_ },
+   { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2281,6 +2282,97 @@ function _asertsD34_(chk, log, opts) {
   log.push('   ↳ D34 TC-5: export de charlas con aislamiento verificado entre dos tenants vivos');
 }
 
+/**
+ * D37 · TC-9 — Forge. El mecanismo de promoción, probado SIN dejar ningún agente encendido.
+ *
+ * ⚠ PRECAUCIÓN DELIBERADA: la parte viva enciende un agente de laboratorio por unos milisegundos
+ * para comprobar que el hot-reload funciona, y lo apaga en un `finally`. Si un assert revienta a
+ * la mitad, el agente igual queda APAGADO — dejar uno encendido por un test fallido significaría
+ * que mañana corre solo, gasta API y propone sobre datos de clientes. El `finally` no es prolijidad.
+ */
+function _asertsD37_(chk, log, opts) {
+  // ── La línea roja de la tanda, aserida sobre el CÓDIGO. ──
+  var d37lab = ['flux', 'relay', 'scout', 'prism', 'atlas', 'spark', 'forge', 'lift'];
+  var d37on = d37lab.filter(function (k) { return AGENTES[k].activo === true; });
+  chk(d37on.length === 0, 'D37a 🔒 los 8 del laboratorio siguen activo:false en el código' +
+      (d37on.length ? ' — ENCENDIDOS: ' + d37on.join(', ') : ' (Forge entrega el mecanismo, no enciende nada)'));
+  chk(MAESTRO_ORDEN.indexOf('Agentes_estado') >= 0 && !!MAESTRO_SHEETS.Agentes_estado,
+      'D37a2 la hoja Agentes_estado está declarada con su schema');
+  chk(RIESGO_TIPOS.indexOf('promover_agente') >= 0 && RIESGO_SIEMBRA.promover_agente === 'aprobar',
+      'D37a3 la matriz declara promover_agente=aprobar (sin declararlo, gateRiesgo_ lo bloquearía por default-deny)');
+  ['promoverAgente', 'demoverAgente', 'agentesEstado'].forEach(function (fn) {
+    chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D37a4 ' + fn + ' dado de alta en ENDPOINTS_UI');
+  });
+  chk(_forgeSlop_({ status: 'ok', detalle: 'Análisis con números y contexto real.' }).ok === true &&
+      _forgeSlop_({ status: 'ok', detalle: '' }).ok === false,
+      'D37a5 el piso anti-slop acepta una salida con forma y rechaza una vacía');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D37b-f (hoja viva + ciclo de promoción) solo corren en selfTest() completo');
+    return;
+  }
+
+  var d37clave = 'scout';   // laboratorio, sin gate, el de menor superficie del roster
+  var d37sh = getMaestro().getSheetByName('Agentes_estado');
+  chk(!!d37sh, 'D37b la hoja Agentes_estado existe en el MAESTRO (la crea setup)');
+  chk(!!d37sh && d37sh.isSheetHidden(), 'D37b2 y nace OCULTA (decide qué agentes pueden gastar API: no es para editar de pasada)');
+
+  var d37p = null;
+  try {
+    // 1 · promover NO enciende: crea la aprobación y se detiene ahí.
+    d37p = promoverAgente(d37clave, { notas: '__TEST__ selfTest D37' });
+    chk(d37p.ok === true && !!d37p.aprobacion_id && d37p.activado === false,
+        'D37c promoverAgente crea la aprobación y NO activa (' + (d37p.aprobacion_id || d37p.error) + ')');
+    chk(agenteEfectivo_(d37clave).activo === false,
+        'D37c2 🔒 tras proponer, el agente SIGUE apagado: proponer no es encender');
+    chk(!!d37p.test_gate && d37p.test_gate.checks.length >= 3,
+        'D37c3 el test-gate corrió y viaja adjunto (' + (d37p.test_gate ? d37p.test_gate.checks.length : 0) + ' chequeos)');
+    chk(d37p.test_gate.salida_probada === false,
+        'D37c4 sin conApi la salida NO se ejecutó, y el test-gate lo declara en vez de dar un ok vacío');
+
+    // 2 · el ejecutor de la aprobación SÍ enciende, y el runner lo ve en runtime.
+    var d37ap = _forgeAplicarPromocion_({ id_agente: d37clave });
+    chk(d37ap.ok === true, 'D37d el ejecutor de la aprobación aplica la promoción');
+    chk(agenteEfectivo_(d37clave).activo === true,
+        'D37d2 el agente queda ACTIVO leyendo la hoja — hot-reload real, sin clasp push');
+    chk(AGENTES[d37clave].activo === false,
+        'D37d3 y el default del CÓDIGO sigue en false: el estado vive en datos, no en el roster');
+    var d37est = agentesEstado().filter(function (a) { return a.id_agente === d37clave; })[0];
+    chk(!!d37est && d37est.promovido === true && String(d37est.promovido_en).length >= 10,
+        'D37d4 agentesEstado muestra las DOS capas: default del código vs. promoción vigente, con fecha');
+
+    // 3 · demover apaga al instante, sin aprobación.
+    var d37d = demoverAgente(d37clave, '__TEST__ fin de la prueba');
+    chk(d37d.ok === true && agenteEfectivo_(d37clave).activo === false,
+        'D37e demoverAgente apaga al instante (apagar siempre se puede)');
+
+    // 4 · caso 10 sigue verde: apagado, no corre.
+    var d37lab2 = correrAgente_(d37clave, {}, '', 'CLI-000');
+    chk(d37lab2.status === 'error' && /laboratorio/i.test(d37lab2.detalle),
+        'D37f caso10 intacto: apagado, el agente NO corre');
+  } finally {
+    // Pase lo que pase: el agente queda APAGADO y la fila de prueba, fuera.
+    try { demoverAgente(d37clave, '__TEST__ cleanup D37'); } catch (_e) {}
+    try {
+      var shL = getMaestro().getSheetByName('Agentes_estado');
+      if (shL) borrarFilasDonde(shL, function (f) { return String(f.id_agente) === d37clave; });
+    } catch (_e2) {}
+    // La aprobación de prueba vive en el tenant de SISTEMA (no lleva marca `__TEST__` en el
+    // roster, así que `limpiarTodoTest` no la vería): se borra por su id, acá mismo.
+    try {
+      if (d37p && d37p.aprobacion_id) {
+        var shApS = abrirCliente(SATO_TENANT_SISTEMA).ss.getSheetByName('Aprobaciones');
+        if (shApS) borrarFilasDonde(shApS, function (f) { return String(f.id) === String(d37p.aprobacion_id); });
+      }
+    } catch (_e3) {}
+    _AGENTES_EFECTIVO_ = null;
+  }
+  chk(agenteEfectivo_(d37clave).activo === false,
+      'D37g 🔒 al salir de D37 NINGÚN agente quedó encendido (verificado después de la limpieza)');
+
+  log.push('   ↳ D37 TC-9: Forge probado extremo a extremo sin dejar un solo agente activo');
+}
+
 function selfTestF2_() {
   var log = [], fallos = [];
   // chk ACUMULATIVO (16-jul): registra y SIGUE. El chk fatal de selfTest() devolvía UN rojo por
@@ -2465,6 +2557,10 @@ function limpiarTodoTest() {
   // se revierte, no se borra); este barrido es SOLO de las filas marcadas `__TEST__`, y por eso
   // matchea el prefijo del texto y el alcance de un tenant de prueba — jamás un `contains` laxo
   // que se llevaría por delante una decisión real que mencione la palabra.
+  // TC-9: filas de prueba de Forge. La condición es dura a propósito — solo se barren las filas
+  // marcadas `__TEST__` en notas; una promoción REAL nunca se toca desde acá.
+  var shAgE = ss.getSheetByName('Agentes_estado');
+  if (shAgE) borrarFilasDonde(shAgE, function (f) { return String(f.notas).indexOf('__TEST__') >= 0; });
   var shDec = ss.getSheetByName('Decisiones');
   if (shDec) borrarFilasDonde(shDec, function (f) {
     return String(f.decision).indexOf('__TEST__') === 0 || idsTest[String(f.alcance)] === true;

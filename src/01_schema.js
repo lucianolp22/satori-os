@@ -61,6 +61,12 @@ var MAESTRO_SHEETS = {
   // `alcance` = 'sistema' o un id_cliente: es lo que permite que Sato lea las decisiones de un
   // tenant sin ver las de otro (aislamiento §2).
   Decisiones: ['id_decision', 'fecha', 'decision', 'porque', 'alcance', 'fuente', 'estado', 'revertida_en', 'revertida_porque'],
+  // TC-9 (03-ago) — FORGE: el estado de los agentes vive en DATOS, no en código. El roster de
+  // `13_agentes.js` define los DEFAULTS; esta hoja los OVERRIDEA en runtime. Eso ES el hot-reload:
+  // encender o apagar un agente deja de ser editar código + clasp push.
+  // ⚠ La hoja solo MODULA: un id que no existe en el roster del código se ignora. El código define
+  // el universo de agentes; los datos solo dicen en qué estado está cada uno.
+  Agentes_estado: ['id_agente', 'activo', 'gate', 'max_dia', 'promovido_en', 'promovido_por', 'notas'],
   Config: ['clave', 'valor']
 };
 
@@ -69,7 +75,7 @@ var MAESTRO_SHEETS = {
 // hace `MAESTRO_SHEETS[n].forEach` por cada nombre de esta lista: un nombre sin definición de
 // columnas revienta con `undefined.forEach`. Es el mismo fallo que `CLIENTE_SHEETS_SENSIBLES`
 // con las hojas lazy (23-jul). Lo asera D32a1.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Decisiones', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Decisiones', 'Agentes_estado', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
@@ -212,7 +218,11 @@ var CONFIG_DEFAULTS = [
   ['fp_dias_aprob_estancada', '7'],  // desde cuántos días una pendiente cuenta como estancada
   // TC-3 (03-ago) — PM persistente: cada cuántos días se re-analiza un objetivo QUIETO. Sin
   // esto, un objetivo sin cambios no volvería a mirarse nunca; con esto, el seguimiento respira.
-  ['pm_dias_refresco', '7']
+  ['pm_dias_refresco', '7'],
+  // TC-9 · Forge. `aprobar` y no `permitir`: promover un agente le da permiso de gastar API y de
+  // escribir propuestas sobre datos de clientes — es exactamente la clase de cosa que no se
+  // automatiza. Apagar, en cambio, es libre (ver demoverAgente).
+  ['riesgo_promover_agente', 'aprobar']
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;
