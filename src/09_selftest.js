@@ -567,7 +567,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D25 conectores generalizados (TC-W3)', f: _asertsD25_ },
    { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ },
    { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ },
-   { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ }].forEach(function (t) {
+   { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ },
+   { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1862,6 +1863,115 @@ function _asertsD28_(chk, log, opts) {
   }
 }
 
+/**
+ * D30 — SATO (26_sato.js) contra Sheets REALES. Tanda aislada: la corre _asertsF2_.
+ * Deuda de rigor #1 del HANDOFF 01-ago: todo Sato (incluido el gate de aislamiento T1.8 que corre
+ * en prod con datos reales) estaba cubierto SOLO por el harness offline (vm + stubs). Acá se
+ * certifican contra Sheets vivos: whitelist de fuentes, anclaje de tenant, roster real, memoria
+ * que no cruza, cierre T2.1 que no escribe y aplicar-cierre etiquetado con dueño (regla 6).
+ * SIN llamadas al LLM ni a ElevenLabs: solo los caminos DETERMINISTAS — los caminos con modelo
+ * quedan en el harness con stubs que matchean la real (regla STUB 24-jul).
+ * No existe D29: el nombre D30 es el del HANDOFF («D30 · Sato en 09_selftest.js»).
+ */
+function _asertsD30_(chk, log, opts) {
+  // ── Contrato y superficie (patrón D26a): schema, sensibles, endpoints. ──
+  chk(CLIENTE_SHEETS.charla.join(',') === 'ts,rol,texto,modulo,tenant_datos',
+      'D30a schema de `charla` incluye el sello tenant_datos (T1.8)');
+  chk(CLIENTE_ORDEN.indexOf('charla') < 0 && CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0,
+      'D30a2 `charla` es lazy (fuera de CLIENTE_ORDEN) y sensible (oculta+protegida)');
+  ['satoChat', 'satoCharla', 'satoVoz', 'satoCierreSesion', 'satoAplicarCierre'].forEach(function (fn) {
+    chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D30a3 ' + fn + ' declarado en ENDPOINTS_UI (regla anti-drift)');
+  });
+
+  // ── Whitelist de fuentes: rechazo fail-closed ANTES de tocar Sheet alguno. ──
+  var d30w = _satoDatos_(SATO_TENANT_SISTEMA, 'fuente_inventada', '', '', false);
+  chk(d30w.error === 'fuente_desconocida' && (d30w.fuentes_validas || []).indexOf('kpis') >= 0,
+      'D30b fuente fuera de la whitelist → fuente_desconocida + lista de válidas');
+  ['historial', 'descartado', 'cartera', 'sistema'].forEach(function (fu) {
+    chk(!!SATO_FUENTES[fu], 'D30b2 fuente `' + fu + '` declarada en SATO_FUENTES');
+  });
+
+  // ── T1.8 · el ancla NO depende de que el otro cliente exista: rechaza por CONTEXTO. ──
+  var d30x = _satoDatos_('CLI-__TEST__A', 'kpis', '', 'CLI-__TEST__B', false);
+  chk(d30x.error === 'fuera_de_contexto' && d30x.anclado_a === 'CLI-__TEST__A' && d30x.pedido === 'CLI-__TEST__B',
+      'D30c 🔒 desde una Ficha, un cliente= distinto → fuera_de_contexto (motivo, no silencio)');
+  chk(_satoDatos_('', 'kpis', '', 'CLI-__TEST__NOEXISTE', true).error === 'cliente_inexistente',
+      'D30c2 🔒 modo sistema + id fuera del roster real → cliente_inexistente');
+  chk(_satoClienteValido_('CLI-__TEST__NOEXISTE') === false,
+      'D30c3 _satoClienteValido_ dice NO ante un id que no está en Clientes');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D30d-j (clientes de prueba + Sheets vivos) solo corren en selfTest() completo');
+    return;
+  }
+
+  // ── Con Sheets VIVOS: dos clientes de prueba (la limpieza los manda a papelera SIEMPRE). ──
+  var d30A = crearCliente({ nombre: '__TEST__ sato A ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d30B = crearCliente({ nombre: '__TEST__ sato B ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  chk(!!d30A.id_cliente && !!d30B.id_cliente && d30A.id_cliente !== d30B.id_cliente,
+      'D30d clientes de prueba creados (A=' + d30A.id_cliente + ' · B=' + d30B.id_cliente + ')');
+  chk(_satoClienteValido_(d30A.id_cliente) === true, 'D30d2 el roster vivo valida al cliente de prueba');
+
+  // Salto de tenant: privilegio EXCLUSIVO del modo sistema, y responde datos DEL pedido.
+  var d30s = _satoDatos_('', 'umbrales', '', d30A.id_cliente, true);
+  chk(!d30s.error && String(d30s.cliente) === String(d30A.id_cliente) && d30s.total === 0,
+      'D30e modo sistema + cliente válido → lee Umbrales de A (0 filas en cliente nuevo)');
+  var d30p = _satoDatos_(d30A.id_cliente, 'umbrales', '', '', false);
+  chk(!d30p.error && String(d30p.cliente) === String(d30A.id_cliente),
+      'D30e2 desde la Ficha sin cliente= se lee el PROPIO tenant (el id lo pone el sistema)');
+
+  // ── Memoria por tenant (regla 5: la memoria no cruza). ──
+  var ssA = abrirCliente(d30A.id_cliente).ss;
+  var shChA = _charlaSheet_(ssA, true);
+  chk(!!shChA && shChA.isSheetHidden(), 'D30f la hoja charla nace oculta (patrón hoja sensible)');
+  appendFila(shChA, { ts: ahoraISO(), rol: 'user', texto: '__TEST__D30 hola', modulo: 'sato_ficha', tenant_datos: d30A.id_cliente });
+  SpreadsheetApp.flush();
+
+  // T2.1 · cierre con MENOS de 2 turnos hoy → honesto, sin LLM y sin escribir NADA.
+  var d30c1 = satoCierreSesion(d30A.id_cliente);
+  chk(d30c1.ok === true && (d30c1.items || []).length === 0,
+      'D30g cierre con 1 turno → sesión corta, sin ítems (y sin llamar al modelo)');
+  chk(leerTabla(abrirCliente(d30A.id_cliente).ss.getSheetByName('charla')).length === 1,
+      'D30g2 el cierre NO escribió: la charla sigue con 1 turno');
+  var d30c0 = satoCierreSesion(d30B.id_cliente);
+  chk(d30c0.ok === true && (d30c0.items || []).length === 0, 'D30g3 cierre sin charla → honesto, nada que registrar');
+
+  appendFila(shChA, { ts: ahoraISO(), rol: 'sato', texto: '__TEST__D30 respuesta', modulo: 'sato_ficha', tenant_datos: d30A.id_cliente });
+  SpreadsheetApp.flush();
+  var d30chA = satoCharla(d30A.id_cliente, 10);
+  chk(d30chA.ok === true && d30chA.turnos.length === 2 && d30chA.turnos[0].texto.indexOf('__TEST__D30') === 0,
+      'D30h satoCharla devuelve los 2 turnos sembrados del tenant');
+  var d30chB = satoCharla(d30B.id_cliente, 10);
+  chk(d30chB.ok === true && d30chB.turnos.length === 0, 'D30h2 🔒 la memoria NO cruza: B no ve ni un turno de A');
+  var d30hist = _satoDatos_(d30B.id_cliente, 'historial', '', '', false);
+  chk((d30hist.historial || []).length === 0, 'D30h3 🔒 fuente historial de B vacía aunque A tenga charla');
+
+  // ── T2.1b · aplicar cierre: SOLO lo confirmado, y el encargo viaja CON dueño (regla 6). ──
+  chk(satoAplicarCierre(d30A.id_cliente, []).ok === false,
+      'D30i sin ítems confirmados no se aplica nada (la confirmación es el gate)');
+  var d30ap = satoAplicarCierre(d30A.id_cliente, [
+    { tipo: 'checklist', texto: '__TEST__D30 tarea', dueno: 'Luciano' },
+    { tipo: 'encargo', texto: '__TEST__D30 encargo', dueno: 'Cowork' }
+  ]);
+  chk(d30ap.ok === true && d30ap.aplicados === 2 && d30ap.fallos.length === 0,
+      'D30i2 aplica EXACTAMENTE los 2 ítems confirmados');
+  var d30ck = checklistCliente(d30A.id_cliente);
+  chk(d30ck.ok === true && d30ck.items.some(function (i) { return String(i.item).indexOf('__TEST__D30') === 0; }),
+      'D30i3 la tarea confirmada quedó en el checklist del cliente');
+  var shBanD30 = getMaestro().getSheetByName('Bandeja');
+  chk(!!shBanD30, 'D30i4 la pestaña Bandeja existe (guard antes de leerla)');
+  var d30ban = leerTabla(shBanD30).filter(function (f) { return String(f.texto).indexOf('__TEST__D30') >= 0; });
+  chk(d30ban.length === 1 && String(d30ban[0].texto).indexOf('[ENCARGO-COWORK · ' + d30A.id_cliente + ']') === 0,
+      'D30i5 🔒 el encargo entra a Bandeja etiquetado con SU tenant (entregable con dueño)');
+  borrarFilasDonde(shBanD30, function (f) { return String(f.texto).indexOf('__TEST__D30') >= 0; });
+
+  // ── T2.3 · el arranque tiene de dónde inyectar: el brief del sistema responde. ──
+  var d30brief = '';
+  try { d30brief = String(briefCacheado_() || ''); } catch (eB) { d30brief = ''; }
+  chk(d30brief.length > 50, 'D30j briefCacheado_ (la fuente del arranque T2.3) devuelve el brief del sistema');
+  log.push('   ↳ D30 Sato: aislamiento T1.8 + memoria por tenant + cierre T2.1 verificados contra Sheets');
+}
+
 function selfTestF2_() {
   var log = [], fallos = [];
   // chk ACUMULATIVO (16-jul): registra y SIGUE. El chk fatal de selfTest() devolvía UN rojo por
@@ -2012,8 +2122,11 @@ function limpiarTodoTest() {
   var shCI = ss.getSheetByName('Cerebro_index');
   if (shCI) borrarFilasDonde(shCI, function (f) { return idsTest[String(f.id_cliente)] === true; });
   // Fase 1: filas de prueba de la Bandeja.
+  // D30 (03-ago): el encargo de prueba entra por capturar() con prefijo '[ENCARGO-COWORK · …]',
+  // así que el marcador __TEST__ queda ADENTRO del texto → barrer por contains (mismo patrón que
+  // Actividad). El doble guión bajo es marcador exclusivo de test; una captura real no lo trae.
   var shBan = ss.getSheetByName('Bandeja');
-  if (shBan) borrarFilasDonde(shBan, function (f) { return String(f.fuente) === '__TEST__' || String(f.texto).indexOf('__TEST__') === 0; });
+  if (shBan) borrarFilasDonde(shBan, function (f) { return String(f.fuente) === '__TEST__' || String(f.texto).indexOf('__TEST__') >= 0; });
   // P2 F1/F4 + Agenda (07-jul): filas de prueba de las hojas nuevas (asserts D5/D6/D7).
   var shFbk = ss.getSheetByName('Feedback');
   // D14 (16-jul): el assert del contrato usa origen_id '__TEST__f2' → barrer por prefijo, no por igualdad.
