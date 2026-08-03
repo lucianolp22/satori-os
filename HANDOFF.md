@@ -1,3 +1,149 @@
+# HANDOFF — Satori OS — 2026-08-01 (espejo vivo · T2 EN PROD-READY + UI de Sato legible)
+
+> Estado vigente arriba; todo lo que sigue de la cabecera del 30-jul es archivo.
+> **01-ago — T2 pusheado, selfTest 585/0, UI de Sato ARREGLADA.** Git al día en `origin/main`: `b7554a4` (T2) + `404aa17` (CAPABILITIES regen). **selfTest 585/0 corrido y limpio en el editor** (con CLI-008…CLI-012 de prueba, D17h/D17i simulados esperados). El fix de UI de Sato está **en `/dev` (clasp push) y en el working tree del Mac, pero `src/index.html` NO está commiteado todavía.**
+>
+> ⚠️ **PRIMER PASO AL RETOMAR — commitear el fix de UI (quedó en /dev sin commitear):**
+> ```
+> cd ~/Documents/Claude/Projects/SatoriOS
+> git add src/index.html HANDOFF.md
+> git commit -m "fix UI Sato: panel a nivel body (sobre Akasha) + tema oscuro propio (legible) + HANDOFF"
+> git push origin main
+> ```
+> **No hace falta otro `clasp push`** (GAS /dev ya tiene el fix). Después de eso el repo queda 100% al día.
+>
+> ⚠️ **`/exec` SIGUE EN @33 Y ESTÁ MUY ATRÁS.** Le falta TODO lo posterior al 28-jul a la mañana: tanda de voz (ElevenLabs, ventanita de mic, latencia), T1.6 (herramientas), T1.7 (Sato único), T1.8 (aislamiento), T2 (dinámica) y el fix de UI. **`bash _promote_exec.sh --go` → @34** cuando quieras llevarlo a prod (ya está todo probado en /dev).
+
+## Lo resuelto HOY (01-ago) — la UI de Sato, en 3 rondas de diagnóstico
+
+El chat de Sato se abría pero quedaba **tapado e ilegible** sobre la Oficina Akasha. Tres causas encadenadas, cada una destapando la siguiente; las dos primeras fueron diagnósticos míos equivocados corregidos con render real (no adivinando):
+
+1. **z-index bajo (41 → 72):** insuficiente. No alcanzó porque el problema no era el número.
+2. **Stacking context (la real):** `#centro` es `position:fixed; z-index:50` → crea su propio contexto. `#akasha` es **hermano de `#centro`** colgado de `<body>`, con `z-index:200`. El panel de Sato vivía DENTRO de `#centro`, así que su z-index quedaba encapsulado bajo 50 y **ningún número interno podía superar a Akasha (200)**. Diagnóstico con Playwright: `elementFromPoint` sobre el panel devolvía `#akasha`. **Fix: mover `#f360Sato` + `#f360Cierre` a nivel `<body>`** (hermanos de `#akasha`), z-index 300/301. Verificado: hit-test da el panel de Sato como elemento superior en header/medio/input, con y sin Akasha, con y sin ficha.
+3. **Contraste (destapado por el fix #2):** al salir de `#centro`, el panel perdió los tokens del tema oscuro. Las primitivas (`--_ink-*`, `--_terra-*`) viven en `#centro`/`#akasha`, no en `:root`, así que afuera los `var(--color-text)`/`--color-primary` caían al tema CLARO → texto oscuro sobre panel oscuro (ilegible) y burbujas de usuario en VERDE (jade claro) en vez del terra de Sato. **Fix: bloque de tokens oscuros propio en `.f360-sato, .f360-cierre`** (el panel siempre es oscuro, así que es correcto fijarlo). Verificado con render: texto computado `#F4EEE2`, `--color-primary #D5824F`, captura con las dos burbujas legibles. **Luciano confirmó: "Ahora sí se ve bien".**
+
+**LECCIÓN (dura, va a CLAUDE.md la próxima):** el z-index solo compite DENTRO del mismo stacking context. Antes de tocar un z-index, verificar si un ancestro crea contexto (`position`+`z-index`, `transform`, `filter`, `opacity<1`). Y todo panel que se saca del scope de `#centro` pierde los tokens del tema oscuro (las primitivas no están en `:root`) → hay que darle tema propio. Diagnóstico por render (`elementFromPoint` + screenshot), no por inspección de código.
+
+## Estado del código (qué está dónde)
+
+| Cosa | Estado |
+|---|---|
+| T1.6/1.7/1.8 (Sato único, herramientas, aislamiento) | en `origin/main` + `/dev` · commit `57d6885` y anteriores |
+| T2 (4 mejoras de la dinámica) | en `origin/main` + `/dev` · commit `b7554a4` · harness 213/0 |
+| CAPABILITIES regen | en `origin/main` · commit `404aa17` |
+| selfTest | **585/0** corrido en el editor (01-ago 10:46) |
+| Fix UI de Sato (3 rondas) | **en `/dev` + working tree del Mac · `src/index.html` SIN COMMITEAR** ← primer paso |
+| `/exec` (producción) | **@33** · rollback @32 en `_promote_rollback.txt` · **muy atrás, promover a @34** |
+
+## PENDIENTE — la lista completa que vengo arrastrando (nada se cayó)
+
+**Inmediato (para dejar el repo y prod al día):**
+1. **Commitear el fix de UI** (`src/index.html` + `HANDOFF.md`) — los 3 comandos de arriba.
+2. **Promote `/exec` @34** — `bash _promote_exec.sh --go`. Prod está en @33 sin voz real, sin T1.6/7/8, sin T2, sin el fix de UI.
+
+**Deuda de rigor (la más importante):**
+3. **`selfTest` no tiene NI UN assert de Sato.** Todo `26_sato.js` (incluido el gate de aislamiento que va a prod con datos reales de Vehemence y DAM) está cubierto solo por el harness offline (vm con stubs), NO por el gate que corre contra Sheets. Pendiente: un `D30 · Sato` en `09_selftest.js` — aislamiento cross-tenant, cierre que no escribe, fuente fuera de whitelist, arranque que inyecta el brief. Es la deuda más grande de toda esta etapa.
+
+**Gates del RUNBOOK (antes de operar con clientes reales):**
+4. **P4 (CRÍTICO, antes de encender conectores):** verificar `url_sheet_cliente` de **CLI-004 DAM** y **CLI-005 SIP** — la purga del 23/07 los halló **cruzados**. Riesgo directo de mezcla de datos entre clientes.
+5. Declarar **monedas** en Config (€ vs $ ARS por cliente).
+6. Compartir el Sheet MAESTRO como **Lector** con `llopriore@gmail.com` — sigue 404 («Requested entity was not found»); sin esto la tarea diaria de reuniones (L-V 08:00) avisa «sin acceso» y termina.
+7. **Rotar `OWNER_TOKEN` de Vehemence** (estuvo publicado, se considera comprometido; editor GAS de Vehemence → Script Properties, valor sin guiones + actualizar el marcador `?k=`).
+8. Sembrar `docs_cliente_<id>` (Config) para el botón Documentos de cada Ficha.
+9. Cerrar **TAR-TEST-1** (tarea de prueba de 2020) desde el Centro de Mando.
+10. **Decisiones abiertas** (responder en el chat y Cowork ejecuta): X4 (gatear las 35 con `_soloOwner_`) · EJF vs North Star 6/6 (¿pasa a `activo-piloto`?) · logo MesaQuince (¿la marca es «The Brasa Club»?) · logo SIP por web.
+
+**Diferido (no bloquea, con gatillo):**
+11. **Apagar el agente de voz LiveKit** — sigue prendido A PROPÓSITO para validar 2 días el Sato del OS (misma voz `xcAUMhbpNX2WRGsuhjFy`). Cuando se decida: comandos `launchctl`.
+12. **Capa 3 de los Hilos siempre vivos** — `exportar_charlas` (read-only) + `_charla_pull.sh` para que Cowork baje las transcripciones de `charla` al `.md`. Diferido.
+13. **Avatares sueltos** `Avatares Satori/Cazador Físico.png` y `Vigía.png` — siguen sin trackear (el nombre viene NFD/descompuesto y el `git add` de la lista no los tomó). Cosméticos; cuando molesten: `git add "Avatares Satori/"`.
+
+## Higiene de sesión (recordatorios que se repiten)
+
+- **Cowork NO regenera `CAPABILITIES.md`**: la collation de `sort` del contenedor difiere del Mac y el pre-push lo lee como drift. Que lo haga el Mac (el hook lo hace solo).
+- Todo `git` por el puente deja `.git/index.lock` que el puente no puede borrar; el `_tanda_*.sh` lo saca, o `rm -f .git/index.lock` a mano.
+- El verificador de `index.html` NO busca `<script>` por offset (hay uno dentro de un comentario HTML) — saca los comentarios y recorre los inline sin `src=`.
+- Aparecieron sin trackear `FOUNDER OS/`, `OFICINA-IA-ECOM-*.md` — son de OTROS proyectos, NO de Satori OS; no meterlos en commits de este repo.
+
+<!-- ══════════════ CABECERA ANTERIOR (30-jul) — ARCHIVO ══════════════ -->
+
+# HANDOFF — Satori OS — 2026-07-30 (espejo vivo · SATO ÚNICO + AISLAMIENTO + DINÁMICA T2)
+
+> Estado vigente arriba; todo lo que sigue de la cabecera del 28-jul es archivo.
+> **30-jul — T2 EN `/dev`.** `clasp push` OK 12:41 (29 archivos). Commit **`b7554a4` LOCAL, SIN PUSHEAR** (el drift-checker abortó el push por `CAPABILITIES.md`). Certificado offline: **harness 213/0** · `index.html` divs 404/404 + el bloque JS compila · `node --check` de los 4 módulos. **selfTest y eyeball PENDIENTES.**
+>
+> ⚠️ **PRIMER PASO AL RETOMAR — 3 comandos, el push quedó a medias:**
+> ```
+> cd ~/Documents/Claude/Projects/SatoriOS
+> git add CAPABILITIES.md
+> git commit -m "CAPABILITIES: regen (drift-checker)"
+> git push origin main
+> ```
+> Eso sube `b7554a4` + el regen. **No hace falta otro `clasp push`** (GAS ya tiene T2).
+>
+> ⚠️ **`/exec` SIGUE EN @33 Y ESTÁ MUY ATRÁS.** Le falta: toda la tanda de voz (ElevenLabs, ventanita de mic, latencia), T1.6 (Sato con herramientas), T1.7 (Sato único), T1.8 (aislamiento de tenant) y T2 (los 4 de la dinámica). Producción es prácticamente el Sato del 28-jul a la mañana. **Después del selfTest + eyeball: `bash _promote_exec.sh --go` → @34.**
+
+## Lo construido 29-jul (tanda Sato único + aislamiento)
+
+**T1.6 — Sato con herramientas.** Protocolo de marcador: el modelo pide datos con `@@DATOS fuente=X mes=Y cliente=CLI-00X@@` y el backend ejecuta la consulta read-only y le devuelve el dato **en el PROMPT** (pasa por `anonimizar()`), nunca en el `system`. **14 fuentes** en `SATO_FUENTES`: ventas · operativos · kpis · objetivos · aprobaciones · reglas · umbrales · costos · hilo · cerebro · sistema · cartera · historial · descartado. Se declaran como DATO, no instrucciones (anti prompt-injection). Fuente fuera de la whitelist = rechazo honesto.
+
+**T1.7 — SATO ÚNICO (decisión de Luciano).** Un solo Sato para todo el OS, con dos focos: sin Ficha abierta = **modo sistema** (tenant de memoria `CLI-000`, ve la cartera completa, puede saltar a cualquier cliente del roster); con Ficha abierta = **ese cliente y solo ese**. El panel dejó de vivir dentro de la ficha: es `position:fixed` a nivel `#centro`, disponible en cualquier pantalla, y la ficha se desplaza a la izquierda para convivir sin encimarse. Botón `🜂 Sato` en el Centro de Mando.
+
+**T1.8 — AISLAMIENTO DE CLIENTE (regla dura, pedido explícito).** Escribiendo la doctrina encontré un **agujero real**: `_satoDatos_` permitía leer otro cliente desde dentro de una Ficha. Cerrado con el gate `modoSistema` — desde una ficha, un `cliente=` distinto devuelve `fuera_de_contexto` y **no se consulta la fuente**; el id pedido se valida contra el roster real (`_satoClienteValido_`), no contra la palabra del modelo. Sello de origen `tenant_datos` en cada turno persistido. **9 reglas numeradas en `CLAUDE.md`** (un turno = un tenant · el salto entre clientes es privilegio del modo sistema · el id lo pone el sistema · sello de origen · la memoria no cruza · entregables con nombre y dueño · cifras con procedencia · al cambiar de cliente se cambia de contexto · **cobertura de test obligatoria**).
+
+**Voz fluida.** Turno único: `satoChat({voz:true})` devuelve texto + MP3 en la misma respuesta (un round-trip de GAS menos) · `speed 1.08` (Config `sato_voz_speed`, clamp 0.7–1.2) · `mp3_22050_32` + `optimize_streaming_latency=3` · hablado ⇒ `maxTokens 300` y el system pide 2-4 oraciones. **Fallback del navegador ELIMINADO**: si ElevenLabs falla, llega el texto y el motivo — nunca otra voz.
+
+## Lo construido 30-jul (T2 — la dinámica, 4 mejoras aprobadas)
+
+**T2.1 · Cierre de sesión.** `satoCierreSesion(id)` relee lo hablado **hoy** (`_satoTurnosHoy_`), pide una síntesis en JSON estricto y devuelve `{resumen, items:[{tipo,texto,dueno}]}` — **sin escribir nada**. Luciano tilda y `satoAplicarCierre` aplica solo lo confirmado: `checklist` → hoja del cliente; `encargo`/`hilo` → Bandeja etiquetada `[ENCARGO-COWORK · CLI-00X]` / `[HILO · CLI-00X]` (el `.md` del Hilo sigue siendo la fuente de verdad, no se escribe desde acá). Sesión de <2 turnos = no se molesta al modelo. JSON malformado = falla honesta, cero basura registrada. **Cierre asegurado**: a los 20 min sin actividad (Config `F360.satoInactMin`) o al cerrar el panel con ≥2 turnos, Sato pregunta si cerramos.
+
+**T2.2 · Sato propone, vos confirmás.** El system lo habilita a cerrar una respuesta con `@@ACCION tipo=checklist|encargo texto=…@@`; la UI lo saca de la burbuja y lo ofrece con botón. Nunca puede decir que ya lo anotó. **Máximo una acción por respuesta.**
+
+**T2.3 · Arranque del día.** Botón `☀ mi día`: inyecta `briefCacheado_` REAL en el prompt (marcado como dato) y responde hablado en 4-5 oraciones — qué se movió, qué vence, qué pide decisión y la única cosa que mueve la aguja. Si el brief no se puede leer, lo dice; no rellena.
+
+**T2.4 · Memoria que frena.** Fuentes nuevas `historial` (últimos 60 turnos fechados) y `descartado` (pivots del North Star + checklist ya tildado). Antes de acompañar una idea chequea si ya se decidió o descartó y lo dice **con fecha**. Las dos pasan por el gate de T1.8.
+
+**Verificación:** harness **178 → 213** (+35, de los cuales **6 🔒 de aislamiento**): cierre no escribe nada · tipo inventado cae a checklist · nada llega a Bandeja sin cliente en el texto · sin cliente el ítem no se cuela en ninguna hoja · un ítem que falla no tumba a los demás · desde una ficha no se lee el historial ni los descartes de otro cliente.
+
+**Bug propio cazado en el eyeball de código (verde falso).** La confirmación de T2.2 toasteaba «Anotado» sin mirar el retorno, y sin cliente en foco mandaba `checklistAgregar('')` que fallaba en silencio. Ahora verifica el retorno (`{ok}` para checklist, id de Bandeja para captura) y sin cliente cae a Bandeja como SISTEMA — mismo criterio que `satoAplicarCierre`.
+
+## Lecciones de esta sesión (para no repetirlas)
+
+1. **El verificador de `index.html` no puede buscar `<script>` por offset.** El archivo tiene un comentario HTML que dice *«los IDs que el `<script>` vigente referencia sin guard»*; buscar desde el byte 500000 engancha ESE y le pasa prosa a node → ABORT falso. Correcto: sacar los comentarios (`<!--.*?-->`) y recorrer los `<script>` inline sin `src=`.
+2. **NO regenerar `CAPABILITIES.md` desde el puente de Cowork.** La collation de `sort` del contenedor difiere del Mac (mayúsculas antes que minúsculas) → reordena las Script Properties, el pre-push lo ve como drift y aborta. **Que lo regenere el Mac** (el propio hook lo hace); Cowork no lo toca.
+3. **Locks huérfanos de git.** Cualquier `git` corrido a través del puente deja `.git/index.lock` y el puente **no puede borrar**. El `_tanda_*.sh` los saca al arrancar; si aparece a mano: `rm -f .git/index.lock`.
+4. **La guardia de drift compara contra el working tree, no contra el commit base**, cuando hay trabajo pusheado a `/dev` sin commitear (fue el caso de T1.7).
+
+## Al retomar — orden exacto
+
+1. **Los 3 comandos del push** (arriba). Sin eso, `b7554a4` está solo en el Mac.
+2. **`selfTest()` en el editor GAS del MAESTRO** — tiene que dar **585/0**. T2 tocó `26_sato.js` y `22_seguridad.js` (D19c cuenta 2 endpoints más: `satoCierreSesion`, `satoAplicarCierre`).
+3. **Eyeball en `/dev`:** abrir una Ficha → el cajón de Sato ya viene abierto y cargado → hablarle con el mic (una pulsación en la ventanita, después se sigue desde Satori OS) → `☀ mi día` → charlar 3-4 turnos → `✓ cerrar sesión`, tildar y confirmar → verificar que el ítem apareció en el checklist de la ficha y el encargo en la Bandeja. **Probar también el aislamiento a mano:** desde la Ficha de DAM preguntarle por Vehemence — tiene que negarse y mandarte a abrir su ficha o al modo sistema.
+4. **`bash _promote_exec.sh --go`** → **@34** (rollback @33 queda en `_promote_rollback.txt`).
+5. **Gates del RUNBOOK, en este orden:** **P4 (CRÍTICO, antes de encender conectores)** verificar `url_sheet_cliente` de **CLI-004 DAM** y **CLI-005 SIP** (la purga del 23/07 los halló cruzados) · monedas en Config · MAESTRO como **Lector** a `llopriore@gmail.com` (sigue 404 → la tarea diaria de reuniones avisa «sin acceso») · rotar `OWNER_TOKEN` de Vehemence · sembrar `docs_cliente_<id>` · cerrar TAR-TEST-1 (tarea de prueba de 2020) · decisiones abiertas: X4 · EJF vs North Star 6/6 · logo MesaQuince.
+
+## Cabos abiertos declarados
+
+- **`selfTest` no tiene ni un assert de Sato.** Todo el módulo `26_sato.js` está gateado por el harness offline (que corre el código real bajo `vm` con stubs), no por el gate que corre contra Sheets de verdad. Es la deuda de rigor más grande de esta tanda: un `D30 · Sato` en `09_selftest.js` (aislamiento cross-tenant + cierre que no escribe + fuente fuera de whitelist) queda pendiente.
+- **El agente de voz LiveKit sigue prendido a propósito.** Acordado: validar 2 días el Sato unificado antes de apagarlo (`launchctl` cuando se decida). Hoy conviven «Hablar con Sato» (LiveKit) y el Sato del OS (GAS + ElevenLabs) con **la misma voz** `xcAUMhbpNX2WRGsuhjFy`.
+- **Capa 3 de los Hilos siempre vivos** (`exportar_charlas` read-only + `_charla_pull.sh` para que Cowork baje las transcripciones al `.md`): diferida, no bloquea.
+- **Avatares sueltos** `Avatares Satori/Cazador Físico.png` y `Vigía.png`: **siguen sin trackear.** El script los detectó (`avatares extra a incluir: 2`) pero `b7554a4` commiteó 6 archivos, no 8 — el `git add` no los tomó y no abortó. NO están en `.gitignore` (verificado con `check-ignore`); la sospecha es la normalización del nombre (la í viene descompuesta, NFD, en el filesystem). Cuando molesten: `git add "Avatares Satori/"` y ver qué dice. Cosméticos, no bloquean nada.
+
+## Artefactos (30-jul)
+
+| Tipo | Valor |
+|---|---|
+| Prod `/exec` | **@33** · `a355a92` · rollback @32 en `_promote_rollback.txt` — **atrasada, promover a @34** |
+| `/dev` | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` · **sirve T2** (push 12:41, 29 archivos) |
+| Git | `b7554a4` **local sin pushear** (falta el regen de CAPABILITIES) · base `57d6885` |
+| Tocados 30-jul | `src/26_sato.js` (T2 backend) · `src/22_seguridad.js` (ENDPOINTS_UI +2) · `src/index.html` (T2 front + fix verde falso) · `_harness.js` (213/0) · `CAPABILITIES.md` · `_tanda_T2_2026-07-30.sh` |
+| Harness | `_harness.js` **213/0** (Node, raíz del repo) |
+| Script de tanda | `_tanda_T2_2026-07-30.sh` (dry-run por defecto; `--go` = add por lista + commit + push + guardia drift + `clasp push`) |
+| Voz | ElevenLabs `eleven_turbo_v2_5` · voz `xcAUMhbpNX2WRGsuhjFy` · `sato_voz_speed` 1.08 · `diagVoz()` para depurar |
+| Doctrina | `CLAUDE.md` § **AISLAMIENTO DE CLIENTE** (9 reglas) — se aplica a toda función nueva con `id_cliente` |
+
+<!-- ══════════════ CABECERA ANTERIOR (28-jul) — ARCHIVO ══════════════ -->
+
 # HANDOFF — Satori OS — 2026-07-28 tarde (espejo vivo · PRODUCCIÓN + FICHA 360 CONSTRUIDA)
 
 > Estado vigente arriba; todo lo que sigue del primer `<!-- HISTÓRICO` es archivo.

@@ -899,8 +899,26 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
    cajón cae a overlay opaco por encima — no hay píxeles para los dos enteros. ── */
 /* T1.7: SATO ÚNICO — panel FIJO del sistema (ya no vive dentro de la ficha). Está disponible
    en todo el OS: sin ficha abierta habla en modo sistema; con ficha, del cliente abierto. */
-.f360-sato{position:fixed;right:0;top:3.5vh;bottom:3.5vh;width:390px;z-index:41;display:none;flex-direction:column;background:rgba(18,14,11,.985);border:1px solid var(--color-border);border-right:0;box-shadow:-14px 0 34px -18px rgba(0,0,0,.8);border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
+/* z-index 300: TODO Satori OS vive en el stacking context de #centro (position:fixed;z-index:50).
+   Dentro de ese contexto la capa AKASHA sube el scrim a 210 y el board a 211 (#centro.ak-on) —
+   por eso 72 nunca alcanzaba: quedaba bajo Akasha. 300 gana a 211 y a toda la capa Akasha (≤70),
+   y queda bajo el único telón superior (#cmFx=100000). Sato es el copiloto: nada del OS lo tapa
+   (01-ago, fix definitivo — el problema era el contexto de Akasha, no el número). */
+.f360-sato{position:fixed;right:0;top:3.5vh;bottom:3.5vh;width:390px;z-index:300;display:none;flex-direction:column;background:rgba(18,14,11,.985);border:1px solid var(--color-border);border-right:0;box-shadow:-14px 0 34px -18px rgba(0,0,0,.8);border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
 .f360-sato.open{display:flex}
+/* CONTRASTE (01-ago, fix definitivo): el panel vive a nivel <body>, FUERA del scope de tokens
+   de #centro. Las primitivas del tema (--_ink-*, --_terra-*) viven en #centro/#akasha, así que
+   acá los var(--color-*) caían al tema CLARO del :root → texto oscuro sobre panel oscuro
+   (ilegible) y burbujas del usuario en verde (primary claro) en vez del terra de Sato. El panel
+   SIEMPRE es oscuro (fondo rgba(18,14,11,.985)), así que fija su propio tema oscuro y es autónomo. */
+.f360-sato, .f360-cierre{
+  color:#F4EEE2;
+  --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
+  --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
+  --glass-border:rgba(244,238,226,.12); --glass-bg:rgba(22,18,15,.92);
+  --color-primary:#D5824F; --color-primary-hover:#E0975F; --color-danger:#E0795F;
+  --radius-lg:18px; --radius-md:12px; --radius-sm:8px;
+}
 #centro .kboard.fichaboard.open.con-sato{transform:translateX(calc(-50% - 195px))}
 @media (max-width:1700px){
   #centro .kboard.fichaboard.open.con-sato{transform:translateX(-50%)}
@@ -929,7 +947,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-prop{margin:6px 0 0;padding:8px 10px;background:color-mix(in srgb, var(--color-primary) 12%, transparent);border:1px solid color-mix(in srgb, var(--color-primary) 38%, transparent);border-radius:10px;font-size:12px}
 .f360-prop .q{display:block;margin-bottom:6px;color:var(--color-text)}
 .f360-prop .bs{display:flex;gap:6px}
-.f360-cierre{position:fixed;right:404px;top:12vh;z-index:42;width:min(430px,42vw);max-height:72vh;overflow-y:auto;background:rgba(18,14,11,.99);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:14px;box-shadow:0 22px 60px -24px rgba(0,0,0,.9);display:none}
+.f360-cierre{position:fixed;right:404px;top:12vh;z-index:301;width:min(430px,42vw);max-height:72vh;overflow-y:auto;background:rgba(18,14,11,.99);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:14px;box-shadow:0 22px 60px -24px rgba(0,0,0,.9);display:none}
 .f360-cierre.open{display:block}
 .f360-cierre h5{margin:0 0 4px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted)}
 .f360-cierre .res{font-size:12.5px;color:var(--color-text);margin:0 0 10px;line-height:1.45}
@@ -1283,33 +1301,6 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <!-- FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) — overlay hermano del tablero/calendario.
        Plan / Números / Próximos pasos + el Hilo con columna entera y scroll propio (rediseño del
        Hilo-en-panel). Datos: datosCliente() + fichaCliente() + hiloCliente() + agendaRango(). -->
-    <!-- T1.4/T1.7: SATO ÚNICO — vive a nivel de #centro (todo el OS), no dentro de la ficha.
-       Sin cliente = modo sistema (memoria propia, ve la cartera); con ficha abierta = ese cliente. -->
-    <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
-      <div class="f360-sato-h"><b>🜂 Sato</b>
-        <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
-        <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
-        <span class="st" id="f360SatoSt">memoria persistente</span>
-        <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-      <div class="f360-sato-log" id="f360SatoLog"></div>
-      <div class="f360-sato-acts">
-        <button class="vbtn" id="f360SatoDia" title="El arranque del día, hablado">☀ mi día</button>
-        <button class="vbtn" id="f360SatoCerrar" title="Cerrar la sesión: convertir lo hablado en trabajo registrado">✓ cerrar sesión</button>
-      </div>
-      <div class="f360-sato-in">
-        <textarea id="f360SatoTx" maxlength="1200" placeholder="Hablá con Sato… (Enter envía · Shift+Enter salto)" aria-label="Mensaje para Sato"></textarea>
-      </div>
-    </div>
-    <!-- T2.1: panel de cierre de sesión — Sato propone, Luciano tilda, el sistema registra -->
-    <div class="f360-cierre" id="f360Cierre" role="dialog" aria-label="Cierre de sesión">
-      <h5>Cierre de sesión · <span id="f360CierreCli"></span></h5>
-      <p class="res" id="f360CierreRes"></p>
-      <div id="f360CierreItems"></div>
-      <div class="acts">
-        <button class="btn btn-ghost btn-sm" id="f360CierreNo">Después</button>
-        <button class="btn btn-sm" id="f360CierreGo">Registrar lo tildado</button>
-      </div>
-    </div>
   <div class="kscrim" id="fichascrim"></div>
   <div class="kboard fichaboard" id="fichaboard" role="dialog" aria-modal="true" aria-label="Ficha de cliente 360">
     <div class="khead">
@@ -6676,5 +6667,35 @@ window.AKASHA = (function () {
 
 if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4c: mic-only no bootea el CM
 </script>
+    <!-- T1.4/T1.7: SATO ÚNICO — colgado de <body>, HERMANO de #centro y #akasha (no adentro de #centro).
+       #akasha es fixed z-index:200 y #centro z-index:50: si Sato vive dentro de #centro su z queda
+       encapsulado bajo 50 y Akasha (200) lo tapa. A nivel body con z-index:300 nada del OS lo tapa.
+       Sin cliente = modo sistema (ve la cartera); con ficha abierta = ese cliente. -->
+    <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
+      <div class="f360-sato-h"><b>🜂 Sato</b>
+        <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
+        <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
+        <span class="st" id="f360SatoSt">memoria persistente</span>
+        <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+      <div class="f360-sato-log" id="f360SatoLog"></div>
+      <div class="f360-sato-acts">
+        <button class="vbtn" id="f360SatoDia" title="El arranque del día, hablado">☀ mi día</button>
+        <button class="vbtn" id="f360SatoCerrar" title="Cerrar la sesión: convertir lo hablado en trabajo registrado">✓ cerrar sesión</button>
+      </div>
+      <div class="f360-sato-in">
+        <textarea id="f360SatoTx" maxlength="1200" placeholder="Hablá con Sato… (Enter envía · Shift+Enter salto)" aria-label="Mensaje para Sato"></textarea>
+      </div>
+    </div>
+    <!-- T2.1: panel de cierre de sesión — Sato propone, Luciano tilda, el sistema registra -->
+    <div class="f360-cierre" id="f360Cierre" role="dialog" aria-label="Cierre de sesión">
+      <h5>Cierre de sesión · <span id="f360CierreCli"></span></h5>
+      <p class="res" id="f360CierreRes"></p>
+      <div id="f360CierreItems"></div>
+      <div class="acts">
+        <button class="btn btn-ghost btn-sm" id="f360CierreNo">Después</button>
+        <button class="btn btn-sm" id="f360CierreGo">Registrar lo tildado</button>
+      </div>
+    </div>
+
 </body>
 </html>
