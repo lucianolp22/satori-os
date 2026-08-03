@@ -53,11 +53,23 @@ var MAESTRO_SHEETS = {
   // (idempotente por fecha). Le da al brief la TENDENCIA (de foto a película). La DEFINICIÓN del
   // North Star sigue en Config (ns_satori_*); acá vive SOLO la serie de resultados observados.
   NS_serie: ['fecha', 'metrica', 'actual', 'meta'],
+  // TC-2 (03-ago) — DECISION LOG. Hasta hoy las decisiones de dirección vivían sueltas: en los
+  // pivots del North Star, en un HANDOFF o en la cabeza de Luciano. Acá quedan con su PORQUÉ.
+  // ⚠ APPEND-ONLY: una decisión NUNCA se borra ni se edita. Cambiar de opinión = revertirla
+  // (estado='revertida' + `revertida_en` + `revertida_porque`), que deja el rastro de que se
+  // pensó distinto y cuándo. Una decisión borrada es una lección perdida.
+  // `alcance` = 'sistema' o un id_cliente: es lo que permite que Sato lea las decisiones de un
+  // tenant sin ver las de otro (aislamiento §2).
+  Decisiones: ['id_decision', 'fecha', 'decision', 'porque', 'alcance', 'fuente', 'estado', 'revertida_en', 'revertida_porque'],
   Config: ['clave', 'valor']
 };
 
 // Orden de creación de pestañas en el MAESTRO.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Config'];
+// ⚠ INVARIANTE (verificado en TC-2): MAESTRO_ORDEN ⊆ claves de MAESTRO_SHEETS. `correrSalud`
+// hace `MAESTRO_SHEETS[n].forEach` por cada nombre de esta lista: un nombre sin definición de
+// columnas revienta con `undefined.forEach`. Es el mismo fallo que `CLIENTE_SHEETS_SENSIBLES`
+// con las hojas lazy (23-jul). Lo asera D32a1.
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Decisiones', 'Config'];
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
@@ -189,7 +201,15 @@ var CONFIG_DEFAULTS = [
   ['avatar_conciliador', ''],
   ['avatar_cobrador', ''],
   ['avatar_analista', ''],
-  ['avatar_abastecedor', '']
+  ['avatar_abastecedor', ''],
+  // TC-2 (03-ago) — GUARDIÁN FOCO/PAZ. Umbrales de sobrecarga, editables sin tocar código.
+  // Defaults DELIBERADAMENTE prudentes: el guardián avisa cuando la carga es objetivamente
+  // rara, no cuando el día está ocupado. Un guardián que canta todos los días se ignora a la
+  // semana, y entonces no sirve para el día que de verdad importa.
+  ['fp_max_vencidas_A', '3'],        // tareas de prioridad A ya vencidas
+  ['fp_max_eventos_dia', '5'],       // eventos de Agenda en un mismo día de los próximos 7
+  ['fp_max_aprob_estancadas', '5'],  // aprobaciones pendientes sin decidir
+  ['fp_dias_aprob_estancada', '7']   // desde cuántos días una pendiente cuenta como estancada
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;

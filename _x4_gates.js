@@ -80,6 +80,10 @@ const X4B = {
 };
 for (const f of Object.keys(X4B)) X4[f] = (X4[f] || []).concat(X4B[f]);
 
+// ── TC-2 (03-ago): módulo nuevo, mismo criterio. El decision log escribe el marco de dirección
+// y su lectura filtra por alcance (ese filtro ES el aislamiento entre tenants).
+X4['27_decisiones.js'] = ['registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial'];
+
 let total = 0, puestos = 0, yaTenian = 0;
 const fallos = [];
 

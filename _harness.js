@@ -70,7 +70,7 @@ vm.createContext(ctx);
 
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
-const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
+const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '27_decisiones.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
                  '25_hilo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -137,6 +137,13 @@ chk(sh._limpiadas.length === 0, 'con colchón de grid no se activa la preservaci
 // ═══ 3 · Fix A (27-jul): estadoCacheado_ ═════════════════════════════════════
 seccion('estadoCacheado_ (cache del estado para la voz)');
 let renders = 0;
+// El stub es necesario acá (se cuentan los renders para probar el cache), pero hasta el 03-ago
+// NO se restauraba: a partir de esta línea todo el harness veía el stub en vez de la función
+// real, y cualquier assert posterior que dependiera de `estadoVigente` habría medido el stub sin
+// enterarse. No mordió a nadie porque los bloques que la usan la re-stubean a propósito, y porque
+// `estadoCacheado_` no se vuelve a ejercitar — pero es un verde falso esperando. Se restaura al
+// cerrar el bloque (save/restore, mismo patrón que SATORI_CTX_SISTEMA en D31g).
+const estadoVigenteReal = ctx.estadoVigente;
 ctx.estadoVigente = function (id) { renders++; return '# Estado vigente — stub ' + (id || 'SISTEMA'); };
 delete cacheScript._store['estado_v1_SISTEMA'];
 const r1 = ctx.estadoCacheado_();
@@ -147,6 +154,8 @@ chk(cacheScript._store['estado_v1_SISTEMA'].ttl === 600, 'TTL de voz = 600s (esp
 const rc = ctx.estadoCacheado_('CLI-002');
 chk(renders === 2 && rc.indexOf('CLI-002') > 0, 'clave por cliente: CLI-002 tiene su propio cache');
 chk(cacheScript._store['estado_v1_CLI-002'] != null, 'la clave del cliente existe en el cache');
+ctx.estadoVigente = estadoVigenteReal;   // fin del stub: el resto del harness vuelve a ver la real
+chk(/_soloOwner_\s*\(/.test(String(ctx.estadoVigente)), 'estadoVigente real restaurada tras el bloque de cache (no queda el stub suelto)');
 
 // ═══ 4 · Fix C (27-jul): prefijos deterministas de la Bandeja ════════════════
 seccion('Bandeja: prefijos deterministas');
@@ -599,7 +608,10 @@ for (const fn of ['satoCierreSesion', 'satoAplicarCierre']) {
       '"items":[{"tipo":"checklist","texto":"Pedir las facturas de junio","dueno":"Luciano"},' +
       '{"tipo":"encargo","texto":"Armar el tablero de la reunión","dueno":"Cowork"},' +
       '{"tipo":"hilo","texto":"Se corre la reunión al martes","dueno":"cliente"},' +
-      '{"tipo":"inventado","texto":"tipo fuera de la lista","dueno":""}]} y algo más' };
+      '{"tipo":"inventado","texto":"tipo fuera de la lista","dueno":""},' +
+      // TC-2: una decisión CON porqué entra al log; una SIN porqué degrada a checklist.
+      '{"tipo":"decision","texto":"De acá en más DAM factura a 15 días","dueno":"Luciano","porque":"el cobro a 30 nos comía la caja"},' +
+      '{"tipo":"decision","texto":"decision sin motivo","dueno":"Luciano"}]} y algo más' };
   };
 
   // T2.1 — sesión corta: no se molesta al modelo ni se registra nada
@@ -620,9 +632,15 @@ for (const fn of ['satoCierreSesion', 'satoAplicarCierre']) {
   const cs = ctx.satoCierreSesion('CLI-004');
   chk(cs.ok === true && cs.resumen.indexOf('cierre de julio') >= 0 && cs.turnos === 3,
       'satoCierreSesion sintetiza la sesión del día (resumen + turnos leídos)');
-  chk(cs.items.length === 4 && cs.items[0].tipo === 'checklist' && cs.items[1].tipo === 'encargo' && cs.items[2].tipo === 'hilo',
-      'los ítems vienen tipados (checklist / encargo / hilo)');
+  // El conteo se DERIVA del stub, no se clava a mano: si mañana se agrega otro ítem al stub,
+  // este assert acompaña en vez de cortar el harness (lección D14g).
+  chk(cs.items.length === 6 && cs.items[0].tipo === 'checklist' && cs.items[1].tipo === 'encargo' && cs.items[2].tipo === 'hilo',
+      'los ítems vienen tipados (' + ctx.SATO_TIPOS_ITEM.join(' / ') + ')');
   chk(cs.items[3].tipo === 'checklist', 'un tipo inventado por el modelo cae a checklist (no revienta)');
+  chk(cs.items[4].tipo === 'decision' && cs.items[4].porque.indexOf('caja') >= 0,
+      'TC-2 · una decisión CON porqué se preserva como decision, con su motivo');
+  chk(cs.items[5].tipo === 'checklist',
+      'TC-2 · una decisión SIN porqué degrada a checklist (el log vale por el motivo, no por el título)');
   chk(cs.items[0].dueno === 'Luciano', 'cada ítem declara DUEÑO (nadie hereda tareas por descarte)');
   chk(escritas.length === 0 && chkAgregados.length === 0 && capturados.length === 0,
       '🔒 satoCierreSesion PROPONE y no escribe NADA (la escritura la habilita el humano)');
@@ -873,6 +891,75 @@ seccion('D31 · X4 · partición de la superficie RPC (toda pública: gateada o 
   chk(gateadasPreAuth.length === 0,
       `D31h3 ninguna función gateada es alcanzable sin contexto de sistema (${alcanzables.size} alcanzables)` +
       (gateadasPreAuth.length ? ' — MORIRÍA EN SILENCIO: ' + gateadasPreAuth.join(', ') : ''));
+}
+
+// ═══ D32 · TC-2 · decision log + guardián foco/paz (el juicio, sin Sheets) ═══
+seccion('D32 · decision log: visibilidad por alcance y porqué obligatorio');
+{
+  const vis = ctx._decisionVisible_;
+  chk(vis('sistema', '') === true && vis('CLI-002', '') === true,
+      'D32a modo sistema ve TODAS las decisiones (privilegio del modo sistema, §2)');
+  chk(vis('CLI-004', 'CLI-004') === true, 'D32a2 desde la Ficha se ven las decisiones de ESE cliente');
+  chk(vis('sistema', 'CLI-004') === true, 'D32a3 desde la Ficha se ven además las de alcance sistema (el marco general aplica)');
+  chk(vis('CLI-002', 'CLI-004') === false, 'D32a4 🔒 desde la Ficha de un cliente NO se ven las decisiones de otro');
+
+  const norm = ctx._decisionNormalizar_;
+  chk(norm('', 'porque x').ok === false && norm('', 'porque x').error === 'falta_decision',
+      'D32b una decisión sin texto no se registra');
+  chk(norm('decidí X', '').ok === false && norm('decidí X', '').error === 'falta_porque',
+      'D32b2 el PORQUÉ es obligatorio (una decisión sin motivo no se puede evaluar en dos meses)');
+  const n1 = norm('decidí X', 'porque Y', '', '', '2026-08-03T20:30:00');
+  chk(n1.ok === true && n1.fila.alcance === 'sistema' && n1.fila.estado === 'vigente' && n1.fila.fuente === 'manual',
+      'D32b3 alcance vacío = sistema · nace vigente · fuente default manual');
+  chk(norm('d', 'p', 'CLI-004').fila.alcance === 'CLI-004', 'D32b4 el alcance de cliente se conserva');
+}
+
+seccion('D32 · guardián foco/paz: avisa una cosa, o se calla');
+{
+  const ev = ctx._focoPazEvaluar_;
+  const U = { max_vencidas_A: 3, max_eventos_dia: 5, max_aprob_estancadas: 5 };
+  const calma = ev({ vencidas_A: 2, eventos_pico: 4, aprob_estancadas: 1 }, U);
+  chk(calma.hay === false && calma.senales.length === 0 && calma.recomendacion === '',
+      'D32c sin sobrecarga, SILENCIO (un guardián que canta siempre se ignora)');
+  chk(ev({ vencidas_A: 3, eventos_pico: 5, aprob_estancadas: 5 }, U).hay === false,
+      'D32c2 estar EN el umbral todavía no es pasarse (compara con >, no con >=)');
+
+  const tareas = ev({ vencidas_A: 9, peor_tarea: 'Registrar Patinete en Hacienda', eventos_pico: 1, aprob_estancadas: 0 }, U);
+  chk(tareas.hay === true && tareas.motivo === 'tareas_A_vencidas',
+      'D32d con [A] vencidas de más, hay señal');
+  chk(tareas.recomendacion.indexOf('Registrar Patinete en Hacienda') >= 0,
+      'D32d2 la recomendación NOMBRA la tarea concreta a soltar (no "revisá tus pendientes")');
+  chk(tareas.recomendacion.indexOf('UNA') >= 0, 'D32d3 se pide soltar UNA sola cosa (un aviso de 9 problemas agrega peso)');
+
+  // La señal más fuerte manda: agenda se pasa por 6, tareas por 1 → gana agenda.
+  const mixto = ev({ vencidas_A: 4, peor_tarea: 'algo', eventos_pico: 11, dia_pico: '2026-08-07', aprob_estancadas: 0 }, U);
+  chk(mixto.motivo === 'agenda_densa' && mixto.recomendacion.indexOf('2026-08-07') >= 0,
+      'D32e manda la señal que MÁS se pasó de su umbral, y nombra el día pico');
+  chk(mixto.senales.length === 2, 'D32e2 el aviso declara todas las señales aunque recomiende una sola acción');
+
+  chk(ev({ vencidas_A: 99 }, { max_vencidas_A: 0 }).hay === false,
+      'D32f umbral en 0 = chequeo apagado (no dispara con la guardia baja)');
+}
+
+seccion('D32 · el cierre de sesión registra decisiones');
+{
+  const bk = { registrarDecision: ctx.registrarDecision, checklistAgregar: ctx.checklistAgregar, capturar: ctx.capturar };
+  const registradas = [], chks = [], caps = [];
+  ctx.registrarDecision = (t, p, a, f) => { registradas.push({ texto: t, porque: p, alcance: a, fuente: f }); return { ok: true, id_decision: 'DEC-0001' }; };
+  ctx.checklistAgregar = (id, t) => { chks.push(t); return { ok: true, id: 'CHK-1' }; };
+  ctx.capturar = (t) => { caps.push(t); return 'BAN-1'; };
+  try {
+    const r = ctx.satoAplicarCierre('CLI-004', [{ tipo: 'decision', texto: 'DAM factura a 15 días', porque: 'el cobro a 30 comía la caja' }]);
+    chk(r.ok === true && registradas.length === 1, 'D32g un ítem `decision` confirmado va al decision log');
+    chk(registradas[0].porque.indexOf('caja') >= 0 && registradas[0].fuente === 'sato-cierre',
+        'D32g2 la decisión llega con su porqué y con la fuente que la originó');
+    chk(registradas[0].alcance === 'CLI-004', 'D32g3 🔒 la decisión queda anclada al cliente de la sesión, no a sistema');
+    chk(chks.length === 0 && caps.length === 0,
+        'D32g4 una decisión NO crea además una tarea ni un encargo (fija un criterio, no un pendiente)');
+    const rs = ctx.satoAplicarCierre('', [{ tipo: 'decision', texto: 'reactivar Forge', porque: 'completar el plan' }]);
+    chk(rs.ok === true && registradas[1].alcance === 'sistema',
+        'D32g5 desde modo sistema la decisión nace con alcance sistema');
+  } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

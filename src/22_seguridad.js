@@ -237,7 +237,12 @@ var ENDPOINTS_UI = [
   'estadoVigente', 'briefDiario', 'verifBriefCache', 'verifEstadoCache',        // 18_direccion.js
   'verVehemence',
   'estadoPausa',                                                                // 20_killswitch.js
-  'estadoTriggerBackup'                                                         // 21_backup.js
+  'estadoTriggerBackup',                                                        // 21_backup.js
+
+  // ── TC-2 (03-ago) · decision log. `registrarDecision`/`revertirDecision`/`sembrarDecisionInicial`
+  // escriben el marco de dirección; `decisionesVigentes` lo lee (y su filtro de alcance ES el
+  // aislamiento entre tenants, así que abrirlo sería peor que una lectura cualquiera).
+  'registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial'  // 27_decisiones.js
 ];
 
 /**

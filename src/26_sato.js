@@ -80,8 +80,20 @@ var SATO_FUENTES = {
   sistema:      { especial: 'sistema',      que: 'estado vigente de TODO Satori OS (cartera, salud, North Star)' },
   cartera:      { especial: 'cartera',      que: 'lista de TODOS los clientes con rubro, estado y responsable' },
   historial:    { especial: 'historial',    que: 'lo YA hablado con Luciano sobre este cliente (más atrás de los últimos turnos) — usalo para no repetir' },
-  descartado:   { especial: 'descartado',   que: 'caminos YA descartados y decisiones cerradas (pivots del North Star + checklist ya hecho) — NUNCA re-proponer esto' }
+  descartado:   { especial: 'descartado',   que: 'caminos YA descartados y decisiones cerradas (pivots del North Star + checklist ya hecho) — NUNCA re-proponer esto' },
+  // TC-2 (03-ago): el decision log. `descartado` dice qué se cerró; esto dice qué se DECIDIÓ y
+  // POR QUÉ, que es lo que hace falta para no re-discutir lo ya resuelto.
+  decisiones:   { especial: 'decisiones',   que: 'decisiones de dirección VIGENTES con su porqué y su fecha — el marco dentro del cual se piensa, no re-abrirlo sin motivo nuevo' }
 };
+
+/**
+ * Tipos de ítem que el cierre de sesión (T2.1) puede producir y aplicar. LISTA-CONTRATO: la
+ * consumen el prompt del cierre, la validación de `satoCierreSesion`, el despacho de
+ * `satoAplicarCierre` y los asserts. Vivía repetida a mano en esos cuatro lugares; se extrajo en
+ * TC-2 al sumar `decision`, justamente para no repetir el precedente D14g (una lista que crece y
+ * un consumidor que no se entera).
+ */
+var SATO_TIPOS_ITEM = ['checklist', 'encargo', 'hilo', 'decision'];
 
 /* T1.7 (29-jul) — SATO ÚNICO, EN TODO EL SISTEMA. Decisión de Luciano: un solo Sato, que lo
  * acompañe por todo Satori OS e integre el trabajo de TODOS los clientes. Dos modos, un cerebro:
@@ -128,6 +140,14 @@ function _satoDatos_(id, fuente, mes, idPedido, modoSistema) {
         return { id: c.id_cliente, nombre: c.nombre, rubro: c.rubro, estado: c.estado, responsable: c.responsable };
       });
       return { clientes: cl, total: cl.length };
+    }
+    // TC-2 · decision log. Va ANTES del corte por `tgt` porque en modo sistema SIN cliente sí
+    // tiene sentido: son las decisiones de dirección de Satori. El filtro de visibilidad es el
+    // que hace el aislamiento (§2): desde la Ficha de X se ven las de X y las de 'sistema', y
+    // las de otro tenant no aparecen ni siquiera para comparar.
+    if (f.especial === 'decisiones') {
+      var dec = decisionesVigentes(tgt || '');
+      return { decisiones: dec, total: dec.length, alcance_consultado: tgt || 'sistema (toda la cartera)' };
     }
     if (!tgt) return { error: 'falta_cliente', nota: 'en modo sistema indicá cliente=CLI-00X en el pedido' };
     if (f.especial === 'historial') {
@@ -257,9 +277,11 @@ function satoChat(idCliente, mensaje, opts) {
     '',
     '=== MEMORIA QUE FRENA (T2.4) ===',
     'Antes de acompañar una idea, chequeá si ya se decidió o se descartó antes. Si lo que Luciano propone aparece',
-    'en la conversación previa, en `historial` o en `descartado`, DECILO PRIMERO con la fecha ("esto lo decidiste el',
-    '13/07 y quedó descartado porque…") y recién después opiná. Si sospechás repetición y no lo tenés a mano,',
-    'pedí `historial` o `descartado`. No es terquedad: le ahorrás repetir trabajo ya pagado.',
+    'en la conversación previa, en `historial`, en `descartado` o en `decisiones`, DECILO PRIMERO con la fecha',
+    '("esto lo decidiste el 13/07 y quedó descartado porque…") y recién después opiná. Si sospechás repetición y no',
+    'lo tenés a mano, pedí `historial`, `descartado` o `decisiones`. No es terquedad: le ahorrás repetir trabajo ya pagado.',
+    'Con `decisiones` tenés además el PORQUÉ de cada una: si Luciano quiere ir contra una decisión vigente, no lo',
+    'bloquees — traé el porqué original y preguntá qué cambió. Una decisión se revierte a conciencia, no por olvido.',
     '',
     '=== PODÉS PROPONER ACCIONES (T2.2) ===',
     'Cuando de la charla salga algo concreto que convenga registrar, cerrá tu respuesta con UNA línea así:',
@@ -471,9 +493,11 @@ function satoCierreSesion(idCliente) {
     'Sos Sato cerrando una sesión de trabajo' + (id ? (' sobre el cliente ' + id) : ' de sistema') + '.',
     'Leé la conversación y extraé SOLO lo accionable que se acordó o quedó pendiente. Nada de relleno.',
     'Devolvé ÚNICAMENTE un JSON válido, sin texto alrededor, con esta forma exacta:',
-    '{"resumen":"2 o 3 líneas de qué se trabajó","items":[{"tipo":"checklist|encargo|hilo","texto":"acción concreta en imperativo","dueno":"Luciano|Cowork|cliente|otro"}]}',
+    '{"resumen":"2 o 3 líneas de qué se trabajó","items":[{"tipo":"' + SATO_TIPOS_ITEM.join('|') + '","texto":"acción concreta en imperativo","dueno":"Luciano|Cowork|cliente|otro","porque":"solo si tipo=decision"}]}',
     'tipo=checklist: tarea concreta de este cliente. tipo=encargo: necesita a Cowork (archivos, análisis, web, código).',
     'tipo=hilo: acuerdo o desvío que cambia el plan de trabajo con el cliente.',
+    'tipo=decision: algo que Luciano DECIDIÓ en esta charla y va a regir de acá en más (no una tarea: un criterio).',
+    'Para tipo=decision el campo `porque` es OBLIGATORIO: sin el motivo, la decisión no sirve dentro de dos meses.',
     'Máximo 8 ítems. Si no hay nada accionable, devolvé items vacío. NO inventes: solo lo que se dijo.'
   ].join('\n');
 
@@ -488,9 +512,13 @@ function satoCierreSesion(idCliente) {
     out.resumen = limpiarHostilTexto_(String(p.resumen || ''), 400);
     out.items = (p.items || []).slice(0, 8).map(function (i) {
       var tipo = String(i.tipo || 'checklist').toLowerCase();
-      if (['checklist', 'encargo', 'hilo'].indexOf(tipo) < 0) tipo = 'checklist';
+      if (SATO_TIPOS_ITEM.indexOf(tipo) < 0) tipo = 'checklist';
+      // Una `decision` sin porqué NO es una decisión registrable: degrada a checklist en vez de
+      // entrar al log a medias. El decision log vale por el motivo, no por el título.
+      var pq = limpiarHostilTexto_(String(i.porque || ''), 600).trim();
+      if (tipo === 'decision' && !pq) tipo = 'checklist';
       return { tipo: tipo, texto: limpiarHostilTexto_(String(i.texto || ''), 160),
-               dueno: limpiarHostilTexto_(String(i.dueno || ''), 40) };
+               dueno: limpiarHostilTexto_(String(i.dueno || ''), 40), porque: pq };
     }).filter(function (i) { return i.texto; });
   } catch (e) {
     return { ok: false, error: 'la síntesis no vino en el formato esperado (no se registró nada)' };
@@ -514,7 +542,13 @@ function satoAplicarCierre(idCliente, items) {
     var texto = limpiarHostilTexto_(String(i.texto || ''), 160);
     if (!texto) return;
     try {
-      if (tipo === 'checklist' && id) {
+      if (tipo === 'decision') {
+        // TC-2: la decisión va al log con su porqué y con el alcance del contexto ('' = sistema).
+        // Es el único tipo que NO produce una tarea: fija un criterio, no un pendiente.
+        var rd = registrarDecision(texto, i.porque, id || DECISION_ALCANCE_SISTEMA, 'sato-cierre');
+        if (rd.ok) hechos.push('decisión: ' + texto + ' (' + rd.id_decision + (rd.ya_estaba ? ', ya estaba' : '') + ')');
+        else fallos.push(texto + ' (' + rd.error + ')');
+      } else if (tipo === 'checklist' && id) {
         var rc = checklistAgregar(id, texto + (i.dueno ? (' · ' + i.dueno) : ''));
         if (rc.ok) hechos.push('checklist: ' + texto); else fallos.push(texto + ' (' + rc.error + ')');
       } else {

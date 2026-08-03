@@ -570,7 +570,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ },
    { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ },
    { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ },
-   { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ }].forEach(function (t) {
+   { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ },
+   { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2055,6 +2056,98 @@ function _asertsD31_(chk, log, opts) {
            ENTRY_POINTS_SISTEMA.length + ' entry points de sistema con el orden ctx→gate');
 }
 
+/**
+ * D32 · TC-2 — decision log + guardián foco/paz.
+ * Parte liviana: contratos y juicio puro (sin Sheets). Parte `opts.completo`: la hoja viva,
+ * incluida la SIEMBRA de la primera decisión real (03-ago) como caso de prueba vivo.
+ */
+function _asertsD32_(chk, log, opts) {
+  // ── Contratos. El primero es el invariante que evita repetir el fallo del 23-jul: ──
+  // `correrSalud` hace `MAESTRO_SHEETS[n].forEach` por cada nombre de MAESTRO_ORDEN, así que un
+  // nombre sin definición de columnas revienta con `undefined.forEach`. Se asera derivado.
+  var d32sin = MAESTRO_ORDEN.filter(function (n) { return !MAESTRO_SHEETS[n]; });
+  chk(d32sin.length === 0, 'D32a1 toda pestaña de MAESTRO_ORDEN tiene columnas en MAESTRO_SHEETS' +
+      (d32sin.length ? ' — SIN SCHEMA: ' + d32sin.join(', ') : ' (' + MAESTRO_ORDEN.length + ')'));
+  chk(MAESTRO_ORDEN.indexOf('Decisiones') >= 0, 'D32a2 la hoja Decisiones está declarada en MAESTRO_ORDEN');
+  ['id_decision', 'decision', 'porque', 'alcance', 'estado', 'revertida_en'].forEach(function (c) {
+    chk(MAESTRO_SHEETS.Decisiones.indexOf(c) >= 0, 'D32a3 Decisiones declara la columna `' + c + '`');
+  });
+  ['registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial'].forEach(function (fn) {
+    chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D32a4 ' + fn + ' dado de alta en ENDPOINTS_UI (regla anti-drift)');
+  });
+  chk(!!SATO_FUENTES.decisiones && SATO_TIPOS_ITEM.indexOf('decision') >= 0,
+      'D32a5 Sato declara la fuente `decisiones` y el tipo de ítem `decision`');
+  var d32fp = CONFIG_DEFAULTS.filter(function (p) { return String(p[0]).indexOf('fp_') === 0; });
+  chk(d32fp.length >= 3, 'D32a6 los umbrales del guardián viven en CONFIG_DEFAULTS (' + d32fp.length + ' claves fp_*)');
+
+  // ── Juicio PURO: visibilidad por alcance (aislamiento) y porqué obligatorio. ──
+  chk(_decisionVisible_('CLI-002', '') === true && _decisionVisible_('sistema', 'CLI-004') === true,
+      'D32b modo sistema ve todo · desde una Ficha se ve además el marco de sistema');
+  chk(_decisionVisible_('CLI-002', 'CLI-004') === false,
+      'D32b2 🔒 desde la Ficha de un cliente NO se ven las decisiones de otro');
+  chk(_decisionNormalizar_('decidí X', '').error === 'falta_porque',
+      'D32b3 sin PORQUÉ no hay decisión (el log vale por el motivo)');
+  chk(_decisionNormalizar_('decidí X', 'porque Y').fila.alcance === 'sistema',
+      'D32b4 alcance vacío = sistema');
+
+  // ── Juicio PURO del guardián: silencio por default, una sola cosa a soltar. ──
+  var d32u = { max_vencidas_A: 3, max_eventos_dia: 5, max_aprob_estancadas: 5 };
+  chk(_focoPazEvaluar_({ vencidas_A: 2, eventos_pico: 4, aprob_estancadas: 1 }, d32u).hay === false,
+      'D32c sin sobrecarga el guardián se CALLA');
+  var d32v = _focoPazEvaluar_({ vencidas_A: 9, peor_tarea: '__TEST__ tarea vieja', eventos_pico: 0 }, d32u);
+  chk(d32v.hay === true && d32v.recomendacion.indexOf('__TEST__ tarea vieja') >= 0,
+      'D32c2 con señal, la recomendación nombra UNA cosa concreta a soltar');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D32d-g (hoja Decisiones viva + siembra real) solo corren en selfTest() completo');
+    return;
+  }
+
+  // ── Con Sheets VIVOS. La primera decisión del log es REAL, no un __TEST__ inventado: la del ──
+  // 03-ago 20:30 en la que Luciano reactivó Forge/caching/A5, redactada en la propia adenda.
+  // Es idempotente, así que sirve de caso de prueba vivo sin ensuciar nada al re-correr.
+  var d32s = sembrarDecisionInicial();
+  chk(d32s.ok === true && !!d32s.id_decision,
+      'D32d la decisión REAL del 03-ago queda registrada (' + (d32s.id_decision || d32s.error) + ')');
+  var d32vig = decisionesVigentes('');
+  var d32forge = d32vig.filter(function (d) { return d.decision.indexOf('Reactivar Forge') === 0; });
+  chk(d32forge.length === 1, 'D32d2 aparece UNA sola vez entre las vigentes (idempotente: re-correr el selfTest no duplica)');
+  chk(d32forge.length === 1 && d32forge[0].porque.indexOf('verde falso') >= 0 && d32forge[0].alcance === 'sistema',
+      'D32d3 conserva su PORQUÉ y su alcance de sistema');
+  chk(sembrarDecisionInicial().ya_estaba === true, 'D32d4 sembrarla de nuevo NO crea una segunda fila');
+
+  // ── 🔒 Aislamiento con datos vivos (regla 9: toda función con id_cliente suma su assert). ──
+  var d32A = crearCliente({ nombre: '__TEST__ dec A ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d32B = crearCliente({ nombre: '__TEST__ dec B ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d32rA = registrarDecision('__TEST__ decisión de A', 'porque sí', d32A.id_cliente, 'selftest');
+  chk(d32rA.ok === true, 'D32e decisión de prueba registrada en el alcance de A');
+  chk(decisionesVigentes(d32B.id_cliente).filter(function (d) { return d.id_decision === d32rA.id_decision; }).length === 0,
+      'D32e2 🔒 desde B NO se lee la decisión de A');
+  chk(decisionesVigentes(d32A.id_cliente).filter(function (d) { return d.id_decision === d32rA.id_decision; }).length === 1,
+      'D32e3 desde A sí se lee la propia');
+  chk(decisionesVigentes(d32A.id_cliente).filter(function (d) { return d.alcance === 'sistema'; }).length >= 1,
+      'D32e4 desde A se ve además el marco de sistema (la decisión del 03-ago)');
+  chk(registrarDecision('__TEST__ alcance inventado', 'porque', 'CLI-NOEXISTE').error === 'alcance_inexistente',
+      'D32e5 🔒 un alcance fuera del roster real NO se registra (§3: el id lo pone el sistema)');
+
+  // ── Reversión: no se borra, se revierte con fecha y motivo. ──
+  var d32rev = revertirDecision(d32rA.id_decision, 'la probamos y no funcionó');
+  chk(d32rev.ok === true, 'D32f una decisión vigente se puede revertir');
+  chk(decisionesVigentes(d32A.id_cliente).filter(function (d) { return d.id_decision === d32rA.id_decision; }).length === 0,
+      'D32f2 la revertida ya NO está entre las vigentes');
+  var d32fila = leerTabla(getMaestro().getSheetByName('Decisiones'))
+    .filter(function (f) { return String(f.id_decision) === d32rA.id_decision; })[0];
+  chk(!!d32fila && String(d32fila.estado) === 'revertida' && String(d32fila.revertida_en).length >= 10 &&
+      String(d32fila.revertida_porque).indexOf('no funcionó') >= 0,
+      'D32f3 la fila SIGUE existiendo, con estado revertida + fecha + motivo (append-only: nada se borra)');
+  chk(revertirDecision(d32rA.id_decision, 'otra vez').error === 'no_vigente',
+      'D32f4 revertir dos veces la misma decisión no hace nada');
+  chk(revertirDecision(d32rA.id_decision, '').error === 'falta_porque',
+      'D32f5 revertir sin motivo tampoco (la vuelta atrás también deja rastro)');
+
+  log.push('   ↳ D32 TC-2: decision log vivo (' + d32vig.length + ' vigentes) + guardián foco/paz aserido en puro');
+}
+
 function selfTestF2_() {
   var log = [], fallos = [];
   // chk ACUMULATIVO (16-jul): registra y SIGUE. El chk fatal de selfTest() devolvía UN rojo por
@@ -2235,6 +2328,14 @@ function limpiarTodoTest() {
   if (shRecL) borrarFilasDonde(shRecL, function (f) { return String(f.id).indexOf('REC-TEST') === 0 || String(f.texto).indexOf('__TEST__') === 0; });
   var shAge = ss.getSheetByName('Agenda');
   if (shAge) borrarFilasDonde(shAge, function (f) { return String(f.titulo).indexOf('__TEST__') === 0; });
+  // TC-2: decisiones de prueba. La hoja es APPEND-ONLY para las decisiones REALES (una decisión
+  // se revierte, no se borra); este barrido es SOLO de las filas marcadas `__TEST__`, y por eso
+  // matchea el prefijo del texto y el alcance de un tenant de prueba — jamás un `contains` laxo
+  // que se llevaría por delante una decisión real que mencione la palabra.
+  var shDec = ss.getSheetByName('Decisiones');
+  if (shDec) borrarFilasDonde(shDec, function (f) {
+    return String(f.decision).indexOf('__TEST__') === 0 || idsTest[String(f.alcance)] === true;
+  });
   return { clientes: testClientes.length };
 }
 

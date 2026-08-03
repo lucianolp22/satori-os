@@ -105,6 +105,155 @@ function _crearAviso_(a) {
   });
 }
 
+// ═══ GUARDIÁN FOCO/PAZ (TC-2 · F4b) ═════════════════════════════════════════
+//
+// Los demás detectores miran el TRABAJO ("esta tarea venció"). Éste mira a LUCIANO: si la carga
+// acumulada dejó de ser sostenible. Paz y salud son métricas de resultado de la doctrina Satori,
+// no un adorno — un sistema que te ayuda a producir más mientras te quema no está funcionando.
+//
+// TRES LÍMITES DELIBERADOS:
+//  1. SOLO AVISA. Jamás reprograma, cierra ni suelta nada por su cuenta. Decidir qué se suelta es
+//     exactamente la clase de decisión que no se delega a un trigger.
+//  2. UNA sola cosa a soltar. Un aviso que dice "tenés 9 problemas" agrega peso en vez de sacarlo.
+//     Se elige la señal más fuerte y se nombra UN ítem concreto.
+//  3. MÁXIMO 1 POR DÍA. Un guardián que canta todos los días se vuelve ruido, y entonces no está
+//     el día que importa.
+
+/**
+ * Decide si hay sobrecarga y qué soltar. PURA (métricas y umbrales adentro, veredicto afuera):
+ * así el juicio se asera sin Sheets ni fechas vivas, que es lo que lo hace testeable de verdad.
+ * @param {Object} m {vencidas_A:number, peor_tarea:string, eventos_pico:number, dia_pico:string,
+ *                    aprob_estancadas:number}
+ * @param {Object} u umbrales ya resueltos {max_vencidas_A, max_eventos_dia, max_aprob_estancadas}
+ * @return {{hay:boolean, senales:Array<string>, recomendacion:string, motivo:string}}
+ */
+function _focoPazEvaluar_(m, u) {
+  m = m || {}; u = u || {};
+  var senales = [];
+  var candidatas = [];   // {peso, motivo, recomendacion}
+
+  var vA = Number(m.vencidas_A || 0), maxA = Number(u.max_vencidas_A || 0);
+  if (maxA > 0 && vA > maxA) {
+    senales.push(vA + ' tareas [A] vencidas (umbral ' + maxA + ')');
+    candidatas.push({
+      peso: vA - maxA,
+      motivo: 'tareas_A_vencidas',
+      recomendacion: m.peor_tarea
+        ? ('Soltá o reprogramá UNA: «' + m.peor_tarea + '». Es la más vieja de las [A] vencidas.')
+        : 'Soltá o reprogramá UNA de las tareas [A] vencidas.'
+    });
+  }
+
+  var ev = Number(m.eventos_pico || 0), maxEv = Number(u.max_eventos_dia || 0);
+  if (maxEv > 0 && ev > maxEv) {
+    senales.push(ev + ' eventos el ' + (m.dia_pico || '(día pico)') + ' (umbral ' + maxEv + ')');
+    candidatas.push({
+      peso: ev - maxEv,
+      motivo: 'agenda_densa',
+      recomendacion: 'Mové UNA cosa del ' + (m.dia_pico || 'día más cargado') + ': ese día no entra completo.'
+    });
+  }
+
+  var ap = Number(m.aprob_estancadas || 0), maxAp = Number(u.max_aprob_estancadas || 0);
+  if (maxAp > 0 && ap > maxAp) {
+    senales.push(ap + ' aprobaciones sin decidir (umbral ' + maxAp + ')');
+    candidatas.push({
+      peso: ap - maxAp,
+      motivo: 'aprobaciones_estancadas',
+      recomendacion: 'Cerrá UNA aprobación pendiente, aunque sea diciendo que no. Decidir libera más que posponer.'
+    });
+  }
+
+  if (!candidatas.length) return { hay: false, senales: [], recomendacion: '', motivo: '' };
+  // La señal más fuerte manda: la que más se pasó de su propio umbral.
+  candidatas.sort(function (a, b) { return b.peso - a.peso; });
+  return { hay: true, senales: senales, recomendacion: candidatas[0].recomendacion, motivo: candidatas[0].motivo };
+}
+
+/** Umbral de Config con default de código (mismo criterio que la matriz de riesgo: Config sobre-escribe). */
+function _focoPazUmbrales_() {
+  function n_(clave, def) {
+    var v = '';
+    try { v = String(getConfig(clave) || '').trim(); } catch (_e) { v = ''; }
+    var x = parseInt(v, 10);
+    return isFinite(x) && x > 0 ? x : def;
+  }
+  return {
+    max_vencidas_A: n_('fp_max_vencidas_A', 3),
+    max_eventos_dia: n_('fp_max_eventos_dia', 5),
+    max_aprob_estancadas: n_('fp_max_aprob_estancadas', 5),
+    dias_aprob_estancada: n_('fp_dias_aprob_estancada', 7)
+  };
+}
+
+/** Lee las métricas de carga de lo que YA existe (Tareas, Agenda, Aprobaciones_agregadas). */
+function _focoPazMetricas_(u) {
+  var ss = getMaestro();
+  var hoy = hoyISO();
+  var m = { vencidas_A: 0, peor_tarea: '', eventos_pico: 0, dia_pico: '', aprob_estancadas: 0 };
+
+  var peorFecha = '';
+  leerTabla(ss.getSheetByName('Tareas')).forEach(function (t) {
+    if (String(t.prioridad).toUpperCase() !== 'A') return;
+    if (['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0) return;
+    var fl = aFechaISO(t.fecha_limite);
+    if (!fl || fl >= hoy) return;
+    m.vencidas_A++;
+    if (!peorFecha || fl < peorFecha) { peorFecha = fl; m.peor_tarea = String(t.descripcion || t.id_tarea || ''); }
+  });
+
+  // Densidad: el día MÁS cargado de los próximos 7 (incluido hoy). Un día con 8 cosas duele
+  // aunque la semana promedie bien — por eso el pico y no el promedio.
+  var porDia = {};
+  var limite = _isoMasDias_(7);
+  leerTabla(ss.getSheetByName('Agenda')).forEach(function (e) {
+    if (String(e.estado || '').toLowerCase() === 'cancelado') return;
+    var f = aFechaISO(e.fecha);
+    if (!f || f < hoy || f > limite) return;
+    porDia[f] = (porDia[f] || 0) + 1;
+    if (porDia[f] > m.eventos_pico) { m.eventos_pico = porDia[f]; m.dia_pico = f; }
+  });
+
+  var corte = _isoMasDias_(-Math.abs(u.dias_aprob_estancada));
+  leerTabla(ss.getSheetByName('Aprobaciones_agregadas')).forEach(function (a) {
+    if (String(a.estado || '').toLowerCase() !== 'pendiente') return;
+    var fc = aFechaISO(a.fecha_creacion);
+    if (fc && fc <= corte) m.aprob_estancadas++;
+  });
+
+  return m;
+}
+
+var PROP_FOCOPAZ_ULTIMO = 'FOCOPAZ_ultimo';
+
+/**
+ * Guardián foco/paz: corre dentro de `corridaDiaria`. Devuelve el parte para el resumen.
+ * Fail-silencioso por diseño: si la lectura falla, la corrida sigue. Un guardián de la paz que
+ * tumba la corrida diaria sería una ironía cara.
+ */
+function guardianFocoPaz_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty(PROP_FOCOPAZ_ULTIMO) === hoyISO()) return { aviso: false, motivo: 'ya avisó hoy' };
+    var u = _focoPazUmbrales_();
+    var v = _focoPazEvaluar_(_focoPazMetricas_(u), u);
+    if (!v.hay) return { aviso: false, motivo: 'sin señal' };
+    // `crearAviso` (el endpoint con puerta), NO el sumidero interno: acá corremos dentro de
+    // `corridaDiaria`, que ya declaró contexto de sistema. `_crearAviso_` es SOLO para el camino
+    // pre-auth de `vozRechazo_` — usarlo por comodidad iría carcomiendo el gate de X4.
+    crearAviso({
+      origen: 'trigger',
+      tipo: 'foco_paz',
+      mensaje: 'Carga alta: ' + v.senales.join(' · ') + '. ' + v.recomendacion
+    });
+    props.setProperty(PROP_FOCOPAZ_ULTIMO, hoyISO());
+    return { aviso: true, motivo: v.motivo, senales: v.senales };
+  } catch (e) {
+    try { Logger.log('guardianFocoPaz_ fallo: ' + e.message); } catch (_e) {}
+    return { aviso: false, motivo: 'error: ' + e.message };
+  }
+}
+
 /**
  * Corrida diaria batched. Idempotente (dedupe de avisos activos).
  * Orden: sync primero (refresca pendientes) → luego detectores.
@@ -113,7 +262,7 @@ function corridaDiaria() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   _soloOwner_('corridaDiaria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
-  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null };
+  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -182,6 +331,11 @@ function corridaDiaria() {
   // leyendo una hoja chica. Falla-silenciosa: archivar es higiene, jamás rompe la corrida diaria.
   try { resumen.cola_archivada = archivarColaVieja_(); }
   catch (e) { try { Logger.log('archivarColaVieja_ falló: ' + e.message); } catch (_e) {} }
+
+  // TC-2 · guardián foco/paz. Va al FINAL a propósito: mira la carga que queda DESPUÉS de que la
+  // corrida expiró, sincronizó y archivó, no la de antes de limpiar. Solo avisa, máx. 1 por día.
+  try { resumen.foco_paz = guardianFocoPaz_(); }
+  catch (e) { try { Logger.log('guardianFocoPaz_ falló: ' + e.message); } catch (_e) {} }
 
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));
