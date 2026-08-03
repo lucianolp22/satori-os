@@ -41,9 +41,20 @@ Properties: `CLAUDE_API_KEY`, `API_BUDGET_MENSUAL_USD` (opcional), `WORKER` (opc
 | `17_bandeja.js` | **Bandeja + clasificador Haiku** (Fase 1 · Jarvis): captura personal única (`Bandeja` en MAESTRO) + triaje barato con confianza + escalate→aviso. Sin cliente (no anonimiza); costo a `Consumo_agentes` como 'clasificador'; trigger opt-in 30 min | `capturar()`, `clasificarBandeja()`, `promptClasificador_()`, `parseClasificacion_()`, `instalarTriggerBandeja()` |
 | `22_seguridad.js` | **MÓDULO S** (T3, 21-jul · Bastión): gate de identidad de TODOS los endpoints client-callable (`_soloOwner_`, criterio puro en `_puertaOwner_`) + contexto de sistema para triggers/doPost (`_ctxSistema_`) + vencimiento de secretos + **matriz de riesgo** default-deny + **security-scan** (chequeo 7 de Salud) | `_soloOwner_()`, `_puertaOwner_()`, `_ctxSistema_()`, `gateRiesgo_()`, `securityScan_()`, `rotarSecretoVoz()`, `sembrarExpirySecretos()`, `ENDPOINTS_UI` |
 | `18_direccion.js` | **Capa de Dirección** (Fase D · kevinfremon, MUST #1): `estadoVigente([id])` exporta un snapshot markdown ("packet of truth") del MAESTRO (Satori) o de un cliente (incl. North Star); composición pura sobre el data-layer, 0 API, sin escrituras propias | `estadoVigente()`, `estadoVigenteSistema_()`, `estadoVigenteCliente_()` |
+| `26_sato.js` | **Sato** (T1.6/1.7/1.8 + T2): un solo Sato en dos modos (cliente / sistema), memoria por tenant en la hoja `charla`, herramientas por marcador `@@DATOS`, cierre de sesión. **TC-5 · Capa 3:** `exportarCharlas` baja lo hablado a markdown para el `.md` del Hilo — read-only, cap declarado, y cada `.md` rotulado con SU cliente | `satoChat()`, `satoVoz()`, `satoCierreSesion()`, `satoAplicarCierre()`, `exportarCharlas(id?, desde?)`, `_charlaMd_()` (puro), `_satoDatos_()`, `SATO_FUENTES`, `SATO_TIPOS_ITEM` |
 | `27_decisiones.js` | **DECISION LOG** (TC-2, 03-ago): las decisiones de dirección con su PORQUÉ, append-only (se revierten, no se borran) y con `alcance` = sistema o id_cliente, que es lo que aísla lo de un tenant de lo de otro. Fuente `decisiones` de Sato y destino del tipo de ítem `decision` del cierre de sesión | `registrarDecision()`, `decisionesVigentes(ctx)`, `revertirDecision()`, `_decisionVisible_()` (puro, aislamiento) |
 
-> ⚠ Este índice quedó incompleto antes de TC-2: faltan las filas de `19_conectores`, `20_killswitch`, `21_backup`, `23_evals`, `24_soul`, `25_hilo` y `26_sato`. Se anota como deuda en vez de dejarlo pasar en silencio: el índice es lo que CLAUDE.md manda leer primero, así que un índice que miente cuesta más que ninguno.
+> ⚠ Este índice quedó incompleto antes de TC-2: faltan las filas de `19_conectores`, `20_killswitch`, `21_backup`, `23_evals`, `24_soul` y `25_hilo` (`26_sato` se agregó en TC-5). Se anota como deuda en vez de dejarlo pasar en silencio: el índice es lo que CLAUDE.md manda leer primero, así que un índice que miente cuesta más que ninguno.
+
+## Scripts de la raíz (Node/bash, fuera de `src/` — no se suben a GAS)
+
+| Script | Qué hace |
+|---|---|
+| `_harness.js` | arnés offline: carga los módulos en un `vm` con stubs y corre los asserts que no necesitan Sheets. `node _harness.js` |
+| `_verificar_index.py` | verificación estructural de `index.html`: divs balanceados + que todo `<script>` inline compile. Lo que `clasp push` nunca avisa |
+| `_x4_gates.js` | pone `_soloOwner_` en las funciones declaradas (X4/X4b). Idempotente: es el criterio de gateo, ejecutable |
+| `_charla_pull.sh` | **TC-5**: baja las charlas a `entregables/charlas/<CLI>-charla.md`. Secreto por env/`.env.local`, nunca hardcodeado; `--dry` para ver qué haría. La carpeta destino está gitignoreada (PII) |
+| `_capabilities_gen.sh` | regenera `CAPABILITIES.md` (el hook pre-push aborta si quedó stale) |
 
 ## Convenciones (de 0.2/0.3)
 - IDs: `CLI-001`, `PRY-001-02`, `TAR-…`, `AVI-0001` (prefijo + correlativo, `nextId()`).

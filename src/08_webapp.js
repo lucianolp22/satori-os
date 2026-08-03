@@ -103,6 +103,22 @@ function doPost(e) {
       try { var rs = oficinaSync_(body.payload); vozLog_('oficina_sync', !!rs.ok, rs.error || ''); return vozOut_(rs); }
       catch (err2) { vozLog_('oficina_sync', false, String((err2 && err2.message) || err2)); return vozOut_({ ok: false, error: 'error_interno' }); }
     }
+    // TC-5 · export de charlas para el Hilo. SECRETO PROPIO, no el de voz (least privilege, mismo
+    // criterio que `oficina_sync`): las charlas son el contenido más sensible del sistema — todo lo
+    // hablado de todos los clientes — y `VOZ_TOOL_SECRET` vive en el .env de un VPS con LiveKit.
+    // Ese secreto no habilita esto, y éste no habilita ninguna tool de voz.
+    // Es LECTURA pura: no hay forma de escribir por este camino.
+    if (String(body.action || '') === 'charla_export') {
+      if (!charlaExportAuth_(body.secret)) { vozRechazo_('charla_export_unauth'); return vozOut_({ ok: false, error: 'unauthorized' }); }
+      if (_secretoVencido_(PROP_CHARLA_EXPIRA)) { vozRechazo_('charla_export_expirado'); return vozOut_({ ok: false, error: 'secret_expirado' }); }
+      _ctxSistema_();   // recién ACÁ, con el secreto validado y vigente
+      try {
+        var rc = exportarCharlas(body.cliente, body.desde);
+        vozLog_('charla_export', !!rc.ok, rc.error || '');
+        return vozOut_(rc);
+      } catch (err3) { vozLog_('charla_export', false, String((err3 && err3.message) || err3));
+        return vozOut_({ ok: false, error: 'error_interno' }); }
+    }
     if (!vozAuth_(body.secret)) { vozRechazo_('unauthorized'); return vozOut_({ ok: false, error: 'unauthorized' }); } // fail-closed + alerta
     if (_secretoVencido_(PROP_VOZ_EXPIRA)) { vozRechazo_('secret_expirado'); return vozOut_({ ok: false, error: 'secret_expirado' }); } // T3-S2: vencido = mismo corte que unauthorized
     _ctxSistema_();   // T3-S1: secreto válido y vigente → ejecución de sistema (ver bloque de oficina_sync)
@@ -156,6 +172,13 @@ function vozAuth_(secret) {
 /** E3.1 (D1): valida el secreto DEDICADO del sync de la Oficina (Script Properties: OFICINA_SYNC_SECRET).
  * Whitelist por caller: este secreto SOLO habilita 'oficina_sync'; el de voz NO sirve acá y viceversa.
  * Fail-closed si no está seteado. El valor JAMÁS vive en el repo — solo en Script Properties + .env de la Oficina. */
+/** TC-5 · auth de `charla_export`. Secreto PROPIO y fail-closed: sin la property, nadie entra. */
+function charlaExportAuth_(secret) {
+  var k = PropertiesService.getScriptProperties().getProperty('CHARLA_EXPORT_SECRET');
+  if (!k) return false;
+  return ctEq_(String(secret == null ? '' : secret), String(k));
+}
+
 function oficinaSyncAuth_(secret) {
   var k = PropertiesService.getScriptProperties().getProperty('OFICINA_SYNC_SECRET');
   if (!k) return false;

@@ -244,6 +244,10 @@ var ENDPOINTS_UI = [
   // aislamiento entre tenants, así que abrirlo sería peor que una lectura cualquiera).
   'registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial',  // 27_decisiones.js
 
+  // ── TC-5 (03-ago) · export de charlas al Hilo. Read-only, pero devuelve TODO lo hablado:
+  // es el endpoint más sensible del sistema en términos de contenido.
+  'exportarCharlas', 'rotarSecretoCharlaExport',                                // 26_sato.js / 22_seguridad.js
+
   // ── TC-3 (03-ago) · actividad inter-agentes: read-only, pero cruza TODOS los tenants (es la
   // vista de sistema del CM), así que la puerta importa más, no menos.
   'datosActividadAgentes'                                                       // 08_webapp.js
@@ -323,6 +327,10 @@ function _srcDe_(nombre) {
 
 var PROP_VOZ_EXPIRA = 'VOZ_SECRET_EXPIRA';
 var PROP_OFICINA_EXPIRA = 'OFICINA_SECRET_EXPIRA';
+// TC-5: el export de charlas tiene credencial propia (least privilege). NO se suma a las
+// properties CRÍTICAS del scan a propósito: es opt-in — si no está sembrada, la exportación por
+// HTTP simplemente no existe (fail-closed) y eso NO es una falla del sistema que deba cantar crit.
+var PROP_CHARLA_EXPIRA = 'CHARLA_EXPORT_EXPIRA';
 var SECRETO_VIDA_DIAS = 90;
 
 /** Puro: ¿la fecha ISO ya pasó respecto de `ahoraMs`? '' / basura → false (no expira). */
@@ -404,6 +412,12 @@ function rotarSecretoVoz() {
 function rotarSecretoOficina() {
   _soloOwner_('rotarSecretoOficina');   // purga integral 23-jul
   return _rotarSecreto_('OFICINA_SYNC_SECRET', PROP_OFICINA_EXPIRA, 'Oficina Virtual (.env del sync)');
+}
+
+/** Igual, para el export de charlas al Hilo (`_charla_pull.sh` lo lee de .env.local). */
+function rotarSecretoCharlaExport() {
+  _soloOwner_('rotarSecretoCharlaExport');   // TC-5
+  return _rotarSecreto_('CHARLA_EXPORT_SECRET', PROP_CHARLA_EXPIRA, '_charla_pull.sh (.env.local del Mac)');
 }
 
 function _rotarSecreto_(propSecreto, propExpira, destino) {

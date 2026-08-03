@@ -85,6 +85,9 @@ for (const f of Object.keys(X4B)) X4[f] = (X4[f] || []).concat(X4B[f]);
 X4['27_decisiones.js'] = ['registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial'];
 // TC-3: la vista cruzada de actividad (read-only pero multi-tenant).
 X4['08_webapp.js'] = (X4['08_webapp.js'] || []).concat(['datosActividadAgentes']);
+// TC-5: export de charlas (read-only pero devuelve todo lo hablado) + su rotación de secreto.
+X4['26_sato.js'] = (X4['26_sato.js'] || []).concat(['exportarCharlas']);
+X4['22_seguridad.js'] = (X4['22_seguridad.js'] || []).concat(['rotarSecretoCharlaExport']);
 
 let total = 0, puestos = 0, yaTenian = 0;
 const fallos = [];

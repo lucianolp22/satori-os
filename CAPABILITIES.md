@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-04 00:48 · commit: cfdc36f
+> Generado: 2026-08-04 01:09 · commit: 216f074
 
 ## Módulos
 
@@ -15,8 +15,8 @@
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 64 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 31 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 65 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 32 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
@@ -29,11 +29,11 @@
 | `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 30 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
-| `22_seguridad.js` | MÓDULO S (T3 · Bastión lidera). Seguridad del motor | 23 |
+| `22_seguridad.js` | MÓDULO S (T3 · Bastión lidera). Seguridad del motor | 24 |
 | `23_evals.js` | Golden-set + runner de evals (T3 · MÓDULO M · M4, 21-jul-2026) | 6 |
 | `24_soul.js` | SOUL: identidad operativa de Satori OS (T3 · MÓDULO H · H1 · D11, 21-jul-2026) | 2 |
 | `25_hilo.js` | HILO DE TRABAJO por cliente (TC-W1 / W2 / W4 · 21-jul-2026) | 12 |
-| `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 12 |
+| `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 15 |
 | `27_decisiones.js` | DECISION LOG (TC-2 · F4b). Las decisiones de dirección, con su porqué | 6 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
@@ -108,6 +108,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 - AUTOHEAL_ON
 - brief_push_on
 - BRIEFPUSH_ultimo
+- CHARLA_EXPORT_SECRET
 - CLAUDE_API_KEY
 - ELEVENLABS_API_KEY
 - OFICINA_SYNC_SECRET
@@ -132,9 +133,9 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
-**08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
+**08_webapp.js:** doGet doPost vozOut_ vozAuth_ charlaExportAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -160,7 +161,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **21_backup.js:** _stampBackup_ _nombreSeguro_ _backupRootFolder_ _retencionSemanas_ _copiarSpreadsheet_ _ejecutarBackup_ backupSemanal backupAhora instalarTriggerBackup estadoTriggerBackup smokeBackup backupListar drillRestore _drillRestore_ 
 
-**22_seguridad.js:** _ctxSistemaPermitido_ _ctxSistema_ _puertaOwner_ _esOwner_ _soloOwner_ _tieneGate_ _sinComentarios_ _srcDe_ _vencido_ _diasPara_ _expiraProp_ _secretoVencido_ _isoMasDias_ sembrarExpirySecretos _nuevoSecreto_ rotarSecretoVoz rotarSecretoOficina _rotarSecreto_ _riesgoConfig_ _riesgoModo_ gateRiesgo_ securityScan_ securityScan 
+**22_seguridad.js:** _ctxSistemaPermitido_ _ctxSistema_ _puertaOwner_ _esOwner_ _soloOwner_ _tieneGate_ _sinComentarios_ _srcDe_ _vencido_ _diasPara_ _expiraProp_ _secretoVencido_ _isoMasDias_ sembrarExpirySecretos _nuevoSecreto_ rotarSecretoVoz rotarSecretoOficina rotarSecretoCharlaExport _rotarSecreto_ _riesgoConfig_ _riesgoModo_ gateRiesgo_ securityScan_ securityScan 
 
 **23_evals.js:** _correrEvalDet_ _evalEjecutar_ _evalComparar_ _evalEstructuraClasificacion_ correrEvals correrEvalsConApi 
 
@@ -168,7 +169,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **25_hilo.js:** _armarHilo_ _semaforoHilo_ hiloCliente _numeroConectorCliente_ _ultimoEspejo_ repararHilo espejarHilo espejarHiloCSV _parseCSVLinea_ _seccionHilo_ _recDesdeHilo_ _clienteConHiloCaliente_ 
 
-**26_sato.js:** _charlaSheet_ satoCharla _satoClienteValido_ _satoDatos_ _satoPedido_ _satoContexto_ satoChat satoVoz diagVoz _satoTurnosHoy_ satoCierreSesion satoAplicarCierre 
+**26_sato.js:** _charlaSheet_ _charlaQuien_ _charlaMd_ exportarCharlas satoCharla _satoClienteValido_ _satoDatos_ _satoPedido_ _satoContexto_ satoChat satoVoz diagVoz _satoTurnosHoy_ satoCierreSesion satoAplicarCierre 
 
 **27_decisiones.js:** _decisionVisible_ _decisionNormalizar_ registrarDecision decisionesVigentes revertirDecision sembrarDecisionInicial 
 

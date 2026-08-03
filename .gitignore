@@ -32,3 +32,8 @@ _akasha_e3/three.r128.min.js
 Avatares Satori/avatares-satori-512/
 *.jpeg
 SPACE UNIVERSE 2.jpeg
+
+# TC-5 · las transcripciones que baja `_charla_pull.sh` son la conversación ENTERA de cada
+# cliente: lo más sensible que produce el sistema. Se generan para volcarlas al `.md` del Hilo
+# en el Mac y NO se versionan — un repo con las charlas adentro es una fuga esperando un push.
+entregables/charlas/

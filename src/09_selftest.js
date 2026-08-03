@@ -572,7 +572,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ },
    { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ },
    { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ },
-   { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ }].forEach(function (t) {
+   { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ },
+   { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2223,6 +2224,61 @@ function _asertsD33_(chk, log, opts) {
   chk(d33fuera.length === 0, 'D33f 🔒 nada de este objetivo se encoló para otro tenant');
 
   log.push('   ↳ D33 TC-3: PM persistente verificado en 3 corridas (completo → sin cambios → delta)');
+}
+
+/**
+ * D34 · TC-5 — export de charlas al Hilo. Lo puro lo cubre el harness; acá va lo que SOLO se
+ * puede probar contra Sheets vivos: que dos tenants reales con charlas distintas no se mezclen.
+ * Es el mismo rigor que D30 («la memoria no cruza»), aplicado a la salida.
+ */
+function _asertsD34_(chk, log, opts) {
+  chk(ENDPOINTS_UI.indexOf('exportarCharlas') >= 0, 'D34a exportarCharlas dado de alta en ENDPOINTS_UI');
+  chk(CHARLA_EXPORT_CAP > 0 && _charlaMd_('CLI-X', 'X', [], '', CHARLA_EXPORT_CAP).turnos_incluidos === 0,
+      'D34a2 el cap está declarado y una charla vacía no rompe');
+  chk(String(exportarCharlas).indexOf('appendFila') < 0 && String(exportarCharlas).indexOf('setValue') < 0,
+      'D34a3 exportarCharlas no tiene NINGUNA escritura en su cuerpo (read-only por construcción)');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D34b-e (aislamiento con Sheets vivos) solo corren en selfTest() completo');
+    return;
+  }
+
+  // Dos tenants de prueba, cada uno con una frase única e inconfundible.
+  var d34A = crearCliente({ nombre: '__TEST__ charla A ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d34B = crearCliente({ nombre: '__TEST__ charla B ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var ssA = abrirCliente(d34A.id_cliente).ss, ssB = abrirCliente(d34B.id_cliente).ss;
+  appendFila(_charlaSheet_(ssA, true), { ts: ahoraISO(), rol: 'user', texto: '__TEST__ MARCA-ALFA margen y precios',
+                                         modulo: 'sato_ficha', tenant_datos: d34A.id_cliente });
+  appendFila(_charlaSheet_(ssB, true), { ts: ahoraISO(), rol: 'user', texto: '__TEST__ MARCA-BETA otra cosa',
+                                         modulo: 'sato_ficha', tenant_datos: d34B.id_cliente });
+  SpreadsheetApp.flush();
+
+  var expA = exportarCharlas(d34A.id_cliente);
+  var crudoA = JSON.stringify(expA);
+  chk(expA.ok === true && expA.total_clientes === 1 && expA.clientes[0].id_cliente === d34A.id_cliente,
+      'D34b exportar A devuelve SOLO A');
+  chk(crudoA.indexOf('MARCA-ALFA') >= 0, 'D34b2 y trae efectivamente lo hablado con A');
+  chk(crudoA.indexOf('MARCA-BETA') < 0 && crudoA.indexOf(d34B.id_cliente) < 0,
+      'D34c 🔒 el export de A NO contiene NADA de B: ni su texto ni su id (rigor D30 aplicado a la salida)');
+  chk(JSON.stringify(exportarCharlas(d34B.id_cliente)).indexOf('MARCA-ALFA') < 0,
+      'D34c2 🔒 y al revés: el export de B no trae nada de A');
+
+  // Modo sistema: puede traer varios tenants, pero cada .md rotulado con SU cliente.
+  var expTodos = exportarCharlas('');
+  var mdA = (expTodos.clientes || []).filter(function (c) { return c.id_cliente === d34A.id_cliente; })[0];
+  var mdB = (expTodos.clientes || []).filter(function (c) { return c.id_cliente === d34B.id_cliente; })[0];
+  chk(!!mdA && !!mdB, 'D34d en modo sistema aparecen los dos tenants de prueba');
+  chk(!!mdA && mdA.md.indexOf('[' + d34A.id_cliente + ']') >= 0 && mdA.md.indexOf('MARCA-BETA') < 0,
+      'D34d2 🔒 el .md de A va rotulado con A y no tiene una sola línea de B');
+  chk(!!mdB && mdB.md.indexOf('MARCA-ALFA') < 0, 'D34d3 🔒 ni el de B una de A');
+
+  chk(exportarCharlas('CLI-NOEXISTE-999').error === 'cliente_inexistente',
+      'D34e 🔒 un id fuera del roster real no se consulta');
+  // La charla de A sigue intacta: exportar no consume ni mueve nada.
+  chk(leerTabla(_charlaSheet_(abrirCliente(d34A.id_cliente).ss, false)).length === 1,
+      'D34e2 exportar no tocó la hoja `charla` (read-only verificado contra el Sheet real)');
+
+  log.push('   ↳ D34 TC-5: export de charlas con aislamiento verificado entre dos tenants vivos');
 }
 
 function selfTestF2_() {
