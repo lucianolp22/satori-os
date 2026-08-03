@@ -1,3 +1,35 @@
+# HANDOFF — Satori OS — 2026-08-03 (espejo vivo · PROD @35 AL DÍA + D30 SATO CERRADO 617/0)
+
+> Estado vigente arriba; todo lo que sigue de la cabecera del 01-ago es archivo.
+> **03-ago — LA TANDA QUE DESTRABÓ TODO.** Tres commits en `origin/main`: `de9ba37` (fix UI Sato) · `c0e8146` (promote) · `b54ed75` (D30). **`/exec` = @35 con TODO** (voz ElevenLabs, T1.6/1.7/1.8, T2, fix UI) — eyeball de Luciano OK. **selfTest 617/0** en el editor (585 + 32 de D30). Repo limpio; untracked solo lo ajeno (FOUNDER OS/, OFICINA-IA-ECOM-*, avatares NFD).
+>
+> ⚠️ **CORRECCIÓN HISTÓRICA:** prod NO estaba en @33 — estaba en **@34 desde el 29-jul** (commit `5f6b0fc`). El «@33 muy atrás» de los handoffs del 01/03-ago salía de leer `_promote_rollback.txt` viejo. **Regla nueva: ese archivo refleja la ÚLTIMA corrida del script (dry run incluido), no prod actual. La versión real la da `clasp deployments`.**
+
+## D30 · Sato — la deuda de rigor #1, CERRADA (03-ago)
+
+`_asertsD30_` en `09_selftest.js` (+115/−2), registrado tras D28 en `_asertsF2_` (corre en selfTest completo Y en selfTestF2 — la parte con Sheets vivos solo con `opts.completo`, patrón D28). Certificado **617/0** en el editor con clientes de prueba CLI-008…014 (limpieza verificada: roster y Bandeja sin `__TEST__`). Cubre: schema `charla` con sello `tenant_datos` · charla lazy+sensible · 5 endpoints sato en ENDPOINTS_UI · whitelist de fuentes fail-closed · 🔒 `fuera_de_contexto` desde Ficha · 🔒 `cliente_inexistente` vs roster real · salto de tenant solo modo sistema · 🔒 memoria que NO cruza (A/B) · cierre T2.1 sin LLM y sin escribir · aplicar-cierre solo confirmado + 🔒 Bandeja etiquetada con tenant · brief como fuente del arranque T2.3. **Sin LLM ni ElevenLabs en ningún assert.** Ajuste: `limpiarTodoTest` barre Bandeja por contains `__TEST__`. Patch documentado: Project `claude/PATCH-D30-sato-selftest-2026-08-03.md`.
+
+## Gates del RUNBOOK — verificados 03-ago (Cowork, read-only vía Chrome/gviz)
+
+| Gate | Estado | Evidencia |
+|---|---|---|
+| P4 url_sheet_cliente DAM/SIP | ✅ **NO cruzados** | CLI-004 abre «Barbería Alex / DAM [CLI-004]» · CLI-005 abre «SIP Coffee Roasters [CLI-005]» |
+| Monedas en Config | ✅ ya declaradas | `conector_CLI-001_moneda EUR · CLI-003 ARS · CLI-004 EUR`; Vehemence hereda ARS del adapter (D27b5) |
+| TAR-TEST-1 | ✅ ya no existe | la limpieza del selfTest lo barrió de Tareas |
+| MAESTRO Lector a llopriore@ | ✅ **desde el 30-jul 09:04** | visto en Compartir + metadata legible desde el conector Drive de llopriore@ · corrida de Reuniones disparada 03-ago 15:17 usó `estado` ✔ (sin «sin acceso») |
+| Avisos voz_acceso_no_autorizado (2) | ✅ benignos | Voz_log 15:43 = sondas del propio selfTest (D12/D19); resolverlos del CM, no hay intruso |
+
+## PENDIENTE (depurado — lo que REALMENTE queda)
+
+**Seguridad:** 1. Rotar `OWNER_TOKEN` de Vehemence (comprometido; editor GAS de Vehemence → Script Properties + actualizar marcador `?k=`).
+**Sistema:** 2. `docs_cliente_<id>` en Config (falta definir qué carpeta Drive va por cliente). 3. La «tarea diaria del cerebro» (BRIEF-HOY.md) es LOCAL de la app y no corrió el lunes 03-ago — revisarla en la app de escritorio. 4. Apagar LiveKit cuando Luciano confirme (validación de 2 días vencida el 01-ago): `launchctl bootout gui/$(id -u)/com.satori.voz.agent` — plists en `voz/launchagents/`. 5. Avatares NFD sin trackear (cosmético). 6. Capa 3 Hilos vivos (diferida).
+**Decisiones TOMADAS (03-ago tarde):** 7. **Próximo frente = F3 COMERCIAL** (pipeline de captación + build-in-public; converge con FounderOS B/C y el Bloque 6 de KAIROS — los 11 candidatos). 8. LiveKit: **apagar** agent + watchdog (el server queda; bash entregado). 9. OWNER_TOKEN Vehemence: **rotar en la próxima tanda** (falta ubicar dónde vive la URL distribuida con `?k=`). **Decisiones menores abiertas:** X4 (gatear las 35 con `_soloOwner_`) · EJF vs North Star 6/6 · logo MesaQuince («The Brasa Club»?) · logo SIP.
+**Operativo del CM (de la corrida de hoy):** TAR-0024 REPORTE SEMANAL M15 vencida 28-jul · 3 aprobaciones pendientes · tarea [A] «Registrar Patinete en Hacienda web».
+
+**Fuera del core (decisión 03-ago):** MERCURIO / Oficina IA Ecom y FORJA corren en conversaciones aparte; no son pendientes de este repo.
+
+<!-- ══════════════ CABECERA ANTERIOR (01-ago) — ARCHIVO ══════════════ -->
+
 # HANDOFF — Satori OS — 2026-08-01 (espejo vivo · T2 EN PROD-READY + UI de Sato legible)
 
 > Estado vigente arriba; todo lo que sigue de la cabecera del 30-jul es archivo.
