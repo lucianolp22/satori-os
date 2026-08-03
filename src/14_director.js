@@ -45,26 +45,82 @@ function correrDirector(tenant) {
       poblarCerebro_(c.id_cliente, objetivos); // MUST #2: pobla el grafo SISTEMA(agentes)+NEGOCIO(objetivos/métricas)
       materializarEstado(c.id_cliente); // refresca estado_actual + Cerebro_index (ya con los nodos poblados)
 
-      var encolados = 0;
+      // ── PM persistente (D7): el estado de cada objetivo sobrevive a la corrida. ──
+      // Fail-safe: si el cerebro o los KPIs no se pueden leer, se sigue con memoria vacía ⇒
+      // todos los objetivos caen en `primera_vez` ⇒ análisis completo, como antes de TC-3.
+      var snapPM = [], kpis = [];
+      try { snapPM = leerTabla(cerebroSheet_(c.id_cliente, 'nodos')) || []; } catch (_ePM) { snapPM = []; }
+      try { kpis = leerTabla(ssCli.getSheetByName('KPIs')) || []; } catch (_eK) { kpis = []; }
+      var diasRefresco = 7;
+      try { var cfgR = parseInt(getConfig('pm_dias_refresco'), 10); if (isFinite(cfgR) && cfgR > 0) diasRefresco = cfgR; } catch (_eC) {}
+      var hoyPM = hoyISO();
+
+      var encolados = 0, sinCambios = 0, refrescos = 0, primeros = 0, deltas = [];
       objetivos.forEach(function (o) {
         if (!o.metrica) return; // solo objetivos medibles disparan análisis dirigido
-        encolarAgente(c.id_cliente, 'analista', { pregunta: String(o.descripcion || o.metrica).slice(0, 300) });
-        encolados++;
+        var nodoId = _pmNodoId_(o.id_objetivo || o.metrica || o.descripcion);
+        var previo = null, analizadoEn = '';
+        var nodoPrevio = snapPM.filter(function (n) { return String(n.id_nodo) === nodoId; })[0];
+        if (nodoPrevio) {
+          // Un `atributos` corrupto NO se interpreta como "sin cambios": cae a primera_vez y se
+          // analiza completo. Un JSON roto jamás debe AHORRAR trabajo.
+          var at = parsearPayload_(nodoPrevio.atributos);
+          if (at && at.foto) { previo = at.foto; analizadoEn = String(at.analizado_en || ''); }
+        }
+        var foto = _pmFoto_(o, _pmValorMetrica_(kpis, o.metrica));
+        var delta = _pmDelta_(previo, foto);
+        var vencido = _pmVencido_(analizadoEn, diasRefresco, hoyPM);
+        var motivo = delta.primera_vez ? 'primera_vez' : (delta.hay_cambios ? 'cambios' : (vencido ? 'refresco' : ''));
+
+        if (motivo) {
+          encolarAgente(c.id_cliente, 'analista', {
+            pregunta: _pmPregunta_(foto, delta, motivo),
+            pm_motivo: motivo,
+            pm_delta: delta.cambios
+          });
+          encolados++;
+          if (motivo === 'primera_vez') primeros++; else if (motivo === 'refresco') refrescos++;
+        } else {
+          // Nada cambió y el refresco no venció: NO se molesta al modelo. Un PM que re-pregunta
+          // lo mismo todos los días es costo y ruido, no seguimiento.
+          sinCambios++;
+        }
+        if (!delta.primera_vez && delta.hay_cambios) deltas.push({ objetivo: foto.id_objetivo || foto.metrica, cambios: delta.cambios });
+
+        // Se persiste la FOTO COMPLETA (no el delta): un lector fresco reconstruye el estado sin
+        // encadenar diferencias. `analizado_en` solo avanza cuando de verdad se encoló análisis;
+        // si no, el reloj del refresco seguiría corriendo sin que nadie mire nada.
+        upsertNodo(c.id_cliente, {
+          id_nodo: nodoId, dimension: 'sistema', tipo: 'pm_estado',
+          etiqueta: 'PM · ' + String(foto.descripcion || foto.metrica).slice(0, 34),
+          atributos: { foto: foto, analizado_en: (motivo ? hoyPM : (analizadoEn || '')), ultimo_motivo: motivo || 'sin_cambios' },
+          relevancia: 3, cobertura: (previo ? 80 : 40), fuente: 'director'
+        }, snapPM);
       });
       totalEncolados += encolados;
 
-      // Parte del Director al cerebro (append-only).
+      // Parte del Director al cerebro (append-only). El delta va acá para que quede el rastro de
+      // QUÉ cambió, no solo cuántos análisis se encolaron.
       logEvento(c.id_cliente, {
         evento: 'parte_director', origen: 'director',
-        detalle: { objetivos_activos: objetivos.length, analistas_encolados: encolados }
+        detalle: { objetivos_activos: objetivos.length, analistas_encolados: encolados,
+                   pm_primeros: primeros, pm_refrescos: refrescos, pm_sin_cambios: sinCambios, pm_deltas: deltas }
       });
       // E8a4: surfacear la directiva al feed del MAESTRO (Actividad) para que el Command
       // Center la muestre sin abrir el Sheet del cliente.
       try {
-        feed_('Director', 'info', c.id_cliente, 'Directiva: ' +
-          (encolados ? (encolados + ' análisis dirigido(s) por objetivo') : 'sin objetivos medibles — monitoreo base') + '.', '', '');
+        // El texto distingue las TRES razones de encolar 0: nada medible, o todo quieto. Antes
+        // decía siempre "sin objetivos medibles", que con el PM persistente sería mentira el día
+        // que hay objetivos y ninguno se movió.
+        var msgDir = encolados
+          ? (encolados + ' análisis dirigido(s): ' + primeros + ' nuevo(s) · ' +
+             (encolados - primeros - refrescos) + ' con cambios · ' + refrescos + ' de refresco')
+          : (sinCambios ? (sinCambios + ' objetivo(s) sin cambios — no se re-analiza')
+                        : 'sin objetivos medibles — monitoreo base');
+        feed_('Director', 'info', c.id_cliente, 'Directiva: ' + msgDir + '.', '', '');
       } catch (e) {}
-      partes.push({ tenant: c.id_cliente, objetivos_activos: objetivos.length, encolados: encolados });
+      partes.push({ tenant: c.id_cliente, objetivos_activos: objetivos.length, encolados: encolados,
+                    pm: { primeros: primeros, refrescos: refrescos, sin_cambios: sinCambios, deltas: deltas } });
     } catch (e) {
       partes.push({ tenant: c.id_cliente, error: e.message });
       try { feed_('Director', 'info', c.id_cliente, 'Director no pudo procesar: ' + e.message, '', ''); } catch (x) {}
@@ -73,6 +129,118 @@ function correrDirector(tenant) {
 
   Logger.log('correrDirector: ' + JSON.stringify({ tenants: clientes.length, encolados: totalEncolados }));
   return { tenants: clientes.length, encolados: totalEncolados, partes: partes };
+}
+
+// ═══ PM PERSISTENTE (TC-3 · D7) ═════════════════════════════════════════════
+//
+// El problema: hasta hoy el Director re-analizaba de cero todos los días. Encolaba un Analista
+// por objetivo medible sin importar si algo había cambiado desde ayer — pagando API para
+// re-descubrir lo mismo, y sin poder decir nunca "esto se movió".
+//
+// La memoria vive en el CEREBRO del tenant, en un nodo por objetivo (`NOD-PM-*`), y guarda la
+// FOTO COMPLETA del último análisis, no el delta. Decisión deliberada (Luciano, 03-ago):
+// reconstruir el estado encadenando deltas es frágil — basta una corrida perdida para que la
+// cadena mienta. El delta se CALCULA al vuelo comparando dos fotos y sirve para el reporte; la
+// foto es lo que persiste y lo que un lector fresco (o el brief) puede leer sin reconstruir nada.
+//
+// FAIL-SAFE en todas las ramas: sin nodo previo, con nodo ilegible o con el cerebro caído →
+// análisis COMPLETO, el comportamiento de siempre. El PM nunca analiza MENOS por culpa de un
+// error de lectura; en la duda, gasta.
+
+var PM_NODO_PREFIJO = 'NOD-PM-';
+/** Campos de la foto que se comparan para el delta. LISTA-CONTRATO: agregar uno cambia qué
+ *  cuenta como "cambio" y por lo tanto cuándo se re-analiza. `_pmDelta_` deriva de acá. */
+var PM_CAMPOS_DELTA = ['descripcion', 'metrica', 'valor_objetivo', 'valor_actual', 'prioridad', 'estado', 'horizonte'];
+
+/** Id estable del nodo de seguimiento de un objetivo. */
+function _pmNodoId_(idObjetivo) {
+  return PM_NODO_PREFIJO + 'X' + String(idObjetivo || 'obj').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 22);
+}
+
+/**
+ * FOTO COMPLETA del objetivo en este momento. PURA — es lo que se persiste en el nodo.
+ * Todo lo que haga falta para entender el objetivo sin abrir nada más va acá dentro.
+ */
+function _pmFoto_(o, valorActual) {
+  o = o || {};
+  return {
+    id_objetivo: String(o.id_objetivo || ''),
+    descripcion: String(o.descripcion || '').slice(0, 200),
+    metrica: String(o.metrica || ''),
+    valor_objetivo: (o.valor_objetivo == null ? '' : String(o.valor_objetivo)),
+    valor_actual: (valorActual == null ? '' : String(valorActual)),
+    prioridad: String(o.prioridad || ''),
+    estado: String(o.estado || ''),
+    horizonte: String(o.horizonte || '')
+  };
+}
+
+/** Último valor conocido de una métrica en los KPIs del tenant. PURO. '' si no hay dato. */
+function _pmValorMetrica_(kpis, metrica) {
+  var m = String(metrica || '').trim().toLowerCase();
+  if (!m) return '';
+  var mejor = null;
+  (kpis || []).forEach(function (k) {
+    if (String(k.kpi || '').trim().toLowerCase() !== m) return;
+    var f = aFechaISO(k.fecha) || '';
+    if (!mejor || f >= mejor.f) mejor = { f: f, v: k.valor };
+  });
+  return mejor && mejor.v != null ? String(mejor.v) : '';
+}
+
+/**
+ * Delta entre la foto anterior y la actual. PURO — el corazón del PM persistente.
+ * Sin foto previa devuelve `primera_vez` (⇒ análisis completo, nunca un delta inventado).
+ * @return {{primera_vez:boolean, hay_cambios:boolean, cambios:Array, resumen:string}}
+ */
+function _pmDelta_(prev, act) {
+  if (!prev || typeof prev !== 'object' || !Object.keys(prev).length) {
+    return { primera_vez: true, hay_cambios: true, cambios: [], resumen: 'primer análisis: no hay estado previo de este objetivo' };
+  }
+  var cambios = [];
+  PM_CAMPOS_DELTA.forEach(function (c) {
+    var a = String(prev[c] == null ? '' : prev[c]);
+    var b = String(act && act[c] != null ? act[c] : '');
+    if (a !== b) cambios.push({ campo: c, de: a, a: b });
+  });
+  return {
+    primera_vez: false,
+    hay_cambios: cambios.length > 0,
+    cambios: cambios,
+    resumen: cambios.length
+      ? cambios.map(function (c) { return c.campo + ' ' + (c.de || '—') + ' → ' + (c.a || '—'); }).join(' · ')
+      : 'sin cambios desde el último análisis'
+  };
+}
+
+/**
+ * ¿Toca refrescar aunque no haya cambios? PURO. Sin fecha previa legible ⇒ sí (fail-safe: en la
+ * duda se analiza). Evita que un objetivo quieto quede dormido para siempre.
+ */
+function _pmVencido_(analizadoEn, dias, hoy) {
+  var f = String(analizadoEn || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return true;
+  var d = Number(dias) > 0 ? Number(dias) : 7;
+  var t = Date.parse(f + 'T00:00:00Z'), h = Date.parse(String(hoy || '').slice(0, 10) + 'T00:00:00Z');
+  if (!isFinite(t) || !isFinite(h)) return true;
+  return (h - t) / 864e5 >= d;
+}
+
+/**
+ * La consulta que recibe el Analista. PURA. Con estado previo, el análisis PARTE de ahí en vez
+ * de arrancar en blanco — que es todo el punto de D7. Se acota a 450 porque el runner del
+ * Analista trunca `pregunta` en 500: si no, el delta se perdería justo al final.
+ */
+function _pmPregunta_(foto, delta, motivo) {
+  var base = String(foto.descripcion || foto.metrica || 'objetivo');
+  if (delta.primera_vez) return base.slice(0, 450);
+  var partes = [base];
+  if (foto.valor_actual) partes.push('Hoy: ' + foto.metrica + '=' + foto.valor_actual +
+    (foto.valor_objetivo ? (' (meta ' + foto.valor_objetivo + ')') : ''));
+  partes.push(motivo === 'refresco'
+    ? 'Sin cambios registrados desde el último análisis: revisá si la tendencia se sostiene.'
+    : ('Cambió desde el último análisis: ' + delta.resumen + '. Analizá QUÉ cambió y si el objetivo sigue en camino.'));
+  return partes.join(' ').slice(0, 450);
 }
 
 /**

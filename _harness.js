@@ -70,7 +70,7 @@ vm.createContext(ctx);
 
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
-const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '27_decisiones.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
+const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
                  '25_hilo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -959,6 +959,112 @@ seccion('D32 · el cierre de sesión registra decisiones');
     const rs = ctx.satoAplicarCierre('', [{ tipo: 'decision', texto: 'reactivar Forge', porque: 'completar el plan' }]);
     chk(rs.ok === true && registradas[1].alcance === 'sistema',
         'D32g5 desde modo sistema la decisión nace con alcance sistema');
+  } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
+}
+
+// ═══ D33 · TC-3 · PM persistente + actividad inter-agentes ═══════════════════
+seccion('D33 · PM persistente: la foto entera persiste, el delta se calcula');
+{
+  const foto = ctx._pmFoto_({ id_objetivo: 'OBJ-1', descripcion: 'Subir el ticket', metrica: 'ticket_promedio',
+                              valor_objetivo: 25, prioridad: 'A', estado: 'activo', horizonte: '12m' }, '21');
+  // La foto guarda el ESTADO COMPLETO (decisión 03-ago): un lector fresco reconstruye sin
+  // encadenar deltas. Se asera contra la lista-contrato, no contra un número escrito a mano.
+  ctx.PM_CAMPOS_DELTA.concat(['id_objetivo']).forEach((c) => {
+    chk(Object.prototype.hasOwnProperty.call(foto, c), `D33a la foto persistida incluye \`${c}\``);
+  });
+  chk(foto.valor_actual === '21', 'D33a2 la foto captura el valor ACTUAL de la métrica, no solo la meta');
+
+  chk(ctx._pmDelta_(null, foto).primera_vez === true && ctx._pmDelta_(null, foto).hay_cambios === true,
+      'D33b sin estado previo ⇒ primera_vez ⇒ análisis COMPLETO (fail-safe del encargo)');
+  chk(ctx._pmDelta_({}, foto).primera_vez === true,
+      'D33b2 un nodo previo VACÍO también cae a primera_vez (no se inventa un delta contra la nada)');
+  const igual = ctx._pmDelta_(foto, foto);
+  chk(igual.primera_vez === false && igual.hay_cambios === false && igual.cambios.length === 0,
+      'D33c dos fotos iguales ⇒ sin cambios (y por lo tanto sin re-análisis: no se paga API por nada)');
+  const movida = ctx._pmFoto_({ id_objetivo: 'OBJ-1', descripcion: 'Subir el ticket', metrica: 'ticket_promedio',
+                                valor_objetivo: 25, prioridad: 'A', estado: 'activo', horizonte: '12m' }, '23');
+  const d = ctx._pmDelta_(foto, movida);
+  chk(d.hay_cambios === true && d.cambios.length === 1 && d.cambios[0].campo === 'valor_actual' &&
+      d.cambios[0].de === '21' && d.cambios[0].a === '23',
+      'D33c2 el delta nombra el campo y el de→a (21 → 23), no solo "algo cambió"');
+
+  chk(ctx._pmValorMetrica_([{ fecha: '2026-07-01', kpi: 'ticket_promedio', valor: 19 },
+                            { fecha: '2026-08-01', kpi: 'ticket_promedio', valor: 23 },
+                            { fecha: '2026-08-02', kpi: 'otra', valor: 99 }], 'ticket_promedio') === '23',
+      'D33d el valor actual es el del KPI MÁS RECIENTE de esa métrica');
+  chk(ctx._pmValorMetrica_([], 'ticket_promedio') === '',
+      'D33d2 sin KPI cargado el valor queda vacío (no se inventa un cero, que parecería un dato)');
+
+  chk(ctx._pmVencido_('2026-07-01', 7, '2026-08-03') === true, 'D33e un objetivo quieto hace 33 días vence el refresco');
+  chk(ctx._pmVencido_('2026-08-02', 7, '2026-08-03') === false, 'D33e2 uno analizado ayer todavía no');
+  chk(ctx._pmVencido_('', 7, '2026-08-03') === true && ctx._pmVencido_('basura', 7, '2026-08-03') === true,
+      'D33e3 fecha ausente o ilegible ⇒ vencido (en la duda se analiza: nunca se ahorra por un error)');
+
+  const pPrim = ctx._pmPregunta_(foto, ctx._pmDelta_(null, foto), 'primera_vez');
+  chk(pPrim === 'Subir el ticket', 'D33f en el primer análisis la consulta es el objetivo pelado (no hay pasado que citar)');
+  const pDelta = ctx._pmPregunta_(movida, d, 'cambios');
+  chk(pDelta.indexOf('21 → 23') >= 0 && pDelta.indexOf('QUÉ cambió') >= 0,
+      'D33f2 con estado previo la consulta PARTE de ahí: le pasa el cambio concreto al Analista');
+  chk(ctx._pmPregunta_(movida, d, 'refresco').indexOf('Sin cambios') >= 0,
+      'D33f3 en refresco se le pide revisar si la tendencia se sostiene');
+  chk(pDelta.length <= 450,
+      'D33f4 la consulta entra en el límite del runner (trunca en 500: pasarse perdería el delta del final)');
+}
+
+seccion('D33 · actividad inter-agentes: cruce con ventana declarada');
+{
+  const bk = { feedReciente_: ctx.feedReciente_, getMaestro: ctx.getMaestro, leerTabla: ctx.leerTabla, mesISO: ctx.mesISO };
+  const FEED = [
+    { ts: '10:00', agente: 'Director', tipo: 'info', id_cliente: 'CLI-002', texto: 'Directiva', tarea_id: '', aprobacion_id: '' },
+    { ts: '09:00', agente: 'Analista', tipo: 'ok', id_cliente: 'CLI-002', texto: 'Tendencia', tarea_id: 'T1', aprobacion_id: '' },
+    { ts: '08:00', agente: 'Analista', tipo: 'ok', id_cliente: 'CLI-004', texto: 'Margen', tarea_id: 'T2', aprobacion_id: '' },
+    { ts: '07:00', agente: 'Vigia', tipo: 'info', id_cliente: '', texto: 'Ronda', tarea_id: '', aprobacion_id: '' }
+  ];
+  // relleno para poder probar la ventana LLENA con el piso de 10 que impone el endpoint
+  for (let i = 0; i < 8; i++) FEED.push({ ts: '06:0' + i, agente: 'Vigia', tipo: 'info', id_cliente: 'CLI-009', texto: 'r' + i, tarea_id: '', aprobacion_id: '' });
+  try {
+    // El stub respeta `cuantos` como la función real: uno que devuelve todo sin importar el
+    // límite haría pasar el assert de ventana midiendo algo que en producción no ocurre (D25e).
+    ctx.feedReciente_ = (n) => FEED.slice(0, n);
+    ctx.getMaestro = () => ({ getSheetByName: () => ({}) });
+    ctx.leerTabla = () => [{ mes: '2026-08', gasto_usd: 0.0812, corridas_json: '{"analista":2}' }];
+    ctx.mesISO = () => '2026-08';
+
+    const r = ctx.datosActividadAgentes(200);
+    // Conteos DERIVADOS del stub: clavarlos a mano obliga a tocar el assert cada vez que el
+    // fixture crece (que es justo lo que acaba de pasar al sumar el relleno de la ventana).
+    chk(r.ventana === 200 && r.leidas === FEED.length && r.mostradas === FEED.length,
+        'D33g el cruce declara ventana, leídas y mostradas');
+    chk(r.ventana_llena === false, 'D33g2 con menos entradas que la ventana, ventana_llena=false (no hay historia oculta)');
+    chk(ctx.datosActividadAgentes(10).ventana_llena === true && ctx.datosActividadAgentes(10).leidas === 10,
+        'D33g3 si la ventana se llena lo DICE — un total parcial presentado como total sería mentira');
+    const analista = r.agentes.filter((a) => a.agente === 'Analista')[0];
+    chk(!!analista && analista.total === 2 && analista.clientes.join(',') === 'CLI-002,CLI-004',
+        'D33h el cruce por agente lista los tenants que tocó (feed CRUZADO, que es el punto de la vista)');
+    const c2 = r.clientes.filter((x) => x.id_cliente === 'CLI-002')[0];
+    chk(!!c2 && c2.total === 2 && c2.agentes.join(',') === 'Analista,Director', 'D33h2 y el cruce por cliente, sus agentes');
+    chk(r.feed.every((f) => 'id_cliente' in f),
+        'D33h3 🔒 cada fila viaja etiquetada con su tenant (cruzar en modo sistema sí, sin decir de quién es NO)');
+    chk(r.cruce.filter((x) => x.agente === 'Analista' && x.id_cliente === 'CLI-004')[0].total === 1,
+        'D33h4 la matriz agente×cliente cuenta por par');
+    chk(r.consumo.gasto_usd === 0.0812 && r.consumo.corridas.analista === 2 && r.consumo.leido === true,
+        'D33i el consumo del mes viaja con el cruce, marcado como LEÍDO');
+    ctx.leerTabla = () => { throw new Error('hoja ilegible'); };
+    const roto = ctx.datosActividadAgentes(200);
+    chk(roto.consumo.leido === false && roto.consumo.error.indexOf('ilegible') >= 0,
+        'D33i2 si el consumo no se puede leer se DICE (leido=false), en vez de mostrar $0 como si fuera el gasto real');
+    ctx.leerTabla = () => [{ mes: '2026-08', gasto_usd: 0.0812, corridas_json: '{"analista":2}' }];
+
+    const fa = ctx.datosActividadAgentes(200, 'analista');
+    chk(fa.mostradas === 2 && fa.feed.every((f) => f.agente === 'Analista'),
+        'D33j el filtro por agente es exacto y case-insensitive');
+    const fc = ctx.datosActividadAgentes(200, '', 'CLI-004');
+    chk(fc.mostradas === 1 && fc.feed[0].id_cliente === 'CLI-004', 'D33j2 el filtro por cliente acota a ese tenant');
+    chk(ctx.datosActividadAgentes(200, '', 'CLI-999').mostradas === 0,
+        'D33j3 un tenant sin actividad devuelve 0 — vacío es vacío, no se rellena');
+    chk(ctx.datosActividadAgentes(5).ventana === 10 || ctx.datosActividadAgentes(5).ventana === 120,
+        'D33k un límite por debajo del piso cae al default (no se pide una ventana absurda)');
+    chk(ctx.datosActividadAgentes(9999).ventana === 400, 'D33k2 y por arriba se topea en 400 (cuota de lectura)');
   } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
 }
 

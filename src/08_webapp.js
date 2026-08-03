@@ -1245,6 +1245,95 @@ function estadosAgentesCola_(rows) {
  *  Ya lee SOLO las últimas `cuantos` filas (no la hoja entera). Dieta 14-jul: además trunca el
  *  `texto` a `_FEED_TEXTO_LIM` chars — las celdas de Actividad pueden ser enormes (salidas de agentes)
  *  y el feed es display; recorta payload al CM y costo de render sin perder la línea informativa. */
+/**
+ * TC-3 · ACTIVIDAD INTER-AGENTES. El feed cruzado: qué agente hizo qué, para qué tenant y cuándo,
+ * con el consumo del mes al lado. Read-only, 0 API, una sola lectura de `Actividad`.
+ *
+ * Es modo SISTEMA por definición (cruza tenants), y por eso cada fila viaja etiquetada con su
+ * `id_cliente` — la regla §2 del aislamiento no prohíbe cruzar en modo sistema, prohíbe cruzar
+ * SIN decir de quién es cada dato.
+ *
+ * HONESTIDAD DE LA VENTANA: los totales se calculan sobre las últimas `ventana` entradas, no
+ * sobre la historia completa. Se devuelve `ventana` y `ventana_llena` para que la UI pueda decir
+ * "últimas N" en vez de dar a entender un total absoluto que no es. Un conteo parcial presentado
+ * como total es la clase de verde falso que este sistema no se permite.
+ *
+ * @param {number} [limite]   entradas a cruzar (default 120, máx 400)
+ * @param {string} [agente]   filtro exacto por agente (vacío = todos)
+ * @param {string} [idCliente] filtro exacto por tenant (vacío = todos)
+ */
+function datosActividadAgentes(limite, agente, idCliente) {
+  _soloOwner_('datosActividadAgentes');
+  var lim = parseInt(limite, 10);
+  if (!isFinite(lim) || lim < 10) lim = 120;
+  if (lim > 400) lim = 400;
+
+  var feed = feedReciente_(lim);            // reciente-primero, texto ya truncado
+  var fAg = String(agente || '').trim().toLowerCase();
+  var fCli = String(idCliente || '').trim();
+  var vistos = feed.filter(function (f) {
+    if (fAg && String(f.agente).toLowerCase() !== fAg) return false;
+    if (fCli && String(f.id_cliente) !== fCli) return false;
+    return true;
+  });
+
+  // Cruce agente × tenant sobre la ventana filtrada.
+  var agIx = {}, cliIx = {}, cruceIx = {};
+  vistos.forEach(function (f) {
+    var a = String(f.agente || '(sin agente)');
+    var c = String(f.id_cliente || '(sistema)');
+    if (!agIx[a]) agIx[a] = { agente: a, total: 0, clientes: {}, ultimo: '' };
+    agIx[a].total++; agIx[a].clientes[c] = true;
+    if (!agIx[a].ultimo) agIx[a].ultimo = f.ts;   // el feed viene reciente-primero
+    if (!cliIx[c]) cliIx[c] = { id_cliente: c, total: 0, agentes: {}, ultimo: '' };
+    cliIx[c].total++; cliIx[c].agentes[a] = true;
+    if (!cliIx[c].ultimo) cliIx[c].ultimo = f.ts;
+    var k = a + ' ' + c;
+    if (!cruceIx[k]) cruceIx[k] = { agente: a, id_cliente: c, total: 0, ultimo: f.ts };
+    cruceIx[k].total++;
+  });
+  function aLista_(ix, campoSet, nombreSet) {
+    return Object.keys(ix).map(function (k) {
+      var o = ix[k];
+      var out = { total: o.total, ultimo: o.ultimo };
+      out[campoSet === 'clientes' ? 'agente' : 'id_cliente'] = (campoSet === 'clientes' ? o.agente : o.id_cliente);
+      out[nombreSet] = Object.keys(o[campoSet]).sort();
+      return out;
+    }).sort(function (x, y) { return y.total - x.total; });
+  }
+
+  // `leido` NO es decorativo: sin él, un fallo de lectura devolvía gasto_usd=0 y la UI mostraba
+  // "$0.0000" como si ese FUERA el gasto del mes. Cero-por-error y cero-de-verdad tienen que
+  // poder distinguirse; si no se pudo leer, la vista lo dice en vez de inventar un número tranquilo.
+  var consumo = { mes: mesISO(), gasto_usd: 0, corridas: {}, leido: false, error: '' };
+  try {
+    var shC = getMaestro().getSheetByName('Consumo_agentes');
+    var filaC = shC ? leerTabla(shC).filter(function (f) { return String(f.mes) === consumo.mes; })[0] : null;
+    if (filaC) {
+      consumo.gasto_usd = Number(filaC.gasto_usd) || 0;
+      consumo.corridas = parsearPayload_(filaC.corridas_json) || {};
+    }
+    consumo.leido = true;   // se leyó bien: aunque no haya fila del mes, el 0 ES el dato
+  } catch (e) {
+    consumo.error = String((e && e.message) || e);
+    try { Logger.log('datosActividadAgentes: consumo ilegible — ' + consumo.error); } catch (_l) {}
+  }
+
+  return {
+    ventana: lim,
+    ventana_llena: feed.length >= lim,   // true ⇒ hay más historia fuera de la ventana
+    leidas: feed.length,
+    mostradas: vistos.length,
+    feed: vistos.slice(0, 60),
+    agentes: aLista_(agIx, 'clientes', 'clientes'),
+    clientes: aLista_(cliIx, 'agentes', 'agentes'),
+    cruce: Object.keys(cruceIx).map(function (k) { return cruceIx[k]; })
+      .sort(function (x, y) { return y.total - x.total; }).slice(0, 40),
+    consumo: consumo,
+    filtros: { agente: fAg, cliente: fCli }
+  };
+}
+
 var _FEED_TEXTO_LIM = 240;
 function feedReciente_(cuantos) {
   var sh = getMaestro().getSheetByName('Actividad');

@@ -242,7 +242,11 @@ var ENDPOINTS_UI = [
   // ── TC-2 (03-ago) · decision log. `registrarDecision`/`revertirDecision`/`sembrarDecisionInicial`
   // escriben el marco de dirección; `decisionesVigentes` lo lee (y su filtro de alcance ES el
   // aislamiento entre tenants, así que abrirlo sería peor que una lectura cualquiera).
-  'registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial'  // 27_decisiones.js
+  'registrarDecision', 'decisionesVigentes', 'revertirDecision', 'sembrarDecisionInicial',  // 27_decisiones.js
+
+  // ── TC-3 (03-ago) · actividad inter-agentes: read-only, pero cruza TODOS los tenants (es la
+  // vista de sistema del CM), así que la puerta importa más, no menos.
+  'datosActividadAgentes'                                                       // 08_webapp.js
 ];
 
 /**

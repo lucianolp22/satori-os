@@ -571,7 +571,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ },
    { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ },
    { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ },
-   { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ }].forEach(function (t) {
+   { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ },
+   { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2146,6 +2147,82 @@ function _asertsD32_(chk, log, opts) {
       'D32f5 revertir sin motivo tampoco (la vuelta atrás también deja rastro)');
 
   log.push('   ↳ D32 TC-2: decision log vivo (' + d32vig.length + ' vigentes) + guardián foco/paz aserido en puro');
+}
+
+/**
+ * D33 · TC-3 — PM persistente (D7) + actividad inter-agentes.
+ * Lo liviano son contratos; el ciclo del PM necesita Sheets vivos porque lo que se prueba es
+ * justamente que el estado SOBREVIVE de una corrida a la siguiente.
+ */
+function _asertsD33_(chk, log, opts) {
+  chk(ENDPOINTS_UI.indexOf('datosActividadAgentes') >= 0,
+      'D33a datosActividadAgentes dado de alta en ENDPOINTS_UI (regla anti-drift)');
+  chk(CONFIG_DEFAULTS.filter(function (p) { return p[0] === 'pm_dias_refresco'; }).length === 1,
+      'D33a2 el refresco del PM es un umbral de Config con default');
+  chk(_pmDelta_(null, {}).primera_vez === true && _pmDelta_({ metrica: 'x' }, { metrica: 'x' }).hay_cambios === false,
+      'D33a3 sin estado previo ⇒ análisis completo · dos fotos iguales ⇒ sin cambios');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D33b-e (ciclo del PM contra Sheets vivos) solo corren en selfTest() completo');
+    return;
+  }
+
+  // ── El ciclo completo: primera corrida → segunda sin cambios → tercera con cambio. ──
+  var d33c = crearCliente({ nombre: '__TEST__ pm ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d33ss = abrirCliente(d33c.id_cliente).ss;
+  repararCerebro(d33c.id_cliente);
+  appendFila(d33ss.getSheetByName('objetivos'), {
+    id_objetivo: 'OBJ-TEST-PM', horizonte: '12m', descripcion: '__TEST__ subir ticket', metrica: 'ticket_pm_test',
+    valor_objetivo: 25, estado: 'activo', prioridad: 'A', fecha_objetivo: '2026-12-31'
+  });
+
+  var d33r1 = correrDirector(d33c.id_cliente);
+  var p1 = (d33r1.partes || []).filter(function (p) { return p.tenant === d33c.id_cliente; })[0];
+  chk(!!p1 && p1.encolados >= 1 && p1.pm.primeros >= 1,
+      'D33b 1ª corrida: sin nodo previo ⇒ análisis COMPLETO (fail-safe, ' + ((p1 && p1.encolados) || 0) + ' encolado/s)');
+
+  // El nodo guarda la FOTO ENTERA, no el delta (decisión 03-ago): un lector fresco no debería
+  // tener que encadenar diferencias para saber en qué estado quedó el objetivo.
+  var d33nodo = leerTabla(d33ss.getSheetByName('nodos')).filter(function (n) {
+    return String(n.id_nodo).indexOf('NOD-PM-') === 0;
+  })[0];
+  chk(!!d33nodo, 'D33c el PM deja su nodo de estado en el cerebro del tenant');
+  var d33at = d33nodo ? parsearPayload_(d33nodo.atributos) : {};
+  chk(!!d33at.foto && PM_CAMPOS_DELTA.every(function (c) { return Object.prototype.hasOwnProperty.call(d33at.foto, c); }),
+      'D33c2 el nodo guarda el ESTADO COMPLETO (los ' + PM_CAMPOS_DELTA.length + ' campos), no solo lo que cambió');
+  chk(String(d33at.foto.metrica) === 'ticket_pm_test' && String(d33at.analizado_en).slice(0, 10) === hoyISO(),
+      'D33c3 la foto es del objetivo real y queda fechada el día que se analizó');
+
+  // 2ª corrida, nada cambió: NO se vuelve a molestar al modelo.
+  var d33r2 = correrDirector(d33c.id_cliente);
+  var p2 = (d33r2.partes || []).filter(function (p) { return p.tenant === d33c.id_cliente; })[0];
+  chk(!!p2 && p2.encolados === 0 && p2.pm.sin_cambios >= 1,
+      'D33d 2ª corrida sin cambios: 0 análisis encolados (antes re-analizaba de cero todos los días)');
+
+  // 3ª corrida con el objetivo movido: encola de nuevo Y el delta dice QUÉ cambió.
+  var d33H = d33ss.getSheetByName('objetivos');
+  var d33HH = d33H.getRange(1, 1, 1, d33H.getLastColumn()).getValues()[0];
+  var d33filas = leerTabla(d33H);
+  for (var i33 = 0; i33 < d33filas.length; i33++) {
+    if (String(d33filas[i33].id_objetivo) !== 'OBJ-TEST-PM') continue;
+    d33H.getRange(i33 + 2, d33HH.indexOf('valor_objetivo') + 1).setValue(40);
+  }
+  SpreadsheetApp.flush();
+  var d33r3 = correrDirector(d33c.id_cliente);
+  var p3 = (d33r3.partes || []).filter(function (p) { return p.tenant === d33c.id_cliente; })[0];
+  chk(!!p3 && p3.encolados >= 1, 'D33e 3ª corrida: el objetivo se movió ⇒ vuelve a analizarse');
+  var d33camb = (p3 && p3.pm.deltas.length) ? p3.pm.deltas[0].cambios : [];
+  chk(d33camb.filter(function (c) { return c.campo === 'valor_objetivo' && String(c.a) === '40'; }).length === 1,
+      'D33e2 el delta nombra el campo y el valor nuevo (valor_objetivo → 40), no "algo cambió"');
+
+  // 🔒 Aislamiento: todo lo que escribió el PM vive en el tenant de prueba y en su propia cola.
+  var d33fuera = leerTabla(getMaestro().getSheetByName('Cola_tareas')).filter(function (f) {
+    var p = String(f.payload || '');
+    return p.indexOf('ticket_pm_test') >= 0 && p.indexOf('"id_cliente":"' + d33c.id_cliente + '"') < 0;
+  });
+  chk(d33fuera.length === 0, 'D33f 🔒 nada de este objetivo se encoló para otro tenant');
+
+  log.push('   ↳ D33 TC-3: PM persistente verificado en 3 corridas (completo → sin cambios → delta)');
 }
 
 function selfTestF2_() {

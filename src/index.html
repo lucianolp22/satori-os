@@ -566,6 +566,14 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 @media (prefers-reduced-motion:reduce){.cm-nodetip{transition:none}}
 /* ── E8a4: panel de Salud ── */
 #cmSalud{display:none;overflow-y:auto;flex:1;flex-direction:column;gap:7px}
+/* TC-3 · actividad inter-agentes: mismo layout y tokens que los otros paneles del CM (no tema propio: vive DENTRO de #centro). */
+#cmCruce{display:none;overflow-y:auto;flex:1;flex-direction:column;gap:8px}
+#cmCruce .xfil{display:flex;gap:6px;align-items:center}
+#cmCruce .xfil select{flex:1;min-width:0;background:rgba(255,255,255,.04);color:#c9d1e4;border:1px solid rgba(108,221,186,.18);border-radius:7px;padding:5px 6px;font-size:11px}
+#cmCruce .xnota{font-size:10px;color:#8b93ad}
+#cmCruce .xrow{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#c9d1e4;border-bottom:1px solid rgba(255,255,255,.05);padding:4px 0}
+#cmCruce .xrow b{color:#6cddba;font-weight:600}
+#cmCruce .xsec{font-size:10px;color:#8b93ad;text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
 .hl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(10,14,22,.55);border:1px solid rgba(108,221,186,.08);border-radius:8px;padding:8px 10px;font-size:12px}
 .hl .nm{flex:1;color:#aeb6cc;text-transform:capitalize}
 .hl .dt{font-size:10px;color:#6b7488;flex:1 1 100%;margin-left:17px}
@@ -1382,9 +1390,11 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <div id="tabFeed" role="button" tabindex="-1">Actividad</div>
     <div id="tabInbox" role="button" tabindex="-1">Aprobaciones <span id="inboxCount"></span></div>
     <div id="tabSalud" role="button" tabindex="-1">Salud</div>
+    <div id="tabCruce" role="button" tabindex="-1">Cruce</div>
     <div id="cmFeed"></div>
     <div id="cmInbox"></div>
     <div id="cmSalud"></div>
+    <div id="cmCruce"></div>
   </div>
 </div>
 
@@ -2067,23 +2077,30 @@ document.getElementById('cmCapturar').addEventListener('click',function(){ // Fa
 // Calidad del orbe: botón + toggle + carga de preferencia removidos a pedido de Luciano (06-jul). El orbe queda en calidad alta (default).
 
 // Tabs feed / inbox / salud
-document.getElementById('tabFeed').addEventListener('click',function(){cmTab('feed');});
-document.getElementById('tabInbox').addEventListener('click',function(){cmTab('inbox');});
-document.getElementById('tabSalud').addEventListener('click',function(){cmTab('salud');});
-['tabFeed','tabInbox','tabSalud'].forEach(function(id){var tb=document.getElementById(id); // a11y: tabs operables con teclado
-  tb.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();tb.click();}});});
+// TC-3: las tabs pasan a una LISTA. Antes cada tab nueva obligaba a tocar tres lugares
+// (toggle, display, hint) y el a11y en un cuarto; olvidarse de uno dejaba una tab a medias.
+var CM_TABS=[
+  {id:'feed', tab:'tabFeed', panel:'cmFeed', hint:'Click en un agente activo para dispararlo'},
+  {id:'inbox',tab:'tabInbox',panel:'cmInbox',hint:'j/k mover · a aprobar · e editar · r rechazar'},
+  {id:'salud',tab:'tabSalud',panel:'cmSalud',hint:'Loop de salud · 7 chequeos · 0 API · qué hacer por hallazgo'},
+  {id:'cruce',tab:'tabCruce',panel:'cmCruce',hint:'Quién hizo qué y para qué cliente · ventana de las últimas entradas'}
+];
+CM_TABS.forEach(function(x){
+  var tb=document.getElementById(x.tab);
+  tb.addEventListener('click',function(){cmTab(x.id);});
+  // a11y: tabs operables con teclado
+  tb.addEventListener('keydown',function(ev){if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();tb.click();}});
+});
 function cmTab(t){
   CM.tab=t;
-  document.getElementById('tabFeed').classList.toggle('on',t==='feed');
-  document.getElementById('tabInbox').classList.toggle('on',t==='inbox');
-  document.getElementById('tabSalud').classList.toggle('on',t==='salud');
-  document.getElementById('cmFeed').style.display=t==='feed'?'flex':'none';
-  document.getElementById('cmInbox').style.display=t==='inbox'?'flex':'none';
-  document.getElementById('cmSalud').style.display=t==='salud'?'flex':'none';
-  document.getElementById('cmHint').textContent = t==='inbox'
-    ? 'j/k mover · a aprobar · e editar · r rechazar'
-    : (t==='salud' ? 'Loop de salud · 7 chequeos · 0 API · qué hacer por hallazgo' : 'Click en un agente activo para dispararlo');
+  CM_TABS.forEach(function(x){
+    document.getElementById(x.tab).classList.toggle('on',t===x.id);
+    document.getElementById(x.panel).style.display=(t===x.id)?'flex':'none';
+  });
+  var cur=CM_TABS.filter(function(x){return x.id===t;})[0];
+  document.getElementById('cmHint').textContent=cur?cur.hint:'';
   if(t==='salud')refrescarSalud();
+  if(t==='cruce')refrescarCruce();
 }
 
 function cmAvataresOrbita(agentes,cfg){
@@ -2214,6 +2231,61 @@ function refrescarSalud(){
       var t=document.getElementById('tmSaludG');if(t&&t.parentNode)t.parentNode.title='No se pudo leer Salud — reintentando';
     }).estadoSalud();
 }
+/* ── TC-3 · ACTIVIDAD INTER-AGENTES (el "Cruce") ────────────────────────────
+   Quién hizo qué, para qué cliente y cuándo — sobre Actividad + Consumo_agentes, read-only.
+   Dos honestidades que el panel NO negocia:
+    · los totales son de una VENTANA (las últimas N entradas), y se dice explícitamente; un
+      conteo parcial presentado como total sería un número que miente.
+    · si no hay actividad, se dice "sin actividad todavía". Vacío nunca se pinta como sano. */
+var CRUCE={agente:'',cliente:'',data:null};
+function refrescarCruce(){
+  var c=document.getElementById('cmCruce');
+  if(!EN_GAS){c.innerHTML='<div class="xnota">Sin backend: el cruce se ve en el CM real.</div>';return;}
+  c.innerHTML='<div class="xnota">Cargando actividad…</div>';
+  google.script.run.withSuccessHandler(function(d){CRUCE.data=d;cmCruce(d);})
+    .withFailureHandler(function(e){c.innerHTML='<div class="xnota">No se pudo leer la actividad: '+((e&&e.message)||'')+'</div>';})
+    .datosActividadAgentes(200,CRUCE.agente,CRUCE.cliente);
+}
+function cmCruce(d){
+  var c=document.getElementById('cmCruce');
+  if(!d){c.innerHTML='<div class="xnota">Sin datos.</div>';return;}
+  var esc=function(x){var n=document.createElement('span');n.textContent=String(x==null?'':x);return n.innerHTML;};
+  var opts=function(lista,val,vacio){
+    var h='<option value="">'+vacio+'</option>';
+    lista.forEach(function(v){h+='<option value="'+esc(v)+'"'+(v===val?' selected':'')+'>'+esc(v)+'</option>';});
+    return h;
+  };
+  // Las listas salen de la ventana COMPLETA sin filtrar, si no el filtro se cerraría sobre sí mismo.
+  var ags=(d.agentes||[]).map(function(a){return a.agente;});
+  var cls=(d.clientes||[]).map(function(x){return x.id_cliente;});
+  if(CRUCE.agente&&ags.indexOf(CRUCE.agente)<0)ags.push(CRUCE.agente);
+  if(CRUCE.cliente&&cls.indexOf(CRUCE.cliente)<0)cls.push(CRUCE.cliente);
+  var h='<div class="xfil">'+
+    '<select id="xfAg">'+opts(ags.sort(),CRUCE.agente,'todos los agentes')+'</select>'+
+    '<select id="xfCli">'+opts(cls.sort(),CRUCE.cliente,'todos los clientes')+'</select></div>'+
+    '<div class="xnota">'+d.mostradas+' de las últimas '+d.leidas+' entradas'+
+    (d.ventana_llena?' · hay más historia fuera de esta ventana':'')+
+    ' · '+(d.consumo.leido
+        ? ('gasto '+esc(d.consumo.mes)+': $'+(Number(d.consumo.gasto_usd)||0).toFixed(4))
+        : 'gasto del mes NO disponible')+'</div>';
+  if(!d.mostradas){
+    h+='<div class="xnota">Sin actividad en esta ventana'+((d.filtros.agente||d.filtros.cliente)?' con estos filtros':'')+'.</div>';
+  }else{
+    h+='<div class="xsec">Agente × cliente</div>';
+    (d.cruce||[]).forEach(function(x){
+      h+='<div class="xrow"><span>'+esc(x.agente)+' → '+esc(x.id_cliente)+'</span><b>'+x.total+'</b></div>';
+    });
+    h+='<div class="xsec">Últimas</div>';
+    (d.feed||[]).slice(0,25).forEach(function(f){
+      h+='<div class="xrow"><span>'+esc(f.ts)+' · '+esc(f.agente)+
+         (f.id_cliente?(' · '+esc(f.id_cliente)):'')+' — '+esc(f.texto)+'</span></div>';
+    });
+  }
+  c.innerHTML=h;
+  document.getElementById('xfAg').addEventListener('change',function(){CRUCE.agente=this.value;refrescarCruce();});
+  document.getElementById('xfCli').addEventListener('change',function(){CRUCE.cliente=this.value;refrescarCruce();});
+}
+
 /* ── H2 (T3 · MÓDULO H, 21-jul): panel de Salud HUMANO ──────────────────────
    Antes esto listaba el estado crudo ("cola [crit] 0 pendientes · 2 tomadas colgadas"): perfecto
    para quien escribió el chequeo, ilegible para todos los demás. Ahora: semáforo global arriba,

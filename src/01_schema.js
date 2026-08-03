@@ -209,7 +209,10 @@ var CONFIG_DEFAULTS = [
   ['fp_max_vencidas_A', '3'],        // tareas de prioridad A ya vencidas
   ['fp_max_eventos_dia', '5'],       // eventos de Agenda en un mismo día de los próximos 7
   ['fp_max_aprob_estancadas', '5'],  // aprobaciones pendientes sin decidir
-  ['fp_dias_aprob_estancada', '7']   // desde cuántos días una pendiente cuenta como estancada
+  ['fp_dias_aprob_estancada', '7'],  // desde cuántos días una pendiente cuenta como estancada
+  // TC-3 (03-ago) — PM persistente: cada cuántos días se re-analiza un objetivo QUIETO. Sin
+  // esto, un objetivo sin cambios no volvería a mirarse nunca; con esto, el seguimiento respira.
+  ['pm_dias_refresco', '7']
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;

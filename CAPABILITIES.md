@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-03 23:16 · commit: 9f0d6d0
+> Generado: 2026-08-04 00:03 · commit: 52964cc
 
 ## Módulos
 
@@ -15,13 +15,13 @@
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 7 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 63 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 30 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 64 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 31 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
 | `13_agentes.js` | Registry de 13 sub-agentes + presupuesto/cupos + feed (Agentes.gs donante adaptado) | 12 |
-| `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 4 |
+| `14_director.js` | Director (orquestación) (ETAPA 8a · módulo a2) | 10 |
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 25 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 3 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 10 |
@@ -132,9 +132,9 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
-**08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
+**08_webapp.js:** doGet doPost vozOut_ vozAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -144,7 +144,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **13_agentes.js:** feed_ budgetMensualUSD_ _filaConsumoCore_ filaConsumoAgentes_ registrarConsumoAgente_ guardPresupuesto_ leerHojaCliente_ sinDatos_ errorRunner_ blindarDatos_ correrAgente_ encolarAgente 
 
-**14_director.js:** correrDirector poblarCerebro_ chequeoLivianoDirector instalarTriggerDirector 
+**14_director.js:** correrDirector _pmNodoId_ _pmFoto_ _pmValorMetrica_ _pmDelta_ _pmVencido_ _pmPregunta_ poblarCerebro_ chequeoLivianoDirector instalarTriggerDirector 
 
 **15_cerebro.js:** cerebroSheet_ upsertPorClave_ dimensionDeTipo_ upsertNodo upsertArista logEvento cerebroCorteDias_ _planCompresion_ _tiposATexto_ _textoATipos_ _fusionarResumen_ _eventosArchivados_ comprimirMemoriaFria comprimirMemoriaFriaTodos_ comprimirMemoria materializarEstado _ultimoArchivado_ actualizarCerebroIndex_ leerEstado repararCerebro migrarCerebroSchema agregarColumnasFaltantes_ cargarObjetivo cargarObjetivosPiloto sembrarDatosEjemplo 
 
