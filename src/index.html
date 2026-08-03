@@ -526,10 +526,29 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #cmFx.on{opacity:1;pointer-events:auto}
 @keyframes cmFxIn{from{opacity:1}to{opacity:0}}
 @media(prefers-reduced-motion:reduce){#cmFx{animation:none;transition:none}}
-/* ⌘K command palette */
-#palette{position:fixed;inset:0;z-index:70;display:none;background:rgba(3,3,7,.55);backdrop-filter:blur(2px)}
+/* ⌘K command palette
+   TC-4 (03-ago) — DOS BUGS QUE SOLO APARECIERON POR RENDER, no leyendo el CSS:
+   1) z-index 70 con `#akasha` en 200. `#akasha` es position:fixed + z-index ⇒ crea su propio
+      stacking context, así que TODO lo suyo (incluido el canvas `#gl`, inset:0) quedaba encima:
+      elementFromPoint sobre el input, sobre un ítem y sobre la caja devolvía `#gl<canvas>` en los
+      tres. La paleta se abría y era INCLICKEABLE con Akasha visible, que es el estado normal.
+      Es el MISMO fallo del panel de Sato (01-ago) que nunca se arregló acá. Ahora 320: por encima
+      de Akasha (200) y del panel de Sato (300/301) — la paleta es el overlay de comando global.
+   2) `#palette` cuelga de <body>, NO de `#centro`, así que las primitivas del tema oscuro no le
+      llegan y `var(--color-text)` caía al valor CLARO de `:root` (#1C1B19) sobre una caja con
+      fondo oscuro hardcodeado (#14140F): contraste medido 1.07 — AA pide 4.5. Texto negro sobre
+      negro. Solo se veía el ítem seleccionado, que tiene fondo propio claro.
+      Fix: tema de tokens PROPIO, igual que `.f360-sato`. La paleta siempre es oscura, así que
+      fijarlos acá es correcto y no depende de dónde esté montada. */
+#palette{position:fixed;inset:0;z-index:320;display:none;background:rgba(3,3,7,.55);backdrop-filter:blur(2px);
+  color:#F4EEE2;
+  --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
+  --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
+  --color-primary:#D5824F; --color-primary-weak:rgba(213,130,79,.16)}
 #palette.open{display:block}
 .pal-box{position:absolute;left:50%;top:18%;transform:translateX(-50%);width:min(560px,92vw);background:#14140F;border:1px solid var(--color-border-strong);border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.5);overflow:hidden}
+.pal-box input::placeholder{color:var(--color-text-subtle)}
+.pal-sec{padding:6px 16px 3px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-subtle)}
 .pal-box input{width:100%;border:0;outline:0;background:transparent;color:var(--color-text);font-size:16px;padding:16px}
 .pal-list{max-height:50vh;overflow-y:auto;border-top:1px solid var(--color-border)}
 .pal-item{padding:11px 16px;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;color:var(--color-text)}
@@ -944,6 +963,28 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-burb.user{align-self:flex-end;background:color-mix(in srgb, var(--color-primary) 26%, transparent);border:1px solid color-mix(in srgb, var(--color-primary) 40%, transparent);border-bottom-right-radius:4px}
 .f360-burb.sato{align-self:flex-start;background:rgba(255,255,255,.06);border:1px solid var(--glass-border);border-bottom-left-radius:4px}
 .f360-burb.pensando{color:var(--color-text-muted);font-style:italic}
+/* ── C1 (TC-4) · ARO DE ESTADO DEL ORBE DE SATO ─────────────────────────────
+   Cuatro estados, y cada uno se enciende SOLO desde un hecho observable del flujo:
+   escuchando = el micrófono está grabando · pensando = hay un turno en vuelo ·
+   hablando = el <audio> está sonando (o la ventanita avisó que arrancó) · idle = el resto.
+   Ninguno se simula con un timer: un aro que gira sin que pase nada es la misma mentira
+   que un spinner falso, solo que más linda. Todo por CSS, sin librería. */
+.sato-orbe{position:relative;display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:50%;font-size:13px;line-height:1;flex:none}
+.sato-orbe::after{content:'';position:absolute;inset:-3px;border-radius:50%;
+  border:1.5px solid transparent;transition:border-color .2s ease}
+.sato-orbe[data-estado="idle"]::after{border-color:rgba(244,238,226,.18)}
+.sato-orbe[data-estado="escuchando"]::after{border-color:#6cddba;animation:satoPulso 1.4s ease-in-out infinite}
+.sato-orbe[data-estado="pensando"]::after{border-top-color:#D5824F;border-right-color:#D5824F;
+  animation:satoGiro 1s linear infinite}
+.sato-orbe[data-estado="hablando"]::after{border-color:#E8956D;animation:satoPulso .7s ease-in-out infinite}
+@keyframes satoGiro{to{transform:rotate(360deg)}}
+@keyframes satoPulso{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(1.12)}}
+@media (prefers-reduced-motion:reduce){.sato-orbe::after{animation:none!important}}
+/* C2 · etapas del turno hablado en el propio chatlog (no un spinner): el texto dice en qué
+   etapa REAL está y hace cuántos segundos, que es dato medido, no barra de progreso inventada. */
+.f360-burb.pensando .etapa{font-style:normal;color:var(--color-primary);letter-spacing:.02em}
+.f360-burb.pensando .seg{font-variant-numeric:tabular-nums;opacity:.65;font-size:11px}
 .f360-burb .bts{display:block;font-size:9px;color:var(--color-text-subtle);margin-top:4px;font-family:var(--font-mono)}
 .f360-sato-in{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--glass-border)}
 .f360-sato-in textarea{flex:1;min-height:40px;max-height:110px;resize:none;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:8px 10px;font-size:12.5px;color:var(--color-text);font-family:inherit}
@@ -2834,9 +2875,19 @@ document.addEventListener('keydown',function(ev){
 /* ════════════ ⌘K COMMAND PALETTE ════════════ */
 var PAL={open:false,sel:0,items:[]};
 function palComandos(){
+  /* TC-4 (03-ago): las acciones que el encargo pedía y no estaban. Todas REUSAN lo que ya
+     existe — la paleta es un atajo a la app, no una segunda implementación de nada. Si mañana
+     cambia el flujo de capturar, cambia en un solo lugar y la paleta lo hereda. */
   var base=[
     {label:'Ir a Hoy',k:'vista',run:function(){palCerrar();centroCerrar();loadHoy();}},
     {label:'Abrir Centro de Mando',k:'vista',run:function(){palCerrar();centroAbrir();}},
+    {label:'Hablar con Sato',k:'sato',run:function(){palCerrar();satoPanel_(true);}},
+    {label:'Aprobaciones pendientes',k:'decidir',run:function(){palCerrar();centroAbrir();cmTab('inbox');}},
+    {label:'Actividad de los agentes',k:'ver',run:function(){palCerrar();centroAbrir();cmTab('feed');}},
+    {label:'Cruce agente × cliente',k:'ver',run:function(){palCerrar();centroAbrir();cmTab('cruce');}},
+    {label:'Salud del sistema',k:'ver',run:function(){palCerrar();centroAbrir();cmTab('salud');}},
+    /* Capturar dispara el MISMO botón del CM en vez de repetir su prompt + llamada. */
+    {label:'Capturar a la Bandeja',k:'acción',run:function(){palCerrar();var b=document.getElementById('cmCapturar');if(b)b.click();}},
     {label:'Cambiar tema (claro/oscuro)',k:'acción',run:function(){palCerrar();toggleTheme();}}
   ];
   (state.clientes||[]).forEach(function(c){base.push({label:'Cliente · '+c.nombre,k:c.id_cliente,run:function(){palCerrar();centroCerrar();loadCliente(c.id_cliente);}});});
@@ -2844,6 +2895,9 @@ function palComandos(){
      de la propia ficha; si ninguna cargó todavía, el ítem genérico abre la ficha del 1er cliente). */
   var fcs=(state.clientes&&state.clientes.length)?state.clientes:(F360.clientes||[]);
   fcs.forEach(function(c){base.push({label:'Ficha 360 · '+c.nombre,k:c.id_cliente,run:function(){palCerrar();fichaAbrir(c.id_cliente,'P9 palette');}});});
+  /* El brief de un cliente vive DENTRO de su Ficha (la carga `briefCliente` al abrirla): el ítem
+     lleva ahí en vez de duplicar la llamada y renderizar el markdown por segunda vez. */
+  fcs.forEach(function(c){base.push({label:'Brief · '+c.nombre,k:'brief',run:function(){palCerrar();fichaAbrir(c.id_cliente,'P9 palette brief');}});});
   if(!fcs.length)base.push({label:'Ficha 360 de cliente…',k:'ficha',run:function(){palCerrar();
     if(typeof EN_GAS==='undefined'||!EN_GAS){cmToast('Sin backend');return;}
     google.script.run.withSuccessHandler(function(cs){ if(cs&&cs.length){F360.clientes=cs;fichaAbrir(cs[0].id_cliente,'P9 palette');} })
@@ -3851,6 +3905,9 @@ function f360SatoVozInit_(){
       }
       if(ev2.data&&typeof ev2.data.sato_hablando==='boolean'){   // compat: pausa remota simple
         pausaTTS=ev2.data.sato_hablando;
+        // C1: cuando el MP3 lo reproduce la ventanita, el <audio> local no existe — el único
+        // hecho observable es este aviso, así que de ahí sale el estado del aro.
+        satoEstado_(ev2.data.sato_hablando?'hablando':'idle');
         if(pausaTTS){ try{rec&&rec.stop();}catch(e){} } else if(activo)setTimeout(ronda,300);
         pinta();
       }
@@ -3869,9 +3926,11 @@ function f360SatoVozInit_(){
     if(SATO_VOZ.grabando){ try{SATO_VOZ.rec.stop();}catch(e){} return; }
     var rec=new SR(); SATO_VOZ.rec=rec;
     rec.lang='es-ES'; rec.interimResults=false; rec.maxAlternatives=1;
-    rec.onstart=function(){ SATO_VOZ.grabando=true; bm.classList.add('rec'); };
-    rec.onend=function(){ SATO_VOZ.grabando=false; bm.classList.remove('rec'); };
-    rec.onerror=function(ev){ SATO_VOZ.grabando=false; bm.classList.remove('rec');
+    // C1: el aro se enciende con los eventos REALES del reconocedor, no al tocar el botón —
+    // si el permiso se niega, `onstart` nunca llega y el aro no miente diciendo que escucha.
+    rec.onstart=function(){ SATO_VOZ.grabando=true; bm.classList.add('rec'); satoEstado_('escuchando'); };
+    rec.onend=function(){ SATO_VOZ.grabando=false; bm.classList.remove('rec'); satoEstado_('idle'); };
+    rec.onerror=function(ev){ SATO_VOZ.grabando=false; bm.classList.remove('rec'); satoEstado_('idle');
       if(ev.error==='not-allowed'||ev.error==='service-not-allowed'){ SATO_VOZ.bloqueado=true; abrirMic_(); }
       else cmToast('Micrófono: '+ev.error); };
     rec.onresult=function(ev){
@@ -3905,6 +3964,11 @@ function f360SatoHablar_(texto){
   if(limpio.length>420){ var corte=limpio.slice(0,420); var p=corte.lastIndexOf('. ');
     limpio=(p>200?corte.slice(0,p+1):corte)+' …'; }
   var st=document.getElementById('f360SatoSt'); if(st)st.textContent='🔊 generando voz…';
+  /* C2: "generando voz" solo se anuncia por ESTE camino, donde hay una llamada aparte a satoVoz
+     y por lo tanto una etapa realmente observable. Cuando el MP3 viene junto con el texto (el
+     camino normal, T1.5c), el front NO puede distinguir pensar de generar: anunciarlo igual
+     sería el spinner mentiroso que este encargo prohíbe. */
+  if(SATO_ET.burb)satoEtapa_('generando voz');
   google.script.run.withSuccessHandler(function(r){
       if(r&&r.ok&&r.mp3){ f360SatoReproducir_('data:audio/mpeg;base64,'+r.mp3);
         if(st)st.textContent='voz de Sato · $'+((r.usd||0).toFixed(4)); return; }
@@ -3927,8 +3991,13 @@ function f360SatoReproducir_(dataUrl){
   try{
     if(SATO_VOZ.audio){ try{SATO_VOZ.audio.pause();}catch(e2){} }
     var a=new Audio(dataUrl); SATO_VOZ.audio=a;
-    a.play().catch(function(){ f360SatoBotonAudio_(a); });
-  }catch(e3){ /* la voz es un extra */ }
+    // C1: "hablando" se enciende con el evento REAL del <audio>, no al mandar a reproducir:
+    // si el autoplay queda bloqueado, el aro no debe decir que está hablando.
+    a.addEventListener('play',function(){ satoEstado_('hablando'); });
+    a.addEventListener('ended',function(){ satoEstado_('idle'); });
+    a.addEventListener('pause',function(){ satoEstado_('idle'); });
+    a.play().catch(function(){ satoEstado_('idle'); f360SatoBotonAudio_(a); });
+  }catch(e3){ satoEstado_('idle'); /* la voz es un extra */ }
 }
 /* Desbloqueo de autoplay: un botón que el usuario toca UNA vez (como "Activar audio" en la PWA). */
 function f360SatoBotonAudio_(a){
@@ -3958,15 +4027,52 @@ function f360SatoCargar_(){
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; clear(log); f360SatoBurb_('sato','No pude leer la charla: '+((e&&e.message)||'')); })
     .satoCharla(satoCtx_(),30);
 }
+/* ── C1/C2 (TC-4) · el ESTADO de Sato tiene un solo dueño ────────────────────
+   `satoEstado_` es el único que toca el aro. Se llama desde los cuatro puntos donde el flujo
+   REALMENTE cambia de etapa; no hay ningún setTimeout que "avance" el estado por su cuenta.
+   Si mañana aparece una etapa nueva, se agrega acá y el aro y el chatlog la heredan juntos. */
+var SATO_ET={t0:0,timer:null,burb:null,etapa:''};
+function satoEstado_(e){
+  var o=document.getElementById('f360SatoOrbe');
+  if(o)o.setAttribute('data-estado',e||'idle');
+}
+/* C2 · muestra la etapa REAL en la burbuja de espera, con los segundos que de verdad pasaron.
+   Los ~13s del turno hablado se sienten eternos sin señal; lo que NO se hace es fingir un
+   progreso: si el backend devuelve texto y MP3 juntos, el front no puede saber cuándo dejó de
+   pensar y empezó a generar voz, así que no lo inventa — muestra la etapa que puede observar. */
+function satoEtapa_(etapa){
+  SATO_ET.etapa=etapa;
+  var b=SATO_ET.burb; if(!b)return;
+  var seg=Math.round((Date.now()-SATO_ET.t0)/1000);
+  clear(b);
+  b.appendChild(el('span','etapa',etapa));
+  if(seg>=2)b.appendChild(el('span','seg',' · '+seg+'s'));
+}
+function satoEtapaIniciar_(burb,etapa){
+  SATO_ET.burb=burb; SATO_ET.t0=Date.now();
+  satoEtapa_(etapa);
+  if(SATO_ET.timer)clearInterval(SATO_ET.timer);
+  // el contador NO es una animación de relleno: son los segundos medidos del turno en vuelo
+  SATO_ET.timer=setInterval(function(){ satoEtapa_(SATO_ET.etapa); },1000);
+}
+function satoEtapaFin_(){
+  if(SATO_ET.timer){clearInterval(SATO_ET.timer);SATO_ET.timer=null;}
+  SATO_ET.burb=null; SATO_ET.etapa='';
+}
 function f360SatoEnviar_(){
   var tx=document.getElementById('f360SatoTx'); if(!tx)return;
   var t=tx.value.trim(); if(!t)return;
   if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
   tx.value=''; tx.disabled=true;
   f360SatoBurb_('user',t);
-  var esp=f360SatoBurb_('sato pensando','Sato está pensando…');
+  var esp=f360SatoBurb_('sato pensando','enviado');
+  satoEtapaIniciar_(esp,'enviado');
+  satoEstado_('pensando');
+  // "pensando" apenas el turno sale: es el estado real desde que google.script.run despacha.
+  satoEtapa_('pensando');
   var gen=F360.gen;
   google.script.run.withSuccessHandler(function(r){ if(gen!==F360.gen)return;
+      satoEtapaFin_(); satoEstado_('idle');
       if(esp)esp.remove(); tx.disabled=false; tx.focus();
       var burb=f360SatoBurb_('sato',(r&&r.texto)||'(sin respuesta)');
       if(r&&r.ok&&r.texto)satoAccionPropuesta_(r.texto,burb);   // T2.2: acción con confirmación
@@ -3981,6 +4087,7 @@ function f360SatoEnviar_(){
       else if(r&&r.ok&&SATO_VOZ.on){ f360SatoHablar_(r.texto); }   // red de seguridad
       else if(st&&r&&r.ok)st.textContent='último turno: $'+((r.usd||0).toFixed(4))+fu; })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return;
+      satoEtapaFin_(); satoEstado_('idle');
       if(esp)esp.remove(); tx.disabled=false;
       f360SatoBurb_('sato','(no pude responder: '+((e&&e.message)||'sesión o permisos')+')'); })
     .satoChat(satoCtx_(),t,{voz:!!SATO_VOZ.on});
@@ -6744,7 +6851,7 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
        encapsulado bajo 50 y Akasha (200) lo tapa. A nivel body con z-index:300 nada del OS lo tapa.
        Sin cliente = modo sistema (ve la cartera); con ficha abierta = ese cliente. -->
     <div class="f360-sato" id="f360Sato" role="dialog" aria-label="Chat con Sato">
-      <div class="f360-sato-h"><b>🜂 Sato</b>
+      <div class="f360-sato-h"><b><span class="sato-orbe" id="f360SatoOrbe" data-estado="idle" aria-hidden="true">🜂</span> Sato</b>
         <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
         <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
         <span class="st" id="f360SatoSt">memoria persistente</span>

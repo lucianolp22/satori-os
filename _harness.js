@@ -1068,6 +1068,61 @@ seccion('D33 · actividad inter-agentes: cruce con ventana declarada');
   } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
 }
 
+// ═══ TC-4 · contrato de la UI (lo que el render verificó, aserido para que no vuelva) ═══
+// El bug de stacking + contraste del 01-ago (panel de Sato) se REPITIÓ tal cual en la paleta ⌘K
+// y sobrevivió dos meses porque nadie lo asertó: el CSS "se veía bien" leyéndolo. Esto no
+// reemplaza al render — lo fija. Si alguien baja el z-index o saca los tokens propios, se canta acá.
+seccion('TC-4 · UI: stacking y tema propio de los overlays a nivel <body>');
+{
+  const idx = fs.readFileSync(path.join(__dirname, 'src', 'index.html'), 'utf8');
+  // Un selector puede tener VARIOS bloques (#akasha define primero sus tokens y el z-index en
+  // otro). Se recorren todos y se toma el z-index declarado, no el del primer bloque que aparezca.
+  const zDe = (sel) => {
+    const re = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}', 'g');
+    let m, z = null;
+    while ((m = re.exec(idx))) { const h = m[1].match(/z-index:\s*(\d+)/); if (h) z = Number(h[1]); }
+    return z;
+  };
+  const zPal = zDe('#palette'), zAk = zDe('#akasha');
+  chk(zPal !== null && zAk !== null && zPal > zAk,
+      `TC4a la paleta ⌘K va POR ENCIMA de Akasha (palette ${zPal} > akasha ${zAk}) — con 70 quedaba tapada por su canvas`);
+  const blqPal = (idx.match(/#palette\s*\{([^}]*)\}/) || [])[1] || '';
+  chk(/--color-text\s*:/.test(blqPal),
+      'TC4b #palette declara sus PROPIOS tokens: cuelga de <body>, así que no hereda el tema oscuro de #centro');
+  chk(/--color-primary\s*:/.test(blqPal) && /--color-border-strong\s*:/.test(blqPal),
+      'TC4b2 y también primary/border, que es lo que usan la caja y el ítem seleccionado');
+
+  // C1 · los cuatro estados del aro existen y ninguno se inventa desde un timer.
+  ['idle', 'escuchando', 'pensando', 'hablando'].forEach((e) => {
+    chk(idx.indexOf('.sato-orbe[data-estado="' + e + '"]') >= 0, `TC4c el aro declara el estado \`${e}\``);
+  });
+  chk(/function satoEstado_/.test(idx), 'TC4c2 el estado del aro tiene un dueño único (satoEstado_)');
+  // Los enganches REALES: eventos del reconocedor, del <audio> y del aviso de la ventanita.
+  // Varias de estas cadenas aparecen MÁS DE UNA VEZ (la ventanita del micrófono tiene su propio
+  // `rec.onstart`). Alcanza con que ALGUNA ocurrencia enganche el aro: mirar solo la primera
+  // daba rojo por buscar en el bloque equivocado, no por un problema del código.
+  ['rec.onstart=', 'rec.onend=', "addEventListener('play'", "addEventListener('ended'", 'sato_hablando'].forEach((g) => {
+    let i = -1, ok = false;
+    while ((i = idx.indexOf(g, i + 1)) >= 0) { if (idx.slice(i, i + 300).indexOf('satoEstado_') >= 0) { ok = true; break; } }
+    chk(ok, `TC4d el aro se actualiza desde el hecho observable \`${g}\` (no desde un timer)`);
+  });
+
+  // C2 · etapas del turno: la de "generando voz" SOLO donde hay una llamada aparte.
+  chk(/function satoEtapaIniciar_/.test(idx) && /function satoEtapaFin_/.test(idx),
+      'TC4e las etapas del turno tienen inicio y fin explícitos (el intervalo se limpia siempre)');
+  const iHablar = idx.indexOf('function f360SatoHablar_');
+  const iEnviar = idx.indexOf('function f360SatoEnviar_');
+  const cuerpoHablar = idx.slice(iHablar, iHablar + 2000);
+  const cuerpoEnviar = idx.slice(iEnviar, iEnviar + 2600);
+  chk(cuerpoHablar.indexOf("satoEtapa_('generando voz')") >= 0,
+      'TC4f "generando voz" se anuncia en f360SatoHablar_, donde SÍ hay una llamada satoVoz aparte');
+  chk(cuerpoEnviar.indexOf("satoEtapa_('generando voz')") < 0,
+      'TC4f2 y NO en el turno normal: ahí el MP3 viene junto al texto y el front no puede distinguir ' +
+      'pensar de generar — anunciarlo igual sería el spinner mentiroso que el encargo prohíbe');
+  chk(cuerpoEnviar.indexOf('satoEtapaFin_()') >= 0 && cuerpoEnviar.split('satoEtapaFin_()').length >= 3,
+      'TC4g el turno cierra sus etapas en ÉXITO y en FALLO (si no, el contador queda corriendo para siempre)');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;
