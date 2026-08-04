@@ -157,6 +157,8 @@ var ENDPOINTS_UI = [
   'agendarEvento', 'actualizarEvento', 'cancelarEvento', 'agendaSemana',
   // 25_hilo.js (TC-W1)
   'hiloCliente',
+  // 29_vigilancia.js (TC-11 · A5) — semáforo multi-superficie de la Ficha 360
+  'vigilanciaCliente',
   // 17_bandeja.js
   'capturar',
   // ── purga X2 (24-jul): NO las llama el front, pero son top-level ⇒ invocables por RPC.

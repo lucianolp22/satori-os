@@ -262,7 +262,7 @@ function corridaDiaria() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   _soloOwner_('corridaDiaria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
-  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null };
+  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null, vigilancia: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -298,6 +298,13 @@ function corridaDiaria() {
   // diario (schema solo MAESTRO); correrSalud({full:true}) abre clientes on-demand.
   try { resumen.salud = correrSalud(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Salud falló: ' + e.message }); }
+
+  // TC-11 · A5: vigilancia multi-superficie de la cartera activa. Va DESPUÉS del sync y la
+  // salud (juzga datos ya refrescados) y persiste el resumen en Config para que el brief lo
+  // lea SIN abrir Sheets de cliente (regla SPEC-GAS 14-jul). Fail-safe por cliente adentro;
+  // si el motor entero falla, aviso ruidoso (un error tragado es peor que un error ruidoso).
+  try { resumen.vigilancia = vigilanciaCorrida_(); }
+  catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Vigilancia falló: ' + e.message }); }
 
   // ETAPA 2: consolidar costos del mes al MAESTRO (USD/EUR + alerta de presupuesto).
   try { resumen.costos = consolidarCostosMes(); }

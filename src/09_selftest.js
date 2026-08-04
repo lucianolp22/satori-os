@@ -575,7 +575,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ },
    { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_ },
    { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_ },
-   { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_ }].forEach(function (t) {
+   { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_ },
+   { n: 'D39 TC-11 (A5 vigilancia multi-superficie)', f: _asertsD39_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2615,4 +2616,138 @@ function borrarFilasDonde(sh, pred) {
   for (var i = filas.length - 1; i >= 0; i--) {
     if (pred(filas[i])) sh.deleteRow(filas[i]._fila);
   }
+}
+
+/**
+ * D39 · TC-11 — A5 vigilancia multi-superficie (29_vigilancia.js).
+ * La doctrina que se fija: GRIS = sin datos y VACÍO JAMÁS ES VERDE (D26c); cada color viaja
+ * ANCLADO a su dato (patrón A2); un dato viejo DEGRADA a gris con nota; los umbrales viven en
+ * Config con default prudente. Parte liviana: contratos + juicio PURO (corre también offline).
+ * Parte `opts.completo`: clientes __TEST__ vivos + 🔒 aislamiento (regla 9 del AISLAMIENTO).
+ */
+function _asertsD39_(chk, log, opts) {
+  // ── Contratos (derivados de las listas, sin conteos clavados a mano) ──
+  chk(VIGILANCIA_SUPERFICIES.indexOf('ventas') >= 0 && VIGILANCIA_SUPERFICIES.indexOf('resenas') >= 0 &&
+      VIGILANCIA_SUPERFICIES.indexOf('fiscal') >= 0,
+      'D39a la lista-contrato declara las superficies estándar (' + VIGILANCIA_SUPERFICIES.length + ')');
+  var d39sinDef = VIGILANCIA_SUPERFICIES.filter(function (s) { return !VIG_FUENTE_DEFAULT[s]; });
+  chk(d39sinDef.length === 0, 'D39a2 toda superficie tiene fuente default (invariante de la lista)' +
+      (d39sinDef.length ? ' — SIN DEFAULT: ' + d39sinDef.join(', ') : ''));
+  var d39vig = CONFIG_DEFAULTS.filter(function (p) { return String(p[0]).indexOf('vig_') === 0; });
+  chk(d39vig.length >= 4, 'D39a3 los umbrales viven en CONFIG_DEFAULTS (' + d39vig.length + ' claves vig_*)');
+  chk(ENDPOINTS_UI.indexOf('vigilanciaCliente') >= 0, 'D39a4 vigilanciaCliente dado de alta en ENDPOINTS_UI (anti-drift)');
+  chk(String(vigilanciaCliente).indexOf("_soloOwner_('vigilanciaCliente')") >= 0,
+      'D39a5 vigilanciaCliente lleva _soloOwner_ (introspección del código real)');
+  chk(String(briefDiarioSistema_).indexOf('_vigLineasBrief_') >= 0,
+      'D39a6 el brief de sistema renderiza el resumen de vigilancia');
+  chk(String(corridaDiaria).indexOf('vigilanciaCorrida_') >= 0,
+      'D39a7 la corridaDiaria corre la vigilancia (y persiste el resumen para el brief)');
+
+  // ── Umbrales: default prudente + override legible de Config ──
+  var d39u = _vigUmbrales_({});
+  chk(d39u.frescura_dias === 10 && d39u.rojo_caida_pct === 30 && d39u.ambar_caida_pct === 10 && d39u.aprob_dias === 7,
+      'D39b sin Config el umbral cae al default prudente');
+  chk(_vigUmbrales_({ rojo_caida_pct: '50' }).rojo_caida_pct === 50, 'D39b2 el umbral se lee de Config (override)');
+  chk(_vigUmbrales_({ frescura_dias: '' }).frescura_dias === 10 && _vigUmbrales_({ frescura_dias: 'x' }).frescura_dias === 10,
+      'D39b3 vacío o basura en Config no rompe el default (jamás NaN)');
+
+  var HOY = '2026-08-04';
+  // ── 🔒 D26c universal: sin observación o sin filas ⇒ GRIS en TODAS las superficies ──
+  var d39noGris = VIGILANCIA_SUPERFICIES.filter(function (s) {
+    return _vigJuzgar_(s, null, d39u, HOY).color !== 'gris' || _vigJuzgar_(s, {}, d39u, HOY).color !== 'gris';
+  });
+  chk(d39noGris.length === 0, 'D39c 🔒 sin datos ⇒ GRIS en todas las superficies — vacío JAMÁS verde (D26c)' +
+      (d39noGris.length ? ' — FALLAN: ' + d39noGris.join(', ') : ''));
+  var d39sf = _vigJuzgar_('resenas', { fuente: 'sin_fuente' }, d39u, HOY);
+  chk(d39sf.color === 'gris' && d39sf.nota.indexOf('B8') >= 0,
+      'D39c2 superficie declarada sin_fuente ⇒ gris con la nota honesta (entra a mano o con B8)');
+  chk(_vigJuzgar_('superficie_inventada', { filas: 9 }, d39u, HOY).color === 'gris',
+      'D39c3 superficie sin regla de juicio ⇒ gris (nunca verde por defecto)');
+
+  // ── Ventas: rojo/ámbar/verde deterministas SOLO entre meses cerrados ──
+  function vtas(m1, m2, f) { return _vigJuzgar_('ventas', { meses: [m1, m2], ultima_fecha: f }, d39u, HOY); }
+  var d39r = vtas({ mes: '2026-06', total: 1000 }, { mes: '2026-07', total: 650 }, '2026-07-30');
+  chk(d39r.color === 'rojo' && d39r.nota.indexOf('35%') >= 0, 'D39d caída 35% entre meses cerrados ⇒ ROJO con el % en la nota');
+  chk(d39r.dato.indexOf('2026-07') >= 0 && d39r.dato.indexOf('650') >= 0, 'D39d2 el rojo viaja ANCLADO a su dato (mes y monto)');
+  chk(vtas({ mes: '2026-06', total: 1000 }, { mes: '2026-07', total: 850 }, '2026-07-30').color === 'ambar',
+      'D39d3 caída 15% ⇒ ÁMBAR (umbral default 10/30)');
+  chk(vtas({ mes: '2026-06', total: 1000 }, { mes: '2026-07', total: 980 }, '2026-07-30').color === 'verde',
+      'D39d4 caída 2% ⇒ verde');
+  var d39parcial = vtas({ mes: '2026-07', total: 1000 }, { mes: '2026-08', total: 120 }, '2026-08-03');
+  chk(d39parcial.color === 'verde' && d39parcial.nota.indexOf('cerrados') >= 0,
+      'D39d5 el mes EN CURSO (parcial) no se compara — no se fabrica una caída falsa');
+
+  // ── Frescura: dato viejo DEGRADA a gris con nota y conserva el ancla ──
+  var d39v = _vigJuzgar_('ventas', { meses: [{ mes: '2026-07', total: 900 }], ultima_fecha: '2026-07-10' }, d39u, HOY);
+  chk(d39v.color === 'gris' && d39v.nota.indexOf('viejo') >= 0 && d39v.dato.indexOf('900') >= 0,
+      'D39e dato viejo ⇒ DEGRADA a gris con nota (y conserva su dato ancla)');
+  var d39k = _vigJuzgar_('kpis', { kpi: 'ventas_mes', valor: 5, objetivo: 10, alerta: 'cayó fuerte', fecha: '2026-08-01' }, d39u, HOY);
+  chk(d39k.color === 'rojo' && d39k.nota === 'cayó fuerte' && d39k.dato.indexOf('ventas_mes = 5') >= 0,
+      'D39e2 KPI con alerta ⇒ rojo anclado; la alerta es la nota');
+  chk(_vigJuzgar_('kpis', { kpi: 'x', valor: 5, objetivo: 10, alerta: '', fecha: '2026-08-01' }, d39u, HOY).color === 'ambar',
+      'D39e3 KPI bajo el objetivo sin alerta ⇒ ámbar');
+  chk(_vigJuzgar_('tareas', { proyectos: 2, abiertas: 3, vencidas: 1, peor: 'entregar X' }, d39u, HOY).color === 'rojo',
+      'D39e4 tareas vencidas ⇒ rojo');
+  chk(_vigJuzgar_('tareas', { proyectos: 1, abiertas: 0, vencidas: 0 }, d39u, HOY).color === 'ambar',
+      'D39e5 proyectos sin nada en marcha ⇒ ámbar (no verde)');
+  chk(_vigJuzgar_('aprobaciones', { pendientes: 2, mas_vieja_dias: 9 }, d39u, HOY).color === 'rojo' &&
+      _vigJuzgar_('aprobaciones', { pendientes: 1, mas_vieja_dias: 2 }, d39u, HOY).color === 'ambar' &&
+      _vigJuzgar_('aprobaciones', { pendientes: 0, mas_vieja_dias: null }, d39u, HOY).color === 'verde',
+      'D39e6 aprobaciones: estancada ⇒ rojo · pendiente ⇒ ámbar · CERO real leído ⇒ verde');
+
+  // ── Ancla universal: ningún juicio sale sin su dato (patrón A2) ──
+  var d39todos = [d39r, d39v, d39k, d39sf,
+    _vigJuzgar_('operativos_caja', { filas: 4, mes: '2026-08', total_mes: -120, ultima_fecha: '2026-08-02' }, d39u, HOY),
+    _vigJuzgar_('tareas', { proyectos: 0 }, d39u, HOY)];
+  chk(d39todos.filter(function (x) { return !x.dato; }).length === 0, 'D39f ningún juicio sale sin su dato ancla');
+  chk(d39todos[4].color === 'rojo', 'D39f2 caja del mes de referencia en negativo ⇒ rojo');
+
+  // ── El brief renderiza el resumen (pura) ──
+  var d39b = _vigLineasBrief_({ fecha: HOY, clientes: [{ id: 'CLI-002', s: [
+    { sup: 'ventas', color: 'verde', dato: 'ventas 2026-07 = 650' },
+    { sup: 'operativos_caja', color: 'gris', dato: 'sin datos' },
+    { sup: 'kpis', color: 'rojo', dato: 'ventas_mes = 5 (objetivo 10)' }] }] }, HOY);
+  chk(d39b.length === 1 && d39b[0].indexOf('Vigilancia CLI-002') >= 0 && d39b[0].indexOf('ventas ✅') >= 0 &&
+      d39b[0].indexOf('caja ⬜ sin datos') >= 0 && d39b[0].indexOf('🔴 ventas_mes = 5') >= 0,
+      'D39g el brief renderiza el resumen: cliente + semáforos; gris dice «sin datos» y el rojo lleva su ancla');
+  chk(_vigLineasBrief_(null, HOY)[0].indexOf('sin corrida') >= 0,
+      'D39g2 sin corrida el brief lo DICE (no inventa un estado)');
+  chk(_vigLineasBrief_({ fecha: '2026-08-01', clientes: [{ id: 'CLI-002', s: [] }] }, HOY)[0].indexOf('del 2026-08-01') >= 0,
+      'D39g3 resumen de otro día ⇒ el brief declara la fecha (frescura visible)');
+  chk(_vigLineasBrief_({ fecha: HOY, clientes: [{ id: 'CLI-009', error: 'tenant roto' }] }, HOY)[0].indexOf('⚠ sin acceso') >= 0,
+      'D39g4 un cliente con error se SURFACEA en el brief, no se traga (lección 27-jul)');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D39h-j (clientes __TEST__ vivos + 🔒 aislamiento) solo corren en selfTest() completo');
+    return;
+  }
+
+  // ── Con Sheets VIVOS: clientes __TEST__ (patrón D30/D32 — jamás un cliente real) ──
+  var d39A = crearCliente({ nombre: '__TEST__ vig A ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d39B = crearCliente({ nombre: '__TEST__ vig B ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d39vA = vigilanciaCliente(d39A.id_cliente);
+  chk(d39vA.ok === true && d39vA.superficies.length === VIGILANCIA_SUPERFICIES.length,
+      'D39h la vigilancia corre on-demand sobre un cliente recién nacido (todas las superficies declaradas)');
+  var d39verdesDato = d39vA.superficies.filter(function (s) {
+    return ['ventas', 'operativos_caja', 'kpis', 'resenas', 'fiscal'].indexOf(s.superficie) >= 0 && s.color !== 'gris';
+  });
+  chk(d39verdesDato.length === 0,
+      'D39h2 🔒 cliente sin datos ⇒ sus superficies de datos quedan en GRIS (nada nace verde de la nada)');
+  chk(d39vA.superficies.filter(function (s) { return !s.dato; }).length === 0,
+      'D39h3 cada semáforo vivo trae su dato ancla');
+
+  // KPI en alerta sembrado en el tenant de A ⇒ rojo anclado; B ni se entera (🔒 aislamiento).
+  var d39shK = abrirCliente(d39A.id_cliente).ss.getSheetByName('KPIs');
+  appendFila(d39shK, { fecha: hoyISO(), kpi: '__TEST__ vig kpi', valor: 5, objetivo: 10, alerta: '__TEST__ caída' });
+  var d39kA = vigilanciaCliente(d39A.id_cliente).superficies.filter(function (s) { return s.superficie === 'kpis'; })[0];
+  chk(d39kA.color === 'rojo' && d39kA.dato.indexOf('__TEST__ vig kpi') >= 0,
+      'D39i KPI en alerta del tenant ⇒ ROJO con su dato ancla');
+  var d39kB = vigilanciaCliente(d39B.id_cliente).superficies.filter(function (s) { return s.superficie === 'kpis'; })[0];
+  chk(d39kB.color === 'gris', 'D39i2 🔒 desde B NO se ve el KPI de A (aislamiento de tenant)');
+  chk(vigilanciaCliente('CLI-NOEXISTE').ok === false,
+      'D39j 🔒 un id fuera del roster real NO se consulta (§3: el id lo pone el sistema)');
+  chk(vigilanciaCliente('').ok === false, 'D39j2 id vacío ⇒ {ok:false}');
+
+  log.push('   ↳ D39 TC-11: vigilancia viva sobre clientes __TEST__ (' + d39vA.superficies.length +
+           ' superficies juzgadas; ningún cliente real tocado)');
 }

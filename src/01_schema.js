@@ -226,7 +226,14 @@ var CONFIG_DEFAULTS = [
   // TC-9 · Forge. `aprobar` y no `permitir`: promover un agente le da permiso de gastar API y de
   // escribir propuestas sobre datos de clientes — es exactamente la clase de cosa que no se
   // automatiza. Apagar, en cambio, es libre (ver demoverAgente).
-  ['riesgo_promover_agente', 'aprobar']
+  ['riesgo_promover_agente', 'aprobar'],
+  // TC-11 (04-ago) · A5 vigilancia multi-superficie — umbrales PRUDENTES (29_vigilancia.js).
+  // La declaración por cliente NO va acá: vigilancia_<id>_superficies / _fuente_<sup>
+  // (patrón conector_*, se cargan a mano en la hoja Config cuando el cliente lo amerita).
+  ['vig_frescura_dias', '10'],       // dato más viejo que N días ⇒ el semáforo DEGRADA a gris
+  ['vig_ambar_caida_pct', '10'],     // caída % de ventas (meses cerrados) que pinta ámbar
+  ['vig_rojo_caida_pct', '30'],      // caída % de ventas (meses cerrados) que pinta rojo
+  ['vig_aprob_dias', '7']            // aprobación pendiente más vieja que N días ⇒ rojo
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;

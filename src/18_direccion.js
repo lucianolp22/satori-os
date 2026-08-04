@@ -502,6 +502,9 @@ function briefDiarioSistema_() {
   } else metricas.push('- North Star de Satori sin definir (Config ns_satori_desc) — sin norte no hay tendencia que medir.');
   metricas.push('- Cartera: ' + d.estado.clientes + ' clientes · ' + abiertas.length + ' tareas abiertas (' + vencidas.length + ' vencidas) · ' + ap + ' aprobaciones · ' + av + ' avisos');
   metricas.push('- Salud: ' + String(sal.global).toUpperCase() + ' (integridad ' + sal.integridad + '%)');
+  // TC-11 · A5: vigilancia por cliente — SOLO el resumen que persistió la corridaDiaria (este
+  // brief no abre ningún Sheet de cliente, regla SPEC-GAS 14-jul). Sin corrida ⇒ se dice.
+  _vigLineasBrief_(_vigResumenCacheado_(), hoy).forEach(function (l) { metricas.push(l); });
 
   // 4 · Qué se auto-resolvió + qué aprendí y ya ajusté (dentro de mandato, sin pedir permiso).
   var autoresuelto = [];

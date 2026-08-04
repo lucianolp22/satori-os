@@ -624,6 +624,17 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .hilo-sem-t{flex:1;min-width:0}
 .hilo-sem-h{font-size:12.5px;color:#dfe5f2;font-weight:600}
 .hilo-sem-s{font-size:10.5px;color:#6b7488;margin-top:1px}
+/* TC-11 · A5 — vigilancia multi-superficie (Ficha 360). Misma paleta que .hilo-sem:
+   verde #6cddba · ámbar #ffd479 · rojo #ff8d7a · gris #6b7488 (gris = sin datos, D26c). */
+.vig-fila{display:flex;flex-wrap:wrap;gap:6px}
+.vig-chip{display:inline-flex;align-items:center;gap:6px;background:rgba(10,14,22,.7);border:1px solid rgba(108,221,186,.10);border-radius:999px;padding:4px 10px;font-size:11px;color:#dfe5f2;cursor:default}
+.vig-pip{width:8px;height:8px;border-radius:50%;background:#6b7488;flex:none}
+.vig-chip.verde .vig-pip{background:#6cddba;box-shadow:0 0 8px -1px #6cddba}
+.vig-chip.ambar .vig-pip{background:#ffd479;box-shadow:0 0 8px -1px #ffd479}
+.vig-chip.rojo .vig-pip{background:#ff8d7a;box-shadow:0 0 8px -1px #ff8d7a}
+.vig-chip .d{color:#6b7488;font-size:10.5px}
+.vig-chip.rojo .d,.vig-chip.ambar .d{color:#dfe5f2}
+.vig-nota{font-size:10.5px;color:#6b7488;margin-top:7px}
 .hilo-num{display:flex;gap:8px;align-items:baseline;font-size:11px;padding:5px 10px;margin-bottom:8px;background:rgba(108,221,186,.06);border-radius:6px}
 .hilo-num-k{color:#6b7488;text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;flex:none}
 .hilo-num-v{color:#c3ccdd}
@@ -1377,6 +1388,9 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <section class="f360-sec"><h4>Situación <span class="cnt mono" id="f360SitN">brief diario</span></h4><div class="f360-cont" id="f360Sit"><div class="served">Cargando…</div></div></section>
         <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
         <section class="f360-sec"><h4>Números <span class="cnt mono" id="f360NumN"></span></h4><div class="f360-cont" id="f360Num"><div class="served">Cargando…</div></div></section>
+        <!-- TC-11 · A5: fila de semáforos multi-superficie. GRIS = sin datos (jamás verde);
+             cada chip lleva su dato ancla en el title. Es TAMBIÉN artefacto de venta S1/S2. -->
+        <section class="f360-sec"><h4>Vigilancia <span class="cnt mono" id="f360VigN"></span></h4><div class="f360-cont" id="f360Vig"><div class="served">Cargando…</div></div></section>
       </div>
       <div class="f360-col b">
         <section class="f360-sec"><h4>Checklist <span class="cnt mono" id="f360ChkN"></span></h4><div class="f360-cont" id="f360Chk"><div class="served">Cargando…</div></div></section>
@@ -1390,7 +1404,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
     </div>
     <div class="f360-foot">
-      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango · checklistCliente · briefCliente · cerebroGrafo</span>
+      <span class="f360-fuente mono">datosCliente · fichaCliente · hiloCliente · agendaRango · checklistCliente · briefCliente · cerebroGrafo · vigilanciaCliente</span>
       <span class="f360-acts">
         <button class="btn btn-ghost btn-sm" id="f360Docs" hidden>⛁ Documentos</button>
         <button class="btn btn-ghost btn-sm" id="f360Sheet" hidden>▤ Sheet del cliente</button>
@@ -3424,6 +3438,32 @@ function f360Sel_(){
     .withFailureHandler(function(){ pinta([{id_cliente:F360.id,nombre:F360.id}]); }).listaClientes();
 }
 function f360Vacio_(cont,msg){ clear(cont); cont.appendChild(el('div','f360-vacio',msg)); }
+/* TC-11 · A5 — fila de semáforos multi-superficie. Estados honestos: gris dice «sin datos»
+   (D26c: vacío jamás verde), el dato ancla acompaña a rojo/ámbar y va SIEMPRE en el title.
+   Fail-closed: sin respuesta o error, la sección dice su causa — nada se inventa. */
+function f360Vig_(v){
+  var cont=document.getElementById('f360Vig'), n=document.getElementById('f360VigN');
+  if(!cont)return; clear(cont);
+  if(!v||!v.ok){ if(n)n.textContent=''; f360Vacio_(cont,'No se pudo evaluar la vigilancia: '+((v&&v.error)||'sesión o permisos')); return; }
+  var S=v.superficies||[];
+  if(!S.length){ if(n)n.textContent=''; f360Vacio_(cont,'Sin superficies declaradas para este cliente.'); return; }
+  var conDatos=S.filter(function(s){return s.color!=='gris';}).length;
+  if(n)n.textContent=conDatos+'/'+S.length+' con datos · '+(v.fecha||'');
+  var NOM={ventas:'ventas',operativos_caja:'caja',kpis:'KPIs',aprobaciones:'aprobaciones',tareas:'tareas',resenas:'reseñas',fiscal:'fiscal'};
+  var fila=el('div','vig-fila');
+  S.forEach(function(s){
+    var ch=el('span','vig-chip '+(s.color||'gris'));
+    ch.title=(s.dato||'')+(s.nota?' — '+s.nota:'');
+    ch.appendChild(el('i','vig-pip'));
+    ch.appendChild(document.createTextNode(NOM[s.superficie]||s.superficie));
+    if(s.color==='gris')ch.appendChild(el('span','d','sin datos'));
+    else if((s.color==='rojo'||s.color==='ambar')&&s.dato)ch.appendChild(el('span','d',s.dato));
+    fila.appendChild(ch);
+  });
+  cont.appendChild(fila);
+  var rojos=S.filter(function(s){return s.color==='rojo'&&(s.nota||s.dato);});
+  if(rojos.length)cont.appendChild(el('div','vig-nota','🔴 '+rojos.map(function(s){return (NOM[s.superficie]||s.superficie)+': '+(s.nota||s.dato);}).join(' · ')));
+}
 /* v2 dashboard — fila de stats. Se repinta al llegar CADA fuente (F360.dc/fc/h ya guardadas);
    lo que aún no llegó muestra "…" y lo que falló "—": estados honestos, nunca un número inventado. */
 function f360Tiles_(){
@@ -3454,9 +3494,9 @@ function f360Tiles_(){
 }
 function fichaCargar_(id){
   var gen=++F360.gen;
-  ['f360Plan','f360Num','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
+  ['f360Plan','f360Num','f360Vig','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
     var c=document.getElementById(i); if(c){ clear(c); c.appendChild(el('div','served','Cargando…')); } });
-  ['f360PlanN','f360NumN','f360ProxN','f360ChkN'].forEach(function(i){ var c=document.getElementById(i); if(c)c.textContent=''; });
+  ['f360PlanN','f360NumN','f360VigN','f360ProxN','f360ChkN'].forEach(function(i){ var c=document.getElementById(i); if(c)c.textContent=''; });
   var bd=document.getElementById('f360Docs'), bs=document.getElementById('f360Sheet');
   if(bd)bd.hidden=true; if(bs)bs.hidden=true;
   var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'),
@@ -3468,7 +3508,7 @@ function fichaCargar_(id){
   if(av){clear(av);av.appendChild(document.createTextNode((id||'?').replace('CLI-','').replace(/^0+/,'')||'?'));}
   if(typeof EN_GAS==='undefined'||!EN_GAS){
     F360.dc='err'; F360.fc={ok:false}; F360.h={sin_hilo:true}; F360.evs=[]; F360.chk=null; F360.brief=''; F360.grafo={nodos:[],aristas:[]}; f360Tiles_(); f360Orbe_();
-    ['f360Plan','f360Num','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
+    ['f360Plan','f360Num','f360Vig','f360Prox','f360Hilo','f360Sit','f360Chk','f360Sug','f360Nov','f360Bit'].forEach(function(i){
       var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
     return;
   }
@@ -3499,6 +3539,10 @@ function fichaCargar_(id){
   google.script.run.withSuccessHandler(function(ck){ if(gen!==F360.gen)return; F360.chk=(ck&&ck.ok)?ck:{ok:false,items:[]}; f360Check_(); })
     .withFailureHandler(function(){ if(gen!==F360.gen)return; F360.chk={ok:false,items:[]}; f360Check_(); })
     .checklistCliente(id);
+  // TC-11 · A5: semáforos de vigilancia (on-demand, en paralelo con el resto de la ficha)
+  google.script.run.withSuccessHandler(function(v){ if(gen!==F360.gen)return; f360Vig_(v); })
+    .withFailureHandler(function(e){ if(gen!==F360.gen)return; f360Vig_({ok:false,error:(e&&e.message)||'sesión o permisos'}); })
+    .vigilanciaCliente(id);
   // T1.3 · orbe del Cerebro del cliente + popover de encargo · T1.4 Sato
   f360EncargoInit_(); f360SatoInit_();
   // v3 (feedback 28-jul): Sato SIEMPRE presente — el cajón abre cargado con la ficha.

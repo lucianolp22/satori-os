@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '25_hilo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
+                 '25_hilo.js', '29_vigilancia.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -1457,6 +1457,73 @@ seccion('D38 · caching: el breakpoint va ANTES del contexto vivo, o no se cache
   chk(ctx.CLIENTE_SHEETS.Costos_API.indexOf('cache_write') >= 0 &&
       ctx.CLIENTE_SHEETS.Costos_API.indexOf('cache_read') >= 0,
       'D38l Costos_API declara las columnas de cache (lista-contrato, aditivo al final)');
+}
+
+// ═══ D39 · TC-11 · A5 vigilancia multi-superficie: el juicio PURO ═════════════
+seccion('D39 vigilancia multi-superficie (TC-11)');
+{
+  const u = ctx._vigUmbrales_({});
+  const HOY = '2026-08-04';
+  chk(u.frescura_dias === 10 && u.rojo_caida_pct === 30 && u.ambar_caida_pct === 10 && u.aprob_dias === 7,
+      'D39 umbrales con default prudente sin Config');
+  chk(ctx._vigUmbrales_({ rojo_caida_pct: '55' }).rojo_caida_pct === 55 &&
+      ctx._vigUmbrales_({ frescura_dias: 'basura' }).frescura_dias === 10,
+      'D39 override legible de Config y basura no rompe (jamás NaN)');
+
+  // 🔒 D26c universal: sin observación o vacío ⇒ GRIS en TODAS las superficies declaradas
+  const noGris = ctx.VIGILANCIA_SUPERFICIES.filter((s) =>
+    ctx._vigJuzgar_(s, null, u, HOY).color !== 'gris' || ctx._vigJuzgar_(s, {}, u, HOY).color !== 'gris');
+  chk(noGris.length === 0, 'D39 🔒 sin datos ⇒ GRIS en todas las superficies (vacío jamás verde — D26c)' +
+      (noGris.length ? ' — FALLAN: ' + noGris.join(', ') : ''));
+  const sinDef = ctx.VIGILANCIA_SUPERFICIES.filter((s) => !ctx.VIG_FUENTE_DEFAULT[s]);
+  chk(sinDef.length === 0, 'D39 invariante de la lista: toda superficie tiene fuente default');
+  chk(ctx._vigJuzgar_('resenas', { fuente: 'sin_fuente' }, u, HOY).nota.indexOf('B8') >= 0,
+      'D39 sin_fuente ⇒ gris con la nota honesta (entra a mano o con B8)');
+
+  // ventas: deterministas y SOLO meses cerrados
+  const vt = (t1, t2, f) => ctx._vigJuzgar_('ventas',
+    { meses: [{ mes: '2026-06', total: t1 }, { mes: '2026-07', total: t2 }], ultima_fecha: f }, u, HOY);
+  chk(vt(1000, 650, '2026-07-30').color === 'rojo' && vt(1000, 650, '2026-07-30').nota.indexOf('35%') >= 0,
+      'D39 caída 35% (meses cerrados) ⇒ rojo con % en la nota');
+  chk(vt(1000, 850, '2026-07-30').color === 'ambar' && vt(1000, 980, '2026-07-30').color === 'verde',
+      'D39 caída 15% ⇒ ámbar · 2% ⇒ verde');
+  const parcial = ctx._vigJuzgar_('ventas',
+    { meses: [{ mes: '2026-07', total: 1000 }, { mes: '2026-08', total: 120 }], ultima_fecha: '2026-08-03' }, u, HOY);
+  chk(parcial.color === 'verde' && parcial.nota.indexOf('cerrados') >= 0,
+      'D39 el mes EN CURSO no se compara (no fabrica una caída falsa)');
+  const viejo = ctx._vigJuzgar_('ventas', { meses: [{ mes: '2026-07', total: 900 }], ultima_fecha: '2026-07-10' }, u, HOY);
+  chk(viejo.color === 'gris' && viejo.nota.indexOf('viejo') >= 0 && viejo.dato.indexOf('900') >= 0,
+      'D39 dato viejo ⇒ DEGRADA a gris con nota, conservando el ancla');
+
+  // resto de superficies: rojo/ámbar/verde anclados
+  chk(ctx._vigJuzgar_('kpis', { kpi: 'x', valor: 5, objetivo: 10, alerta: 'cayó', fecha: '2026-08-01' }, u, HOY).color === 'rojo' &&
+      ctx._vigJuzgar_('kpis', { kpi: 'x', valor: 5, objetivo: 10, alerta: '', fecha: '2026-08-01' }, u, HOY).color === 'ambar',
+      'D39 KPI: alerta ⇒ rojo · bajo objetivo ⇒ ámbar');
+  chk(ctx._vigJuzgar_('tareas', { proyectos: 2, abiertas: 3, vencidas: 1, peor: 'X' }, u, HOY).color === 'rojo' &&
+      ctx._vigJuzgar_('tareas', { proyectos: 1, abiertas: 0, vencidas: 0 }, u, HOY).color === 'ambar' &&
+      ctx._vigJuzgar_('tareas', { proyectos: 0 }, u, HOY).color === 'gris',
+      'D39 tareas: vencidas ⇒ rojo · nada en marcha ⇒ ámbar · sin proyectos ⇒ gris');
+  chk(ctx._vigJuzgar_('aprobaciones', { pendientes: 2, mas_vieja_dias: 9 }, u, HOY).color === 'rojo' &&
+      ctx._vigJuzgar_('aprobaciones', { pendientes: 0, mas_vieja_dias: null }, u, HOY).color === 'verde',
+      'D39 aprobaciones: estancada ⇒ rojo · cero REAL leído ⇒ verde (es dato, no vacío)');
+  chk(ctx._vigJuzgar_('operativos_caja', { filas: 4, mes: '2026-08', total_mes: -120, ultima_fecha: '2026-08-02' }, u, HOY).color === 'rojo',
+      'D39 caja del mes de referencia en negativo ⇒ rojo');
+
+  // el brief renderiza el resumen (pura) + contratos anti-drift
+  const lin = ctx._vigLineasBrief_({ fecha: HOY, clientes: [{ id: 'CLI-002', s: [
+    { sup: 'ventas', color: 'verde', dato: 'ventas 2026-07 = 650' },
+    { sup: 'operativos_caja', color: 'gris', dato: 'sin datos' }] }] }, HOY);
+  chk(lin.length === 1 && lin[0].indexOf('Vigilancia CLI-002') >= 0 && lin[0].indexOf('ventas ✅') >= 0 &&
+      lin[0].indexOf('caja ⬜ sin datos') >= 0, 'D39 el brief renderiza: semáforos por superficie, gris dice sin datos');
+  chk(ctx._vigLineasBrief_(null, HOY)[0].indexOf('sin corrida') >= 0, 'D39 sin corrida ⇒ el brief lo DICE');
+  chk(ctx._vigLineasBrief_({ fecha: HOY, clientes: [{ id: 'CLI-009', error: 'roto' }] }, HOY)[0].indexOf('⚠ sin acceso') >= 0,
+      'D39 cliente con error se surfacea, no se traga');
+  chk(ctx.ENDPOINTS_UI.indexOf('vigilanciaCliente') >= 0, 'D39 vigilanciaCliente en ENDPOINTS_UI (mismo commit)');
+  chk(String(ctx.vigilanciaCliente).indexOf("_soloOwner_('vigilanciaCliente')") >= 0,
+      'D39 vigilanciaCliente lleva _soloOwner_ (introspección del código real)');
+  chk(String(ctx.briefDiarioSistema_).indexOf('_vigLineasBrief_') >= 0 &&
+      String(ctx.corridaDiaria).indexOf('vigilanciaCorrida_') >= 0,
+      'D39 brief y corridaDiaria cablean la vigilancia (introspección)');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────
