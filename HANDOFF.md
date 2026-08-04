@@ -1,3 +1,73 @@
+# HANDOFF — Satori OS — 2026-08-04 (espejo vivo · PLAN INTEGRAL: CÓDIGO COMPLETO, CERTIFICACIÓN PENDIENTE)
+
+> Estado vigente arriba; todo lo que sigue de la cabecera del 03-ago es archivo.
+>
+> **04-ago — la cadena TC-1…TC-11 + TC-6 + TC-7 quedó ESCRITA Y PUSHEADA.** `origin/main` en `47b2697`.
+> GAS HEAD == repo (verificado con pull y diff byte a byte). Arnés offline **468 / 0**.
+>
+> ⚠️ **NO digo «cerrado» y el porqué importa.** La regla dura del gate de declaración exige inventario
+> (corrido: `_inventario_cierre.sh`, abajo) y decir qué queda abierto. Lo que queda abierto no es menor:
+> **los 5 tramos del selfTest no se corrieron todavía en el editor.** Sin eso, esto es código que pasa
+> el arnés offline, no un sistema certificado. Un timeout tampoco era un verde; una corrida que no
+> ocurrió, menos.
+
+## Qué incluye exactamente este estado (a)
+
+| Tanda | Commit | Qué entró |
+|---|---|---|
+| TC-11 · A5 | `b33fdf4` | Vigilancia multi-superficie. GRIS = sin datos, **vacío jamás verde**; color anclado a su dato; dato viejo DEGRADA a gris. `29_vigilancia.js` + fila de semáforos en la Ficha 360 |
+| TC-6 · T7 | `7e6d1b4` | Correo → Bandeja (`fuente='correo'`, sin módulo ni bin nuevo). Scope único `gmail.readonly`, cero escritura sobre Gmail, dedupe en `Correo_visto`. **Nace apagado** (`correo_on=false`). Re-consent de Google ya aceptado por Luciano |
+| P2 | `ae3564c` | La papelera de Drive con `drive.file` (servicio avanzado). Cerró el borrado que fallaba mudo y dejaba Sheets huérfanos. `limpiarTodoTest` ahora reporta `trasheados` / `huerfanos` con id y motivo |
+| P3 | `e2277fa` | selfTest en 5 tramos; `selfTestVeredicto()` agrega y **no da verde si falta correr alguno** |
+| TC-7 · F4a | `035bf24` | Motor de administración propia (`31_admin.js`). Resumen por jurisdicción **y moneda**, sin total global. **Calendario fiscal vacío a propósito** |
+| P3b | `47b2697` | Wrappers `selfTestTramo2..5` sin argumentos: el desplegable del editor no pasa parámetros y los tramos eran incorribles |
+
+Docs al día en el mismo tramo: `ARCHITECTURE.md` (entraron las **9 filas** que faltaban — barrido `ls src/*.js` contra la tabla da cero módulos sin fila) · `CLAUDE.md` (+2 reglas duras: z-index/stacking context, y funciones del desplegable sin argumentos) · `CAPABILITIES.md` regenerado.
+
+## Qué queda ABIERTO (b) y dónde vive cada cabo (c)
+
+**Bloqueante para poder declarar cierre:**
+1. **Certificar los 5 tramos en el editor** → `selfTest()` (tramo 1) + `selfTestTramo2()` … `selfTestTramo5()`, después `selfTestVeredicto()`. Vive en `src/09_selftest.js`. **Nada está certificado hasta esto.**
+2. **Purga integral de Cowork** sobre la cadena completa. Pendiente por diseño; es el paso previo al promote.
+3. **Promote a `/exec`** (hoy @35): decisión de Luciano **post-purga**. Script: `_promote_exec.sh`.
+
+**Gates de producto abiertos con dueño:**
+4. **F4a espera las facturas 2026 de Luciano.** El motor está certificado por fixtures; el gate real es **un trimestre cuadrado contra el gestor**. Vive en `31_admin.js` + Sheet `Satori OS — ADMIN`.
+5. **Calendario fiscal: 8 filas vacías marcadas «verificar con gestor/AEAT»**, con `modelo` y `fecha_limite` en blanco. Las completa Luciano con su gestor — el código tiene prohibido escribirlas (aserido en D41m).
+6. **Encender el correo** (`correo_on=true` en Config) es un acto aparte y elegido. La primera corrida capturará hasta 20 hilos de 7 días de golpe y los clasificará con Haiku.
+
+**Deuda técnica hallada hoy, no tocada (scope discipline):**
+7. **Los backups semanales pueden estar cayendo en la raíz del Drive.** `_copiarSpreadsheet_` (`21_backup.js:78`), `_backupRootFolder_` (`21_backup.js:53`) y `_respaldarObjetivos_` (`18_direccion.js:1052`) usan `DriveApp.moveTo`/`getFolderById` dentro de `catch` marcados «degradación aceptable» — el mismo motivo que rompía la papelera. **Se comprueba con `backupListar()`** mirando dónde está el último archivo. Fix = intercambio de padres (`addParents`/`removeParents`) por el servicio avanzado.
+8. **El bloque histórico del selfTest (tramo 1) no se troceó** — ~470 líneas con estado compartido. **No sé cuánto tarda solo**; si tampoco entra en 30 min, ese es el siguiente corte.
+9. **4 nits de TC-11**, registrados por Cowork como insumo de purga: lecturas por-cliente re-hechas dentro de `vigilanciaCorrida_` · ventas con mes cerrado en 0 da verde flojo · `vigilancia_resumen` sin cota contra el límite de 50k chars por celda · `slice(0,6)` silencioso en el brief.
+10. **`importarConocimientoEntrenamiento()`** sigue especificada y sin implementar (`docs/INTEGRACION-ENTRENAMIENTO-AGENTES.md`) — lo canta el inventario de cierre.
+
+## Diferidos con gatillo (no se tocan sin que el gatillo ocurra)
+
+| Diferido | Estado | Gatillo |
+|---|---|---|
+| **Forge** lab→prod | ✅ **construido** (TC-9) | Reactivado 03-ago. El mecanismo existe y está probado con un agente `__TEST__`; **ningún agente lab fue promovido** |
+| **Prompt caching** (B8d) | ✅ **construido** (TC-10) | Reactivado 03-ago |
+| **A5** vigilancia | ✅ **construido** (TC-11) | Reactivado 03-ago |
+| **B8** datos reales + RGPD + puesta en marcha | ⏸ diferido | «AL FINAL, firme» — primero terminar el sistema (CLAUDE.md, decisiones firmes) |
+| **os@** / Opción B | ⏸ diferido | Solo si hay **voz multi-cliente** (CLAUDE.md) |
+| **VPS** / Hermes en el core | ⏸ descartado-condicional | Solo si aparece **VPS multicanal 24/7** (CLAUDE.md) |
+| **Lift** (y demás agentes lab) | ⏸ diferido | Conservan su gatillo (ADENDA 03-ago). Con Forge construido, la vía es promoción con aprobación — **el gatillo exacto no está documentado en las fuentes del repo: lo confirma Luciano** |
+| **D9 · D10 · Telegram** | ⏸ diferidos | ⚠️ **Gatillo NO documentado** en HANDOFF/CLAUDE/encargos. No lo invento: lo completan Luciano/Cowork en la purga |
+
+## Inventario de cierre — corrido 04-ago (`bash _inventario_cierre.sh`)
+
+Salida completa en la corrida; lo accionable ya está depurado a mano en la lista (b) de arriba. Lo que el barrido levanta y **no** es cabo: los marcadores en `docs/NOTION-a-Satori-mapeo.md`, `docs/RGPD-registro-tratamiento.md`, `docs/RUNBOOK-*` y `docs/SOP-*` son texto analítico y preguntas para asesores, no deuda de código. `docs/SPEC-correo-T7.md` **ya está implementada** (TC-6). Único hallazgo real de la sección 4: el punto 10.
+
+## Heredado de la cabecera del 03-ago (sigue vigente)
+
+**Seguridad:** rotar `OWNER_TOKEN` de Vehemence (comprometido; requiere ubicar dónde vive la URL con `?k=`).
+**Sistema:** `docs_cliente_<id>` en Config sin definir · la tarea diaria del cerebro (BRIEF-HOY.md) es local de la app · apagar LiveKit cuando Luciano confirme (`launchctl bootout gui/$(id -u)/com.satori.voz.agent`).
+**Próximo frente decidido (03-ago):** F3 COMERCIAL (pipeline de captación + build-in-public).
+**Fuera del core:** MERCURIO / Oficina IA Ecom y FORJA corren en conversaciones aparte.
+
+<!-- ══════════════ CABECERA ANTERIOR (03-ago) — ARCHIVO ══════════════ -->
+
 # HANDOFF — Satori OS — 2026-08-03 (espejo vivo · PROD @35 AL DÍA + D30 SATO CERRADO 617/0)
 
 > Estado vigente arriba; todo lo que sigue de la cabecera del 01-ago es archivo.

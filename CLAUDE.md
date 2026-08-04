@@ -92,7 +92,21 @@
 ## IDs vivos
 - No inline. Ver tabla «Artefactos» de `HANDOFF.md` (scriptId MAESTRO, Sheet MAESTRO, deployment prod `/exec`, `/dev`, GitHub privado, carpeta backups).
 
+## UI — z-index y stacking context (regla dura, 04-ago · origen 29-jul)
+- **El z-index solo compite DENTRO de su stacking context.** Antes de tocar un número, verificar si un ANCESTRO crea contexto: `position`+`z-index`, `transform`, `filter`, `opacity<1`. Si lo crea, ningún valor interno puede superar a un hermano del ancestro — subir el número es perder el tiempo.
+- **Precedente (Sato vs Akasha):** `#centro` es `position:fixed; z-index:50` ⇒ crea contexto. `#akasha` es hermano de `#centro` con `z-index:200`. El panel de Sato vivía DENTRO de `#centro`, así que su z-index quedaba encapsulado bajo 50 y **41→72 no cambió nada**. Fix real: mover `#f360Sato`/`#f360Cierre` a nivel `<body>` (hermanos de `#akasha`).
+- **Corolario:** todo panel que se saca del scope de `#centro` **pierde los tokens del tema oscuro** (las primitivas no están en `:root`) ⇒ hay que darle bloque de tema propio o queda ilegible.
+- **Diagnóstico por RENDER, no por lectura de código:** `elementFromPoint` (Playwright) sobre el punto en disputa + screenshot. El CSS "se ve bien" en el editor y aun así el hit-test devuelve otro elemento.
+- Clase de bug hermana (mismo origen): el CM localiza cards por el TEXTO de su `.eyebrow` con selectores `#centro …`. Meter un bloque nuevo DENTRO de `#centro` con los mismos textos secuestra esos selectores. Por eso `#akasha` vive FUERA de `#centro`.
+
+## Funciones que corre Luciano a mano (regla dura, 04-ago)
+- **Toda función pensada para el desplegable del editor de Apps Script va SIN ARGUMENTOS y sin guión bajo final.** El desplegable (a) no lista las que terminan en `_` y (b) las corre sin pasar nada. Si la lógica necesita parámetros, se expone **un wrapper por caso** (`selfTestTramo2()` → `selfTestTramo(2)`), cada uno con su `_soloOwner_` y su alta en `ENDPOINTS_UI`.
+- **Tercera vez de la misma clase:** `sgicConsulta_` (14-jul, invisible por el guión bajo) · `selfTestF2_` (ídem, se le agregó wrapper) · `selfTestTramo(n)` (04-ago: recibía `undefined` y tiraba «tramo undefined no existe» ⇒ los tramos 2-5 quedaron **certificados en el papel e incorribles en la práctica**).
+- **Cómo se cumple:** si una familia de runners se declara en una lista (`SELFTEST_TRAMOS`), el assert **deriva de esa lista** que cada miembro tiene wrapper con `length === 0`, gate y alta. Así el que agregue el tramo 6 no repite el olvido (P3h).
+
 ## Correr / verificar
-- `selfTest()` (`src/09_selftest.js`): correr tras cada cambio antes de declarar hecho (editor GAS o vía Chrome).
+- **`selfTest()` es el TRAMO 1** (bloque histórico). Las tandas D14..P2 corren en `selfTestTramo2()` … `selfTestTramo5()` — la corrida completa moría a los 30:00 exactos de GAS y dejaba lo de después sin certificar (**un timeout no es un verde**).
+- **`selfTestVeredicto()`** agrega: solo dice CERTIFICADO si los 5 tramos corrieron, los 5 en 0 fallos y ninguno con >7 días. Un tramo sin correr NO es verde: es «sin correr».
+- `node _harness.js` (offline, segundos) + `python3 _verificar_index.py` antes de cualquier push. El arnés NO puede certificar lo que toca Sheets/Drive/Gmail: eso son los tramos del editor.
 - Triggers en prod: `corridaDiaria` 07:00 + `drenarCola` 5min (instalados por `bootstrap`) + `backupSemanal` domingo 04:00.
 - Backup/restore: `RUNBOOK-recuperacion-total.md`. Voz PWA: `RUNBOOK-voz-PWA-movil.md` (consultoría).
