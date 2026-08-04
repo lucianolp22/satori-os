@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '25_hilo.js', '29_vigilancia.js', '30_correo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
+                 '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -1616,6 +1616,111 @@ seccion('D40 correo → Bandeja (T7)');
       (muta.length ? ' — MUTA: ' + muta.join(', ') : ''));
   chk((srcCorreo.match(/GmailApp\.\w+/g) || []).join(',') === 'GmailApp.search',
       'D40 la única superficie de Gmail que se toca es search (solo lectura)');
+}
+
+// ═══ D41 · TC-7 · F4a: administración propia (el motor, sin datos reales) ════
+// Dos cosas que esta tanda NO puede equivocar: (1) sumar dos monedas distintas —el mismo bug que
+// obligó a agregar `moneda` a Datos_operativos—; (2) escribir una fecha o un modelo fiscal como
+// cierto sin fuente. Lo segundo no es un bug de software, es un pasivo.
+seccion('D41 administración propia (TC-7 · F4a)');
+{
+  const FAC = [
+    { numero: 'F-001', fecha: '2026-07-10', total: 1000, moneda: 'EUR', jurisdiccion: 'ES' },
+    { numero: 'F-002', fecha: '2026-07-20', total: 500, moneda: 'EUR', jurisdiccion: 'ES' },
+    { numero: 'F-003', fecha: '2026-07-25', total: 300000, moneda: 'ARS', jurisdiccion: 'AR' },
+    { numero: 'F-004', fecha: '2026-06-30', total: 999, moneda: 'EUR', jurisdiccion: 'ES' }   // otro mes
+  ];
+  const COB = [
+    { fecha: '2026-07-15', numero_factura: 'F-001', importe: 400, moneda: 'EUR' },
+    { fecha: '2026-08-02', numero_factura: 'F-002', importe: 500, moneda: 'EUR' }   // cobro de AGOSTO
+  ];
+  const r = ctx._adminResumir_(FAC, COB, '2026-07');
+  const es = r.grupos.filter((g) => g.jurisdiccion === 'ES')[0];
+  const ar = r.grupos.filter((g) => g.jurisdiccion === 'AR')[0];
+
+  chk(r.grupos.length === 2 && es.moneda === 'EUR' && ar.moneda === 'ARS',
+      'D41a 🔒 el resumen agrupa por jurisdicción Y moneda — jamás suma EUR con ARS');
+  chk(es.facturado === 1500 && es.facturas === 2,
+      'D41b facturado = solo las facturas CON FECHA en el mes (la de junio queda afuera)');
+  chk(es.cobrado_mes === 400,
+      'D41c cobrado_mes = cobros del mes; el cobro de agosto NO se cuenta como julio');
+  chk(es.pendiente === 600,
+      'D41d 🔒 pendiente se calcula contra los cobros REALES por número, no contra estado_cobro');
+  chk(ar.facturado === 300000 && ar.pendiente === 300000,
+      'D41e la jurisdicción sin cobros queda entera como pendiente, en SU moneda');
+  chk(ctx._adminResumir_([], [], '2026-07').sin_datos === true,
+      'D41f sin facturas ⇒ sin_datos, no un cero que parezca "no facturamos"');
+  chk(ctx._adminLineasBrief_(null)[0].indexOf('el motor está, los datos no') >= 0,
+      'D41g el brief DICE que faltan los datos (F4a espera las facturas 2026)');
+
+  // Cobro sin factura casada: no se inventa jurisdicción, cae en un grupo visible.
+  const huerf = ctx._adminResumir_([], [{ fecha: '2026-07-05', numero_factura: 'F-999', importe: 50, moneda: 'EUR' }], '2026-07');
+  chk(huerf.grupos.length === 1 && huerf.grupos[0].jurisdiccion === '?',
+      'D41h un cobro sin factura no se imputa a ciegas: queda en un grupo "?" visible');
+
+  // Importes basura no producen NaN (un NaN contable se propaga y no dice dónde empezó).
+  const basura = ctx._adminResumir_([{ numero: 'X', fecha: '2026-07-01', total: 'ochocientos', moneda: 'EUR', jurisdiccion: 'ES' }], [], '2026-07');
+  chk(basura.grupos[0].facturado === 0 && !isNaN(basura.grupos[0].facturado),
+      'D41i un importe ilegible cuenta 0, nunca NaN');
+
+  // — PRUDENCIA FISCAL: estructura sí, asesoría no —
+  const cal = ctx._calendarioFiscalPlaceholders_('2026');
+  chk(cal.length === 8 && cal.every((f) => f.descripcion === ctx.ADMIN_SIN_VERIFICAR),
+      'D41j el calendario fiscal nace ENTERO marcado «verificar con gestor/AEAT»');
+  chk(cal.every((f) => f.modelo === '' && f.fecha_limite === '' && f.estado === 'sin_verificar'),
+      'D41k 🔒 ni un modelo ni una fecha de vencimiento escritos como ciertos — los pone el gestor');
+  chk(cal.filter((f) => f.periodo === '2026-T1').length === ctx.ADMIN_JURISDICCIONES.length,
+      'D41l estructura: cada trimestre existe en cada jurisdicción declarada');
+
+  // Ninguna fecha ni modelo fiscal hardcodeado en el módulo (el assert que impide la recaída).
+  // OJO: se miran SOLO los literales de texto. Un primer intento escaneaba el archivo entero y
+  // marcaba en rojo `slice(0, 120)` y un "303" que estaba dentro de un comentario explicando que
+  // NO hay que escribirlo. Un assert que grita por un largo de truncado es ruido, y el ruido
+  // termina en que alguien lo debilita. Lo que importa es lo que el módulo ESCRIBE como dato.
+  // Stripper de comentarios que PRESERVA los strings (al revés que `_sinComentarios_`, que los
+  // neutraliza). Hace falta hacerlo bien: filtrar por "líneas que empiezan con //" dejaba pasar los
+  // comentarios al final de línea, y ahí vivía justamente un "303" escrito para explicar que no se
+  // debe escribir un 303. El assert marcaba en rojo su propia documentación.
+  const sinComentariosPreservandoStrings = (src) => {
+    let out = '', i = 0, q = null;
+    while (i < src.length) {
+      const c = src[i], d = src[i + 1];
+      if (q) {
+        out += c;
+        if (c === '\\') { out += (d || ''); i += 2; continue; }
+        if (c === q) q = null;
+        i++; continue;
+      }
+      if (c === '"' || c === "'") { q = c; out += c; i++; continue; }
+      if (c === '/' && d === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+      if (c === '/' && d === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+      out += c; i++;
+    }
+    return out;
+  };
+  const srcAdmin = sinComentariosPreservandoStrings(fs.readFileSync(path.join(SRC, '31_admin.js'), 'utf8'));
+  const literales = srcAdmin.match(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g) || [];
+  const MODELOS_AEAT = /\b(30[039]|11[15]|13[01]|347|349|720|180|193)\b/;
+  const FECHA_LIT = /\b\d{1,2}\s*(?:\/\s*\d{1,2}|de\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic))/i;
+  const sospechosos = literales.filter((s) =>
+    /\bmodelo\s*\d/i.test(s) || MODELOS_AEAT.test(s) || FECHA_LIT.test(s));
+  chk(sospechosos.length === 0,
+      'D41m 🔒 ningún modelo ni fecha fiscal escrito como dato en el módulo' +
+      (sospechosos.length ? ' — APARECEN: ' + sospechosos.join(' · ') : ' (' + literales.length + ' literales revisados)'));
+
+  // — Contratos —
+  const sinCols = ctx.ADMIN_ORDEN.filter((n) => !ctx.ADMIN_SHEETS[n]);
+  chk(sinCols.length === 0, 'D41n toda pestaña de ADMIN_ORDEN tiene columnas declaradas' +
+      (sinCols.length ? ' — SIN SCHEMA: ' + sinCols.join(', ') : ' (' + ctx.ADMIN_ORDEN.length + ')'));
+  chk(ctx.ADMIN_SHEETS.facturas_emitidas.indexOf('moneda') >= 0 &&
+      ctx.ADMIN_SHEETS.facturas_emitidas.indexOf('jurisdiccion') >= 0,
+      'D41o la factura declara moneda y jurisdicción (sin eso el resumen no puede agrupar)');
+  ['adminSetup', 'altaFactura', 'altaGasto', 'altaCobro', 'adminResumenMes'].forEach((fn) => {
+    chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, 'D41p ' + fn + ' dado de alta en ENDPOINTS_UI');
+  });
+  chk(String(ctx.briefDiarioSistema_).indexOf('_adminLineasBrief_') >= 0 &&
+      String(ctx.corridaDiaria).indexOf('adminRefrescarResumen_') >= 0,
+      'D41q el brief cita el resumen y la corridaDiaria lo refresca (sin abrir el Sheet ADMIN)');
 }
 
 // ═══ P2 · papelera de Drive SIN ampliar el scope ═════════════════════════════

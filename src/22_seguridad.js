@@ -224,6 +224,7 @@ var ENDPOINTS_UI = [
   'securityScan',                                                               // 22_seguridad.js
   'correrEvals', 'correrEvalsConApi',                                           // 23_evals.js
   'diagVoz',                                                                    // 26_sato.js
+  'adminSetup', 'altaFactura', 'altaGasto', 'altaCobro', 'adminResumenMes',     // 31_admin.js (TC-7 · F4a)
 
   // ── X4b (03-ago, TC-1b): las 16 de LECTURA. Devuelven datos del negocio con argumentos
   // serializables ⇒ explotables por RPC, a diferencia de `leerTabla`/`getMaestro` (que reciben o

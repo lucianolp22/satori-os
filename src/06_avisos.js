@@ -262,7 +262,7 @@ function corridaDiaria() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   _soloOwner_('corridaDiaria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
-  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null, vigilancia: null, correo: null };
+  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null, vigilancia: null, correo: null, admin: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -350,6 +350,11 @@ function corridaDiaria() {
   // correo del día se clasifica después y nunca se mezcla con el drenaje en curso.
   try { resumen.correo = correoTriaje(); }
   catch (e) { crearAviso({ origen: 'correo', tipo: 'sync_error', mensaje: 'Correo falló: ' + e.message }); }
+
+  // TC-7 · F4a: refresca el resumen de administración para que el brief lo cite sin abrir el Sheet
+  // ADMIN. Si todavía no existe (F4a espera las facturas 2026), devuelve sin_datos y el brief lo dice.
+  try { resumen.admin = adminRefrescarResumen_(); }
+  catch (e) { try { Logger.log('adminRefrescarResumen_ falló: ' + e.message); } catch (_e) {} }
 
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));

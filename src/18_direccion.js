@@ -505,6 +505,9 @@ function briefDiarioSistema_() {
   // TC-11 · A5: vigilancia por cliente — SOLO el resumen que persistió la corridaDiaria (este
   // brief no abre ningún Sheet de cliente, regla SPEC-GAS 14-jul). Sin corrida ⇒ se dice.
   _vigLineasBrief_(_vigResumenCacheado_(), hoy).forEach(function (l) { metricas.push(l); });
+  // TC-7 · F4a: administración propia. Mismo patrón que la vigilancia — solo el resumen que dejó
+  // la corrida, sin abrir el Sheet ADMIN desde el brief. Sin facturas cargadas se DICE que faltan.
+  _adminLineasBrief_(_adminResumenCacheado_()).forEach(function (l) { metricas.push(l); });
 
   // 4 · Qué se auto-resolvió + qué aprendí y ya ajusté (dentro de mandato, sin pedir permiso).
   var autoresuelto = [];

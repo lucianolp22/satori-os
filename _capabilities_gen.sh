@@ -3,6 +3,7 @@
 # Regla: CAPABILITIES.md NO se edita a mano (muere stale). Se REGENERA con este script.
 # Uso:  bash _capabilities_gen.sh   → reescribe CAPABILITIES.md
 set -u
+export LC_ALL=C   # collation determinista: evita falso drift Mac(BSD) vs contenedor(GNU) en los sort
 cd "$(cd "$(dirname "$0")" && pwd)" || exit 1
 OUT="CAPABILITIES.md"
 SRC="src"

@@ -2952,6 +2952,7 @@ var SELFTEST_TANDAS = [
   { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_, tramo: 5 },
   { n: 'D39 TC-11 (A5 vigilancia multi-superficie)', f: _asertsD39_, tramo: 5 },
   { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_, tramo: 5 },
+  { n: 'D41 TC-7 (F4a administración propia)', f: _asertsD41_, tramo: 5 },
   { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 }
 ];
 
@@ -3054,4 +3055,97 @@ function selfTestVeredicto() {
   var salida = lineas.join('\n') + '\n\n' + veredicto;
   Logger.log(salida);
   return salida;
+}
+
+/**
+ * D41 · TC-7 — F4a administración propia (31_admin.js).
+ * Lo que se fija: (1) el resumen NUNCA suma dos monedas ni dos jurisdicciones; (2) el calendario
+ * fiscal es estructura vacía marcada «verificar con gestor/AEAT», sin una sola fecha ni modelo
+ * escrito como cierto; (3) el alta valida antes de escribir. El gate REAL de F4a —un trimestre
+ * cuadrado contra el gestor— queda ABIERTO esperando las facturas 2026: esto certifica el motor.
+ */
+function _asertsD41_(chk, log, opts) {
+  // ── Juicio PURO (mismos fixtures que el arnés offline) ──
+  var d41fac = [
+    { numero: 'F-001', fecha: '2026-07-10', total: 1000, moneda: 'EUR', jurisdiccion: 'ES' },
+    { numero: 'F-002', fecha: '2026-07-20', total: 500, moneda: 'EUR', jurisdiccion: 'ES' },
+    { numero: 'F-003', fecha: '2026-07-25', total: 300000, moneda: 'ARS', jurisdiccion: 'AR' }
+  ];
+  var d41cob = [{ fecha: '2026-07-15', numero_factura: 'F-001', importe: 400, moneda: 'EUR' }];
+  var d41r = _adminResumir_(d41fac, d41cob, '2026-07');
+  var d41es = d41r.grupos.filter(function (g) { return g.jurisdiccion === 'ES'; })[0];
+  chk(d41r.grupos.length === 2, 'D41a 🔒 el resumen agrupa por jurisdicción y moneda (jamás suma EUR con ARS)');
+  chk(d41es.facturado === 1500 && d41es.cobrado_mes === 400 && d41es.pendiente === 600,
+      'D41a2 facturado/cobrado/pendiente cuadran y cada uno se calcula por su fuente');
+  chk(_adminResumir_([], [], '2026-07').sin_datos === true, 'D41a3 sin facturas ⇒ sin_datos, no un cero engañoso');
+
+  // ── Prudencia fiscal: estructura sí, asesoría no ──
+  var d41cal = _calendarioFiscalPlaceholders_('2026');
+  chk(d41cal.length === 4 * ADMIN_JURISDICCIONES.length && d41cal.every(function (f) { return f.descripcion === ADMIN_SIN_VERIFICAR; }),
+      'D41b el calendario fiscal nace entero marcado «verificar con gestor/AEAT»');
+  chk(d41cal.every(function (f) { return f.modelo === '' && f.fecha_limite === ''; }),
+      'D41b2 🔒 ni un modelo ni una fecha de vencimiento como ciertos — los pone el gestor');
+
+  // ── Contratos ──
+  var d41sin = ADMIN_ORDEN.filter(function (n) { return !ADMIN_SHEETS[n]; });
+  chk(d41sin.length === 0, 'D41c toda pestaña de ADMIN_ORDEN tiene columnas' + (d41sin.length ? ' — SIN SCHEMA: ' + d41sin.join(', ') : ''));
+  ['adminSetup', 'altaFactura', 'altaGasto', 'altaCobro', 'adminResumenMes'].forEach(function (fn) {
+    chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D41c2 ' + fn + ' dado de alta en ENDPOINTS_UI');
+  });
+  chk(String(briefDiarioSistema_).indexOf('_adminLineasBrief_') >= 0,
+      'D41c3 el brief de sistema cita el resumen de administración');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D41d-f (Sheet ADMIN vivo: alta → resumen cuadra → limpieza) solo corre en selfTest() completo');
+    return;
+  }
+
+  // ── VIVO: alta → el resumen cuadra → limpieza. Los números llevan marcador F-TEST- y se borran
+  //    en el finally: la contabilidad real de Satori no se ensucia ni por una corrida rota.
+  var d41s = adminSetup();
+  chk(d41s.ok === true && d41s.pestanas.length === ADMIN_ORDEN.length,
+      'D41d adminSetup crea/repara el Sheet ADMIN con sus 4 pestañas (idempotente)');
+  var d41cal2 = leerTabla(_adminHoja_('calendario_fiscal'));
+  chk(d41cal2.length > 0 && d41cal2.every(function (f) { return String(f.fecha_limite || '') === ''; }),
+      'D41d2 🔒 el calendario del Sheet vivo no tiene ni una fecha de vencimiento cargada');
+
+  var d41n1 = 'F-TEST-' + ahoraISO().replace(/[^0-9]/g, '').slice(0, 14);
+  var d41mes = hoyISO().slice(0, 7);
+  try {
+    altaFactura({ numero: d41n1, fecha: hoyISO(), cliente: '__TEST__ admin', base: 1000, iva: 210,
+                  total: 1210, moneda: 'EUR', jurisdiccion: 'ES', estado_cobro: 'pendiente' });
+    var d41res1 = adminResumenMes(d41mes);
+    var d41g = d41res1.grupos.filter(function (g) { return g.jurisdiccion === 'ES' && g.moneda === 'EUR'; })[0];
+    chk(!!d41g && d41g.pendiente >= 1210, 'D41e el alta aparece en el resumen del mes como pendiente');
+
+    altaCobro({ fecha: hoyISO(), numero_factura: d41n1, importe: 1210, moneda: 'EUR', medio: '__TEST__' });
+    var d41res2 = adminResumenMes(d41mes);
+    var d41g2 = d41res2.grupos.filter(function (g) { return g.jurisdiccion === 'ES' && g.moneda === 'EUR'; })[0];
+    chk(d41g2.pendiente === Math.round((d41g.pendiente - 1210) * 100) / 100,
+        'D41e2 el cobro baja el pendiente EXACTAMENTE por su importe (cuadra, no aproxima)');
+    chk(d41g2.cobrado_mes >= 1210, 'D41e3 el cobro entra en cobrado_mes');
+
+    // Validaciones que protegen la contabilidad: se prueban por lo que RECHAZAN.
+    var d41dup = false;
+    try { altaFactura({ numero: d41n1, fecha: hoyISO(), base: 1, moneda: 'EUR', jurisdiccion: 'ES' }); }
+    catch (e) { d41dup = true; }
+    chk(d41dup, 'D41f un número de factura duplicado se RECHAZA (es la clave de los cobros)');
+    var d41sinMon = false;
+    try { altaFactura({ numero: d41n1 + '-B', fecha: hoyISO(), base: 1, moneda: '', jurisdiccion: 'ES' }); }
+    catch (e) { d41sinMon = true; }
+    chk(d41sinMon, 'D41f2 🔒 una factura sin moneda se RECHAZA (sin ella el resumen sumaría peras con manzanas)');
+    var d41cobHuerf = false;
+    try { altaCobro({ fecha: hoyISO(), numero_factura: 'F-NO-EXISTE', importe: 10, moneda: 'EUR' }); }
+    catch (e) { d41cobHuerf = true; }
+    chk(d41cobHuerf, 'D41f3 un cobro sin factura se RECHAZA (no se imputa a ciegas)');
+  } finally {
+    // La limpieza corre SIEMPRE: una factura de prueba olvidada descuadra el trimestre real.
+    try {
+      borrarFilasDonde(_adminHoja_('cobros'), function (f) { return String(f.numero_factura).indexOf('F-TEST-') === 0; });
+      borrarFilasDonde(_adminHoja_('facturas_emitidas'), function (f) { return String(f.numero).indexOf('F-TEST-') === 0; });
+      log.push('   ↳ D41 limpieza ADMIN: filas F-TEST-* removidas de facturas_emitidas y cobros');
+    } catch (eLimp) {
+      log.push('   ⚠ D41 NO pude limpiar las filas F-TEST-* del Sheet ADMIN: ' + ((eLimp && eLimp.message) || eLimp));
+    }
+  }
 }
