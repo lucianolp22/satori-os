@@ -1796,6 +1796,19 @@ seccion('P3 tramos del selfTest');
       'P3f el tramo 1 registra su veredicto, así el agregado lo ve');
   chk(ctx.ENDPOINTS_UI.indexOf('selfTestTramo') >= 0 && ctx.ENDPOINTS_UI.indexOf('selfTestVeredicto') >= 0,
       'P3g selfTestTramo y selfTestVeredicto dados de alta en ENDPOINTS_UI (mismo commit)');
+
+  // El desplegable del editor NO pasa argumentos: `selfTestTramo(n)` recibía undefined y los tramos
+  // 2-5 eran incorribles desde la UI. Tercera vez de la misma clase (sgicConsulta_, selfTestF2_).
+  // Se DERIVA de SELFTEST_TRAMOS para que un tramo 6 sin wrapper dé rojo en su propio commit.
+  const sinWrapper = ctx.SELFTEST_TRAMOS.filter((d) => d.n !== 1).filter((d) => {
+    const fn = ctx['selfTestTramo' + d.n];
+    return typeof fn !== 'function' || fn.length !== 0 ||   // length!==0 ⇒ pide argumentos ⇒ el desplegable lo rompe
+           ctx.ENDPOINTS_UI.indexOf('selfTestTramo' + d.n) < 0 ||
+           d.runner !== 'selfTestTramo' + d.n;              // el veredicto tiene que nombrar el wrapper, no la firma con args
+  });
+  chk(sinWrapper.length === 0,
+      'P3h 🔒 todo tramo ≥2 tiene wrapper SIN argumentos, gateado, declarado y nombrado en su runner' +
+      (sinWrapper.length ? ' — FALTAN: ' + sinWrapper.map((d) => 'selfTestTramo' + d.n).join(', ') : ''));
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

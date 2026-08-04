@@ -2963,10 +2963,10 @@ var SELFTEST_TANDAS = [
  */
 var SELFTEST_TRAMOS = [
   { n: 1, nombre: 'histórico E1-E8 + D1-D13', runner: 'selfTest()' },
-  { n: 2, nombre: 'D14-D19 contrato, mantenimiento, voz, boot, north star, seguridad', runner: 'selfTestTramo(2)' },
-  { n: 3, nombre: 'D20-D27 memoria, evals, verificación, SOUL, conectores, Hilo', runner: 'selfTestTramo(3)' },
-  { n: 4, nombre: 'D28-D34 cierre 27-jul, Sato, X4, decisiones, PM, export', runner: 'selfTestTramo(4)' },
-  { n: 5, nombre: 'D37-P2 Forge, caching, vigilancia, correo, papelera', runner: 'selfTestTramo(5)' }
+  { n: 2, nombre: 'D14-D19 contrato, mantenimiento, voz, boot, north star, seguridad', runner: 'selfTestTramo2' },
+  { n: 3, nombre: 'D20-D27 memoria, evals, verificación, SOUL, conectores, Hilo', runner: 'selfTestTramo3' },
+  { n: 4, nombre: 'D28-D34 cierre 27-jul, Sato, X4, decisiones, PM, export', runner: 'selfTestTramo4' },
+  { n: 5, nombre: 'D37-D41-P2 Forge, caching, vigilancia, correo, admin, papelera', runner: 'selfTestTramo5' }
 ];
 
 /** Clave de Config donde cada tramo deja su veredicto. Un tramo sin registro NO es verde: es "sin correr". */
@@ -3149,3 +3149,21 @@ function _asertsD41_(chk, log, opts) {
     }
   }
 }
+
+/**
+ * Wrappers SIN ARGUMENTOS de cada tramo. El desplegable del editor de Apps Script corre la función
+ * elegida sin pasarle nada: `selfTestTramo(n)` recibía `undefined` y tiraba «tramo undefined no
+ * existe», así que los tramos 2-5 eran INCORRIBLES desde la UI. Es la tercera vez que muerde la
+ * misma clase de error (antes: `sgicConsulta_` y `selfTestF2_`, ambas invisibles por el guión bajo).
+ *
+ * REGLA (04-ago, a CLAUDE.md): toda función pensada para correrse a mano desde el desplegable va
+ * SIN argumentos y sin guión bajo final. Si la lógica necesita parámetros, se expone un wrapper por
+ * caso. P3h lo asera derivando de SELFTEST_TRAMOS: agregar un tramo 6 sin su wrapper da rojo.
+ *
+ * Cada wrapper lleva su propio `_soloOwner_` (X4: top-level ⇒ invocable por RPC ⇒ puerta) y está
+ * dado de alta en ENDPOINTS_UI en este mismo commit.
+ */
+function selfTestTramo2() { _soloOwner_('selfTestTramo2'); return selfTestTramo(2); }
+function selfTestTramo3() { _soloOwner_('selfTestTramo3'); return selfTestTramo(3); }
+function selfTestTramo4() { _soloOwner_('selfTestTramo4'); return selfTestTramo(4); }
+function selfTestTramo5() { _soloOwner_('selfTestTramo5'); return selfTestTramo(5); }

@@ -203,6 +203,7 @@ var ENDPOINTS_UI = [
   'detectarProyectosSinMovimiento', 'expirarAprobaciones', 'invalidarMapaPC', 'instalarTriggers',
   'selfTest', 'selfTestF2', 'debugE21', 'limpiarTodoTest', 'borrarFilasDonde',  // 09_selftest.js
   'selfTestTramo', 'selfTestVeredicto',                                         // tramos (04-ago)
+  'selfTestTramo2', 'selfTestTramo3', 'selfTestTramo4', 'selfTestTramo5',       // wrappers sin args (desplegable del editor)
   'bootstrap',                                                                  // 10_bootstrap.js
   'expirarPendientes',                                                          // 11_aprobaciones.js
   'encolar', 'drenarCola', 'verifArchivoCola', 'archivarColaViejaREAL',         // 12_cola.js
