@@ -37,6 +37,92 @@ var TARIFAS = {
   'claude-opus-4-8':           { in: 5, out: 25 }
 };
 
+// ═══ TC-10 · PROMPT CACHING (B8d) ════════════════════════════════════════════
+//
+// QUÉ HACE: marca la parte FIJA del system con `cache_control: ephemeral` para que la API la
+// cachee entre llamadas. El caching es un MATCH DE PREFIJO: cualquier byte que cambie invalida
+// todo lo que viene después, y el orden de render es tools → system → messages.
+//
+// LA LÍNEA ROJA (Luciano, 03-ago): el breakpoint va ANTES de cualquier contexto vivo del cliente
+// o memoria. Si se cachea un bloque que contiene datos del tenant, pasan dos cosas y las dos son
+// malas: (1) el cache no pega NUNCA, porque ese bloque cambia en cada turno; (2) peor, se fija un
+// prefijo con datos de UN cliente, que es exactamente lo que el aislamiento prohíbe.
+//   · Los 5 agentes y la Bandeja mandan `GUARDIA_INYECCION`, una constante — todo cacheable.
+//   · Sato NO: su system incluye `_satoContexto_(id)` y la charla previa. Por eso `llamadaAPI`
+//     recibe la parte fija en `system` y la viva en `systemVivo`, y SOLO la primera se marca.
+//
+// AHORRO HOY ≈ CERO. Con el gasto actual (~$0.08/mes) esto no mueve la aguja: el valor de la
+// tanda es la TELEMETRÍA y quedar listo para cuando el volumen crezca. No se infla ningún prompt
+// para llegar al mínimo — si el bloque fijo no llega, no se cachea y se dice por qué.
+
+/**
+ * Mínimo de tokens que la API exige para cachear un prefijo, POR MODELO. Verificado contra la
+ * doc de Anthropic (03-ago-2026). ⚠ NO es monótono por generación: Haiku 4.5 pide 4096 mientras
+ * Sonnet 4.6 pide 1024. Un prefijo por debajo del mínimo NO se cachea y la API no avisa —
+ * devuelve `cache_creation_input_tokens: 0` en silencio. Por eso el gate se hace de este lado.
+ * Modelo desconocido ⇒ el mínimo MÁS ALTO (4096): en la duda, no se intenta cachear.
+ */
+var CACHE_MIN_TOKENS = {
+  'claude-haiku-4-5': 4096, 'claude-haiku-4-5-20251001': 4096,
+  'claude-opus-4-6': 4096, 'claude-opus-4-5': 4096,
+  'claude-opus-4-7': 2048,
+  'claude-sonnet-4-6': 1024, 'claude-sonnet-4-5': 1024, 'claude-sonnet-5': 1024,
+  'claude-opus-4-8': 1024, 'claude-opus-4-1': 1024,
+  'claude-opus-5': 512, 'claude-fable-5': 512
+};
+var CACHE_MIN_DESCONOCIDO = 4096;
+
+/** Mínimo cacheable del modelo. PURO. */
+function _cacheMinimo_(modelo) {
+  var m = CACHE_MIN_TOKENS[String(modelo || '')];
+  return m == null ? CACHE_MIN_DESCONOCIDO : m;
+}
+
+/**
+ * Estimación CONSERVADORA de tokens de un texto. PURA.
+ * 4 chars/token SUBESTIMA para español (el real ronda 3.2-3.8), y eso es deliberado: subestimar
+ * hace el gate MÁS estricto, así que se intenta cachear solo cuando sobra margen. La verdad la
+ * dice la telemetría (`cache_write` > 0), no esta cuenta.
+ */
+function _estimarTokens_(texto) { return Math.floor(String(texto || '').length / 4); }
+
+/**
+ * Arma el `system` del request. PURO — el corazón aserible de la tanda.
+ * @param {string} fijo   parte estable (reglas, doctrina, roster de fuentes). Se cachea.
+ * @param {string} vivo   contexto del cliente / memoria. NUNCA se cachea; va DESPUÉS.
+ * @param {string} modelo
+ * @return {{bloques:Array|null, cacheado:boolean, motivo:string, tokens_estimados:number}}
+ */
+function _systemBloques_(fijo, vivo, modelo) {
+  fijo = String(fijo == null ? '' : fijo);
+  vivo = String(vivo == null ? '' : vivo);
+  if (!fijo && !vivo) return { bloques: null, cacheado: false, motivo: 'sin system', tokens_estimados: 0 };
+
+  var est = _estimarTokens_(fijo);
+  var min = _cacheMinimo_(modelo);
+  var bloques = [];
+  var cacheado = false, motivo = '';
+
+  if (!fijo) {
+    motivo = 'no hay parte fija que cachear (todo el system es contexto vivo)';
+  } else if (est < min) {
+    // Nada de rellenar el prompt para alcanzar el mínimo: se anota y se sigue.
+    motivo = 'el bloque fijo no llega al mínimo de ' + modelo + ' (~' + est + ' < ' + min + ' tokens)';
+  } else {
+    cacheado = true;
+    motivo = 'bloque fijo marcado (~' + est + ' ≥ ' + min + ' tokens)';
+  }
+
+  if (fijo) {
+    var b = { type: 'text', text: fijo };
+    if (cacheado) b.cache_control = { type: 'ephemeral' };
+    bloques.push(b);
+  }
+  // El contexto vivo va SIEMPRE después del breakpoint y SIEMPRE sin marca.
+  if (vivo) bloques.push({ type: 'text', text: vivo });
+  return { bloques: bloques, cacheado: cacheado, motivo: motivo, tokens_estimados: est };
+}
+
 /**
  * Llama a Claude para un cliente, con anonimización + log + costeo.
  * @param {string} idCliente
@@ -55,7 +141,8 @@ function llamadaAPI(idCliente, modulo, opts) {
   // 1) Anonimizar ANTES de salir (Bastión). El mapa de reversión es local, nunca se envía.
   var anon = (opts.anonimizar === false) ? { texto: prompt, mapa: {} } : anonimizar(prompt);
 
-  var out = { ok: false, texto: '', usd: 0, tokens_in: 0, tokens_out: 0, status: null, error: null };
+  var out = { ok: false, texto: '', usd: 0, tokens_in: 0, tokens_out: 0, status: null, error: null,
+              cache_write: 0, cache_read: 0, cache_intentado: false, cache_motivo: '' };
 
   try {
     var key = PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY');
@@ -70,8 +157,13 @@ function llamadaAPI(idCliente, modulo, opts) {
         messages: [{ role: 'user', content: anon.texto }]
       };
       // Blindaje prompt-injection: system es OPCIONAL y aditivo (5 callers viejos no lo mandan → payload idéntico).
-      // El system NO se anonimiza: es una guardia estática sin PII ni datos del tenant.
-      if (opts.system) cuerpo.system = String(opts.system);
+      // El system NO se anonimiza: `opts.system` es la guardia estática, sin PII ni datos del tenant.
+      // TC-10: `opts.systemVivo` es la parte CON contexto del cliente (hoy solo Sato) — va después
+      // del breakpoint y jamás se marca para cachear.
+      var sysB = _systemBloques_(opts.system, opts.systemVivo, modelo);
+      if (sysB.bloques) cuerpo.system = sysB.bloques;
+      out.cache_intentado = sysB.cacheado;
+      out.cache_motivo = sysB.motivo;
       var resp = UrlFetchApp.fetch(CLAUDE_ENDPOINT, {
         method: 'post',
         contentType: 'application/json',
@@ -84,6 +176,12 @@ function llamadaAPI(idCliente, modulo, opts) {
         var data = JSON.parse(resp.getContentText());
         out.tokens_in = data.usage ? (data.usage.input_tokens || 0) : 0;
         out.tokens_out = data.usage ? (data.usage.output_tokens || 0) : 0;
+        // TC-10 · telemetría honesta. `usage` ausente ⇒ 0 y se sigue (fail-safe): estos números
+        // son observación, no deben poder tumbar una llamada que ya salió bien.
+        // OJO: `input_tokens` es SOLO el remanente NO cacheado — el prompt total es
+        // input + cache_write + cache_read. Sumar mal acá haría parecer que el gasto bajó.
+        out.cache_write = data.usage ? (data.usage.cache_creation_input_tokens || 0) : 0;
+        out.cache_read = data.usage ? (data.usage.cache_read_input_tokens || 0) : 0;
         var textoAnon = (data.content && data.content[0]) ? data.content[0].text : '';
         // 4) Des-anonimizar la respuesta antes de devolverla al sistema.
         out.texto = desanonimizar(textoAnon, anon.mapa);
@@ -105,7 +203,9 @@ function llamadaAPI(idCliente, modulo, opts) {
       endpoint: proveedor + '/' + modelo + (out.ok ? '' : ' [' + (out.status || (out.simulado ? 'SIMULADO' : 'ERR')) + ']'),
       tokens_in: out.tokens_in || '',
       tokens_out: out.tokens_out || '',
-      USD: out.usd || ''
+      USD: out.usd || '',
+      cache_write: out.cache_write || '',
+      cache_read: out.cache_read || ''
     });
   } catch (e) {
     Logger.log('No se pudo loguear costo de ' + idCliente + ': ' + e.message); // PURGA #24: id, sin nombre

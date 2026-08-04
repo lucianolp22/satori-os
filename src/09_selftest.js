@@ -574,7 +574,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ },
    { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ },
    { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_ },
-   { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_ }].forEach(function (t) {
+   { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_ },
+   { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2371,6 +2372,43 @@ function _asertsD37_(chk, log, opts) {
       'D37g 🔒 al salir de D37 NINGÚN agente quedó encendido (verificado después de la limpieza)');
 
   log.push('   ↳ D37 TC-9: Forge probado extremo a extremo sin dejar un solo agente activo');
+}
+
+/**
+ * D38 · TC-10 — prompt caching + telemetría. TODO liviano: la decisión de cachear es pura y la
+ * telemetría es contrato de columnas. Cero llamadas a la API (aserir caching gastando API sería
+ * absurdo, y además el veredicto real ya viaja en `cache_motivo` de cada llamada de producción).
+ */
+function _asertsD38_(chk, log, opts) {
+  chk(CLIENTE_SHEETS.Costos_API.indexOf('cache_write') >= 0 && CLIENTE_SHEETS.Costos_API.indexOf('cache_read') >= 0,
+      'D38a Costos_API declara cache_write/cache_read (aditivo al final: los tenants viejos no rompen)');
+  chk(_cacheMinimo_('claude-haiku-4-5-20251001') === 4096 && _cacheMinimo_('claude-sonnet-4-6') === 1024,
+      'D38a2 el mínimo cacheable es por MODELO (Haiku 4096 · Sonnet 1024), no una constante');
+  chk(_cacheMinimo_('modelo-inexistente') === 4096, 'D38a3 modelo desconocido ⇒ mínimo más alto (en la duda, no se cachea)');
+
+  // ── La línea roja: el contexto vivo del cliente NUNCA lleva cache_control. ──
+  var d38fijo = 'F'.repeat(4096 * 4 + 400), d38vivo = '__TEST__ ventas de CLI-999';
+  var d38b = _systemBloques_(d38fijo, d38vivo, 'claude-sonnet-4-6');
+  chk(d38b.bloques.length === 2 && !!d38b.bloques[0].cache_control,
+      'D38b el system se parte en dos y solo el bloque FIJO lleva la marca');
+  chk(d38b.bloques[1].cache_control === undefined && d38b.bloques[1].text === d38vivo,
+      'D38c 🔒 el bloque con datos del cliente va DESPUÉS del breakpoint y SIN marca');
+
+  // ── El mínimo se respeta y el motivo se declara: nada de inflar el prompt. ──
+  var d38corto = _systemBloques_('reglas cortas', d38vivo, 'claude-haiku-4-5-20251001');
+  chk(d38corto.cacheado === false && d38corto.motivo.indexOf('no llega al mínimo') >= 0,
+      'D38d por debajo del mínimo NO se marca, y el motivo lo dice');
+
+  // ── Estado REAL hoy: se mide el system fijo de Sato contra el modelo que lo rutea. ──
+  // No es un assert de que cachee — es un assert de que el sistema SEPA y DIGA si cachea.
+  // Con el gasto actual (~$0.08/mes) el ahorro es ~0; esto queda listo para cuando crezca.
+  var d38mod = modeloDeModulo_('sato_ficha');
+  var d38min = _cacheMinimo_(d38mod);
+  log.push('   ↳ D38 estado real: sato_ficha rutea a ' + d38mod + ' (mínimo ' + d38min + ' tokens)');
+  chk(typeof d38min === 'number' && d38min > 0,
+      'D38e el modelo ruteado para Sato tiene un mínimo conocido (' + d38mod + ' → ' + d38min + ')');
+
+  log.push('   ↳ D38 TC-10: breakpoint antes del contexto vivo · telemetría de cache en Costos_API');
 }
 
 function selfTestF2_() {

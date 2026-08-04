@@ -90,7 +90,11 @@ var CLIENTE_SHEETS = {
   Excepciones: ['id', 'fecha', 'modulo', 'contexto', 'payload', 'estado', 'resolucion', 'regla_creada'],
   // P2: cliente implícito (es el Sheet del cliente). Sin fila → default deny.
   Umbrales: ['tipo_accion', 'umbral_EUR', 'aprobador'],
-  Costos_API: ['timestamp', 'modulo', 'endpoint', 'tokens_in', 'tokens_out', 'USD'],
+  // TC-10 (03-ago): +cache_write/+cache_read desde `usage` de la respuesta. Van AL FINAL —
+  // la reconciliación de ensureSheet es aditiva y los tenants viejos no rompen (celda vacía =
+  // llamada anterior al caching, que es la verdad de lo ya registrado).
+  // ⚠ `tokens_in` es el remanente NO cacheado: el prompt total es tokens_in + write + read.
+  Costos_API: ['timestamp', 'modulo', 'endpoint', 'tokens_in', 'tokens_out', 'USD', 'cache_write', 'cache_read'],
   // Per Auditor 0.2: nacen como "propuesta", se activan vía P1.
   Reglas: ['id_regla', 'origen', 'condicion', 'accion', 'estado'],
   // ── Etapa 8a — Cerebro (grafo de memoria) por tenant. Sensibles (ocultas+protegidas). ──

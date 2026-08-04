@@ -70,7 +70,7 @@ vm.createContext(ctx);
 
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
-const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
+const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
                  '25_hilo.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -429,7 +429,7 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensibl
   ctx.leerTabla = () => filas;
   ctx.appendFila = (sh, o) => escritas.push(o);
   ctx.ensureSheet = () => shStub;
-  ctx.llamadaAPI = (id, mod, opts) => { systemVisto = String(opts.system || ''); return { ok: true, texto: 'respuesta de sato', usd: 0.002, tokens_in: 10, tokens_out: 20 }; };
+  ctx.llamadaAPI = (id, mod, opts) => { systemVisto = String(opts.system || '') + String(opts.systemVivo || ''); return { ok: true, texto: 'respuesta de sato', usd: 0.002, tokens_in: 10, tokens_out: 20 }; };
   ctx.upsertNodo = (t, n) => { nodoTocado = n; };
   ctx.guardPresupuesto_ = () => ({});
   ctx.estadoVigente = () => '# Estado vigente CLI-001';
@@ -463,7 +463,7 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensibl
     // 1ª llamada devuelve el marcador; la 2ª (con el dato) devuelve la respuesta real
     let nLlamadas = 0, promptVisto2 = '';
     ctx.llamadaAPI = (id2, mod, opts) => { nLlamadas++;
-      if (nLlamadas === 1) { systemVisto = String(opts.system || ''); return { ok: true, texto: '@@DATOS fuente=ventas mes=2026-07@@', usd: 0.001 }; }
+      if (nLlamadas === 1) { systemVisto = String(opts.system || '') + String(opts.systemVivo || ''); return { ok: true, texto: '@@DATOS fuente=ventas mes=2026-07@@', usd: 0.001 }; }
       promptVisto2 = String(opts.prompt || ''); return { ok: true, texto: 'En julio: 302 órdenes, AOV 104.857.', usd: 0.002 };
     };
     escritas.length = 0;
@@ -514,7 +514,7 @@ chk(ctx.CLIENTE_SHEETS_SENSIBLES.indexOf('charla') >= 0, 'charla es hoja sensibl
         'satoChat pasa el modo al gate y sella el turno');
     Object.keys(bkM).forEach(k => { ctx[k] = bkM[k]; });
     Object.keys(bkS).forEach(k => { ctx[k] = bkS[k]; });
-    ctx.llamadaAPI = (id2, mod, opts) => { systemVisto = String(opts.system || ''); return { ok: true, texto: 'respuesta de sato', usd: 0.002, tokens_in: 10, tokens_out: 20 }; };
+    ctx.llamadaAPI = (id2, mod, opts) => { systemVisto = String(opts.system || '') + String(opts.systemVivo || ''); return { ok: true, texto: 'respuesta de sato', usd: 0.002, tokens_in: 10, tokens_out: 20 }; };
   }
 
   // T1.5c — turno hablado: UNA sola llamada devuelve texto + MP3 (un round-trip de GAS menos)
@@ -603,7 +603,7 @@ for (const fn of ['satoCierreSesion', 'satoAplicarCierre']) {
   ctx.checklistAgregar = (id, t) => { chkAgregados.push({ id: id, texto: t }); return { ok: true, id: 'CHK-0009' }; };
   ctx.capturar = (t, f) => { capturados.push({ texto: t, fuente: f }); return 'BAN-0021'; };
   ctx.getConfig = () => '';
-  ctx.llamadaAPI = (id, mod, opts) => { nLlam++; sysVisto = String(opts.system || ''); promptVisto = String(opts.prompt || '');
+  ctx.llamadaAPI = (id, mod, opts) => { nLlam++; sysVisto = String(opts.system || '') + String(opts.systemVivo || ''); promptVisto = String(opts.prompt || '');
     return { ok: true, usd: 0.002, texto: 'Bla bla {"resumen":"Se trabajó el cierre de julio de DAM.",' +
       '"items":[{"tipo":"checklist","texto":"Pedir las facturas de junio","dueno":"Luciano"},' +
       '{"tipo":"encargo","texto":"Armar el tablero de la reunión","dueno":"Cowork"},' +
@@ -685,7 +685,7 @@ for (const fn of ['satoCierreSesion', 'satoAplicarCierre']) {
   ctx.checklistAgregar = (id, t) => { chkAgregados.push({ id: id, texto: t }); return { ok: true, id: 'CHK-0009' }; };
 
   // T2.2 + T2.3 + T2.4 — lo que el turno normal de satoChat le promete al modelo
-  ctx.llamadaAPI = (id, mod, opts) => { sysVisto = String(opts.system || ''); promptVisto = String(opts.prompt || '');
+  ctx.llamadaAPI = (id, mod, opts) => { sysVisto = String(opts.system || '') + String(opts.systemVivo || ''); promptVisto = String(opts.prompt || '');
                                         return { ok: true, texto: 'listo', usd: 0.002 }; };
   filas = [];
   ctx.satoChat('CLI-004', 'qué hago hoy');
@@ -1350,6 +1350,113 @@ seccion('D37 · Forge: el mecanismo, con NINGÚN agente encendido');
   ['promoverAgente', 'demoverAgente', 'agentesEstado'].forEach((fn) => {
     chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, 'D37m ' + fn + ' dado de alta en ENDPOINTS_UI');
   });
+}
+
+// ═══ D38 · TC-10 · prompt caching: breakpoint correcto y telemetría honesta ═══
+seccion('D38 · caching: el breakpoint va ANTES del contexto vivo, o no se cachea');
+{
+  const FIJO_CORTO = 'reglas cortas';                        // ~3 tokens
+  const FIJO_LARGO = 'x'.repeat(4096 * 4 + 400);             // ~4196 tokens estimados
+  const VIVO = 'ventas de CLI-002: 104k · caja -8%';
+
+  // ── la tabla de mínimos: lo que hace o no hace que valga la pena marcar ──
+  chk(ctx._cacheMinimo_('claude-haiku-4-5') === 4096 && ctx._cacheMinimo_('claude-sonnet-4-6') === 1024,
+      'D38a el mínimo cacheable es POR MODELO (Haiku 4096, Sonnet 1024) — no es una constante global');
+  chk(ctx._cacheMinimo_('claude-opus-5') === 512 && ctx._cacheMinimo_('claude-opus-4-6') === 4096,
+      'D38a2 y NO es monótono por generación: Opus 5 pide 512 y Opus 4.6 pide 4096');
+  chk(ctx._cacheMinimo_('modelo-que-no-existe') === 4096,
+      'D38a3 modelo desconocido ⇒ el mínimo MÁS ALTO: en la duda no se intenta cachear');
+
+  // ── LA LÍNEA ROJA: el contexto vivo nunca lleva cache_control ──
+  const conVivo = ctx._systemBloques_(FIJO_LARGO, VIVO, 'claude-sonnet-4-6');
+  chk(conVivo.bloques.length === 2, 'D38b con contexto vivo el system se parte en DOS bloques');
+  chk(!!conVivo.bloques[0].cache_control && conVivo.bloques[0].cache_control.type === 'ephemeral',
+      'D38b2 el bloque FIJO lleva cache_control ephemeral');
+  chk(conVivo.bloques[1].cache_control === undefined,
+      'D38c 🔒 el bloque con contexto vivo del cliente NO lleva cache_control');
+  chk(conVivo.bloques[1].text === VIVO && conVivo.bloques[0].text === FIJO_LARGO,
+      'D38c2 🔒 y el vivo va DESPUÉS del breakpoint (si fuera antes, el cache no pegaría nunca y fijaría datos de un cliente)');
+  chk(conVivo.bloques.filter((b) => b.cache_control).length === 1,
+      'D38c3 hay UN solo breakpoint: marcar el bloque vivo sería cachear datos de un tenant');
+
+  // ── el mínimo se respeta: si no llega, NO se cachea y se dice por qué ──
+  const corto = ctx._systemBloques_(FIJO_CORTO, VIVO, 'claude-haiku-4-5');
+  chk(corto.cacheado === false && corto.bloques[0].cache_control === undefined,
+      'D38d si el bloque fijo no llega al mínimo, NO se marca');
+  chk(corto.motivo.indexOf('no llega al mínimo') >= 0 && corto.motivo.indexOf('4096') >= 0,
+      'D38d2 y el motivo lo DICE con el número (nada de inflar el prompt para llegar)');
+  chk(corto.bloques[0].text === FIJO_CORTO && corto.bloques[1].text === VIVO,
+      'D38d3 no cachear no cambia el contenido: el prompt sale igual');
+
+  // el MISMO texto fijo cambia de veredicto según el modelo — que es el punto de la tabla
+  const medio = 'y'.repeat(2000 * 4 + 400);   // ~2100 tokens
+  chk(ctx._systemBloques_(medio, '', 'claude-sonnet-4-6').cacheado === true,
+      'D38e ~2100 tokens SÍ se cachean en Sonnet (mínimo 1024)');
+  chk(ctx._systemBloques_(medio, '', 'claude-haiku-4-5').cacheado === false,
+      'D38e2 el MISMO texto NO se cachea en Haiku (mínimo 4096) — el gate es por modelo');
+
+  chk(ctx._systemBloques_('', '', 'claude-sonnet-4-6').bloques === null,
+      'D38f sin system no se manda el campo (los callers viejos siguen con payload idéntico)');
+  chk(ctx._systemBloques_('', VIVO, 'claude-sonnet-4-6').cacheado === false,
+      'D38f2 un system que es TODO contexto vivo no se cachea en absoluto');
+
+  // la estimación es conservadora a propósito (subestimar ⇒ gate más estricto)
+  chk(ctx._estimarTokens_('x'.repeat(4000)) === 1000,
+      'D38g la estimación es 4 chars/token — subestima en español, así el gate exige margen');
+
+  // ── telemetría: se lee de `usage`, y sin `usage` no se inventa ──
+  const bk = { UrlFetchApp: ctx.UrlFetchApp, PropertiesService: ctx.PropertiesService,
+               logCostoCliente: ctx.logCostoCliente, anonimizar: ctx.anonimizar,
+               desanonimizar: ctx.desanonimizar, getConfig: ctx.getConfig };
+  try {
+    let logueado = null, enviado = null;
+    ctx.PropertiesService = { getScriptProperties: () => ({ getProperty: () => 'k', setProperty() {} }) };
+    ctx.anonimizar = (t) => ({ texto: t, mapa: {} });
+    ctx.desanonimizar = (t) => t;
+    ctx.getConfig = () => '';
+    ctx.logCostoCliente = (id, fila) => { logueado = fila; };
+    const responder = (usage) => { ctx.UrlFetchApp = { fetch: (url, o) => {
+      enviado = JSON.parse(o.payload);
+      return { getResponseCode: () => 200,
+               getContentText: () => JSON.stringify({ content: [{ text: 'ok' }], usage: usage }) };
+    } }; };
+
+    responder({ input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 4200, cache_read_input_tokens: 0 });
+    let r = ctx.llamadaAPI('CLI-002', 'analista', { prompt: 'p', system: FIJO_LARGO, systemVivo: VIVO });
+    chk(r.cache_write === 4200 && r.cache_read === 0, 'D38h la primera llamada reporta cache_write (se escribió el cache)');
+    chk(logueado.cache_write === 4200 && logueado.cache_read === '', 'D38h2 y queda en Costos_API');
+    chk(Array.isArray(enviado.system) && enviado.system.length === 2 && !!enviado.system[0].cache_control,
+        'D38h3 el request sale con el system en bloques y la marca en el fijo');
+    chk(enviado.system[1].cache_control === undefined && enviado.system[1].text.indexOf('CLI-002') >= 0,
+        'D38h4 🔒 el bloque con el dato del cliente viaja SIN marca de cache');
+
+    responder({ input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 4200 });
+    r = ctx.llamadaAPI('CLI-002', 'analista', { prompt: 'p', system: FIJO_LARGO, systemVivo: VIVO });
+    chk(r.cache_read === 4200 && r.cache_write === 0, 'D38i la segunda llamada reporta cache_read (pegó el cache)');
+
+    responder({ input_tokens: 10, output_tokens: 5 });   // sin campos de cache
+    r = ctx.llamadaAPI('CLI-002', 'analista', { prompt: 'p', system: FIJO_LARGO });
+    chk(r.ok === true && r.cache_write === 0 && r.cache_read === 0,
+        'D38j sin campos de cache en `usage` ⇒ 0 y la llamada sigue (fail-safe: la telemetría no tumba nada)');
+
+    ctx.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({ content: [{ text: 'ok' }] }) }) };   // sin usage entero
+    r = ctx.llamadaAPI('CLI-002', 'analista', { prompt: 'p', system: FIJO_LARGO });
+    chk(r.ok === true && r.cache_write === 0 && r.tokens_in === 0,
+        'D38j2 sin `usage` en absoluto tampoco rompe');
+
+    // un caller viejo (solo `system`, sin vivo) sigue funcionando
+    responder({ input_tokens: 10, output_tokens: 5 });
+    r = ctx.llamadaAPI('CLI-002', 'vigia', { prompt: 'p', system: 'guardia corta' });
+    chk(r.ok === true && Array.isArray(enviado.system) && enviado.system.length === 1,
+        'D38k un caller que solo manda `system` sigue andando (un bloque, sin marca si no llega al mínimo)');
+    chk(enviado.system[0].cache_control === undefined,
+        'D38k2 y la guardia corta de los agentes NO se marca — no llega ni cerca del mínimo de Haiku');
+  } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
+
+  chk(ctx.CLIENTE_SHEETS.Costos_API.indexOf('cache_write') >= 0 &&
+      ctx.CLIENTE_SHEETS.Costos_API.indexOf('cache_read') >= 0,
+      'D38l Costos_API declara las columnas de cache (lista-contrato, aditivo al final)');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────
