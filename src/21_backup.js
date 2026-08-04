@@ -8,16 +8,21 @@
  * de la cuenta Google (para eso: descarga XLSX periódica — ver RUNBOOK-recuperacion).
  * El CÓDIGO se respalda aparte (git remote privado — ver RUNBOOK-recuperacion).
  *
- * Scope: el snapshot usa Spreadsheet.copy() (scope 'spreadsheets', ya concedido);
- * DriveApp solo toca objetos creados por la app (la carpeta + las copias) → alcanza
- * con 'drive.file'. smokeBackup() lo PRUEBA reversible antes de confiar el trigger
+ * Scope (REESCRITO en BK-1, 04-ago): el snapshot usa Spreadsheet.copy() (scope 'spreadsheets');
+ * TODO lo demás va por el SERVICIO AVANZADO de Drive v3 bajo 'drive.file' — crear carpeta
+ * (files.create + mimeType folder), mover (files.update con addParents/removeParents), listar
+ * (files.list, que bajo drive.file solo ve lo que la app creó) y papelera (_trashArchivo_).
+ * ⚠ NO usar DriveApp acá: exige 'drive'/'drive.readonly', que este proyecto NO declara. Ese fue
+ * exactamente el bug — el 03-jul (2e014f0) el manifiesto se recortó y nadie migró este archivo:
+ * los backups quedaron MUERTOS un mes, tapados por catch mudos. Lo asera D43.
+ * smokeBackup() lo PRUEBA reversible antes de confiar el trigger
  * (mismo criterio que smokeKill). Si una hoja cliente NO fuera creada por la app, su
  * copia falla AISLADA (try/catch) y se reporta; no tumba el resto del run.
  *
  * Kill switch: backupSemanal() (trigger) respeta la pausa operativa; backupAhora()
  * (corrida manual desde el editor) NO — es acción deliberada de Luciano.
  * Retención: conserva las últimas N carpetas (Config 'backup_retencion_semanas',
- *   def 8); las más viejas → papelera (setTrashed, ya probado bajo drive.file en selfTest).
+ *   def 8); las más viejas → papelera vía _trashArchivo_. Lo que NO se pudo purgar se avisa.
  * Escala: N+1 copias por corrida (~2-3s c/u). Con <15 clientes entra sobrado en el
  *   límite de 6 min; si la cartera crece mucho, batchear por continuación.
  *
@@ -49,14 +54,14 @@ function _backupRootFolder_() {
   var props = PropertiesService.getScriptProperties();
   var id = props.getProperty(PROP_BACKUP_FOLDER_ID);
   if (id) {
-    try {
-      var f = DriveApp.getFolderById(id);
-      if (!f.isTrashed()) return f;
-    } catch (_e) { /* id muerto → recrear */ }
+    var meta = _driveGet_(id, 'id,trashed');
+    if (meta.ok && !meta.trashed) return { ok: true, id: String(id), url: _driveUrlCarpeta_(id), creada: false };
+    // id muerto o en papelera → se recrea, pero se DICE por qué (antes esto era un catch mudo)
   }
-  var nueva = DriveApp.createFolder(BACKUP_ROOT_NOMBRE);
-  props.setProperty(PROP_BACKUP_FOLDER_ID, nueva.getId());
-  return nueva;
+  var nueva = _driveCrearCarpeta_(BACKUP_ROOT_NOMBRE, null);
+  if (!nueva.ok) return { ok: false, error: 'no pude crear la carpeta raíz de backups: ' + nueva.error };
+  props.setProperty(PROP_BACKUP_FOLDER_ID, nueva.id);
+  return { ok: true, id: nueva.id, url: _driveUrlCarpeta_(nueva.id), creada: true };
 }
 
 /** Retención en semanas (Config, con default). */
@@ -71,14 +76,13 @@ function _retencionSemanas_() {
  * moveTo falla, deja la copia en la raíz con el nombre fechado (sigue siendo backup,
  * solo sin organizar) y lo marca. Devuelve {ok, id, url, carpeta}.
  */
-function _copiarSpreadsheet_(srcId, nombre, carpeta) {
-  var copia = SpreadsheetApp.openById(srcId).copy(nombre);
-  var enCarpeta = false;
-  try {
-    DriveApp.getFileById(copia.getId()).moveTo(carpeta);
-    enCarpeta = true;
-  } catch (_m) { /* degradación: queda en raíz con nombre fechado */ }
-  return { ok: true, id: copia.getId(), url: copia.getUrl(), carpeta: enCarpeta };
+function _copiarSpreadsheet_(srcId, nombre, carpetaId) {
+  var copia = SpreadsheetApp.openById(srcId).copy(nombre);   // sigue por Spreadsheet.copy (scope spreadsheets)
+  var mv = _driveMover_(copia.getId(), carpetaId);
+  // BK-1: si el move falla, la copia EXISTE igual (sigue siendo backup) pero queda desorganizada.
+  // El motivo viaja en el return en vez de morir en un catch mudo — que es lo que tapó un mes
+  // entero de backups rotos.
+  return { ok: true, id: copia.getId(), url: copia.getUrl(), carpeta: mv.ok, error_mover: mv.ok ? '' : mv.error };
 }
 
 /**
@@ -89,13 +93,26 @@ function _copiarSpreadsheet_(srcId, nombre, carpeta) {
 function _ejecutarBackup_() {
   var stamp = _stampBackup_();
   var root = _backupRootFolder_();
-  var sub = root.createFolder('backup_' + stamp);
+  // BK-1: sin carpeta raíz no hay backup. Antes esto reventaba adentro y el error moría en el
+  // catch del llamador; ahora corta acá y lo DICE — un backup que no ocurrió tiene que gritar.
+  if (!root.ok) {
+    var errRoot = { ok: false, stamp: stamp, error: root.error, copiados: [], fallidos: [{ que: 'carpeta raíz', error: root.error }] };
+    try { crearAviso({ origen: 'sistema', tipo: 'backup_fallo', mensaje: 'Backup ' + stamp + ' ABORTADO: ' + root.error }); } catch (_ar) {}
+    try { alertaEmail_('Backup ABORTADO', 'No se pudo abrir ni crear la carpeta de backups: ' + root.error, 'backup_' + hoyISO()); } catch (_er) {}
+    return errRoot;
+  }
+  var subC = _driveCrearCarpeta_('backup_' + stamp, root.id);
+  if (!subC.ok) {
+    try { crearAviso({ origen: 'sistema', tipo: 'backup_fallo', mensaje: 'Backup ' + stamp + ' ABORTADO (subcarpeta): ' + subC.error }); } catch (_as) {}
+    return { ok: false, stamp: stamp, error: subC.error, copiados: [], fallidos: [{ que: 'subcarpeta', error: subC.error }] };
+  }
+  var sub = subC.id;
   var copiados = [], fallidos = [];
 
   // MAESTRO
   try {
     var m = _copiarSpreadsheet_(getMaestro().getId(), 'MAESTRO — ' + stamp, sub);
-    copiados.push({ que: 'MAESTRO', url: m.url, carpeta: m.carpeta });
+    copiados.push({ que: 'MAESTRO', url: m.url, carpeta: m.carpeta, error_mover: m.error_mover });
   } catch (e) {
     fallidos.push({ que: 'MAESTRO', error: String((e && e.message) || e) });
   }
@@ -109,34 +126,34 @@ function _ejecutarBackup_() {
       var srcId = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getId();
       var nombre = _nombreSeguro_(etiqueta) + ' — ' + stamp;
       var r = _copiarSpreadsheet_(srcId, nombre, sub);
-      copiados.push({ que: etiqueta, url: r.url, carpeta: r.carpeta });
+      copiados.push({ que: etiqueta, url: r.url, carpeta: r.carpeta, error_mover: r.error_mover });
     } catch (e) {
       fallidos.push({ que: etiqueta, error: String((e && e.message) || e) });
     }
   });
 
   // Retención: conservar las últimas N subcarpetas backup_*, papelera al resto.
-  var nombres = [];
-  var it = root.getFolders();
-  while (it.hasNext()) {
-    var f = it.next();
-    var nm = f.getName();
-    if (nm.indexOf('backup_') === 0) nombres.push({ nombre: nm, folder: f });
-  }
+  var lst = _driveListarHijos_(root.id, true);
+  var nombres = (lst.items || []).filter(function (f) { return String(f.name).indexOf('backup_') === 0; })
+    .map(function (f) { return { nombre: f.name, id: f.id }; });
   nombres.sort(function (a, b) { return a.nombre < b.nombre ? 1 : (a.nombre > b.nombre ? -1 : 0); }); // desc: más nuevo primero
-  var ret = _retencionSemanas_(), purgadas = 0;
+  var ret = _retencionSemanas_(), purgadas = 0, fallosRetencion = [];
+  if (!lst.ok) fallosRetencion.push('no pude listar la carpeta raíz: ' + lst.error);
   for (var i = ret; i < nombres.length; i++) {
-    try { nombres[i].folder.setTrashed(true); purgadas++; } catch (_t) {}
+    var t = _trashArchivo_(nombres[i].id);
+    if (t.ok) purgadas++;
+    else fallosRetencion.push(nombres[i].nombre + ': ' + t.error);   // antes: catch mudo ⇒ se acumulaba sin que nadie supiera
   }
 
   var resumen = {
     ok: fallidos.length === 0,
     stamp: stamp,
-    folder_url: sub.getUrl(),
+    folder_url: _driveUrlCarpeta_(sub),
     copiados: copiados,
     fallidos: fallidos,
     retenidas: Math.min(ret, nombres.length),
-    purgadas: purgadas
+    purgadas: purgadas,
+    fallos_retencion: fallosRetencion
   };
 
   // Telemetría liviana para el CM/estado (última corrida).
@@ -159,7 +176,13 @@ function _ejecutarBackup_() {
   var sinCarpeta = copiados.filter(function (x) { return x.carpeta === false; });
   if (sinCarpeta.length) {
     resumen.sin_carpeta = sinCarpeta.length;
-    try { crearAviso({ origen: 'sistema', tipo: 'backup_degradado', mensaje: 'Backup ' + stamp + ': ' + sinCarpeta.length + ' copia(s) quedaron en la raíz de Drive (moveTo falló). La retención por carpeta NO las limpia; borrarlas a mano y revisar scope.' }); } catch (_sc) {}
+    resumen.detalle_sin_carpeta = sinCarpeta.map(function (x) { return x.que + ': ' + (x.error_mover || 'sin motivo'); });
+    try { crearAviso({ origen: 'sistema', tipo: 'backup_degradado', mensaje: 'Backup ' + stamp + ': ' + sinCarpeta.length + ' copia(s) quedaron en la raíz de Drive (el move falló: ' + (sinCarpeta[0].error_mover || '?') + '). La retención por carpeta NO las limpia; borrarlas a mano.' }); } catch (_sc) {}
+  }
+  // BK-1: la retención que no pudo purgar también se surfacea — si no, las carpetas viejas se
+  // acumulan en silencio hasta que alguien mira el Drive a mano.
+  if (fallosRetencion.length) {
+    try { crearAviso({ origen: 'sistema', tipo: 'backup_degradado', mensaje: 'Backup ' + stamp + ': la retención no pudo purgar ' + fallosRetencion.length + ' carpeta(s) — ' + fallosRetencion.slice(0, 3).join(' · ') }); } catch (_fr) {}
   }
   return resumen;
 }
@@ -228,15 +251,18 @@ function smokeBackup() {
     rep.push(['crear hoja throwaway', true]);
 
     var root = _backupRootFolder_();
-    rep.push(['carpeta raiz backups (get/create)', !!root]);
+    rep.push(['carpeta raiz backups (get/create)', root.ok === true, root.ok ? '' : root.error]);
+    if (!root.ok) throw new Error('sin carpeta raíz: ' + root.error);
 
-    sub = root.createFolder('__smoke__' + _stampBackup_());
-    rep.push(['createFolder', !!sub]);
+    var subC = _driveCrearCarpeta_('__smoke__' + _stampBackup_(), root.id);
+    sub = subC.ok ? subC.id : null;
+    rep.push(['Drive.Files.create carpeta (drive.file)', subC.ok === true, subC.ok ? '' : subC.error]);
+    if (!subC.ok) throw new Error('sin subcarpeta: ' + subC.error);
 
     var c = _copiarSpreadsheet_(tmp.getId(), '__smoke_copy__', sub);
     copiaId = c.id;
     rep.push(['Spreadsheet.copy', !!c.id]);
-    rep.push(['moveTo carpeta (drive.file)', c.carpeta === true]);
+    rep.push(['mover a carpeta (addParents/removeParents)', c.carpeta === true, c.error_mover || '']);
 
     var leido = SpreadsheetApp.openById(c.id).getSheets()[0].getRange('A1').getValue();
     rep.push(['copia legible (A1=smoke)', String(leido) === 'smoke']);
@@ -246,7 +272,7 @@ function smokeBackup() {
     // Fix P2 (04-ago): por `_trashArchivo_` (servicio avanzado de Drive, scope `drive.file`).
     // Con DriveApp esto fallaba siempre y el smoke dejaba su propia basura en Drive.
     if (copiaId) { var _t1 = _trashArchivo_(copiaId); if (!_t1.ok) rep.push(['LIMPIEZA copia', false, _t1.error]); }
-    try { if (sub) sub.setTrashed(true); } catch (_2) { rep.push(['LIMPIEZA subcarpeta', false, String((_2 && _2.message) || _2)]); }
+    if (sub) { var _t2 = _trashArchivo_(sub); if (!_t2.ok) rep.push(['LIMPIEZA subcarpeta', false, _t2.error]); }
     if (tmp) { var _t3 = _trashArchivo_(tmp.getId()); if (!_t3.ok) rep.push(['LIMPIEZA tmp', false, _t3.error]); }
   }
   var pass = rep.every(function (x) { return x[1]; });
@@ -261,17 +287,23 @@ function smokeBackup() {
 function backupListar() {
   _soloOwner_('backupListar');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   var root = _backupRootFolder_();
-  var out = [];
-  var it = root.getFolders();
-  while (it.hasNext()) {
-    var f = it.next();
-    if (f.getName().indexOf('backup_') !== 0) continue;
-    var n = 0, fi = f.getFiles();
-    while (fi.hasNext()) { fi.next(); n++; }
-    out.push({ carpeta: f.getName(), archivos: n, url: f.getUrl() });
+  if (!root.ok) {
+    // BK-1: acá reventaba (crash del 04-ago 13:20:58). Ahora devuelve el motivo en vez de tirar.
+    var errL = { total: 0, carpetas: [], error: root.error };
+    Logger.log('backupListar: ' + JSON.stringify(errL));
+    return errL;
   }
+  var out = [], errores = [];
+  var lst = _driveListarHijos_(root.id, true);
+  if (!lst.ok) errores.push('listar raíz: ' + lst.error);
+  (lst.items || []).forEach(function (f) {
+    if (String(f.name).indexOf('backup_') !== 0) return;
+    var hijos = _driveListarHijos_(f.id, false);
+    if (!hijos.ok) errores.push('listar ' + f.name + ': ' + hijos.error);
+    out.push({ carpeta: f.name, archivos: (hijos.items || []).length, url: _driveUrlCarpeta_(f.id) });
+  });
   out.sort(function (a, b) { return a.carpeta < b.carpeta ? 1 : (a.carpeta > b.carpeta ? -1 : 0); });
-  var res = { total: out.length, carpetas: out };
+  var res = { total: out.length, carpetas: out, errores: errores };
   Logger.log('backupListar: ' + JSON.stringify(res));
   return res;
 }
@@ -292,28 +324,27 @@ function drillRestore() {
 
 function _drillRestore_() {
   var root = _backupRootFolder_();
+  if (!root.ok) return { ok: false, error: 'sin carpeta de backups: ' + root.error };
+  var lst = _driveListarHijos_(root.id, true);
+  if (!lst.ok) return { ok: false, error: 'no pude listar la carpeta de backups: ' + lst.error };
   var mejor = null;
-  var it = root.getFolders();
-  while (it.hasNext()) {
-    var f = it.next();
-    if (f.getName().indexOf('backup_') !== 0) continue;
-    if (!mejor || f.getName() > mejor.getName()) mejor = f;
-  }
+  (lst.items || []).forEach(function (f) {
+    if (String(f.name).indexOf('backup_') !== 0) return;
+    if (!mejor || f.name > mejor.name) mejor = f;   // el stamp es ordenable: el mayor es el más nuevo
+  });
   if (!mejor) return { ok: false, error: 'no hay backups todavia; corre backupAhora() primero' };
 
-  var src = null, fi = mejor.getFiles();
-  while (fi.hasNext()) {
-    var file = fi.next();
-    if (file.getName().indexOf('MAESTRO') === 0) { src = file; break; }
-  }
-  if (!src) return { ok: false, error: 'la subcarpeta ' + mejor.getName() + ' no tiene copia MAESTRO' };
+  var hijos = _driveListarHijos_(mejor.id, false);
+  if (!hijos.ok) return { ok: false, error: 'no pude listar ' + mejor.name + ': ' + hijos.error };
+  var src = (hijos.items || []).filter(function (f) { return String(f.name).indexOf('MAESTRO') === 0; })[0];
+  if (!src) return { ok: false, error: 'la subcarpeta ' + mejor.name + ' no tiene copia MAESTRO' };
 
-  var restaurado = SpreadsheetApp.openById(src.getId()).copy('__RESTORE_DRILL__ ' + _stampBackup_());
+  var restaurado = SpreadsheetApp.openById(src.id).copy('__RESTORE_DRILL__ ' + _stampBackup_());
   var tabs = restaurado.getSheets().map(function (s) { return s.getName(); });
   var esperadas = MAESTRO_ORDEN.length;
   return {
     ok: tabs.length >= esperadas,
-    origen: mejor.getName(),
+    origen: mejor.name,
     restore_url: restaurado.getUrl(),
     pestanas: tabs.length,
     esperadas: esperadas,

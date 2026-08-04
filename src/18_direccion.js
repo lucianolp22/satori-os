@@ -1052,8 +1052,12 @@ function _respaldarObjetivos_() {
   var stamp = _stampBackup_();
   var nombre = _nombreSeguro_('objetivos-reset_' + stamp);
   var ss = SpreadsheetApp.create(nombre);
-  try { DriveApp.getFileById(ss.getId()).moveTo(_backupRootFolder_()); }
-  catch (_m) { /* degradación: queda en la raíz del Drive, sigue siendo backup */ }
+  // BK-1 (04-ago): por el servicio avanzado de Drive bajo `drive.file`. `DriveApp.getFileById`
+  // exige un scope que este proyecto no declara: esto fallaba SIEMPRE y el respaldo del reset
+  // quedaba tirado en la raíz del Drive sin que nadie se enterara. El motivo ahora viaja en el
+  // return, no muere en un catch mudo.
+  var raiz = _backupRootFolder_();
+  var mvObj = raiz.ok ? _driveMover_(ss.getId(), raiz.id) : { ok: false, error: raiz.error };
 
   var tenants = 0, filas = 0;
   leerTabla(getMaestro().getSheetByName('Clientes')).forEach(function (c) {
@@ -1077,7 +1081,8 @@ function _respaldarObjetivos_() {
 
   try { ss.deleteSheet(ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1')); } catch (_d) {}
   SpreadsheetApp.flush();
-  return { ok: true, id: ss.getId(), url: ss.getUrl(), nombre: nombre, tenants: tenants, filas: filas };
+  return { ok: true, id: ss.getId(), url: ss.getUrl(), nombre: nombre, tenants: tenants, filas: filas,
+           en_carpeta: mvObj.ok, error_mover: mvObj.ok ? '' : mvObj.error };
 }
 
 /**

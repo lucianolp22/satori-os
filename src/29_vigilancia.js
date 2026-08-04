@@ -43,6 +43,10 @@ var VIG_FUENTE_DEFAULT = {
 
 var VIG_NOTA_SIN_FUENTE = 'sin conector — entra a mano o con B8';
 
+/** V-FIX (c): tope del JSON que va a la celda Config. El límite duro de Sheets es 50.000 chars
+ *  por celda; se deja margen para que el recorte ocurra ANTES de que `setConfig` tire. */
+var VIG_RESUMEN_MAX_CHARS = 45000;
+
 /** PURA — días entre dos fechas ISO (el "hoy" se INYECTA: el juicio es testeable offline).
  *  null si alguna fecha es ilegible (el caller decide qué hacer con la duda — nunca verde). */
 function _vigDias_(desdeISO, hastaISO) {
@@ -108,8 +112,12 @@ function _vigJuzgar_(sup, obs, umb, hoy) {
         var caida = (a.total - b.total) / a.total * 100;
         if (caida >= umb.rojo_caida_pct) { r.color = 'rojo'; r.nota = 'caída ' + Math.round(caida) + '% vs ' + a.mes; return r; }
         if (caida >= umb.ambar_caida_pct) { r.color = 'ambar'; r.nota = 'caída ' + Math.round(caida) + '% vs ' + a.mes; return r; }
+        r.color = 'verde'; return r;
       }
-      r.color = 'verde'; return r;
+      // V-FIX (a): con el mes anterior en 0 no hay % que calcular. Antes caía a un verde MUDO, que
+      // es la clase de verde que esta doctrina persigue: el color no mentía, pero tampoco decía
+      // que no había base. Sigue verde (hay dato, no es vacío) pero DECLARA que no se pudo comparar.
+      r.color = 'verde'; r.nota = 'mes anterior en 0 — sin base de comparación'; return r;
     }
     r.color = 'verde'; r.nota = 'sin dos meses cerrados para comparar'; return r;
   }
@@ -162,9 +170,10 @@ function _vigJuzgar_(sup, obs, umb, hoy) {
  * salen con sin_acceso=true y el juicio lo dice — no un gris que parezca "sin datos").
  * MAESTRO: filas SIEMPRE filtradas por id_cliente (aislamiento §1).
  */
-function _vigObservar_(idCliente, sups, fuentes) {
+function _vigObservar_(idCliente, sups, fuentes, pre) {
   var obs = {};
   var hoy = hoyISO();
+  pre = pre || {};   // V-FIX (b): tablas del MAESTRO ya leídas por el llamador (una vez, no por cliente)
   var quiereTenant = sups.filter(function (s) {
     var f = fuentes[s] || '';
     return f !== 'sin_fuente' && (VIG_FUENTE_DEFAULT[s] === 'conector' || VIG_FUENTE_DEFAULT[s] === 'hoja');
@@ -233,7 +242,7 @@ function _vigObservar_(idCliente, sups, fuentes) {
 
   if (sups.indexOf('aprobaciones') >= 0 && fuentes.aprobaciones !== 'sin_fuente') {
     try {
-      var pend = leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas'))
+      var pend = (pre.aprobaciones || leerTabla(getMaestro().getSheetByName('Aprobaciones_agregadas')))
         .filter(function (a) { return String(a.id_cliente) === String(idCliente); });
       var masVieja = null;
       pend.forEach(function (a) {
@@ -246,11 +255,11 @@ function _vigObservar_(idCliente, sups, fuentes) {
 
   if (sups.indexOf('tareas') >= 0 && fuentes.tareas !== 'sin_fuente') {
     try {
-      var proys = leerTabla(getMaestro().getSheetByName('Proyectos'))
+      var proys = (pre.proyectos || leerTabla(getMaestro().getSheetByName('Proyectos')))
         .filter(function (p) { return String(p.id_cliente) === String(idCliente); });
       var ids = {};
       proys.forEach(function (p) { ids[p.id_proyecto] = true; });
-      var ts = tareasActivasOrdenadas(leerTabla(getMaestro().getSheetByName('Tareas')))
+      var ts = (pre.tareas_activas || tareasActivasOrdenadas(leerTabla(getMaestro().getSheetByName('Tareas'))))
         .filter(function (t) { return ids[t.id_proyecto]; });
       var venc = ts.filter(function (t) { return esVencida(t.fecha_limite, t.estado); });
       obs.tareas = {
@@ -267,7 +276,7 @@ function _vigObservar_(idCliente, sups, fuentes) {
  * Motor por cliente: declaración de Config → observar → juzgar. Read-only.
  * @return {{id_cliente:string, fecha:string, superficies:Array}}
  */
-function vigilarCliente_(idCliente) {
+function vigilarCliente_(idCliente, pre) {
   var id = String(idCliente || '').trim();
   var cfg = configPrefijo_('vigilancia_' + id + '_');   // 1 lectura de Config para todo el bloque del cliente
   var umb = _vigUmbrales_(configPrefijo_('vig_'));
@@ -278,7 +287,7 @@ function vigilarCliente_(idCliente) {
   var fuentes = {};
   sups.forEach(function (s) { fuentes[s] = String(cfg['fuente_' + s] || VIG_FUENTE_DEFAULT[s] || 'sin_fuente'); });
   var hoy = hoyISO();
-  var obs = _vigObservar_(id, sups, fuentes);
+  var obs = _vigObservar_(id, sups, fuentes, pre);
   var superficies = sups.map(function (s) {
     var o = (fuentes[s] === 'sin_fuente') ? { fuente: 'sin_fuente' } : obs[s];
     return _vigJuzgar_(s, o, umb, hoy);
@@ -310,14 +319,24 @@ function vigilanciaCliente(idCliente) {
  */
 function vigilanciaCorrida_() {
   var activos = ['activo', 'activo-piloto'];
-  var clientes = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
+  var ss = getMaestro();
+  var clientes = leerTabla(ss.getSheetByName('Clientes')).filter(function (c) {
     return activos.indexOf(String(c.estado).toLowerCase()) >= 0;
   });
+  // V-FIX (b): las tablas del MAESTRO se leen UNA vez y se pasan al motor. Antes cada cliente
+  // re-leía Aprobaciones_agregadas, Proyectos y Tareas enteras — 3 lecturas × N clientes dentro
+  // de la corridaDiaria, que es la función más expuesta al límite de 6 minutos de GAS.
+  var pre = {};
+  try {
+    pre.aprobaciones = leerTabla(ss.getSheetByName('Aprobaciones_agregadas'));
+    pre.proyectos = leerTabla(ss.getSheetByName('Proyectos'));
+    pre.tareas_activas = tareasActivasOrdenadas(leerTabla(ss.getSheetByName('Tareas')));
+  } catch (e) { pre = {}; }   // si la pre-carga falla, cada cliente vuelve a leer por su cuenta (degradación, no corte)
   var res = { fecha: hoyISO(), clientes: [] };
   var conteo = { verde: 0, ambar: 0, rojo: 0, gris: 0, errores: 0 };
   clientes.forEach(function (c) {
     try {
-      var v = vigilarCliente_(c.id_cliente);
+      var v = vigilarCliente_(c.id_cliente, pre);
       res.clientes.push({
         id: v.id_cliente,
         s: v.superficies.map(function (s) {
@@ -330,8 +349,18 @@ function vigilanciaCorrida_() {
       res.clientes.push({ id: String(c.id_cliente), error: String((e && e.message) || e).slice(0, 80) });
     }
   });
+  // V-FIX (c): una celda de Sheets tope 50.000 caracteres. A ~1 KB por cliente eso son ~45
+  // clientes; pasado ese punto `setConfig` reventaría y la corrida entera se caería por el
+  // resumen, no por el trabajo. Se recorta y se DECLARA el recorte — el brief lo dice, porque
+  // un resumen truncado en silencio se lee como "esto es toda la cartera" y no lo es.
+  res.truncado = 0;
+  while (JSON.stringify(res).length > VIG_RESUMEN_MAX_CHARS && res.clientes.length > 1) {
+    res.clientes.pop();
+    res.truncado++;
+  }
   setConfig('vigilancia_resumen', JSON.stringify(res));
-  return { clientes: res.clientes.length, verdes: conteo.verde, ambar: conteo.ambar, rojos: conteo.rojo, grises: conteo.gris, errores: conteo.errores };
+  return { clientes: res.clientes.length, verdes: conteo.verde, ambar: conteo.ambar, rojos: conteo.rojo,
+           grises: conteo.gris, errores: conteo.errores, truncado: res.truncado };
 }
 
 /** Lee el resumen persistido por la última corrida. Fail-safe: sin corrida o JSON roto ⇒ null
@@ -358,7 +387,7 @@ function _vigLineasBrief_(res, hoy) {
   var ICO = { verde: '✅', ambar: '🟡', rojo: '🔴', gris: '⬜' };
   var NOM = { ventas: 'ventas', operativos_caja: 'caja', kpis: 'KPIs', aprobaciones: 'aprob', tareas: 'tareas', resenas: 'reseñas', fiscal: 'fiscal' };
   var stale = (res.fecha && hoy && res.fecha !== hoy) ? ' (del ' + res.fecha + ')' : '';
-  return res.clientes.slice(0, 6).map(function (c) {
+  var lineas = res.clientes.slice(0, 6).map(function (c) {
     if (c.error) return '- Vigilancia ' + c.id + stale + ': ⚠ sin acceso (' + c.error + ')';
     var partes = (c.s || []).map(function (s) {
       var extra = '';
@@ -368,4 +397,11 @@ function _vigLineasBrief_(res, hoy) {
     });
     return '- Vigilancia ' + c.id + stale + ': ' + partes.join(' · ');
   });
+  // Nada de cortes mudos: si la lista se recortó (por el tope de la celda o por el tope de líneas
+  // del brief), se dice cuántos clientes quedaron afuera. Un resumen parcial que no avisa que es
+  // parcial se lee como completo.
+  var ocultos = Math.max(0, res.clientes.length - 6) + (res.truncado || 0);
+  if (ocultos) lineas.push('- Vigilancia: +' + ocultos + ' cliente(s) sin mostrar' +
+    (res.truncado ? ' (' + res.truncado + ' recortado[s] del resumen por tamaño)' : '') + ' — ver la Ficha 360 de cada uno.');
+  return lineas;
 }

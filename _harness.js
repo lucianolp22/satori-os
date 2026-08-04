@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
+                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -1524,6 +1524,28 @@ seccion('D39 vigilancia multi-superficie (TC-11)');
   chk(String(ctx.briefDiarioSistema_).indexOf('_vigLineasBrief_') >= 0 &&
       String(ctx.corridaDiaria).indexOf('vigilanciaCorrida_') >= 0,
       'D39 brief y corridaDiaria cablean la vigilancia (introspección)');
+
+  // ── V-FIX (purga 04-ago) ──
+  const cero = ctx._vigJuzgar_('ventas',
+    { meses: [{ mes: '2026-06', total: 0 }, { mes: '2026-07', total: 0 }], ultima_fecha: '2026-07-30' }, u, HOY);
+  chk(cero.color === 'verde' && cero.nota.indexOf('sin base de comparación') >= 0,
+      'D39 V-FIX(a) mes anterior en 0 ⇒ verde pero DECLARA que no hay base de comparación');
+  const creció = ctx._vigJuzgar_('ventas',
+    { meses: [{ mes: '2026-06', total: 0 }, { mes: '2026-07', total: 900 }], ultima_fecha: '2026-07-30' }, u, HOY);
+  chk(creció.color === 'verde' && creció.nota.indexOf('sin base') >= 0,
+      'D39 V-FIX(a2) arrancar de 0 y facturar tampoco inventa un % de mejora');
+  chk(String(ctx.vigilanciaCorrida_).indexOf('pre.aprobaciones') >= 0 &&
+      String(ctx._vigObservar_).indexOf('pre.proyectos') >= 0,
+      'D39 V-FIX(b) las tablas del MAESTRO se leen UNA vez y se inyectan (no 3 por cliente)');
+  chk(typeof ctx.VIG_RESUMEN_MAX_CHARS === 'number' && ctx.VIG_RESUMEN_MAX_CHARS < 50000 &&
+      String(ctx.vigilanciaCorrida_).indexOf('VIG_RESUMEN_MAX_CHARS') >= 0,
+      'D39 V-FIX(c) el resumen se recorta ANTES del tope de 50k chars de la celda');
+  const muchos = { fecha: HOY, truncado: 3, clientes: Array.from({ length: 9 }, (_, i) => ({ id: 'CLI-' + i, s: [] })) };
+  const lin2 = ctx._vigLineasBrief_(muchos, HOY);
+  chk(lin2[lin2.length - 1].indexOf('sin mostrar') >= 0 && lin2[lin2.length - 1].indexOf('6') >= 0,
+      'D39 V-FIX(c2) 🔒 el brief DECLARA cuántos clientes quedaron afuera (nada de cortes mudos)');
+  chk(ctx._vigLineasBrief_({ fecha: HOY, clientes: [{ id: 'X', s: [] }] }, HOY).length === 1,
+      'D39 V-FIX(c3) sin recorte no se agrega ruido');
 }
 
 // ═══ D40 · T7 · correo → Bandeja: la anonimización y los dos frenos ══════════
@@ -1752,6 +1774,56 @@ seccion('D42 columnas de id como texto');
       'D42e setup() corre el repair — todo tramo del selfTest lo ejecuta antes de aserir');
   chk(String(ctx.repararFormatosTexto).indexOf('_repararIdsDecisiones_') >= 0,
       'D42f repararFormatosTexto también lo corre (el formato solo dejaba el dato roto adentro)');
+}
+
+// ═══ D43 · BK-1: cero DriveApp en src — los backups estuvieron MUERTOS un mes ═
+// El 03-jul (`2e014f0`) el manifiesto se recortó a `drive.file` por mínimo privilegio y nadie
+// migró `21_backup.js`. `DriveApp` exige `drive`/`drive.readonly`, así que TODO el backup semanal
+// falló desde entonces — tapado por `catch` que decían «degradación aceptable». Crash observado
+// el 04-ago 13:20:58 en `backupListar`. Este assert impide que vuelva a entrar por cualquier vía.
+seccion('D43 cero DriveApp bajo drive.file (BK-1)');
+{
+  // Filtro POR LÍNEAS (el mismo patrón que D31d), no un tokenizer a mano. Ya intenté el tokenizer
+  // que preserva strings y se desincronizaba con este archivo, dejando pasar un JSDoc — un assert
+  // de seguridad no puede depender de un parser casero. Acá el sesgo es deliberado: si alguien
+  // escribe `foo(); // DriveApp.getFileById(x)` esto da FALSO POSITIVO y obliga a mirarlo. Un
+  // falso positivo cuesta 30 segundos; un falso negativo costó un mes de backups.
+  const sinComentarios = (src) => src.split('\n')
+    .filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
+  const PROHIBIDAS = /DriveApp\s*\.\s*(createFolder|getFolderById|getFileById|getRootFolder|getFilesByName|getFoldersByName|searchFiles)\b|\.\s*moveTo\s*\(/;
+  const reincide = [];
+  for (const f of fs.readdirSync(SRC).filter((x) => x.endsWith('.js'))) {
+    const limpio = sinComentarios(fs.readFileSync(path.join(SRC, f), 'utf8'));
+    if (PROHIBIDAS.test(limpio)) reincide.push(f);
+  }
+  chk(reincide.length === 0, 'D43a 🔒 ningún módulo usa DriveApp ni moveTo — todo Drive va por el servicio avanzado' +
+      (reincide.length ? ' — REINCIDEN: ' + reincide.join(', ') : ' (' + fs.readdirSync(SRC).filter((x) => x.endsWith('.js')).length + ' módulos barridos)'));
+
+  // El scope sigue siendo el mínimo: migrar NO fue una excusa para pedir más.
+  const manifBK = JSON.parse(fs.readFileSync(path.join(SRC, 'appsscript.json'), 'utf8'));
+  const drv = (manifBK.oauthScopes || []).filter((s) => /\/auth\/drive/.test(s));
+  chk(drv.length === 1 && drv[0] === 'https://www.googleapis.com/auth/drive.file',
+      'D43b 🔒 el scope de Drive sigue siendo SOLO drive.file' + (drv.length === 1 ? '' : ' — ' + drv.join(', ')));
+
+  // Los helpers existen, devuelven motivo y nunca tiran (offline `Drive` no existe: se prueba el error real).
+  [['_driveCrearCarpeta_', ctx._driveCrearCarpeta_('x', null)],
+   ['_driveMover_', ctx._driveMover_('a', 'b')],
+   ['_driveListarHijos_', ctx._driveListarHijos_('p', true)],
+   ['_driveGet_', ctx._driveGet_('z')]].forEach(([n, r]) => {
+    chk(r && r.ok === false && typeof r.error === 'string' && r.error.length > 0,
+        'D43c ' + n + ' devuelve el motivo en vez de tirar');
+  });
+  chk(ctx._driveUrlCarpeta_('ABC').indexOf('drive.google.com/drive/folders/ABC') >= 0,
+      'D43c2 la URL de carpeta se arma sin Folder.getUrl() (que exigiría DriveApp)');
+
+  // La cadena del backup reporta en el return en vez de tragarse los fallos.
+  const srcBk = String(ctx._ejecutarBackup_);
+  chk(srcBk.indexOf('fallos_retencion') >= 0 && srcBk.indexOf('detalle_sin_carpeta') >= 0,
+      'D43d el backup reporta retención fallida y copias sin carpeta en su return');
+  chk(String(ctx.backupListar).indexOf('root.ok') >= 0,
+      'D43e backupListar devuelve el motivo si no hay carpeta raíz (era el crash del 04-ago)');
+  chk(String(ctx._respaldarObjetivos_).indexOf('_driveMover_') >= 0,
+      'D43f el respaldo de objetivos (18_direccion) también migró');
 }
 
 // ═══ P2 · papelera de Drive SIN ampliar el scope ═════════════════════════════

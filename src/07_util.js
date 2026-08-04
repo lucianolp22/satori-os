@@ -224,6 +224,87 @@ function _trashArchivo_(fileId) {
   }
 }
 
+// ═══ Drive bajo `drive.file` — BK-1 (04-ago) ════════════════════════════════
+//
+// EL INCIDENTE: el 03-jul (`2e014f0`) el manifiesto se recortó a `drive.file` por mínimo
+// privilegio, y NADIE migró `21_backup.js`. Desde entonces **los backups semanales están
+// muertos**: `_backupRootFolder_` tiraba en `getFolderById` Y en `createFolder`, y el fallo caía
+// en `catch` mudos. Crash observado el 04-ago 13:20:58 en `backupListar`. Un mes de backups que
+// nadie tenía — y el `catch` que decía «degradación aceptable» era el que lo tapaba.
+//
+// LA SALIDA, verificada contra la doc oficial (igual que en P2, no deducida):
+//  · `files.create` acepta `drive.file`; una CARPETA es un file con
+//    `mimeType: 'application/vnd.google-apps.folder'`.
+//  · Mover = `files.update` con `addParents`/`removeParents` (un file tiene UN padre por vez,
+//    así que hay que leer el actual y sacarlo).
+//  · `files.list` bajo `drive.file` devuelve SOLO lo que la app creó o abrió — que es
+//    exactamente el universo de los backups, creados por este script.
+// Ningún scope nuevo: `oauthScopes` no se toca, el servicio avanzado ya está encendido.
+//
+// TODOS devuelven `{ok, ...}` con el motivo. Nada de boolean pelado: el bug de arriba existió
+// justamente porque el fallo no tenía forma de llegar a un return.
+
+var DRIVE_MIME_CARPETA = 'application/vnd.google-apps.folder';
+
+/** URL de una carpeta a partir de su id (sin `Folder.getUrl()`, que exige DriveApp). */
+function _driveUrlCarpeta_(id) { return 'https://drive.google.com/drive/folders/' + String(id || ''); }
+
+/** Metadata mínima de un archivo/carpeta. @return {{ok:boolean, id?, name?, trashed?, parents?, error?}} */
+function _driveGet_(id, campos) {
+  if (!String(id || '').trim()) return { ok: false, error: 'sin id' };
+  try {
+    var f = Drive.Files.get(String(id), { fields: campos || 'id,name,trashed,parents,mimeType' });
+    return { ok: true, id: f.id, name: f.name, trashed: !!f.trashed, parents: f.parents || [], mimeType: f.mimeType };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 140) }; }
+}
+
+/** Crea una carpeta (opcionalmente dentro de `parentId`). @return {{ok, id?, error?}} */
+function _driveCrearCarpeta_(nombre, parentId) {
+  try {
+    var rec = { name: String(nombre || 'carpeta'), mimeType: DRIVE_MIME_CARPETA };
+    if (parentId) rec.parents = [String(parentId)];
+    var f = Drive.Files.create(rec, null, { fields: 'id' });
+    return { ok: true, id: f.id };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 140) }; }
+}
+
+/**
+ * Mueve un archivo a `destinoId`. Un file tiene UN padre por vez: hay que leer el actual y
+ * pasarlo en `removeParents`, o queda en los dos lados. @return {{ok, error?}}
+ */
+function _driveMover_(fileId, destinoId) {
+  if (!String(fileId || '').trim() || !String(destinoId || '').trim()) return { ok: false, error: 'sin id de archivo o destino' };
+  var meta = _driveGet_(fileId, 'id,parents');
+  if (!meta.ok) return { ok: false, error: 'no pude leer los padres: ' + meta.error };
+  try {
+    Drive.Files.update({}, String(fileId), null, {
+      addParents: String(destinoId),
+      removeParents: (meta.parents || []).join(','),
+      fields: 'id,parents'
+    });
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 140) }; }
+}
+
+/**
+ * Lista los hijos NO borrados de una carpeta. `soloCarpetas` filtra por mimeType.
+ * @return {{ok:boolean, items:Array<{id,name,mimeType}>, error?:string}}
+ */
+function _driveListarHijos_(parentId, soloCarpetas) {
+  if (!String(parentId || '').trim()) return { ok: false, items: [], error: 'sin id de carpeta' };
+  try {
+    var q = "'" + String(parentId).replace(/'/g, "\\'") + "' in parents and trashed = false";
+    if (soloCarpetas) q += " and mimeType = '" + DRIVE_MIME_CARPETA + "'";
+    var items = [], token = null, vueltas = 0;
+    do {
+      var r = Drive.Files.list({ q: q, fields: 'nextPageToken, files(id,name,mimeType)', pageSize: 200, pageToken: token });
+      (r.files || []).forEach(function (f) { items.push({ id: f.id, name: f.name, mimeType: f.mimeType }); });
+      token = r.nextPageToken;
+    } while (token && ++vueltas < 20);   // cota: 4000 items alcanza y sobra para backups
+    return { ok: true, items: items };
+  } catch (e) { return { ok: false, items: [], error: String((e && e.message) || e).slice(0, 140) }; }
+}
+
 /** Lee un valor de Config por clave (string). '' si no existe. */
 function getConfig(clave) {
   _soloOwner_('getConfig');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.

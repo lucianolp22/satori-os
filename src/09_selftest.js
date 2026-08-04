@@ -2970,6 +2970,7 @@ var SELFTEST_TANDAS = [
   { n: 'D39 TC-11 (A5 vigilancia multi-superficie)', f: _asertsD39_, tramo: 5 },
   { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_, tramo: 5 },
   { n: 'D41 TC-7 (F4a administración propia)', f: _asertsD41_, tramo: 5 },
+  { n: 'D43 BK-1 (backups migrados a Drive avanzado)', f: _asertsD43_, tramo: 5 },
   { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 }
 ];
 
@@ -3191,3 +3192,67 @@ function selfTestTramo2() { _soloOwner_('selfTestTramo2'); return selfTestTramo(
 function selfTestTramo3() { _soloOwner_('selfTestTramo3'); return selfTestTramo(3); }
 function selfTestTramo4() { _soloOwner_('selfTestTramo4'); return selfTestTramo(4); }
 function selfTestTramo5() { _soloOwner_('selfTestTramo5'); return selfTestTramo(5); }
+
+/**
+ * D43 · BK-1 (04-ago) — los backups estuvieron MUERTOS un mes y nadie lo supo.
+ * El 03-jul (`2e014f0`) el manifiesto se recortó a `drive.file` y nadie migró `21_backup.js`:
+ * `DriveApp` exige `drive`/`drive.readonly`, así que la cadena entera falló desde entonces,
+ * tapada por `catch` que decían «degradación aceptable». Crash observado el 04-ago 13:20:58.
+ * Este assert fija que Drive va SOLO por el servicio avanzado y que los fallos se reportan.
+ */
+function _asertsD43_(chk, log, opts) {
+  // ── Los helpers existen y devuelven motivo (nunca un boolean pelado) ──
+  chk(_driveGet_('').ok === false && String(_driveGet_('').error).indexOf('sin id') >= 0,
+      'D43a los helpers de Drive devuelven {ok,error}, no tiran');
+  chk(_driveUrlCarpeta_('ABC').indexOf('drive.google.com/drive/folders/ABC') >= 0,
+      'D43a2 la URL de carpeta se arma sin Folder.getUrl()');
+  chk(DRIVE_MIME_CARPETA === 'application/vnd.google-apps.folder',
+      'D43a3 el mimeType de carpeta es el de la doc oficial de Drive v3');
+
+  // ── La cadena reporta en el return en vez de tragarse los fallos ──
+  chk(String(_ejecutarBackup_).indexOf('fallos_retencion') >= 0,
+      'D43b el backup reporta la retención que no pudo purgar');
+  chk(String(_ejecutarBackup_).indexOf('detalle_sin_carpeta') >= 0,
+      'D43b2 y detalla qué copias quedaron fuera de su carpeta, con motivo');
+  chk(String(backupListar).indexOf('root.ok') >= 0,
+      'D43b3 backupListar devuelve el motivo si no hay carpeta raíz (era el crash del 04-ago)');
+  chk(String(_respaldarObjetivos_).indexOf('_driveMover_') >= 0,
+      'D43b4 el respaldo de objetivos (18_direccion) también migró');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D43c-e (Drive VIVO: carpeta, mover, listar, papelera) solo corre en selfTest() completo');
+    return;
+  }
+
+  // ── VIVO: el ciclo completo bajo drive.file. Esto es lo único que prueba que BK-1 está cerrado.
+  var d43carp = _driveCrearCarpeta_('__TEST__ bk1 ' + ahoraISO(), null);
+  chk(d43carp.ok === true, 'D43c 🔒 crear carpeta con drive.file (files.create + mimeType folder)' +
+      (d43carp.ok ? '' : ' — FALLÓ: ' + d43carp.error));
+  var d43ss = null, d43sub = null;
+  try {
+    if (d43carp.ok) {
+      d43ss = SpreadsheetApp.create('__TEST__ bk1 archivo ' + ahoraISO());
+      var d43mv = _driveMover_(d43ss.getId(), d43carp.id);
+      chk(d43mv.ok === true, 'D43c2 🔒 mover con addParents/removeParents bajo drive.file' +
+          (d43mv.ok ? '' : ' — FALLÓ: ' + d43mv.error));
+      var d43meta = _driveGet_(d43ss.getId(), 'id,parents');
+      chk(d43meta.ok && (d43meta.parents || []).indexOf(d43carp.id) >= 0,
+          'D43c3 el archivo quedó REALMENTE dentro de la carpeta (verificado leyendo parents)');
+      var d43lst = _driveListarHijos_(d43carp.id, false);
+      chk(d43lst.ok && d43lst.items.length === 1, 'D43d listar hijos devuelve exactamente lo que se movió');
+      // subcarpeta anidada: es lo que hace el backup real (raíz → backup_<stamp>)
+      d43sub = _driveCrearCarpeta_('backup_TEST', d43carp.id);
+      var d43soloC = _driveListarHijos_(d43carp.id, true);
+      chk(d43sub.ok && d43soloC.ok && d43soloC.items.length === 1 && d43soloC.items[0].name === 'backup_TEST',
+          'D43d2 el filtro por carpetas ve la subcarpeta y no el Spreadsheet');
+    }
+  } finally {
+    // Limpieza SIEMPRE, y si algo queda vivo se DICE con su id (nada de huérfanos mudos).
+    [d43sub && d43sub.id, d43ss && d43ss.getId(), d43carp.ok && d43carp.id].forEach(function (id) {
+      if (!id) return;
+      var t = _trashArchivo_(id);
+      if (!t.ok) log.push('   ⚠ D43 dejó vivo en Drive: ' + id + ' (' + t.error + ')');
+    });
+  }
+  log.push('   ↳ D43 BK-1: ciclo Drive completo (crear/mover/listar/papelera) bajo drive.file');
+}
