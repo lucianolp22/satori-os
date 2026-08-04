@@ -1657,6 +1657,42 @@ seccion('P2 papelera de Drive con drive.file');
       'P2f limpiarTodoTest usa el helper y REPORTA los huérfanos en su return');
 }
 
+// ═══ P3 · tramos del selfTest: nada queda fuera de todos los runners ═════════
+// La corrida completa del 04-ago murió a los 30:00 en D31 y dejó D32..D40 sin certificar. Los
+// tramos arreglan eso, pero introducen un riesgo nuevo: una tanda sin tramo no la corre NADIE y
+// nadie se entera. Eso es verde falso por omisión — la peor clase. Estos asserts lo cazan.
+seccion('P3 tramos del selfTest');
+{
+  const tramosValidos = ctx.SELFTEST_TRAMOS.map((t) => t.n);
+  const sinTramo = ctx.SELFTEST_TANDAS.filter((t) => !t.tramo || tramosValidos.indexOf(t.tramo) < 0);
+  chk(sinTramo.length === 0, 'P3a 🔒 toda tanda declara un tramo que existe' +
+      (sinTramo.length ? ' — HUÉRFANAS: ' + sinTramo.map((t) => t.n).join(', ') : ' (' + ctx.SELFTEST_TANDAS.length + ' tandas)'));
+  const sinFn = ctx.SELFTEST_TANDAS.filter((t) => typeof t.f !== 'function');
+  chk(sinFn.length === 0, 'P3b toda tanda apunta a una función real' +
+      (sinFn.length ? ' — ROTAS: ' + sinFn.map((t) => t.n).join(', ') : ''));
+
+  // Todo tramo ≥2 tiene al menos una tanda: un tramo vacío daría "verde" sin correr nada.
+  const vacios = ctx.SELFTEST_TRAMOS.filter((d) => d.n !== 1 &&
+    ctx.SELFTEST_TANDAS.filter((t) => t.tramo === d.n).length === 0);
+  chk(vacios.length === 0, 'P3c ningún tramo quedó vacío (un tramo sin tandas certificaría la nada)' +
+      (vacios.length ? ' — VACÍOS: ' + vacios.map((d) => d.n).join(', ') : ''));
+
+  // El filtro por tramo es exhaustivo: la unión de los tramos = TODAS las tandas, sin repetir.
+  const cubiertas = ctx.SELFTEST_TRAMOS.reduce((acc, d) =>
+    acc.concat(ctx.SELFTEST_TANDAS.filter((t) => t.tramo === d.n)), []);
+  chk(cubiertas.length === ctx.SELFTEST_TANDAS.length,
+      'P3d la unión de los tramos cubre TODAS las tandas, exactamente una vez (' + cubiertas.length + ')');
+
+  // selfTest ya no corre las tandas: si volviera a correrlas, el tramo 1 tardaría 30 min otra vez.
+  const srcSelfTest = String(ctx.selfTest).split('\n').filter((l) => !/^\s*(\*|\/\/)/.test(l)).join('\n');
+  chk(srcSelfTest.indexOf('_asertsF2_') < 0,
+      'P3e selfTest() es el tramo 1 y ya NO corre las tandas D14..P2 (eso las devolvería al timeout)');
+  chk(srcSelfTest.indexOf('_selfTestRegistrar_') >= 0,
+      'P3f el tramo 1 registra su veredicto, así el agregado lo ve');
+  chk(ctx.ENDPOINTS_UI.indexOf('selfTestTramo') >= 0 && ctx.ENDPOINTS_UI.indexOf('selfTestVeredicto') >= 0,
+      'P3g selfTestTramo y selfTestVeredicto dados de alta en ENDPOINTS_UI (mismo commit)');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

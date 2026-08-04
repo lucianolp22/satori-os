@@ -202,6 +202,7 @@ var ENDPOINTS_UI = [
   'encolarVigiaClientesActivos', 'detectarVencimientos', 'detectarTareasEstancadas',
   'detectarProyectosSinMovimiento', 'expirarAprobaciones', 'invalidarMapaPC', 'instalarTriggers',
   'selfTest', 'selfTestF2', 'debugE21', 'limpiarTodoTest', 'borrarFilasDonde',  // 09_selftest.js
+  'selfTestTramo', 'selfTestVeredicto',                                         // tramos (04-ago)
   'bootstrap',                                                                  // 10_bootstrap.js
   'expirarPendientes',                                                          // 11_aprobaciones.js
   'encolar', 'drenarCola', 'verifArchivoCola', 'archivarColaViejaREAL',         // 12_cola.js

@@ -482,14 +482,27 @@ function selfTest() {
       });
     }
 
-    _asertsF2_(chk, log, { completo: true });   // D14 contrato F2 · D15 mantenimiento · D16 voz-acciones (cuerpo compartido con selfTestF2_)
+    // TRAMOS (04-ago): las tandas D14..P2 ya NO corren acá. La corrida completa murió a los 30:00
+    // exactos adentro de D31 y dejó D32..D40 sin certificar — un timeout no es un verde. Ahora
+    // `selfTest()` ES el tramo 1 (el bloque histórico) y el resto vive en `selfTestTramo(2..5)`,
+    // cada uno autosuficiente. El agregado lo dice `selfTestVeredicto()`, que NO da verde si falta
+    // correr alguno. Ver SELFTEST_TANDAS / SELFTEST_TRAMOS al final de este archivo.
+    log.push('▸ tramo 1 (histórico) terminado. Las tandas D14..P2 corren en selfTestTramo(2..5);');
+    log.push('  el veredicto del conjunto sale de selfTestVeredicto() — este tramo solo NO certifica.');
 
     log.push('— TODO OK —');
   } finally {
     // La limpieza corre SIEMPRE (pase o falle), y barre cualquier resto de
     // corridas anteriores (clientes __TEST__ huérfanos, filas TEST).
     var limpiados = limpiarTodoTest();
-    log.push('🧹 limpieza: ' + limpiados.clientes + ' cliente(s) __TEST__ a papelera, filas TEST removidas');
+    log.push('🧹 limpieza: ' + limpiados.clientes + ' cliente(s) __TEST__ · ' + limpiados.trasheados +
+             ' a papelera · ' + limpiados.huerfanos + ' huérfano(s)' +
+             (limpiados.huerfanos ? ' → ' + JSON.stringify(limpiados.detalle_huerfanos) : ''));
+    // El tramo 1 registra SU veredicto igual que los demás, así el agregado lo ve.
+    try {
+      _selfTestRegistrar_(1, log.filter(function (x) { return x.indexOf('✅') === 0; }).length,
+                          log.filter(function (x) { return x.indexOf('❌') === 0; }));
+    } catch (_reg) { log.push('⚠ no pude registrar el veredicto del tramo 1: ' + ((_reg && _reg.message) || _reg)); }
     // X1.3 (purga 24-jul): el log Y el veredicto salen SIEMPRE, pase o falle. Antes vivían
     // DESPUÉS del try/finally: con el chk fatal, el throw se los llevaba puestos y de una corrida
     // roja no quedaba rastro de los ✅ previos — solo el mensaje de la excepción.
@@ -552,33 +565,8 @@ function _aprobarSiOk_(chk, idCliente, res, etiqueta) {
  * @param {Array} log     el log del runner
  */
 function _asertsF2_(chk, log, opts) {
-  [{ n: 'D14 contrato F2', f: _asertsD14_ },
-   { n: 'D15 mantenimiento', f: _asertsD15_ },
-   { n: 'D16 voz-acciones', f: _asertsD16_ },
-   { n: 'D17h boot único', f: _asertsD17h_ },
-   { n: 'D17i boot 2 olas', f: _asertsD17i_ },
-   { n: 'D17j métrica CM v3', f: _asertsD17j_ },
-   { n: 'D18 north star + reset', f: _asertsD18_ },
-   { n: 'D19 módulo S seguridad', f: _asertsD19_ },
-   { n: 'D20 serie North Star (M2)', f: _asertsD20_ },
-   { n: 'D21 memoria caliente/fría (M3)', f: _asertsD21_ },
-   { n: 'D22 golden-set evals (M4)', f: _asertsD22_ },
-   { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_ },
-   { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_ },
-   { n: 'D25 conectores generalizados (TC-W3)', f: _asertsD25_ },
-   { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_ },
-   { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_ },
-   { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_ },
-   { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_ },
-   { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_ },
-   { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_ },
-   { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_ },
-   { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_ },
-   { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_ },
-   { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_ },
-   { n: 'D39 TC-11 (A5 vigilancia multi-superficie)', f: _asertsD39_ },
-   { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_ },
-   { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_ }].forEach(function (t) {
+  var soloTramo = (opts && opts.tramo) || 0;
+  SELFTEST_TANDAS.filter(function (t) { return !soloTramo || t.tramo === soloTramo; }).forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -2922,4 +2910,148 @@ function _asertsP2_(chk, log, opts) {
       'P2e limpiarTodoTest REPORTA los huérfanos en su return (el catch dejó de ser silencioso)');
   chk(String(smokeBackup).indexOf('_trashArchivo_') >= 0,
       'P2f el smoke de backup tampoco deja su propia basura en Drive');
+}
+
+// ═══ TRAMOS DEL selfTest — el límite de 6 min de GAS no aplica al editor, pero el de 30 min sí ══
+/**
+ * LISTA-CONTRATO (04-ago): toda tanda de asserts declara SU tramo. La corrida completa del 04-ago
+ * murió a los 30:00 exactos adentro de D31, y todo lo que venía después (D32..D40, ya en prod)
+ * quedó SIN certificar — un timeout no es un verde, es un "no se sabe".
+ *
+ * ⚠ INVARIANTE (aserido en P3): toda tanda tiene `tramo` declarado y ese tramo existe en
+ * SELFTEST_TRAMOS. Agregar una tanda sin tramo la dejaría fuera de TODOS los runners: verde
+ * falso por omisión, que es la peor clase. El assert lo caza en el mismo commit.
+ *
+ * Cada tramo es AUTOSUFICIENTE: hace su `setup()`, corre con `completo:true`, y se limpia en un
+ * `finally` (crea y borra sus propios clientes __TEST__). No hay orden obligatorio entre tramos.
+ */
+var SELFTEST_TANDAS = [
+  { n: 'D14 contrato F2', f: _asertsD14_, tramo: 2 },
+  { n: 'D15 mantenimiento', f: _asertsD15_, tramo: 2 },
+  { n: 'D16 voz-acciones', f: _asertsD16_, tramo: 2 },
+  { n: 'D17h boot único', f: _asertsD17h_, tramo: 2 },
+  { n: 'D17i boot 2 olas', f: _asertsD17i_, tramo: 2 },
+  { n: 'D17j métrica CM v3', f: _asertsD17j_, tramo: 2 },
+  { n: 'D18 north star + reset', f: _asertsD18_, tramo: 2 },
+  { n: 'D19 módulo S seguridad', f: _asertsD19_, tramo: 2 },
+  { n: 'D20 serie North Star (M2)', f: _asertsD20_, tramo: 3 },
+  { n: 'D21 memoria caliente/fría (M3)', f: _asertsD21_, tramo: 3 },
+  { n: 'D22 golden-set evals (M4)', f: _asertsD22_, tramo: 3 },
+  { n: 'D23 verificación ≥2 dominios (M5)', f: _asertsD23_, tramo: 3 },
+  { n: 'D24 SOUL + salud humana + cerebroNodo (H)', f: _asertsD24_, tramo: 3 },
+  { n: 'D25 conectores generalizados (TC-W3)', f: _asertsD25_, tramo: 3 },
+  { n: 'D26 Hilo end-to-end (TC-W1/W2/W4)', f: _asertsD26_, tramo: 3 },
+  { n: 'D27 purga X3 (robustez de datos)', f: _asertsD27_, tramo: 3 },
+  { n: 'D28 cierre 27-jul (P0 refresh + estado cacheado + reunión + agenda)', f: _asertsD28_, tramo: 4 },
+  { n: 'D30 Sato (aislamiento T1.8 + memoria por tenant + cierre T2)', f: _asertsD30_, tramo: 4 },
+  { n: 'D31 X4 (puerta _soloOwner_ en las top-level que mutan o gastan)', f: _asertsD31_, tramo: 4 },
+  { n: 'D32 TC-2 (decision log + guardián foco/paz)', f: _asertsD32_, tramo: 4 },
+  { n: 'D33 TC-3 (PM persistente + actividad inter-agentes)', f: _asertsD33_, tramo: 4 },
+  { n: 'D34 TC-5 (export de charlas al Hilo)', f: _asertsD34_, tramo: 4 },
+  { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_, tramo: 5 },
+  { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_, tramo: 5 },
+  { n: 'D39 TC-11 (A5 vigilancia multi-superficie)', f: _asertsD39_, tramo: 5 },
+  { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_, tramo: 5 },
+  { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 }
+];
+
+/**
+ * Los tramos. El 1 es el bloque HISTÓRICO (el cuerpo de `selfTest()`: E1-E8 + D1-D13), que no se
+ * partió: es un monolito de ~470 líneas con estado compartido y trocearlo es cirugía aparte
+ * (cabo anotado). Los demás salen de `SELFTEST_TANDAS` por su `tramo`, sin conteos clavados.
+ */
+var SELFTEST_TRAMOS = [
+  { n: 1, nombre: 'histórico E1-E8 + D1-D13', runner: 'selfTest()' },
+  { n: 2, nombre: 'D14-D19 contrato, mantenimiento, voz, boot, north star, seguridad', runner: 'selfTestTramo(2)' },
+  { n: 3, nombre: 'D20-D27 memoria, evals, verificación, SOUL, conectores, Hilo', runner: 'selfTestTramo(3)' },
+  { n: 4, nombre: 'D28-D34 cierre 27-jul, Sato, X4, decisiones, PM, export', runner: 'selfTestTramo(4)' },
+  { n: 5, nombre: 'D37-P2 Forge, caching, vigilancia, correo, papelera', runner: 'selfTestTramo(5)' }
+];
+
+/** Clave de Config donde cada tramo deja su veredicto. Un tramo sin registro NO es verde: es "sin correr". */
+var SELFTEST_CONFIG_KEY = 'selftest_tramos';
+
+/** Persiste el resultado de un tramo. Se llama SIEMPRE, pase o falle: un tramo rojo tiene que
+ *  quedar rojo en el agregado, no desaparecer porque nadie lo volvió a correr. */
+function _selfTestRegistrar_(tramo, pasa, fallos) {
+  var todos = {};
+  try { todos = JSON.parse(getConfig(SELFTEST_CONFIG_KEY) || '{}') || {}; } catch (e) { todos = {}; }
+  todos['t' + tramo] = {
+    ts: ahoraISO(), pasa: pasa, falla: fallos.length,
+    fallos: fallos.slice(0, 8).map(function (f) { return String(f).slice(0, 120); })
+  };
+  setConfig(SELFTEST_CONFIG_KEY, JSON.stringify(todos));
+}
+
+/**
+ * Corre UN tramo de asserts (2..N), autosuficiente y autolimpiante. Mismo contrato que
+ * `selfTestF2_`: acumula todos los rojos y recién al final tira con la lista completa.
+ * El tramo 1 es `selfTest()` (el bloque histórico), que se registra solo.
+ */
+function selfTestTramo(tramo) {
+  _soloOwner_('selfTestTramo');
+  var t = parseInt(tramo, 10);
+  var def = SELFTEST_TRAMOS.filter(function (x) { return x.n === t; })[0];
+  if (!def) throw new Error('tramo ' + tramo + ' no existe (hay ' + SELFTEST_TRAMOS.length + ': 1..' + SELFTEST_TRAMOS.length + ')');
+  if (t === 1) throw new Error('el tramo 1 es el bloque histórico: corré selfTest()');
+
+  var log = [], fallos = [];
+  function chk(cond, msg) { log.push((cond ? '✅ ' : '❌ ') + msg); if (!cond) fallos.push(msg); }
+  var t0 = new Date().getTime();
+  try {
+    setup();
+    limpiarTodoTest();
+    _asertsF2_(chk, log, { completo: true, tramo: t });
+  } finally {
+    var l = limpiarTodoTest();
+    log.push('🧹 limpieza: ' + l.clientes + ' cliente(s) __TEST__ · ' + l.trasheados + ' a papelera · ' +
+             l.huerfanos + ' huérfano(s)' + (l.huerfanos ? ' → ' + JSON.stringify(l.detalle_huerfanos) : ''));
+    var mins = Math.round((new Date().getTime() - t0) / 6000) / 10;
+    log.push('⏱️  tramo ' + t + ' (' + def.nombre + '): ' + mins + ' min');
+    _selfTestRegistrar_(t, log.filter(function (x) { return x.indexOf('✅') === 0; }).length, fallos);
+  }
+  var salida = log.join('\n');
+  Logger.log(salida);
+  Logger.log(_resumenSelfTest_(log));
+  if (fallos.length) throw new Error('TRAMO ' + t + ' — FALLOS (' + fallos.length + '):\n- ' + fallos.join('\n- '));
+  return salida;
+}
+
+/**
+ * VEREDICTO AGREGADO. No corre nada: LEE lo que dejó cada tramo y dice la verdad sobre el conjunto.
+ * Verde solo si TODOS los tramos corrieron, todos con 0 fallos y ninguno viejo. Un tramo que nunca
+ * corrió NO es verde: es "sin correr" — la misma doctrina que el gris de la vigilancia (D26c).
+ */
+function selfTestVeredicto() {
+  _soloOwner_('selfTestVeredicto');
+  var todos = {};
+  try { todos = JSON.parse(getConfig(SELFTEST_CONFIG_KEY) || '{}') || {}; } catch (e) { todos = {}; }
+  var hoy = hoyISO(), lineas = [], pasaTotal = 0, fallaTotal = 0, sinCorrer = [], viejos = [];
+
+  SELFTEST_TRAMOS.forEach(function (def) {
+    var r = todos['t' + def.n];
+    if (!r) {
+      sinCorrer.push(def.n);
+      lineas.push('⬜ tramo ' + def.n + ' — SIN CORRER · ' + def.nombre + ' → ' + def.runner);
+      return;
+    }
+    var dias = _vigDias_(String(r.ts).slice(0, 10), hoy);
+    var viejo = (dias == null) || dias > 7;
+    if (viejo) viejos.push(def.n);
+    pasaTotal += (r.pasa || 0); fallaTotal += (r.falla || 0);
+    lineas.push((r.falla ? '❌' : (viejo ? '🟡' : '✅')) + ' tramo ' + def.n + ' — PASA ' + r.pasa +
+                ' / FALLA ' + r.falla + ' · ' + String(r.ts).slice(0, 16) +
+                (viejo ? ' (vieja: ' + (dias == null ? '?' : dias) + ' días)' : '') + ' · ' + def.nombre +
+                (r.falla ? '\n    ↳ ' + r.fallos.join('\n    ↳ ') : ''));
+  });
+
+  var ok = !sinCorrer.length && !viejos.length && fallaTotal === 0;
+  var veredicto = ok
+    ? 'CERTIFICADO: los ' + SELFTEST_TRAMOS.length + ' tramos verdes · PASA ' + pasaTotal + ' / FALLA 0'
+    : 'NO CERTIFICADO — PASA ' + pasaTotal + ' / FALLA ' + fallaTotal +
+      (sinCorrer.length ? ' · sin correr: ' + sinCorrer.join(', ') : '') +
+      (viejos.length ? ' · corridas viejas: ' + viejos.join(', ') : '');
+  var salida = lineas.join('\n') + '\n\n' + veredicto;
+  Logger.log(salida);
+  return salida;
 }
