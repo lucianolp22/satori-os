@@ -262,7 +262,7 @@ function corridaDiaria() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   _soloOwner_('corridaDiaria');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
   if (_sistemaPausado_()) { Logger.log('PAUSA: corridaDiaria omitida'); return { pausado: true }; }
-  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null, vigilancia: null };
+  var resumen = { sync: null, conectores: null, avisos_nuevos: 0, expiradas: 0, vigias_encoladas: 0, memoria: null, director: null, salud: null, costos: null, foco_paz: null, vigilancia: null, correo: null };
   invalidarMapaPC(); // PURGA #6: mapa proyecto→cliente fresco al arrancar la corrida
   // PURGA #16: expirar ANTES de sincronizar, así el espejo del MAESTRO no muestra
   // como "pendiente" una aprobación que ya quedó "expirada" en el Sheet cliente.
@@ -343,6 +343,13 @@ function corridaDiaria() {
   // corrida expiró, sincronizó y archivó, no la de antes de limpiar. Solo avisa, máx. 1 por día.
   try { resumen.foco_paz = guardianFocoPaz_(); }
   catch (e) { try { Logger.log('guardianFocoPaz_ falló: ' + e.message); } catch (_e) {} }
+
+  // T7 · correo → Bandeja (30_correo.js). Nace APAGADO (`correo_on=false`): mientras nadie lo
+  // encienda, esto devuelve {motivo:'apagado'} sin tocar Gmail. Va al FINAL porque solo CAPTURA:
+  // `clasificarBandeja` no corre en esta corrida (tiene su propio trigger opt-in), así que el
+  // correo del día se clasifica después y nunca se mezcla con el drenaje en curso.
+  try { resumen.correo = correoTriaje(); }
+  catch (e) { crearAviso({ origen: 'correo', tipo: 'sync_error', mensaje: 'Correo falló: ' + e.message }); }
 
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));

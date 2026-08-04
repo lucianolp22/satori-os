@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-04 08:58 · commit: 0ac3d12
+> Generado: 2026-08-04 09:38 · commit: b33fdf4
 
 ## Módulos
 
@@ -16,7 +16,7 @@
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 22 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 65 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 35 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 36 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
@@ -37,6 +37,7 @@
 | `27_decisiones.js` | DECISION LOG (TC-2 · F4b). Las decisiones de dirección, con su porqué | 6 |
 | `28_forge.js` | FORGE (TC-9 · adenda 03-ago). Promoción laboratorio → producción de agentes | 8 |
 | `29_vigilancia.js` | TC-11 · A5 · VIGILANCIA MULTI-SUPERFICIE (04-ago-2026) | 9 |
+| `30_correo.js` | T7 · CORREO → TRIAJE A BANDEJA (04-ago-2026) | 5 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -75,13 +76,14 @@ Funciones públicas sin guión bajo final que son de arranque/verificación manu
 - auth/script.scriptapp
 - auth/script.external_request
 - auth/script.send_mail
+- auth/gmail.readonly
 - auth/userinfo.email
 
 webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 ## Pestañas
 
-**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Cola_archivo, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Feedback, Recomendaciones, Agenda, Direcciones, NS_serie, Decisiones, Agentes_estado, Config
+**MAESTRO:** Clientes, Proyectos, Tareas, Avisos, Bitacora, Aprobaciones_agregadas, Costos_API_consolidado, Gobernanza, Cola_tareas, Cola_archivo, Actividad, Consumo_agentes, Cerebro_index, Bandeja, Correo_visto, Feedback, Recomendaciones, Agenda, Direcciones, NS_serie, Decisiones, Agentes_estado, Config
 
 **Cliente:** Datos_operativos, KPIs, Aprobaciones, Excepciones, Umbrales, Costos_API, Reglas, nodos, aristas, cerebro_log, estado_actual, objetivos
 
@@ -137,7 +139,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **08_webapp.js:** doGet doPost vozOut_ vozAuth_ charlaExportAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ _asertsD40_ 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -178,4 +180,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **28_forge.js:** _forgeSlop_ _forgeTestGateDet_ _forgeTestGate_ promoverAgente demoverAgente _forgeEstadoUpsert_ _forgeAplicarPromocion_ agentesEstado 
 
 **29_vigilancia.js:** _vigDias_ _vigUmbrales_ _vigJuzgar_ _vigObservar_ vigilarCliente_ vigilanciaCliente vigilanciaCorrida_ _vigResumenCacheado_ _vigLineasBrief_ 
+
+**30_correo.js:** _correoDebeCorrer_ _extractoCorreo_ _correoIgnorado_ _correoDecidirMensaje_ correoTriaje 
 

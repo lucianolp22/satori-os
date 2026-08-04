@@ -212,6 +212,7 @@ var ENDPOINTS_UI = [
   'cargarObjetivo', 'cargarObjetivosPiloto', 'sembrarDatosEjemplo',
   'correrSalud',                                                                // 16_salud.js
   'clasificarBandeja', 'instalarTriggerBandeja',                                // 17_bandeja.js
+  'correoTriaje',                                                               // 30_correo.js (T7)
   'calentarBriefCache', 'calentarEstadoCache', 'sembrarNorthStarSatori',        // 18_direccion.js
   'cargarNorthStarSatori', 'cargarNorthStarVehemence', 'limpiarErroresFantasma',
   'registrarRecomendacionDelDia',
@@ -262,7 +263,7 @@ var ENDPOINTS_UI = [
 /**
  * Entry points de SISTEMA: los únicos que declaran `_ctxSistema_()`. Lista-contrato (X4, 03-ago).
  *
- * ⚠ INVARIANTE: en estos siete el `_soloOwner_` va **DESPUÉS** de `_ctxSistema_()`. Al revés
+ * ⚠ INVARIANTE: en todos ellos el `_soloOwner_` va **DESPUÉS** de `_ctxSistema_()`. Al revés
  * rompe los triggers: una ejecución sin usuario activo no tiene el flag todavía, así que el gate
  * tiraría `no_autorizado` y `corridaDiaria`/`drenarCola`/`backupSemanal` morirían de noche, sin
  * nadie mirando. El orden lo asera D31b (selfTest) y el harness offline.
@@ -272,7 +273,9 @@ var ENDPOINTS_UI = [
  */
 var ENTRY_POINTS_SISTEMA = [
   'corridaDiaria', 'drenarCola', 'sincronizarConectores', 'clasificarBandeja',
-  'backupSemanal', 'chequeoLivianoDirector', 'correrDirector'
+  'backupSemanal', 'chequeoLivianoDirector', 'correrDirector',
+  'correoTriaje'   // T7 (04-ago): declara `_ctxSistema_()` ⇒ va acá por la primera invariante,
+                   // aunque hoy no tenga trigger propio (lo llama `corridaDiaria`).
 ];
 
 /**

@@ -33,6 +33,11 @@ var MAESTRO_SHEETS = {
   Cerebro_index: ['id_cliente', 'nodos', 'aristas', 'ultimo_evento', 'estado_resumen', 'materializado_en'],
   // Fase 1 (Jarvis) — bandeja de captura personal + clasificación Haiku con confianza.
   Bandeja: ['id', 'ts', 'texto', 'fuente', 'bin', 'confianza', 'slug', 'tags', 'resumen', 'id_cliente', 'estado', 'procesado_en'],
+  // T7 · correo (04-ago) — dedupe de mails ya triados. Lo natural sería etiquetar el mail en Gmail,
+  // pero eso exige `gmail.modify` y la cláusula 1 del dictamen prohíbe cualquier scope de escritura:
+  // esta hoja es el precio correcto por pedir solo lectura. Guarda **solo el id**, ningún contenido
+  // del correo — el cuerpo, el asunto y el remitente no viven acá ni un renglón.
+  Correo_visto: ['id_mensaje', 'ts', 'id_bandeja'],
   // P2 F1 (07-jul) — lazo de resultados: feedback 1-clic sobre briefs/avisos. Append-only.
   Feedback: ['id', 'ts', 'origen_tipo', 'origen_id', 'util', 'nota'],
   // P2 F4 (07-jul) — lazo completo: recomendó → se hizo (si/no) → el KPI se movió (si/no).
@@ -75,7 +80,11 @@ var MAESTRO_SHEETS = {
 // hace `MAESTRO_SHEETS[n].forEach` por cada nombre de esta lista: un nombre sin definición de
 // columnas revienta con `undefined.forEach`. Es el mismo fallo que `CLIENTE_SHEETS_SENSIBLES`
 // con las hojas lazy (23-jul). Lo asera D32a1.
-var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Decisiones', 'Agentes_estado', 'Config'];
+var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Correo_visto', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Decisiones', 'Agentes_estado', 'Config'];
+// ⚠ T7 (04-ago): agregar `Correo_visto` acá obliga a correr `setup()` en el MAESTRO vivo — es
+// idempotente. Hasta que la hoja exista, `correrSalud` la reporta como faltante, el `selfTest`
+// falla el chequeo de pestañas y `drillRestore` (que compara contra MAESTRO_ORDEN.length) da rojo.
+// No es un bug: es el contrato haciendo ruido hasta que el Sheet se ponga al día.
 
 // ── Pestañas de cada Sheet CLIENTE (0.3 + esquema de Aprobaciones de 0.2) ────
 var CLIENTE_SHEETS = {
@@ -233,7 +242,14 @@ var CONFIG_DEFAULTS = [
   ['vig_frescura_dias', '10'],       // dato más viejo que N días ⇒ el semáforo DEGRADA a gris
   ['vig_ambar_caida_pct', '10'],     // caída % de ventas (meses cerrados) que pinta ámbar
   ['vig_rojo_caida_pct', '30'],      // caída % de ventas (meses cerrados) que pinta rojo
-  ['vig_aprob_dias', '7']            // aprobación pendiente más vieja que N días ⇒ rojo
+  ['vig_aprob_dias', '7'],           // aprobación pendiente más vieja que N días ⇒ rojo
+  // T7 · correo (04-ago) — cláusula 3 del dictamen Bastión: el código se despliega APAGADO y lo
+  // enciende un humano después de mirarlo, igual que los conectores de F3. Cualquier valor que no
+  // sea exactamente 'true' deja el correo apagado (_correoDebeCorrer_, 30_correo.js).
+  ['correo_on', 'false'],
+  // Lista de remitentes a descartar sin clasificar (CSV, match por substring: 'newsletter@x.com'
+  // o '@x.com'). Nace VACÍA: hasta que alguien la complete se comporta como si no existiera.
+  ['correo_remitentes_ignorados', '']
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;
