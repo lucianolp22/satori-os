@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-04 11:46 · commit: 47b2697
+> Generado: 2026-08-04 12:50 · commit: fede2d8
 
 ## Módulos
 
@@ -9,7 +9,7 @@
 |---|---|---|
 | `00_ping.js` | — | 1 |
 | `01_schema.js` | Definición única de pestañas y columnas (fuente de verdad del modelo) | 0 |
-| `02_setup.js` | Inicialización del Sheet MAESTRO | 3 |
+| `02_setup.js` | Inicialización del Sheet MAESTRO | 4 |
 | `03_cliente.js` | Alta de clientes y plantilla de Sheet cliente | 2 |
 | `04_sync.js` | Agregación MAESTRO ← Sheets cliente (vía GAS, NO IMPORTRANGE) | 1 |
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 10 |
@@ -126,7 +126,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **00_ping.js:** ping 
 
-**02_setup.js:** setup urlMaestro repararFormatosTexto 
+**02_setup.js:** setup urlMaestro repararFormatosTexto _repararIdsDecisiones_ 
 
 **03_cliente.js:** crearCliente cargaInicialClientes 
 

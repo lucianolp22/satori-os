@@ -2104,8 +2104,25 @@ function _asertsD32_(chk, log, opts) {
   // 03-ago 20:30 en la que Luciano reactivó Forge/caching/A5, redactada en la propia adenda.
   // Es idempotente, así que sirve de caso de prueba vivo sin ensuciar nada al re-correr.
   var d32s = sembrarDecisionInicial();
-  chk(d32s.ok === true && !!d32s.id_decision,
-      'D32d la decisión REAL del 03-ago queda registrada (' + (d32s.id_decision || d32s.error) + ')');
+  // 04-ago: este assert PASÓ imprimiendo «Sat Dec 01 2001» donde iba el id — `!!id` es verdadero
+  // para una fecha. Ahora se exige la FORMA del id: es lo que detecta la coerción de Sheets.
+  chk(d32s.ok === true && /^DEC-\d+$/.test(String(d32s.id_decision || '')),
+      'D32d la decisión REAL del 03-ago queda registrada con id BIEN TIPADO (' + (d32s.id_decision || d32s.error) + ')');
+  // ── D42 (04-ago) · anti-recaída DERIVADO: toda columna de id de CUALQUIER schema tiene que
+  //    estar en COLUMNAS_TEXTO. Derivado de las listas, no clavado a mano: una hoja nueva con
+  //    un `id_*` sin formato texto da rojo en SU commit, no seis semanas después en cascada.
+  var d42cols = {};
+  [MAESTRO_SHEETS, CLIENTE_SHEETS, ADMIN_SHEETS].forEach(function (esquema) {
+    for (var hoja in esquema) esquema[hoja].forEach(function (c) { d42cols[c] = true; });
+  });
+  var d42falt = Object.keys(d42cols).filter(function (c) {
+    return (c === 'id' || c.indexOf('id_') === 0) && COLUMNAS_TEXTO.indexOf(c) < 0;
+  });
+  chk(d42falt.length === 0, 'D42 🔒 toda columna id/id_* de los schemas está en COLUMNAS_TEXTO' +
+      (d42falt.length ? ' — SIN FORMATO TEXTO: ' + d42falt.join(', ') : ' (derivado de los 3 schemas)'));
+  chk(COLUMNAS_TEXTO.indexOf('numero') >= 0 && COLUMNAS_TEXTO.indexOf('numero_factura') >= 0,
+      'D42b las claves de negocio de ADMIN (numero/numero_factura) también van como texto');
+
   var d32vig = decisionesVigentes('');
   var d32forge = d32vig.filter(function (d) { return d.decision.indexOf('Reactivar Forge') === 0; });
   chk(d32forge.length === 1, 'D32d2 aparece UNA sola vez entre las vigentes (idempotente: re-correr el selfTest no duplica)');
@@ -3071,7 +3088,14 @@ function _asertsD41_(chk, log, opts) {
     { numero: 'F-002', fecha: '2026-07-20', total: 500, moneda: 'EUR', jurisdiccion: 'ES' },
     { numero: 'F-003', fecha: '2026-07-25', total: 300000, moneda: 'ARS', jurisdiccion: 'AR' }
   ];
-  var d41cob = [{ fecha: '2026-07-15', numero_factura: 'F-001', importe: 400, moneda: 'EUR' }];
+  // Paridad EXACTA con el fixture del arnés (04-ago): faltaba el cobro de AGOSTO de F-002 y el
+  // esperado estaba copiado del arnés, así que el assert pedía 600 sobre un input que da 1100.
+  // El motor estaba sano: el roto era el assert. Con el cobro de agosto adentro, además prueba
+  // que un cobro de OTRO mes no entra en cobrado_mes pero sí cancela el pendiente de su factura.
+  var d41cob = [
+    { fecha: '2026-07-15', numero_factura: 'F-001', importe: 400, moneda: 'EUR' },
+    { fecha: '2026-08-02', numero_factura: 'F-002', importe: 500, moneda: 'EUR' }
+  ];
   var d41r = _adminResumir_(d41fac, d41cob, '2026-07');
   var d41es = d41r.grupos.filter(function (g) { return g.jurisdiccion === 'ES'; })[0];
   chk(d41r.grupos.length === 2, 'D41a 🔒 el resumen agrupa por jurisdicción y moneda (jamás suma EUR con ARS)');

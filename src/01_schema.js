@@ -264,7 +264,18 @@ var CONFIG_DEFAULTS = [
 // período '2026-01' sin formato '@' lo coacciona Sheets a fecha, la clave deja de matchear con la
 // string que trae el plan de compresión, y cada corrida crea una fila nueva del mismo período en
 // vez de fusionar: el resumen se duplica y los conteos dejan de cerrar.
-var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker', 'id_nodo', 'id_arista', 'id_objetivo', 'periodo'];
+// ⚠ INVARIANTE (aserido y DERIVADO en D42): toda columna `id` / `id_*` de MAESTRO_SHEETS,
+// CLIENTE_SHEETS y ADMIN_SHEETS tiene que estar acá, más las claves de negocio que se usan para
+// casar filas (`numero`, `numero_factura`). Si falta una, Sheets la TIPA en el round-trip
+// getValues/setValues y el id deja de matchear consigo mismo.
+// INCIDENTE 04-ago que obligó a escribir esto: `id_decision` no estaba ⇒ Sheets leyó **DEC-0001
+// como "1 de diciembre de 2001"** (DEC = December) y D32e/f/f3/f4 cayeron en cascada al no poder
+// matchear por id. Los prefijos que coinciden con un mes (DEC, MAR, ENE…) son la trampa: el resto
+// (APR, AVI, TAR) sobrevivía por casualidad, no por diseño.
+var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker', 'id_nodo', 'id_arista', 'id_objetivo', 'periodo',
+  // 04-ago: las que faltaban de las hojas nuevas (TC-2 Decisiones · TC-6 Correo_visto · TC-9
+  // Agentes_estado · TC-7 ADMIN) + `id_aviso`, que nunca mordió sólo porque AVI no es un mes.
+  'id_decision', 'id_aviso', 'id_agente', 'id_mensaje', 'id_bandeja', 'numero', 'numero_factura'];
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];

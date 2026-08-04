@@ -70,7 +70,7 @@ vm.createContext(ctx);
 
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
-const MODULOS = ['01_schema.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
+const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
                  '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
@@ -1721,6 +1721,37 @@ seccion('D41 administración propia (TC-7 · F4a)');
   chk(String(ctx.briefDiarioSistema_).indexOf('_adminLineasBrief_') >= 0 &&
       String(ctx.corridaDiaria).indexOf('adminRefrescarResumen_') >= 0,
       'D41q el brief cita el resumen y la corridaDiaria lo refresca (sin abrir el Sheet ADMIN)');
+}
+
+// ═══ D42 · toda columna de id va como TEXTO, o Sheets la tipa ════════════════
+// Incidente 04-ago: `id_decision` no estaba en COLUMNAS_TEXTO ⇒ Sheets leyó **DEC-0001 como «1 de
+// diciembre de 2001»** (DEC = December) ⇒ los asserts que matchean por id cayeron en cascada. Los
+// prefijos que coinciden con un mes son la trampa; APR/AVI/TAR se salvaban por casualidad.
+seccion('D42 columnas de id como texto');
+{
+  const cols = {};
+  [ctx.MAESTRO_SHEETS, ctx.CLIENTE_SHEETS, ctx.ADMIN_SHEETS].forEach((esquema) => {
+    for (const hoja in esquema) esquema[hoja].forEach((c) => { cols[c] = true; });
+  });
+  const falt = Object.keys(cols).filter((c) =>
+    (c === 'id' || c.indexOf('id_') === 0) && ctx.COLUMNAS_TEXTO.indexOf(c) < 0);
+  chk(falt.length === 0, 'D42a 🔒 toda columna id/id_* de MAESTRO+CLIENTE+ADMIN está en COLUMNAS_TEXTO' +
+      (falt.length ? ' — SIN FORMATO TEXTO: ' + falt.join(', ') : ' (derivado de los 3 schemas)'));
+  chk(ctx.COLUMNAS_TEXTO.indexOf('numero') >= 0 && ctx.COLUMNAS_TEXTO.indexOf('numero_factura') >= 0,
+      'D42b las claves con las que ADMIN casa facturas y cobros van como texto');
+  ['id_decision', 'id_mensaje', 'id_bandeja', 'id_agente'].forEach((c) => {
+    chk(ctx.COLUMNAS_TEXTO.indexOf(c) >= 0, 'D42c ' + c + ' declarada como texto (hojas nuevas TC-2/6/7/9)');
+  });
+
+  // El repair del dato ya corrompido existe y es idempotente por construcción (solo toca lo que
+  // NO matchea la forma del id). Se verifica por introspección: correrlo exige Sheets vivos.
+  const srcRep = String(ctx._repararIdsDecisiones_ || '');
+  chk(srcRep.indexOf('aplicarFormatoTexto') >= 0 && srcRep.indexOf('DEC-') >= 0,
+      'D42d el repair formatea la columna ANTES de reescribir (si no, el valor se vuelve a tipar)');
+  chk(String(ctx.setup).indexOf('_repararIdsDecisiones_') >= 0,
+      'D42e setup() corre el repair — todo tramo del selfTest lo ejecuta antes de aserir');
+  chk(String(ctx.repararFormatosTexto).indexOf('_repararIdsDecisiones_') >= 0,
+      'D42f repararFormatosTexto también lo corre (el formato solo dejaba el dato roto adentro)');
 }
 
 // ═══ P2 · papelera de Drive SIN ampliar el scope ═════════════════════════════
