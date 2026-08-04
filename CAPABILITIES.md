@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-04 13:58 · commit: 9e48954
+> Generado: 2026-08-04 20:10 · commit: 182d3b6
 
 ## Módulos
 
@@ -14,7 +14,7 @@
 | `04_sync.js` | Agregación MAESTRO ← Sheets cliente (vía GAS, NO IMPORTRANGE) | 1 |
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 10 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
-| `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 28 |
+| `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 30 |
 | `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 65 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 46 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
@@ -136,7 +136,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush crearAviso _crearAviso_ _focoPazEvaluar_ _focoPazUmbrales_ _focoPazMetricas_ guardianFocoPaz_ corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas resolverAvisosDonde_ detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
 
-**07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente _trashArchivo_ _driveUrlCarpeta_ _driveGet_ _driveCrearCarpeta_ _driveMover_ _driveListarHijos_ getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
+**07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente _trashArchivo_ _driveUrlCarpeta_ _driveUrlSheet_ _driveCopiar_ _driveGet_ _driveCrearCarpeta_ _driveMover_ _driveListarHijos_ getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
 **08_webapp.js:** doGet doPost vozOut_ vozAuth_ charlaExportAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea aHoraLegible_ 
 

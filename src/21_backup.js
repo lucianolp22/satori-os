@@ -8,8 +8,10 @@
  * de la cuenta Google (para eso: descarga XLSX periódica — ver RUNBOOK-recuperacion).
  * El CÓDIGO se respalda aparte (git remote privado — ver RUNBOOK-recuperacion).
  *
- * Scope (REESCRITO en BK-1, 04-ago): el snapshot usa Spreadsheet.copy() (scope 'spreadsheets');
- * TODO lo demás va por el SERVICIO AVANZADO de Drive v3 bajo 'drive.file' — crear carpeta
+ * Scope (REESCRITO en BK-1 y BK-2, 04-ago): TODO Drive va por el SERVICIO AVANZADO v3 bajo
+ * 'drive.file', la copia INCLUIDA (files.copy con name+parents: nace dentro de la carpeta y nace
+ * administrable). `Spreadsheet.copy` quedó PROHIBIDO acá: bajo drive.file la Drive API no ve el
+ * archivo que produce — ese fue BK-2, con 8 moves fallando con «File not found». El resto: crear carpeta
  * (files.create + mimeType folder), mover (files.update con addParents/removeParents), listar
  * (files.list, que bajo drive.file solo ve lo que la app creó) y papelera (_trashArchivo_).
  * ⚠ NO usar DriveApp acá: exige 'drive'/'drive.readonly', que este proyecto NO declara. Ese fue
@@ -71,18 +73,28 @@ function _retencionSemanas_() {
 }
 
 /**
- * Copia un Spreadsheet (por id) a la carpeta destino con el nombre dado. Usa
- * Spreadsheet.copy (spreadsheets) + moveTo (drive.file sobre archivo propio). Si
- * moveTo falla, deja la copia en la raíz con el nombre fechado (sigue siendo backup,
- * solo sin organizar) y lo marca. Devuelve {ok, id, url, carpeta}.
+ * Copia un Spreadsheet (por id) DENTRO de la carpeta destino, en UN solo call de la Drive API.
+ *
+ * BK-2 (04-ago, hallazgo de `backupAhora` 14:15): la versión de BK-1 hacía `Spreadsheet.copy()` y
+ * después `_driveMover_`, y **los 8 moves fallaron con «File not found»** en `files.get` sobre las
+ * copias recién creadas. La evidencia del mismo día lo explica: bajo `drive.file` la Drive API SÍ
+ * ve los archivos nacidos de `SpreadsheetApp.create` (la papelera de los tramos funcionó sobre los
+ * tenants `__TEST__`) pero NO los nacidos de `Spreadsheet.copy`. El permiso por-archivo sigue al
+ * creador, y a ojos de la Drive API `Spreadsheet.copy` no es una creación suya.
+ *
+ * Por eso ahora se copia YA adentro con `Drive.Files.copy` (acepta `drive.file`; el recurso admite
+ * `name` y `parents`): la copia nace en la carpeta correcta y nace administrable. Un solo call,
+ * cero move posterior, cero ventana en la que el archivo exista pero sea inmanejable.
+ *
+ * @return {{ok:boolean, id?:string, url?:string, carpeta:boolean, error_mover:string}}
  */
 function _copiarSpreadsheet_(srcId, nombre, carpetaId) {
-  var copia = SpreadsheetApp.openById(srcId).copy(nombre);   // sigue por Spreadsheet.copy (scope spreadsheets)
-  var mv = _driveMover_(copia.getId(), carpetaId);
-  // BK-1: si el move falla, la copia EXISTE igual (sigue siendo backup) pero queda desorganizada.
-  // El motivo viaja en el return en vez de morir en un catch mudo — que es lo que tapó un mes
-  // entero de backups rotos.
-  return { ok: true, id: copia.getId(), url: copia.getUrl(), carpeta: mv.ok, error_mover: mv.ok ? '' : mv.error };
+  var c = _driveCopiar_(srcId, nombre, carpetaId);
+  if (!c.ok) throw new Error('no pude copiar: ' + c.error);   // FUERTE: el llamador lo registra en `fallidos`
+  // `carpeta` se VERIFICA contra los parents que devolvió la API, no se asume por el ok.
+  var dentro = !carpetaId || (c.parents || []).indexOf(String(carpetaId)) >= 0;
+  return { ok: true, id: c.id, url: _driveUrlSheet_(c.id), carpeta: dentro,
+           error_mover: dentro ? '' : 'la copia no quedó en la carpeta pedida (parents: ' + (c.parents || []).join(',') + ')' };
 }
 
 /**
@@ -261,8 +273,8 @@ function smokeBackup() {
 
     var c = _copiarSpreadsheet_(tmp.getId(), '__smoke_copy__', sub);
     copiaId = c.id;
-    rep.push(['Spreadsheet.copy', !!c.id]);
-    rep.push(['mover a carpeta (addParents/removeParents)', c.carpeta === true, c.error_mover || '']);
+    rep.push(['Drive.Files.copy', !!c.id]);
+    rep.push(['copia NACE en la carpeta (Drive.Files.copy + parents)', c.carpeta === true, c.error_mover || '']);
 
     var leido = SpreadsheetApp.openById(c.id).getSheets()[0].getRange('A1').getValue();
     rep.push(['copia legible (A1=smoke)', String(leido) === 'smoke']);
@@ -303,7 +315,12 @@ function backupListar() {
     out.push({ carpeta: f.name, archivos: (hijos.items || []).length, url: _driveUrlCarpeta_(f.id) });
   });
   out.sort(function (a, b) { return a.carpeta < b.carpeta ? 1 : (a.carpeta > b.carpeta ? -1 : 0); });
-  var res = { total: out.length, carpetas: out, errores: errores };
+  // BK-2: bajo `drive.file` la Drive API solo ve lo que la app creó o abrió. Las copias anteriores
+  // a BK-2 nacieron de `Spreadsheet.copy` y son INVISIBLES para este listado aunque existan en el
+  // Drive. El conteo NO es "lo que hay": es "lo que la app puede administrar". Decirlo importa —
+  // un 0 acá no prueba que no haya archivos, prueba que no hay archivos gestionables.
+  var res = { total: out.length, carpetas: out, errores: errores,
+              alcance: 'solo archivos gestionables por la app (drive.file): las copias anteriores a BK-2 pueden existir en Drive y no aparecer acá' };
   Logger.log('backupListar: ' + JSON.stringify(res));
   return res;
 }

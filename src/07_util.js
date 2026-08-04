@@ -249,6 +249,38 @@ var DRIVE_MIME_CARPETA = 'application/vnd.google-apps.folder';
 /** URL de una carpeta a partir de su id (sin `Folder.getUrl()`, que exige DriveApp). */
 function _driveUrlCarpeta_(id) { return 'https://drive.google.com/drive/folders/' + String(id || ''); }
 
+/** URL de un Spreadsheet a partir de su id (la copia ya no pasa por un objeto Spreadsheet). */
+function _driveUrlSheet_(id) { return 'https://docs.google.com/spreadsheets/d/' + String(id || '') + '/edit'; }
+
+/**
+ * Copia un archivo DIRECTO adentro de una carpeta, en UN solo call de la Drive API.
+ *
+ * BK-2 (04-ago) — por qué existe: `Spreadsheet.copy()` crea el archivo por el servicio de
+ * Spreadsheets, y bajo `drive.file` la Drive API **no lo ve** (`File not found` en `files.get`).
+ * Evidencia del 04-ago 14:15: los 8 `_driveMover_` del backup fallaron todos sobre copias recién
+ * hechas, mientras la papelera SÍ funcionaba sobre Sheets nacidos de `SpreadsheetApp.create`.
+ * O sea: el permiso por-archivo de `drive.file` sigue al CREADOR del archivo, y `Spreadsheet.copy`
+ * no cuenta como creación de esta app a ojos de la Drive API.
+ *
+ * La salida es no crear-y-después-mover, sino copiar YA adentro: `files.copy` acepta `drive.file`
+ * y el recurso admite `name` y `parents` (doc oficial: «If not specified as part of a copy request,
+ * the file inherits any discoverable parent of the source file»). La copia nace dentro de la
+ * carpeta Y nace creada por la Drive API ⇒ gestionable después (mover, listar, papelera).
+ *
+ * NO hay fallback a `Spreadsheet.copy`: volver a eso es volver al archivo huérfano que nadie puede
+ * administrar. Si esto falla, falla FUERTE y con motivo.
+ * @return {{ok:boolean, id?:string, parents?:Array, error?:string}}
+ */
+function _driveCopiar_(srcId, nombre, carpetaId) {
+  if (!String(srcId || '').trim()) return { ok: false, error: 'sin id de origen' };
+  try {
+    var rec = { name: String(nombre || 'copia') };
+    if (carpetaId) rec.parents = [String(carpetaId)];
+    var f = Drive.Files.copy(rec, String(srcId), { fields: 'id,parents,name' });
+    return { ok: true, id: f.id, parents: f.parents || [], name: f.name };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 140) }; }
+}
+
 /** Metadata mínima de un archivo/carpeta. @return {{ok:boolean, id?, name?, trashed?, parents?, error?}} */
 function _driveGet_(id, campos) {
   if (!String(id || '').trim()) return { ok: false, error: 'sin id' };

@@ -1824,6 +1824,29 @@ seccion('D43 cero DriveApp bajo drive.file (BK-1)');
       'D43e backupListar devuelve el motivo si no hay carpeta raíz (era el crash del 04-ago)');
   chk(String(ctx._respaldarObjetivos_).indexOf('_driveMover_') >= 0,
       'D43f el respaldo de objetivos (18_direccion) también migró');
+
+  // ── BK-2: la copia NACE dentro. `Spreadsheet.copy` produce un archivo que la Drive API no ve
+  //    bajo drive.file (8 moves fallaron con «File not found» el 04-ago 14:15).
+  const srcCopiar = String(ctx._copiarSpreadsheet_);
+  chk(srcCopiar.indexOf('_driveCopiar_') >= 0 && srcCopiar.indexOf('SpreadsheetApp.openById') < 0,
+      'D43g 🔒 _copiarSpreadsheet_ copia con Drive.Files.copy — nada de Spreadsheet.copy + mover');
+  chk(srcCopiar.indexOf('parents') >= 0 && srcCopiar.indexOf('indexOf(String(carpetaId))') >= 0,
+      'D43g2 `carpeta` se VERIFICA contra los parents que devolvió la API, no se asume del ok');
+  chk(srcCopiar.indexOf('throw') >= 0,
+      'D43g3 una copia que falla TIRA (la registra el llamador en fallidos) en vez de degradar en silencio');
+  const cop = ctx._driveCopiar_('src', 'n', 'car');
+  chk(cop.ok === false && typeof cop.error === 'string' && cop.error.length > 0,
+      'D43g4 _driveCopiar_ devuelve el motivo en vez de tirar');
+  chk(ctx._driveUrlSheet_('XYZ').indexOf('docs.google.com/spreadsheets/d/XYZ') >= 0,
+      'D43g5 la URL de la copia se arma del id (ya no hay objeto Spreadsheet del que sacarla)');
+  chk(String(ctx.backupListar).indexOf('alcance') >= 0,
+      'D43h backupListar DECLARA que cuenta solo lo gestionable bajo drive.file');
+
+  // El assert vivo del selfTest tiene que ejercer el FLUJO, no los helpers: ese fue el gap por el
+  // que el tramo 5 dio verde con backupAhora roto.
+  const srcD43 = String(ctx._asertsD43_);
+  chk(srcD43.indexOf('_copiarSpreadsheet_') >= 0,
+      'D43i el assert vivo ejerce _copiarSpreadsheet_ (el camino real), no solo files.create');
 }
 
 // ═══ P2 · papelera de Drive SIN ampliar el scope ═════════════════════════════

@@ -3224,35 +3224,52 @@ function _asertsD43_(chk, log, opts) {
     return;
   }
 
-  // ── VIVO: el ciclo completo bajo drive.file. Esto es lo único que prueba que BK-1 está cerrado.
-  var d43carp = _driveCrearCarpeta_('__TEST__ bk1 ' + ahoraISO(), null);
-  chk(d43carp.ok === true, 'D43c 🔒 crear carpeta con drive.file (files.create + mimeType folder)' +
+  // ── VIVO: el FLUJO REAL del backup, no los helpers sueltos. ──
+  // GAP de BK-1 que este bloque cierra: el tramo 5 dio VERDE con `backupAhora` roto, porque
+  // probaba `_driveCrearCarpeta_` (files.create, visible bajo drive.file) y nunca el camino que
+  // usa el backup de verdad. Ahora se ejerce `_copiarSpreadsheet_` — el MISMO call — y se verifica
+  // que la copia quedó DENTRO y que la carpeta la LISTA. Si BK-2 se rompe, esto se pone rojo.
+  var d43carp = _driveCrearCarpeta_('__TEST__ bk ' + ahoraISO(), null);
+  chk(d43carp.ok === true, 'D43c crear carpeta con drive.file (files.create + mimeType folder)' +
       (d43carp.ok ? '' : ' — FALLÓ: ' + d43carp.error));
-  var d43ss = null, d43sub = null;
+  var d43ss = null, d43copiaId = null, d43sub = null;
   try {
     if (d43carp.ok) {
-      d43ss = SpreadsheetApp.create('__TEST__ bk1 archivo ' + ahoraISO());
-      var d43mv = _driveMover_(d43ss.getId(), d43carp.id);
-      chk(d43mv.ok === true, 'D43c2 🔒 mover con addParents/removeParents bajo drive.file' +
-          (d43mv.ok ? '' : ' — FALLÓ: ' + d43mv.error));
-      var d43meta = _driveGet_(d43ss.getId(), 'id,parents');
+      d43ss = SpreadsheetApp.create('__TEST__ bk origen ' + ahoraISO());
+      d43ss.getSheets()[0].getRange('A1').setValue('bk');
+
+      // EL FLUJO DEL BACKUP, tal cual lo corre _ejecutarBackup_
+      var d43c = _copiarSpreadsheet_(d43ss.getId(), '__TEST__ bk copia', d43carp.id);
+      d43copiaId = d43c.id;
+      chk(d43c.ok === true && d43c.carpeta === true,
+          'D43d 🔒 el FLUJO del backup deja la copia DENTRO de su carpeta (era el fallo de las 14:15)' +
+          (d43c.carpeta ? '' : ' — ' + d43c.error_mover));
+
+      // …y la copia es administrable: se la ve por parents Y la carpeta la lista.
+      var d43meta = _driveGet_(d43copiaId, 'id,parents');
       chk(d43meta.ok && (d43meta.parents || []).indexOf(d43carp.id) >= 0,
-          'D43c3 el archivo quedó REALMENTE dentro de la carpeta (verificado leyendo parents)');
+          'D43d2 la copia es VISIBLE para la Drive API bajo drive.file (files.get sobre la copia)' +
+          (d43meta.ok ? '' : ' — ' + d43meta.error));
       var d43lst = _driveListarHijos_(d43carp.id, false);
-      chk(d43lst.ok && d43lst.items.length === 1, 'D43d listar hijos devuelve exactamente lo que se movió');
-      // subcarpeta anidada: es lo que hace el backup real (raíz → backup_<stamp>)
+      chk(d43lst.ok && d43lst.items.filter(function (f) { return f.id === d43copiaId; }).length === 1,
+          'D43d3 la carpeta LISTA la copia (lo que backupListar cuenta de verdad)');
+
+      // La copia conserva el contenido (un backup ilegible no es un backup).
+      var d43leido = SpreadsheetApp.openById(d43copiaId).getSheets()[0].getRange('A1').getValue();
+      chk(String(d43leido) === 'bk', 'D43d4 la copia es legible y conserva el dato');
+
+      // Subcarpeta anidada: lo que hace el backup real (raíz → backup_<stamp>).
       d43sub = _driveCrearCarpeta_('backup_TEST', d43carp.id);
       var d43soloC = _driveListarHijos_(d43carp.id, true);
       chk(d43sub.ok && d43soloC.ok && d43soloC.items.length === 1 && d43soloC.items[0].name === 'backup_TEST',
-          'D43d2 el filtro por carpetas ve la subcarpeta y no el Spreadsheet');
+          'D43e el filtro por carpetas ve la subcarpeta y NO el Spreadsheet copiado');
     }
   } finally {
-    // Limpieza SIEMPRE, y si algo queda vivo se DICE con su id (nada de huérfanos mudos).
-    [d43sub && d43sub.id, d43ss && d43ss.getId(), d43carp.ok && d43carp.id].forEach(function (id) {
+    [d43sub && d43sub.id, d43copiaId, d43ss && d43ss.getId(), d43carp.ok && d43carp.id].forEach(function (id) {
       if (!id) return;
       var t = _trashArchivo_(id);
       if (!t.ok) log.push('   ⚠ D43 dejó vivo en Drive: ' + id + ' (' + t.error + ')');
     });
   }
-  log.push('   ↳ D43 BK-1: ciclo Drive completo (crear/mover/listar/papelera) bajo drive.file');
+  log.push('   ↳ D43 BK-1/BK-2: flujo real del backup ejercido (copiar dentro + listar + legible)');
 }
