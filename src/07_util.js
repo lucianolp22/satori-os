@@ -191,6 +191,39 @@ function abrirCliente(idCliente) {
   return { cli: cli, ss: _ssClienteCache_[url] };
 }
 
+/**
+ * Manda un archivo a la papelera SIN pedir un scope de Drive más amplio (fix P2, 04-ago).
+ *
+ * EL BUG: `DriveApp.getFileById(id).setTrashed(true)` exige `drive` o `drive.readonly`, y el
+ * manifiesto declara `drive.file` (mínimo privilegio, dictamen Bastión). Resultado: cada
+ * `limpiarTodoTest` fallaba en silencio y dejaba el Sheet de prueba huérfano en Drive — 11
+ * acumulados al 04-ago, que Luciano terminó borrando a mano.
+ *
+ * LA SALIDA, verificada contra la doc oficial (no deducida):
+ *  · `drive.file` está entre los scopes aceptados por `files.update` de la Drive API v3
+ *    (developers.google.com/workspace/drive/api/reference/rest/v3/files/update).
+ *  · `trashed` es un campo ESCRIBIBLE del recurso Files — no está marcado como output-only.
+ *  · `drive.file` da acceso a los archivos que la app creó, y los Sheets cliente nacen de un
+ *    `SpreadsheetApp.create()` de este mismo script (03_cliente.js) ⇒ caen dentro del permiso.
+ * O sea: el servicio avanzado de Drive hace lo que DriveApp no puede, con el MISMO scope.
+ * Enciende el servicio `enabledAdvancedServices` en appsscript.json; `oauthScopes` NO se tocó,
+ * así que esto no re-dispara el consentimiento de Google.
+ *
+ * NO devuelve boolean: devuelve el motivo. Un borrado que falla en silencio es justamente el bug
+ * que esta función viene a cerrar (lección 27-jul: un error tragado es peor que uno ruidoso).
+ * @return {{ok:boolean, error?:string}}
+ */
+function _trashArchivo_(fileId) {
+  var id = String(fileId || '').trim();
+  if (!id) return { ok: false, error: 'sin id de archivo' };
+  try {
+    Drive.Files.update({ trashed: true }, id);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e).slice(0, 140) };
+  }
+}
+
 /** Lee un valor de Config por clave (string). '' si no existe. */
 function getConfig(clave) {
   _soloOwner_('getConfig');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.

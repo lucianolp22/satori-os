@@ -1618,6 +1618,45 @@ seccion('D40 correo → Bandeja (T7)');
       'D40 la única superficie de Gmail que se toca es search (solo lectura)');
 }
 
+// ═══ P2 · papelera de Drive SIN ampliar el scope ═════════════════════════════
+// `DriveApp.getFileById().setTrashed()` exige `drive`/`drive.readonly`; el manifiesto declara
+// `drive.file`. Verificado contra la doc oficial: `files.update` de la Drive API v3 acepta
+// `drive.file` y `trashed` es un campo escribible ⇒ el servicio avanzado hace lo que DriveApp no.
+seccion('P2 papelera de Drive con drive.file');
+{
+  const manifP2 = JSON.parse(fs.readFileSync(path.join(SRC, 'appsscript.json'), 'utf8'));
+  const adv = ((manifP2.dependencies || {}).enabledAdvancedServices || [])
+    .filter((s) => s.serviceId === 'drive');
+  chk(adv.length === 1 && adv[0].userSymbol === 'Drive' && adv[0].version === 'v3',
+      'P2a el manifiesto enciende el servicio avanzado de Drive v3');
+  const scopesDrive = (manifP2.oauthScopes || []).filter((s) => /\/auth\/drive/.test(s));
+  chk(scopesDrive.length === 1 && scopesDrive[0] === 'https://www.googleapis.com/auth/drive.file',
+      'P2b 🔒 el scope de Drive sigue siendo SOLO drive.file — encender el servicio no lo amplió' +
+      (scopesDrive.length === 1 ? '' : ' — DECLARADOS: ' + scopesDrive.join(', ')));
+
+  // El bug no puede volver por otra puerta: ningún archivo se manda a papelera vía DriveApp.
+  const conDriveApp = [];
+  for (const f of fs.readdirSync(SRC).filter((x) => x.endsWith('.js'))) {
+    const txt = fs.readFileSync(path.join(SRC, f), 'utf8').split('\n')
+      .filter((l) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
+    if (/DriveApp\.getFileById\([^)]*\)\.setTrashed/.test(txt)) conDriveApp.push(f);
+  }
+  chk(conDriveApp.length === 0, 'P2c ningún módulo manda a papelera por DriveApp (el camino que falla)' +
+      (conDriveApp.length ? ' — REINCIDEN: ' + conDriveApp.join(', ') : ''));
+
+  // La función nunca tira: DEVUELVE el motivo. Offline `Drive` no existe, así que este mismo
+  // assert prueba el camino de error real (un borrado que falla en silencio es el bug original).
+  chk(ctx._trashArchivo_('').ok === false && ctx._trashArchivo_('').error.indexOf('sin id') >= 0,
+      'P2d sin id ⇒ {ok:false} con motivo, no una excepción');
+  const t = ctx._trashArchivo_('id-que-no-existe');
+  chk(t.ok === false && typeof t.error === 'string' && t.error.length > 0,
+      'P2e un fallo devuelve el motivo en vez de tragárselo');
+
+  const srcLimpiar = String(ctx.limpiarTodoTest);
+  chk(srcLimpiar.indexOf('_trashArchivo_') >= 0 && srcLimpiar.indexOf('huerfanos') >= 0,
+      'P2f limpiarTodoTest usa el helper y REPORTA los huérfanos en su return');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

@@ -243,9 +243,11 @@ function smokeBackup() {
   } catch (e) {
     rep.push(['EXCEPCION', false, String((e && e.message) || e)]);
   } finally {
-    try { if (copiaId) DriveApp.getFileById(copiaId).setTrashed(true); } catch (_1) {}
-    try { if (sub) sub.setTrashed(true); } catch (_2) {}
-    try { if (tmp) DriveApp.getFileById(tmp.getId()).setTrashed(true); } catch (_3) {}
+    // Fix P2 (04-ago): por `_trashArchivo_` (servicio avanzado de Drive, scope `drive.file`).
+    // Con DriveApp esto fallaba siempre y el smoke dejaba su propia basura en Drive.
+    if (copiaId) { var _t1 = _trashArchivo_(copiaId); if (!_t1.ok) rep.push(['LIMPIEZA copia', false, _t1.error]); }
+    try { if (sub) sub.setTrashed(true); } catch (_2) { rep.push(['LIMPIEZA subcarpeta', false, String((_2 && _2.message) || _2)]); }
+    if (tmp) { var _t3 = _trashArchivo_(tmp.getId()); if (!_t3.ok) rep.push(['LIMPIEZA tmp', false, _t3.error]); }
   }
   var pass = rep.every(function (x) { return x[1]; });
   Logger.log('SMOKE BACKUP: ' + (pass ? 'PASS' : 'FAIL') + ' ' + JSON.stringify(rep));

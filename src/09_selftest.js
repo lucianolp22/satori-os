@@ -577,7 +577,8 @@ function _asertsF2_(chk, log, opts) {
    { n: 'D37 TC-9 (Forge: promoción lab→prod con estado en datos)', f: _asertsD37_ },
    { n: 'D38 TC-10 (prompt caching + telemetría honesta)', f: _asertsD38_ },
    { n: 'D39 TC-11 (A5 vigilancia multi-superficie)', f: _asertsD39_ },
-   { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_ }].forEach(function (t) {
+   { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_ },
+   { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_ }].forEach(function (t) {
     try { t.f(chk, log, opts || {}); }
     catch (e) { chk(false, 'tanda ' + t.n + ' ABORTÓ: ' + ((e && e.message) || e)); }
   });
@@ -1076,7 +1077,9 @@ function _asertsD18_(chk, log, opts) {
     chk(despues.length === antes.length, 'D18d7 el restore devuelve el MISMO conteo de filas (' + antes.length + ')');
     chk(despues.length > 0 && String(despues[0].id_objetivo) === String(antes[0].id_objetivo) && String(despues[0].pivots_descartados) === String(antes[0].pivots_descartados),
         'D18d8 el restore devuelve las filas IDÉNTICAS (incluidos los campos nuevos)');
-    try { DriveApp.getFileById(bk.id).setTrashed(true); } catch (_t) {}   // el drill no deja basura en Drive
+    // Fix P2: mismo motivo que en limpiarTodoTest — DriveApp exige un scope que no tenemos.
+    var d18t = _trashArchivo_(bk.id);
+    chk(d18t.ok, 'D18d9 el drill de respaldo no deja basura en Drive' + (d18t.ok ? '' : ' — ' + d18t.error));
   } else {
     log.push('⏭️  D18d4-d8 (drill de respaldo/restore) omitido: solo en selfTest() completo — crea un Spreadsheet en Drive y abre todos los Sheets cliente');
   }
@@ -2514,7 +2517,14 @@ function debugE21() {
   } catch (e) {
     L('ERROR debugE21: ' + e.message + ' :: ' + (e.stack || ''));
   } finally {
-    try { if (r && r.url) DriveApp.getFileById(SpreadsheetApp.openByUrl(r.url).getId()).setTrashed(true); } catch (x) {}
+    // Fix P2: por `_trashArchivo_` (servicio avanzado, scope drive.file). El motivo se LOGUEA:
+    // debugE21 es una herramienta de diagnóstico, y una que ensucia Drive sin decirlo miente.
+    try {
+      if (r && r.url) {
+        var dbgT = _trashArchivo_(SpreadsheetApp.openByUrl(r.url).getId());
+        if (!dbgT.ok) L('no pude mandar a papelera el Sheet de prueba: ' + dbgT.error);
+      }
+    } catch (x) { L('no pude resolver el Sheet de prueba para la papelera: ' + ((x && x.message) || x)); }
     try { if (r) borrarFilasDonde(getMaestro().getSheetByName('Clientes'), function (f) { return f.id_cliente === r.id_cliente; }); } catch (x) {}
   }
   var s = out.join('\n');
@@ -2536,12 +2546,23 @@ function limpiarTodoTest() {
     return String(f.nombre).indexOf('__TEST__') === 0;
   });
   var idsTest = {}; testClientes.forEach(function (c) { idsTest[String(c.id_cliente)] = true; });
+  // Fix P2 (04-ago): la papelera va por `_trashArchivo_` (servicio avanzado de Drive, mismo scope
+  // `drive.file`), no por DriveApp — que exigía un scope más amplio y fallaba SIEMPRE, dejando el
+  // Sheet huérfano. Y el fallo deja de ser silencioso: lo que no se pudo trashear vuelve en el
+  // return con su id y su motivo, para que quien limpie sepa exactamente qué quedó colgado.
+  var trasheados = 0, huerfanos = [];
   testClientes.forEach(function (c) {
-    try {
-      if (c.url_sheet_cliente) {
-        DriveApp.getFileById(SpreadsheetApp.openByUrl(c.url_sheet_cliente).getId()).setTrashed(true);
-      }
-    } catch (e) { Logger.log('No pude mandar a papelera ' + c.id_cliente + ': ' + e.message); }
+    if (!c.url_sheet_cliente) return;
+    var fid = '';
+    try { fid = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getId(); }
+    catch (e) {
+      huerfanos.push({ id_cliente: String(c.id_cliente), file_id: '', motivo: 'no pude abrir el Sheet: ' + ((e && e.message) || e) });
+      return;
+    }
+    var t = _trashArchivo_(fid);
+    if (t.ok) { trasheados++; return; }
+    huerfanos.push({ id_cliente: String(c.id_cliente), file_id: fid, motivo: t.error });
+    Logger.log('limpiarTodoTest: quedó huérfano ' + c.id_cliente + ' (' + fid + '): ' + t.error);
   });
 
   borrarFilasDonde(shClientes, function (f) { return String(f.nombre).indexOf('__TEST__') === 0; });
@@ -2605,7 +2626,9 @@ function limpiarTodoTest() {
   if (shDec) borrarFilasDonde(shDec, function (f) {
     return String(f.decision).indexOf('__TEST__') === 0 || idsTest[String(f.alcance)] === true;
   });
-  return { clientes: testClientes.length };
+  // El return DECLARA el resultado del barrido de Drive. Si `huerfanos` no está vacío, hay Sheets
+  // de prueba vivos en Drive con su id acá — no hace falta ir a buscarlos a mano.
+  return { clientes: testClientes.length, trasheados: trasheados, huerfanos: huerfanos.length, detalle_huerfanos: huerfanos };
 }
 
 /** Borra filas de una pestaña según un predicado. PURGA #25: era (sh,columna,valor,pred)
@@ -2861,4 +2884,42 @@ function _asertsD40_(chk, log, opts) {
       'D40g2 🔒 el prefijo sobrevive al write path: el asunto hostil sigue sin poder rutear');
   borrarFilasDonde(getMaestro().getSheetByName('Bandeja'), function (f) { return String(f.id) === String(d40cap.id); });
   log.push('   ↳ D40 T7: correo verificado con fixtures (cero mails reales leídos; scope gmail.readonly)');
+}
+
+/**
+ * P2 · papelera de Drive SIN ampliar el scope (fix 04-ago).
+ * El bug: `DriveApp.getFileById().setTrashed()` exige `drive`/`drive.readonly` y el manifiesto
+ * declara `drive.file` ⇒ cada limpieza fallaba en silencio y dejaba el Sheet de prueba huérfano
+ * (11 acumulados). El fix va por el servicio avanzado de Drive, que con el MISMO scope sí puede.
+ * Este es el único assert que NO se puede certificar offline: prueba el borrado de verdad.
+ */
+function _asertsP2_(chk, log, opts) {
+  // ── El helper reporta, no se traga los fallos ──
+  var p2v = _trashArchivo_('');
+  chk(p2v.ok === false && String(p2v.error).indexOf('sin id') >= 0,
+      'P2a sin id ⇒ {ok:false} con motivo (nunca una excepción que corte la limpieza)');
+
+  // ── LA PRUEBA REAL: crear un archivo y mandarlo a la papelera con drive.file ──
+  var p2ss = SpreadsheetApp.create('__TEST__ papelera ' + ahoraISO());
+  var p2id = p2ss.getId();
+  var p2t = _trashArchivo_(p2id);
+  chk(p2t.ok === true, 'P2b 🔒 el servicio avanzado manda a papelera con scope drive.file' +
+      (p2t.ok ? '' : ' — FALLÓ: ' + p2t.error));
+  if (p2t.ok) {
+    var p2meta = null;
+    try { p2meta = Drive.Files.get(p2id, { fields: 'trashed' }); } catch (e) { p2meta = null; }
+    chk(!!p2meta && p2meta.trashed === true,
+        'P2c el archivo quedó REALMENTE en la papelera (verificado leyendo su metadata, no asumido)');
+  } else {
+    // Si el borrado falló, el archivo sigue vivo: se DICE, con su id, para que nadie lo busque a mano.
+    log.push('   ⚠ P2 dejó un archivo de prueba en Drive: ' + p2id + ' (borralo a mano)');
+  }
+
+  // ── Contratos: el scope no se amplió y el camino viejo no puede volver ──
+  chk(String(limpiarTodoTest).indexOf('_trashArchivo_') >= 0,
+      'P2d limpiarTodoTest limpia por el helper, no por DriveApp');
+  chk(String(limpiarTodoTest).indexOf('detalle_huerfanos') >= 0,
+      'P2e limpiarTodoTest REPORTA los huérfanos en su return (el catch dejó de ser silencioso)');
+  chk(String(smokeBackup).indexOf('_trashArchivo_') >= 0,
+      'P2f el smoke de backup tampoco deja su propia basura en Drive');
 }
