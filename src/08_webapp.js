@@ -732,6 +732,19 @@ function listaClientes() {
 }
 
 /**
+ * Roster de proyectos (id + nombre + cliente) para el selector del panel de detalle de tarea.
+ * Solo lectura, sin datos sensibles. AISLAMIENTO §3: es la fuente contra la que `guardarTarea`
+ * valida el `id_proyecto` que llega del front — un id tipeado a mano no reasigna la tarea al
+ * proyecto de otro cliente. Endpoint client-callable ⇒ `_soloOwner_` + alta en ENDPOINTS_UI.
+ */
+function listaProyectos() {
+  _soloOwner_('listaProyectos');
+  return leerTabla(getMaestro().getSheetByName('Proyectos')).map(function (p) {
+    return { id_proyecto: p.id_proyecto, nombre: p.nombre, id_cliente: p.id_cliente, estado: p.estado };
+  });
+}
+
+/**
  * Panel completo de un cliente: ficha, proyectos con % avance, próximos pasos,
  * observaciones (Bitácora), widget de consumo API (stub desde Costos_API del
  * Sheet cliente) y ficha de gobernanza.
@@ -748,6 +761,7 @@ function datosCliente(idCliente) {
       return {
         id_proyecto: p.id_proyecto, nombre: p.nombre, estado: p.estado,
         avance: p['%_avance'], proximo_hito: p.proximo_hito,
+        notas: String(p.notas || ''),   // F3 (05-ago): nota del proyecto — la edita la Ficha 360
         fecha_objetivo: aFechaISO(p.fecha_objetivo),
         fecha_ultimo_movimiento: aFechaISO(p.fecha_ultimo_movimiento)
       };
@@ -1675,6 +1689,98 @@ function moverTarea(idTarea, estadoDestino) {
     } catch (e) { /* recurrencia nunca bloquea el tablero */ }
   }
   return { id_tarea: idTarea, estado: estadoDestino, previo: previo, renace: renace };
+}
+
+/**
+ * Edita campos de UNA tarea desde el panel de detalle del CM. Espejo de moverTarea:
+ *  (1) whitelist de campos editables; ignora cualquier otro; (2) valida cada valor y escribe SOLO
+ *  las columnas presentes; (3) `notas` pasa por sanitizarCelda (antifórmula) + truncado. Loguea.
+ * AREL: interno + reversible = avanzar. _soloOwner_ como el resto de endpoints CM (ENDPOINTS_UI).
+ */
+function guardarTarea(idTarea, campos) {
+  _soloOwner_('guardarTarea');
+  idTarea = String(idTarea || '').trim();
+  if (!idTarea) throw new Error('guardarTarea: falta id_tarea');
+  var c = campos || {};
+  var sh = getMaestro().getSheetByName('Tareas');
+  if (!sh) throw new Error('No existe la pestaña Tareas');
+  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  if (H.indexOf('id_tarea') < 0) throw new Error('Schema Tareas sin id_tarea');
+  var w = {};
+  if (c.descripcion !== undefined) { var d = String(c.descripcion).trim(); if (d) w.descripcion = d.slice(0, 300); }
+  if (c.prioridad !== undefined) { var p = String(c.prioridad).toUpperCase(); if (['A', 'B', 'C'].indexOf(p) >= 0) w.prioridad = p; }
+  if (c.estado !== undefined) { var e = String(c.estado).toLowerCase(); if (ESTADOS_TAREA_UI.indexOf(e) >= 0) w.estado = e; }
+  if (c.tipo !== undefined) { var tp = String(c.tipo).toLowerCase(); if (TAREA_TIPOS.indexOf(tp) >= 0 || tp === '') w.tipo = tp; }
+  if (c.recurrencia !== undefined) { var r = String(c.recurrencia).toLowerCase(); if (TAREA_RECS.indexOf(r) >= 0 || r === '') w.recurrencia = r; }
+  if (c.fecha_limite !== undefined) w.fecha_limite = aFechaISO(c.fecha_limite) || '';
+  // AISLAMIENTO §3: el id_proyecto que manda el front se valida contra el roster REAL. Un id
+  // inexistente/tipeado NO se escribe en silencio (mandaría la tarea al proyecto de otro cliente
+  // o la dejaría huérfana): corta ruidoso. '' es válido — desata la tarea de todo proyecto.
+  if (c.id_proyecto !== undefined) {
+    var idP = String(c.id_proyecto || '').trim();
+    if (idP && !listaProyectos().some(function (p) { return String(p.id_proyecto) === idP; })) {
+      throw new Error('Proyecto no encontrado: ' + idP);
+    }
+    w.id_proyecto = idP;
+  }
+  if (c.etiquetas !== undefined) {
+    var ets = c.etiquetas; if (typeof ets === 'string') ets = ets.split(',');
+    w.etiquetas = ets.map(function (x) { return String(x).trim().toLowerCase(); }).filter(String).slice(0, 6).join(',');
+  }
+  if (c.notas !== undefined) w.notas = sanitizarCelda(String(c.notas)).slice(0, 4000);
+  var claves = Object.keys(w);
+  if (!claves.length) return { id_tarea: idTarea, sin_cambio: true };
+  return conLock(function () {
+    var n = sh.getLastRow(); if (n < 2) throw new Error('Sin tareas');
+    var filas = sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
+    var cId = H.indexOf('id_tarea'), fila = -1;
+    for (var i = 0; i < filas.length; i++) if (String(filas[i][cId]) === idTarea) { fila = i + 2; break; }
+    if (fila < 0) throw new Error('Tarea no encontrada: ' + idTarea);
+    claves.forEach(function (k) { var col = H.indexOf(k); if (col >= 0) sh.getRange(fila, col + 1).setValue(w[k]); });
+    var idProy = H.indexOf('id_proyecto') >= 0 ? filas[fila - 2][H.indexOf('id_proyecto')] : '';
+    try { feed_('Director', 'accion', clienteDeProyecto(idProy), 'Tarea ' + idTarea + ' editada (' + claves.join(',') + ') desde el panel CM', idTarea, ''); } catch (e) {}
+    return { id_tarea: idTarea, guardado: claves };
+  });
+}
+
+/** Devuelve la fila completa de UNA tarea (para poblar el panel de detalle). _soloOwner_. */
+function detalleTarea(idTarea) {
+  _soloOwner_('detalleTarea');
+  idTarea = String(idTarea || '').trim();
+  var sh = getMaestro().getSheetByName('Tareas');
+  if (!sh) throw new Error('No existe la pestaña Tareas');
+  var t = leerTabla(sh).filter(function (f) { return String(f.id_tarea) === idTarea; })[0];
+  if (!t) throw new Error('Tarea no encontrada: ' + idTarea);
+  return {
+    id_tarea: t.id_tarea, id_proyecto: t.id_proyecto || '', descripcion: t.descripcion || '',
+    prioridad: t.prioridad || 'B', estado: String(t.estado || '').toLowerCase(),
+    fecha_limite: aFechaISO(t.fecha_limite) || '', tipo: String(t.tipo || '').toLowerCase(),
+    etiquetas: String(t.etiquetas || ''), recurrencia: String(t.recurrencia || '').toLowerCase(),
+    notas: String(t.notas || '')
+  };
+}
+
+/** Setea la nota (fila-es-documento) de un Proyecto. Espejo mínimo de guardarTarea. _soloOwner_. */
+function guardarNotaProyecto(idProyecto, notas) {
+  _soloOwner_('guardarNotaProyecto');
+  idProyecto = String(idProyecto || '').trim();
+  if (!idProyecto) throw new Error('falta id_proyecto');
+  var sh = getMaestro().getSheetByName('Proyectos');
+  if (!sh) throw new Error('No existe la pestaña Proyectos');
+  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var cId = H.indexOf('id_proyecto'), cN = H.indexOf('notas');
+  if (cId < 0) throw new Error('Schema Proyectos sin id_proyecto');
+  if (cN < 0) throw new Error('Falta la columna notas en Proyectos — correr setup()');
+  return conLock(function () {
+    var n = sh.getLastRow(); if (n < 2) throw new Error('Sin proyectos');
+    var filas = sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
+    for (var i = 0; i < filas.length; i++) if (String(filas[i][cId]) === idProyecto) {
+      sh.getRange(i + 2, cN + 1).setValue(sanitizarCelda(String(notas)).slice(0, 4000));
+      try { feed_('Director', 'accion', clienteDeProyecto(idProyecto), 'Nota de proyecto ' + idProyecto + ' actualizada', '', ''); } catch (e) {}
+      return { id_proyecto: idProyecto, ok: true };
+    }
+    throw new Error('Proyecto no encontrado: ' + idProyecto);
+  });
 }
 
 /** 'yyyy-MM-ddTHH:mm:ss' → 'YYYY-MM-DD HH:mm' (legible). Acepta Date o string. */

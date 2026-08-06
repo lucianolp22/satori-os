@@ -110,3 +110,7 @@
 - `node _harness.js` (offline, segundos) + `python3 _verificar_index.py` antes de cualquier push. El arnés NO puede certificar lo que toca Sheets/Drive/Gmail: eso son los tramos del editor.
 - Triggers en prod: `corridaDiaria` 07:00 + `drenarCola` 5min (instalados por `bootstrap`) + `backupSemanal` domingo 04:00.
 - Backup/restore: `RUNBOOK-recuperacion-total.md`. Voz PWA: `RUNBOOK-voz-PWA-movil.md` (consultoría).
+
+## Tareas / board — reglas de datos (BLOQUE 4, 05-ago)
+- **Gate anti-rollup / anti-campo-computado:** antes de agregar CUALQUIER métrica, rollup o relación nueva → "¿qué haría distinto según este número?". Sin respuesta concreta, no se agrega. La espina Cliente→Proyecto→Tarea (0-2 relaciones) es el límite (Notion tax, `docs/NOTION-a-Satori-mapeo.md` §5).
+- **Multi-vista disciplinada:** toda vista/filtro nueva = filtro/orden/render sobre la MISMA hoja, jamás una copia del dato (ya se aplica; queda como regla).

@@ -837,6 +837,33 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .day:focus-visible{outline:2px solid var(--color-primary); outline-offset:2px}
 #centro .kboard.calboard{inset:6vh auto auto 50%; height:88vh; width:min(1080px,94vw); transform:translateX(-50%) scale(.98)}
 #centro .kboard.calboard.open{transform:translateX(-50%)}
+/* ═══ BLOQUE 4 F3 (05-ago) — PANEL DE DETALLE/EDICIÓN DE TAREA. Overlay hermano de calboard:
+   mismo patrón kscrim+kboard (cero primitivas nuevas), pero tamaño de DIÁLOGO, no de tablero.
+   Registro operativo: densidad alta, un control por dato, el foco entra en la descripción. */
+#centro .kboard.tdboard{inset:8vh auto auto 50%; bottom:auto; max-height:84vh; width:min(560px,94vw); transform:translateX(-50%) scale(.98)}
+#centro .kboard.tdboard.open{transform:translateX(-50%)}
+/* Z-INDEX (regla dura CLAUDE.md): scrim y board del panel SUBEN por encima del tablero. Los 4
+   son hermanos dentro de #centro (ningún ancestro intermedio crea contexto), así que compiten
+   entre sí: con el 70/71 heredado, el #kboard (71) quedaba ARRIBA del #tdscrim (70) → el
+   tablero seguía clickeable detrás del panel y se podía arrastrar una card mientras se editaba.
+   Se sube el par en los DOS modos (normal y Akasha, que reasigna 210/211 a los hermanos). */
+#centro #tdscrim.kscrim{z-index:72}
+#centro .kboard.tdboard{z-index:73}
+#centro.ak-on #tdscrim.kscrim{z-index:212}
+#centro.ak-on .kboard.tdboard{z-index:213}
+#centro .tdform{display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3) var(--space-4); padding:var(--space-4) var(--space-5) var(--space-5); overflow-y:auto; min-height:0}
+#centro .tdform label{display:flex; flex-direction:column; gap:4px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--color-text-subtle); min-width:0}
+#centro .tdform .ancho{grid-column:1/-1}
+#centro .tdform input,#centro .tdform select,#centro .tdform textarea{width:100%; min-width:0; background:rgba(255,255,255,.06); border:1px solid var(--color-border-strong); border-radius:var(--radius-md); padding:7px 10px; color:var(--color-text); font:inherit; font-size:var(--text-sm); outline:none; color-scheme:dark}
+#centro .tdform textarea{resize:vertical; line-height:1.45}
+#centro .tdform input:hover,#centro .tdform select:hover,#centro .tdform textarea:hover{border-color:var(--color-primary)}
+#centro .tdform input:focus-visible,#centro .tdform select:focus-visible,#centro .tdform textarea:focus-visible{border-color:var(--color-primary); outline:2px solid var(--color-focus-ring); outline-offset:1px}
+#centro .tdform input:disabled,#centro .tdform select:disabled,#centro .tdform textarea:disabled{opacity:.5; cursor:default}
+#centro .tdform .td-hint{grid-column:1/-1; font-size:10.5px; color:var(--color-text-subtle); letter-spacing:.02em}
+#centro .tdform .td-err{grid-column:1/-1; font-size:var(--text-xs); color:var(--color-danger)}
+#centro .tdform .td-acts{grid-column:1/-1; display:flex; gap:var(--space-2); align-items:center; justify-content:flex-end; margin-top:var(--space-1,4px)}
+#centro .tdform .btn:focus-visible{outline:2px solid var(--color-focus-ring); outline-offset:2px}
+@media (max-width:560px){ #centro .tdform{grid-template-columns:1fr} }
 /* ═══ FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul · v3 dashboard) — overlay patrón kboard.
    Extensión del sistema (feedback eyeball 28-jul): las secciones usan EL MISMO glass de
    `#centro .card` (glass-bg + blur + color-border del scope oscuro del CM) — nada de
@@ -907,6 +934,14 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-chk-add{display:flex;gap:8px;margin-top:8px}
 .f360-chk-add input{flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:6px 10px;font-size:12px;color:var(--color-text)}
 .f360-chk-add input:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 2px color-mix(in srgb, var(--color-focus-ring) 40%, transparent)}
+/* F3 (05-ago) — NOTA DE PROYECTO en la ficha (base visual: .f360-chk-add, con textarea). */
+.f360-nota{display:flex;gap:8px;margin-top:8px;align-items:flex-end}
+.f360-nota textarea{flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:6px 10px;font:inherit;font-size:12px;line-height:1.45;color:var(--color-text);resize:vertical}
+.f360-nota textarea:hover{border-color:var(--color-border-strong)}
+.f360-nota textarea:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:1px;border-color:var(--color-primary)}
+.f360-nota textarea:disabled,.f360-nota .btn:disabled{opacity:.5;cursor:default}
+.f360-nota .btn{flex:0 0 auto}
+.f360-nota .btn:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px}
 .f360-chk-hechas{margin-top:8px;font-size:11px;color:var(--color-text-muted);cursor:pointer;user-select:none;background:none;border:0;padding:4px 0;display:block;text-align:left;width:100%}
 .f360-chk-hechas:hover{color:var(--color-text)}
 /* ── T1.2: situación (brief) plegada ── */
@@ -1084,6 +1119,14 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 #centro .kcard .lbl{height:5px; width:38px; border-radius:var(--radius-full); margin-bottom:7px; background:var(--lc,var(--color-primary))}
 #centro .kcard .meta{display:flex; align-items:center; gap:8px; margin-top:7px; font-size:10.5px; color:var(--color-text-subtle)}#centro .kcard .meta .ck{display:inline-flex; align-items:center; gap:4px; font-family:var(--font-mono)}
 #centro .kcard.done{opacity:.6}#centro .kcard.done .ti{text-decoration:line-through}
+/* BLOQUE 4 F3 (05-ago) — afordancia de apertura del panel de detalle. Vive en su propia esquina
+   y NO en el cuerpo de la card: el click del cuerpo colisiona con el dragstart del kanban. */
+#centro .kcard{position:relative}
+#centro .kcard .ti{padding-right:26px}
+#centro .kcard-open{position:absolute; top:6px; right:6px; width:24px; height:24px; display:grid; place-items:center; background:none; border:0; border-radius:var(--radius-sm); color:var(--color-text-subtle); font-size:15px; line-height:1; cursor:pointer; padding:0}
+#centro .kcard-open:hover{background:rgba(255,255,255,.08); color:var(--color-text)}
+#centro .kcard-open:focus-visible{outline:2px solid var(--color-focus-ring); outline-offset:1px; color:var(--color-text)}
+#centro .kcard-open:disabled{opacity:.45; cursor:default}
 /* Tareas-v2 F1: quick-add + filtros por tipo del board */
 #centro .kadd-in{flex:1; min-width:180px; margin-left:var(--space-3); background:rgba(255,255,255,.06); border:1px solid var(--color-border-strong); border-radius:var(--radius-full); padding:7px var(--space-4); color:var(--color-text); font:inherit; font-size:var(--text-sm); outline:none}
 #centro .kadd-in:focus{border-color:var(--color-primary)}
@@ -1356,6 +1399,33 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <div class="mhdr"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
       <div class="mgrid" id="mgrid"></div>
     </div>
+  </div>
+
+  <!-- DETALLE / EDICIÓN DE TAREA (BLOQUE 4 F3 · 05-ago) — overlay hermano del calendario, mismo
+       patrón kscrim+kboard. Lo abre el botón ⋯ de cada tarjeta del kanban (nunca el cuerpo de la
+       card: colisiona con el dragstart). Datos: detalleTarea() → guardarTarea(). -->
+  <div class="kscrim" id="tdscrim"></div>
+  <div class="kboard tdboard" id="tdboard" role="dialog" aria-modal="true" aria-label="Detalle de tarea">
+    <div class="khead"><h3>Tarea</h3>
+      <span class="chip c-idle mono" id="tdId">—</span>
+      <button class="icon-btn" id="tdClose" style="margin-left:auto" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <form class="tdform" id="tdForm" autocomplete="off">
+      <label class="ancho">Descripción<input type="text" id="tdDesc" maxlength="300" required></label>
+      <label>Proyecto<select id="tdProy"><option value="">— sin proyecto —</option></select></label>
+      <label>Estado<select id="tdEstado"></select></label>
+      <label>Prioridad<select id="tdPrio"><option value="A">A · alta</option><option value="B">B · media</option><option value="C">C · baja</option></select></label>
+      <label>Vence<input type="date" id="tdFecha"></label>
+      <label>Tipo<select id="tdTipo"><option value="">— sin tipo —</option><option value="cliente">cliente</option><option value="periodica">periódica</option><option value="objetivo">objetivo</option><option value="personal">personal</option><option value="admin">admin</option></select></label>
+      <label>Etiquetas<input type="text" id="tdEtq" maxlength="120" placeholder="una, dos (máx 6)"></label>
+      <label class="ancho">Notas<textarea id="tdNotas" rows="5" maxlength="4000" placeholder="Contexto, decisiones, links… — la fila es el documento"></textarea></label>
+      <div class="td-hint">Se guarda solo lo que cambiaste.</div>
+      <div class="td-err" id="tdErr" role="alert" hidden></div>
+      <span class="td-acts">
+        <button type="button" class="btn btn-ghost btn-sm" id="tdCancel">Cerrar</button>
+        <button type="submit" class="btn btn-sm" id="tdGuardar">Guardar cambios</button>
+      </span>
+    </form>
   </div>
 
   <!-- FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) — overlay hermano del tablero/calendario.
@@ -2967,6 +3037,9 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
      ahora hace falta, porque en modo modal Akasha le cede el Escape a quien está arriba. */
   document.addEventListener('keydown',function(e){
     if(e.key!=='Escape')return;
+    // F3 (05-ago): el panel de detalle de tarea vive ARRIBA del tablero → se cierra primero.
+    var tb=document.getElementById('tdboard');
+    if(tb&&tb.classList.contains('open')){ e.stopPropagation(); tdCerrar(); return; }
     var fb=document.getElementById('fichaboard');
     if(fb&&fb.classList.contains('open')){ e.stopPropagation(); fichaCerrar(); return; }
     var cb=document.getElementById('calboard');
@@ -4384,9 +4457,37 @@ function f360Plan_(dc,fc){
       var bar=el('div','f360-bar'); var f=el('i'); f.style.width=Math.max(0,Math.min(100,av))+'%'; bar.appendChild(f); r.appendChild(bar);
       var m=el('div','m'); m.appendChild(el('span',null,'avance '+av+'%'+(p.proximo_hito?' · próximo hito: '+p.proximo_hito:'')));
       if(p.fecha_objetivo)m.appendChild(el('span','mono num',p.fecha_objetivo));
-      r.appendChild(m); cont.appendChild(r);
+      r.appendChild(m);
+      r.appendChild(f360NotaProy_(p));   // F3 (05-ago): la nota del proyecto se edita acá
+      cont.appendChild(r);
     });
   }
+}
+/* F3 (05-ago) — NOTA DE PROYECTO (fila-es-documento). Persiste con guardarNotaProyecto; el
+   server sanitiza y trunca. Sin la columna `notas` materializada (setup()), el backend corta
+   con motivo y acá se ve el motivo — nunca un guardado fantasma. */
+function f360NotaProy_(p){
+  var box=el('div','f360-nota');
+  var ta=document.createElement('textarea');
+  ta.rows=2; ta.maxLength=4000; ta.value=String(p.notas||'');
+  ta.placeholder='Nota del proyecto…';
+  ta.setAttribute('aria-label','Nota del proyecto '+(p.nombre||p.id_proyecto));
+  var b=el('button','btn btn-ghost btn-sm','Guardar nota'); b.type='button';
+  b.addEventListener('click',function(){
+    if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Sin backend'); return; }
+    if(String(ta.value)===String(p.notas||'')){ cmToast('La nota no cambió'); return; }
+    var gen=F360.gen, txt=ta.value;
+    b.disabled=true; ta.disabled=true;
+    google.script.run
+      .withSuccessHandler(function(r){ if(gen!==F360.gen)return; b.disabled=false; ta.disabled=false;
+        if(!(r&&r.ok)){ cmToast('No se pudo guardar la nota: '+((r&&r.error)||'')); return; }
+        p.notas=txt; cmToast('Nota de '+p.id_proyecto+' guardada ✓'); })
+      .withFailureHandler(function(e){ if(gen!==F360.gen)return; b.disabled=false; ta.disabled=false;
+        cmToast('No se pudo guardar la nota: '+((e&&e.message)||'')); })
+      .guardarNotaProyecto(p.id_proyecto,txt);
+  });
+  box.appendChild(ta); box.appendChild(b);
+  return box;
 }
 /* FILA 2 — Números: KPIs del tenant + operación reciente que escribió el conector. */
 function f360Num_(fc){
@@ -4678,6 +4779,17 @@ function ccKCard(t){
   if(t.recurrencia)meta.appendChild(el('span','ck','↻ '+t.recurrencia));
   String(t.etiquetas||'').split(',').filter(String).slice(0,2).forEach(function(e2){ meta.appendChild(el('span','ck','#'+e2.trim())); });
   if(meta.childNodes.length)c.appendChild(meta);
+  /* F3 (05-ago): afordancia DEDICADA para abrir el detalle. El click NO puede ir en el cuerpo
+     de la card (colisiona con el dragstart del kanban). Mientras el puntero está sobre el
+     botón, la card deja de ser draggable: si no, el navegador arranca el drag del ancestro
+     igual — stopPropagation en mousedown no lo frena. */
+  var op=el('button','kcard-open','⋯'); op.type='button';
+  op.setAttribute('aria-label','Abrir el detalle de '+(t.descripcion||t.id_tarea));
+  op.title='Detalle, notas y edición';
+  op.addEventListener('mouseenter',function(){ c.draggable=false; });
+  op.addEventListener('mouseleave',function(){ c.draggable=true; });
+  op.addEventListener('click',function(ev){ ev.stopPropagation(); c.draggable=true; tdAbrir(t.id_tarea); });
+  c.appendChild(op);
   return c;
 }
 function ccKanbanDnD(){
@@ -4704,6 +4816,117 @@ function ccKanbanDnD(){
         .moverTarea(id,destino);
     }); });
 }
+/* ════════ BLOQUE 4 F3 (05-ago) — panel de detalle/edición de tarea (+ notas) ════════
+   Espejo de calFormAbrir/calGuardar sobre el patrón kscrim+kboard. Dos decisiones que no son
+   cosméticas:
+   · Manda SOLO los campos que cambiaron. Un estado terminal ('completada'/'cancelada') queda
+     fuera de la whitelist de guardarTarea; si mandáramos el form entero, el server lo
+     rechazaría EN SILENCIO. Mandando el delta, lo que no se toca no se toca.
+   · El id_proyecto sale de un <select> poblado con el roster real (listaProyectos) y el server
+     lo re-valida: un id a mano no puede reasignar la tarea al proyecto de otro cliente. */
+var TD={orig:null,id:'',proysOK:false};
+var TD_CAMPOS=['descripcion','id_proyecto','estado','prioridad','fecha_limite','tipo','etiquetas','notas'];
+function tdErr_(msg){ var e=document.getElementById('tdErr'); if(!e)return; e.textContent=msg||''; e.hidden=!msg; }
+function tdBloquear_(v){
+  ['tdDesc','tdProy','tdEstado','tdPrio','tdFecha','tdTipo','tdEtq','tdNotas','tdGuardar'].forEach(function(i){
+    var el2=document.getElementById(i); if(el2)el2.disabled=!!v; });
+}
+/* Roster de proyectos: una sola lectura por sesión (mismo criterio que calClientes_). */
+function tdProyectos_(fin){
+  var sel=document.getElementById('tdProy');
+  if(!sel||TD.proysOK||typeof EN_GAS==='undefined'||!EN_GAS){ if(fin)fin(); return; }
+  google.script.run.withSuccessHandler(function(ps){
+    (ps||[]).forEach(function(p){ var o=document.createElement('option');
+      o.value=p.id_proyecto;
+      // AISLAMIENTO §6: cada proyecto se ve con su cliente — nada de elegir a ciegas.
+      o.textContent=p.id_proyecto+' · '+(p.nombre||'')+(p.id_cliente?' ('+p.id_cliente+')':'');
+      sel.appendChild(o); });
+    TD.proysOK=true; if(fin)fin();
+  }).withFailureHandler(function(){ if(fin)fin(); }).listaProyectos();
+}
+/* Estados: derivados de CC_KMAP (el contrato que ya usa el kanban), no clavados de nuevo.
+   Si la tarea viene con un estado terminal fuera del riel, se agrega tal cual: se muestra
+   lo que hay, no se lo pisa. */
+function tdEstados_(actual){
+  var sel=document.getElementById('tdEstado'); if(!sel)return; clear(sel);
+  var LBL={pendiente:'pendiente',en_curso:'en curso',hecha:'hecha'};
+  CC_KMAP.forEach(function(e2){ var o=document.createElement('option'); o.value=e2; o.textContent=LBL[e2]||e2; sel.appendChild(o); });
+  if(actual&&CC_KMAP.indexOf(actual)<0){ var o2=document.createElement('option'); o2.value=actual; o2.textContent=actual+' (fuera del riel)'; sel.appendChild(o2); }
+  sel.value=actual||'pendiente';
+}
+function tdAbrir(idTarea){
+  var bd=document.getElementById('tdboard'), sc=document.getElementById('tdscrim'); if(!bd||!sc)return;
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('El detalle de tarea funciona dentro del CM (GAS)'); return; }
+  TD.id=String(idTarea||''); TD.orig=null; tdErr_('');
+  var idEl=document.getElementById('tdId'); if(idEl)idEl.textContent=TD.id||'—';
+  tdBloquear_(true);
+  sc.classList.add('open'); bd.classList.add('open');
+  tdProyectos_(function(){
+    google.script.run.withSuccessHandler(function(t){
+      if(!t||String(t.id_tarea)!==TD.id)return;   // se abrió otra tarea mientras viajaba: descartar
+      TD.orig=t;
+      document.getElementById('tdDesc').value=t.descripcion||'';
+      var sp=document.getElementById('tdProy'); sp.value=t.id_proyecto||'';
+      if(sp.value!==(t.id_proyecto||'')){        // proyecto que ya no está en el roster: se muestra, no se pierde
+        var o=document.createElement('option'); o.value=t.id_proyecto; o.textContent=t.id_proyecto+' (no está en el roster)';
+        sp.appendChild(o); sp.value=t.id_proyecto;
+      }
+      tdEstados_(t.estado);
+      document.getElementById('tdPrio').value=['A','B','C'].indexOf(t.prioridad)>=0?t.prioridad:'B';
+      document.getElementById('tdFecha').value=t.fecha_limite||'';
+      document.getElementById('tdTipo').value=t.tipo||'';
+      document.getElementById('tdEtq').value=t.etiquetas||'';
+      document.getElementById('tdNotas').value=t.notas||'';
+      tdBloquear_(false);
+      try{ document.getElementById('tdDesc').focus(); }catch(_e){}
+    }).withFailureHandler(function(e){
+      tdErr_('No se pudo leer la tarea: '+((e&&e.message)||'sesión o permisos'));
+    }).detalleTarea(TD.id);
+  });
+}
+function tdCerrar(){
+  var bd=document.getElementById('tdboard'), sc=document.getElementById('tdscrim');
+  if(bd)bd.classList.remove('open'); if(sc)sc.classList.remove('open');
+  TD.orig=null; tdErr_('');
+}
+function tdGuardar(evt){
+  if(evt&&evt.preventDefault)evt.preventDefault();
+  if(!TD.orig)return;
+  var desc=(document.getElementById('tdDesc').value||'').trim();
+  if(!desc){ tdErr_('La descripción no puede quedar vacía.'); try{document.getElementById('tdDesc').focus();}catch(_e){} return; }
+  var v={ descripcion:desc,
+          id_proyecto:document.getElementById('tdProy').value,
+          estado:document.getElementById('tdEstado').value,
+          prioridad:document.getElementById('tdPrio').value,
+          fecha_limite:document.getElementById('tdFecha').value,
+          tipo:document.getElementById('tdTipo').value,
+          etiquetas:(document.getElementById('tdEtq').value||'').trim(),
+          notas:document.getElementById('tdNotas').value||'' };
+  var campos={}, n=0;
+  TD_CAMPOS.forEach(function(k){
+    var prev=TD.orig[k]==null?'':String(TD.orig[k]);
+    if(String(v[k])!==prev){ campos[k]=v[k]; n++; }
+  });
+  if(!n){ cmToast('Sin cambios'); tdCerrar(); return; }
+  var id=TD.id, g=document.getElementById('tdGuardar'), lbl=g.textContent;
+  tdErr_(''); tdBloquear_(true); g.textContent='Guardando…';
+  google.script.run
+    .withSuccessHandler(function(){ tdBloquear_(false); g.textContent=lbl; tdCerrar();
+      cmToast('Tarea '+id+' guardada ✓'); ccKanbanLoad(); })
+    .withFailureHandler(function(e){ tdBloquear_(false); g.textContent=lbl;
+      tdErr_('No se pudo guardar: '+((e&&e.message)||'error')); })
+    .guardarTarea(id,campos);
+}
+(function(){
+  var f=document.getElementById('tdForm'); if(f)f.addEventListener('submit',tdGuardar);
+  var x=document.getElementById('tdClose'); if(x)x.addEventListener('click',tdCerrar);
+  var c=document.getElementById('tdCancel'); if(c)c.addEventListener('click',tdCerrar);
+  var s=document.getElementById('tdscrim'); if(s)s.addEventListener('click',tdCerrar);
+  /* Escape: NO se agrega un 2º listener — el panel se sumó como primera rama del handler
+     único de E3.15 (un solo dueño del Escape; dos capture listeners cerrarían el tablero de
+     atrás en el mismo golpe, porque stopPropagation no frena a los hermanos). */
+})();
+
 // abrir tablero → cargar datos frescos (además del openB que muestra el modal)
 (function(){ var ob=document.getElementById('openBoard'); if(ob)ob.addEventListener('click',ccKanbanLoad); })();
 

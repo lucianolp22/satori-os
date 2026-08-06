@@ -312,6 +312,21 @@ function selfTest() {
     var ctx8 = datosHoy().tareas_ctx;
     chk(!!ctx8 && typeof ctx8.hoy === 'number' && typeof ctx8.periodicas === 'number' && ctx8.abiertas >= ctx8.en_curso, 'D8b datosHoy expone tareas_ctx (checklist de contexto)');
 
+    // ── D8c Tareas-v2 F3 — notas + edición (guardarTarea/detalleTarea) ──
+    var t8c = crearTarea({ descripcion: '__TEST__ F3 edicion', prioridad: 'C', tipo: 'personal' });
+    guardarTarea(t8c.id_tarea, { prioridad: 'A', notas: '=HYPERLINK("x")', etiquetas: 'A, b ', descripcion: '  ', bicho: 'x' });
+    var det8 = detalleTarea(t8c.id_tarea);
+    chk(det8.prioridad === 'A', 'D8c guardarTarea escribe campo whitelisted (prioridad)');
+    chk(det8.notas.charAt(0) !== '=', 'D8c notas sanitizada (antifórmula)');
+    chk(det8.descripcion === '__TEST__ F3 edicion', 'D8c descripción vacía NO pisa el valor previo');
+    chk(det8.etiquetas === 'a,b', 'D8c etiquetas normalizadas (lower+trim)');
+    // AISLAMIENTO §9 (F3 UI, 05-ago): el panel manda id_proyecto → se valida contra el roster real.
+    var rechazo8c = '';
+    try { guardarTarea(t8c.id_tarea, { id_proyecto: 'PRO-QUE-NO-EXISTE-9999' }); } catch (e8c) { rechazo8c = String(e8c && e8c.message); }
+    chk(/no encontrado/i.test(rechazo8c) && detalleTarea(t8c.id_tarea).id_proyecto === det8.id_proyecto,
+      'D8c 🔒 guardarTarea rechaza un id_proyecto fuera del roster y NO reasigna la tarea (' + (rechazo8c || 'no cortó') + ')');
+    chk(ENDPOINTS_UI.indexOf('listaProyectos') >= 0, 'D8c listaProyectos dado de alta en ENDPOINTS_UI (regla anti-drift)');
+
     // ── D9 Trillion-delta Tanda 2 (08-jul) — juicio anclado (A2) + rec→aprobación (B2) ──
     // A2: determinístico con `pre` inyectado (no depende del estado real del sistema).
     var pre9 = {

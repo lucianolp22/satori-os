@@ -149,6 +149,8 @@ var ENDPOINTS_UI = [
   'estadoAgentes', 'bootUniverso', 'bootResto', 'bootUnico', 'estadoSalud',
   'dispararAgenteUI', 'resolverAprobacionUI', 'metricasValidasUI', 'asignarMetricaUI',
   'tableroTareas', 'crearTarea', 'crearTareaQuick', 'moverTarea',
+  // 08_webapp.js — BLOQUE 4 F3 (05-ago): panel de detalle/edición de tarea + notas de proyecto
+  'detalleTarea', 'guardarTarea', 'guardarNotaProyecto', 'listaProyectos',
   // 18_direccion.js
   'agendaRango', 'recomendacionesAbiertas', 'marcarRecomendacion', 'registrarFeedback',
   'aprobacionDesdeRecomendacion',
