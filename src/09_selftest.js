@@ -3252,6 +3252,7 @@ function _asertsD43_(chk, log, opts) {
     if (d43carp.ok) {
       d43ss = SpreadsheetApp.create('__TEST__ bk origen ' + ahoraISO());
       d43ss.getSheets()[0].getRange('A1').setValue('bk');
+      SpreadsheetApp.flush();   // D43d4: sin flush, Drive.Files.copy copia el file ANTES de que baje el setValue (copia sin dato = flake)
 
       // EL FLUJO DEL BACKUP, tal cual lo corre _ejecutarBackup_
       var d43c = _copiarSpreadsheet_(d43ss.getId(), '__TEST__ bk copia', d43carp.id);
@@ -3270,8 +3271,12 @@ function _asertsD43_(chk, log, opts) {
           'D43d3 la carpeta LISTA la copia (lo que backupListar cuenta de verdad)');
 
       // La copia conserva el contenido (un backup ilegible no es un backup).
-      var d43leido = SpreadsheetApp.openById(d43copiaId).getSheets()[0].getRange('A1').getValue();
-      chk(String(d43leido) === 'bk', 'D43d4 la copia es legible y conserva el dato');
+      var d43leido = '';
+      for (var d43i = 0; d43i < 3 && String(d43leido) !== 'bk'; d43i++) {
+        if (d43i) Utilities.sleep(800);   // propagacion Drive: la copia puede tardar en materializar el contenido
+        try { d43leido = SpreadsheetApp.openById(d43copiaId).getSheets()[0].getRange('A1').getValue(); } catch (_d43e) {}
+      }
+      chk(String(d43leido) === 'bk', 'D43d4 la copia es legible y conserva el dato (leido: "' + d43leido + '")');
 
       // Subcarpeta anidada: lo que hace el backup real (raíz → backup_<stamp>).
       d43sub = _driveCrearCarpeta_('backup_TEST', d43carp.id);
