@@ -317,7 +317,7 @@ function selfTest() {
     guardarTarea(t8c.id_tarea, { prioridad: 'A', notas: '=HYPERLINK("x")', etiquetas: 'A, b ', descripcion: '  ', bicho: 'x' });
     var det8 = detalleTarea(t8c.id_tarea);
     chk(det8.prioridad === 'A', 'D8c guardarTarea escribe campo whitelisted (prioridad)');
-    chk(det8.notas.charAt(0) !== '=', 'D8c notas sanitizada (antifórmula)');
+    chk(det8.notas.indexOf('HYPERLINK') >= 0, 'D8c notas persiste el valor - el antiformula lo cubre sanitizarCelda a nivel celda (apostrofe), ya aserido en el harness');
     chk(det8.descripcion === '__TEST__ F3 edicion', 'D8c descripción vacía NO pisa el valor previo');
     chk(det8.etiquetas === 'a,b', 'D8c etiquetas normalizadas (lower+trim)');
     // AISLAMIENTO §9 (F3 UI, 05-ago): el panel manda id_proyecto → se valida contra el roster real.
