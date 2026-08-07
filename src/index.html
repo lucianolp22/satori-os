@@ -1413,7 +1413,21 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <form class="tdform" id="tdForm" autocomplete="off">
       <label class="ancho">Descripción<input type="text" id="tdDesc" maxlength="300" required></label>
       <label>Proyecto<select id="tdProy"><option value="">— sin proyecto —</option></select></label>
-      <label>Estado<select id="tdEstado"></select></label>
+      <!-- A.1 (07-ago) · mini-alta de proyecto: se revela al elegir «＋ nuevo proyecto…» en #tdProy.
+           CERO primitivas nuevas — los inputs/labels heredan `#centro .tdform input|select|label`.
+           OJO: NO usa el atributo `hidden` (un `display` inline le gana a `[hidden]`): se muestra
+           y se oculta con style.display desde tdNpMostrar_. -->
+      <div class="ancho" id="tdNuevoProy" style="display:none; grid-template-columns:1fr; gap:var(--space-3); padding:var(--space-3); border:1px dashed var(--color-border-strong); border-radius:var(--radius-md)">
+        <label class="ancho">Nombre del proyecto<input type="text" id="tdNpNombre" maxlength="120" placeholder="Ej.: Rediseño del circuito de cobros"></label>
+        <label class="ancho">Cliente<select id="tdNpCli"><option value="">— elegí el cliente —</option></select></label>
+        <div class="ancho" style="display:flex; gap:var(--space-2); justify-content:flex-end">
+          <button type="button" class="btn btn-ghost btn-sm" id="tdNpCancel">Cancelar</button>
+          <button type="button" class="btn btn-sm" id="tdNpCrear">Crear proyecto</button>
+        </div>
+      </div>
+      <!-- A.0/P1: el estado se VE acá pero se CAMBIA arrastrando en el kanban (moverTarea es el
+           único camino a `estado` y el único que clona la recurrencia). Badge read-only. -->
+      <label>Estado<span class="chip" id="tdEstadoRO" style="align-self:flex-start; text-transform:none; letter-spacing:0; font-size:var(--text-sm); color:var(--color-idle); background:var(--color-idle-weak)">—</span></label>
       <label>Prioridad<select id="tdPrio"><option value="A">A · alta</option><option value="B">B · media</option><option value="C">C · baja</option></select></label>
       <label>Vence<input type="date" id="tdFecha"></label>
       <label>Tipo<select id="tdTipo"><option value="">— sin tipo —</option><option value="cliente">cliente</option><option value="periodica">periódica</option><option value="objetivo">objetivo</option><option value="personal">personal</option><option value="admin">admin</option></select></label>
@@ -4819,16 +4833,20 @@ function ccKanbanDnD(){
 /* ════════ BLOQUE 4 F3 (05-ago) — panel de detalle/edición de tarea (+ notas) ════════
    Espejo de calFormAbrir/calGuardar sobre el patrón kscrim+kboard. Dos decisiones que no son
    cosméticas:
-   · Manda SOLO los campos que cambiaron. Un estado terminal ('completada'/'cancelada') queda
-     fuera de la whitelist de guardarTarea; si mandáramos el form entero, el server lo
-     rechazaría EN SILENCIO. Mandando el delta, lo que no se toca no se toca.
+   · Manda SOLO los campos que cambiaron. Si mandáramos el form entero, lo que el server no
+     whitelistea se rechazaría EN SILENCIO. Mandando el delta, lo que no se toca no se toca.
+   · El estado NO se edita acá (A.0/P1, 07-ago): se muestra en un badge read-only y se cambia
+     arrastrando en el kanban → `moverTarea`, el único camino que clona la recurrencia.
    · El id_proyecto sale de un <select> poblado con el roster real (listaProyectos) y el server
      lo re-valida: un id a mano no puede reasignar la tarea al proyecto de otro cliente. */
-var TD={orig:null,id:'',proysOK:false};
-var TD_CAMPOS=['descripcion','id_proyecto','estado','prioridad','fecha_limite','tipo','etiquetas','notas'];
+var TD={orig:null,id:'',proysOK:false,clisOK:false,proyPrev:''};
+/* A.0/P1 (07-ago): 'estado' NO está — el server lo sacó de su whitelist y el kanban es el único
+   camino (es el que clona la recurrencia). Esta lista es espejo del whitelist de guardarTarea. */
+var TD_CAMPOS=['descripcion','id_proyecto','prioridad','fecha_limite','tipo','etiquetas','notas'];
 function tdErr_(msg){ var e=document.getElementById('tdErr'); if(!e)return; e.textContent=msg||''; e.hidden=!msg; }
 function tdBloquear_(v){
-  ['tdDesc','tdProy','tdEstado','tdPrio','tdFecha','tdTipo','tdEtq','tdNotas','tdGuardar'].forEach(function(i){
+  ['tdDesc','tdProy','tdPrio','tdFecha','tdTipo','tdEtq','tdNotas','tdGuardar',
+   'tdNpNombre','tdNpCli','tdNpCrear'].forEach(function(i){
     var el2=document.getElementById(i); if(el2)el2.disabled=!!v; });
 }
 /* Roster de proyectos: una sola lectura por sesión (mismo criterio que calClientes_). */
@@ -4841,18 +4859,82 @@ function tdProyectos_(fin){
       // AISLAMIENTO §6: cada proyecto se ve con su cliente — nada de elegir a ciegas.
       o.textContent=p.id_proyecto+' · '+(p.nombre||'')+(p.id_cliente?' ('+p.id_cliente+')':'');
       sel.appendChild(o); });
+    tdProyNuevaOpcion_(sel);                     // A.1: «＋ nuevo…» SIEMPRE última
     TD.proysOK=true; if(fin)fin();
   }).withFailureHandler(function(){ if(fin)fin(); }).listaProyectos();
 }
-/* Estados: derivados de CC_KMAP (el contrato que ya usa el kanban), no clavados de nuevo.
-   Si la tarea viene con un estado terminal fuera del riel, se agrega tal cual: se muestra
-   lo que hay, no se lo pisa. */
-function tdEstados_(actual){
-  var sel=document.getElementById('tdEstado'); if(!sel)return; clear(sel);
+/* ── A.1 (07-ago) · mini-alta de proyecto desde el panel ──────────────────────────────────
+   Hasta hoy `Proyectos` no tenía ningún camino de alta desde la app: el <select> solo podía
+   elegir entre lo que ya existía. Esto cierra la espina Cliente→Proyecto→Tarea sin sacar al
+   usuario del panel. El id_cliente lo re-valida el server contra el roster real (AISLAMIENTO §3). */
+function tdProyNuevaOpcion_(sel){
+  sel=sel||document.getElementById('tdProy'); if(!sel)return;
+  var o=document.createElement('option'); o.value='__nuevo__'; o.textContent='＋ nuevo proyecto…';
+  sel.appendChild(o);
+}
+/* Roster de clientes para la mini-alta: una sola lectura por sesión (mismo criterio que
+   tdProyectos_). AISLAMIENTO §6: se ve `id_cliente · nombre` — nadie elige a ciegas. */
+function tdClientesNp_(fin){
+  var sel=document.getElementById('tdNpCli');
+  if(!sel||TD.clisOK||typeof EN_GAS==='undefined'||!EN_GAS){ if(fin)fin(); return; }
+  google.script.run.withSuccessHandler(function(cs){
+    (cs||[]).forEach(function(c){ var o=document.createElement('option');
+      o.value=c.id_cliente; o.textContent=c.id_cliente+' · '+(c.nombre||''); sel.appendChild(o); });
+    TD.clisOK=true; if(fin)fin();
+  }).withFailureHandler(function(){ if(fin)fin(); }).listaClientes();
+}
+function tdNpMostrar_(v){ var b=document.getElementById('tdNuevoProy'); if(b)b.style.display=v?'grid':'none'; }
+function tdNpAbrir_(){
+  tdErr_(''); tdNpMostrar_(true);
+  tdClientesNp_(function(){ try{ document.getElementById('tdNpNombre').focus(); }catch(_e){} });
+}
+/* Cancelar revierte el <select> al proyecto que estaba elegido: elegir «＋ nuevo…» y arrepentirse
+   no puede dejar la tarea apuntando a '__nuevo__' (el server lo rechazaría). */
+function tdNpCerrar_(){
+  tdNpMostrar_(false); tdErr_('');
+  var sp=document.getElementById('tdProy'); if(sp)sp.value=TD.proyPrev||'';
+  var n=document.getElementById('tdNpNombre'); if(n)n.value='';
+}
+function tdNpCrear_(){
+  var nombre=(document.getElementById('tdNpNombre').value||'').trim();
+  var idCli=document.getElementById('tdNpCli').value||'';
+  if(!nombre){ tdErr_('Ponele nombre al proyecto.'); try{document.getElementById('tdNpNombre').focus();}catch(_e){} return; }
+  if(!idCli){ tdErr_('Elegí de qué cliente es el proyecto.'); return; }
+  var b=document.getElementById('tdNpCrear'), lbl=b.textContent;
+  tdErr_(''); b.disabled=true; b.textContent='Creando…';
+  google.script.run.withSuccessHandler(function(r){
+    b.disabled=false; b.textContent=lbl;
+    var sp=document.getElementById('tdProy');
+    TD.proysOK=false; clear(sp);                 // re-poblar el roster para que el nuevo exista
+    var o0=document.createElement('option'); o0.value=''; o0.textContent='— sin proyecto —'; sp.appendChild(o0);
+    tdProyectos_(function(){
+      sp.value=r.id_proyecto;
+      // Si la re-lectura del roster falló, tdProyectos_ igual llama a fin() (no traga el error en
+      // silencio, pero tampoco lo tiene): sin esta rama el proyecto RECIÉN creado se perdería de
+      // la selección y la tarea quedaría en '— sin proyecto —'. Se lo agrega a mano y se avisa.
+      if(sp.value!==r.id_proyecto){
+        var o=document.createElement('option'); o.value=r.id_proyecto;
+        o.textContent=r.id_proyecto+' · '+r.nombre+' ('+r.id_cliente+')';
+        sp.appendChild(o); sp.value=r.id_proyecto; TD.proysOK=false;
+        tdErr_('El proyecto se creó, pero no se pudo releer el roster: recargá el CM si algo se ve raro.');
+      }
+      TD.proyPrev=sp.value;
+      tdNpMostrar_(false); document.getElementById('tdNpNombre').value='';
+      cmToast('Proyecto '+r.id_proyecto+' creado ✓');
+    });
+  }).withFailureHandler(function(e){
+    b.disabled=false; b.textContent=lbl;
+    tdErr_('No se pudo crear el proyecto: '+((e&&e.message)||'error'));
+  }).crearProyecto({nombre:nombre, id_cliente:idCli});
+}
+/* Estado READ-ONLY (A.0/P1): se muestra, no se edita. Un estado fuera del riel (CC_KMAP, el
+   contrato que ya usa el kanban) se marca como tal — se muestra lo que hay, no se lo pisa. */
+function tdEstadoBadge_(actual){
+  var b=document.getElementById('tdEstadoRO'); if(!b)return;
+  var e2=String(actual||'').toLowerCase();
   var LBL={pendiente:'pendiente',en_curso:'en curso',hecha:'hecha'};
-  CC_KMAP.forEach(function(e2){ var o=document.createElement('option'); o.value=e2; o.textContent=LBL[e2]||e2; sel.appendChild(o); });
-  if(actual&&CC_KMAP.indexOf(actual)<0){ var o2=document.createElement('option'); o2.value=actual; o2.textContent=actual+' (fuera del riel)'; sel.appendChild(o2); }
-  sel.value=actual||'pendiente';
+  b.textContent=e2?((LBL[e2]||e2)+(CC_KMAP.indexOf(e2)<0?' (fuera del riel)':'')):'—';
+  b.title='El estado se cambia arrastrando la tarjeta en el kanban';
 }
 function tdAbrir(idTarea){
   var bd=document.getElementById('tdboard'), sc=document.getElementById('tdscrim'); if(!bd||!sc)return;
@@ -4871,7 +4953,8 @@ function tdAbrir(idTarea){
         var o=document.createElement('option'); o.value=t.id_proyecto; o.textContent=t.id_proyecto+' (no está en el roster)';
         sp.appendChild(o); sp.value=t.id_proyecto;
       }
-      tdEstados_(t.estado);
+      TD.proyPrev=sp.value;                      // A.1: a dónde vuelve «Cancelar» de la mini-alta
+      tdEstadoBadge_(t.estado);
       document.getElementById('tdPrio').value=['A','B','C'].indexOf(t.prioridad)>=0?t.prioridad:'B';
       document.getElementById('tdFecha').value=t.fecha_limite||'';
       document.getElementById('tdTipo').value=t.tipo||'';
@@ -4887,16 +4970,20 @@ function tdAbrir(idTarea){
 function tdCerrar(){
   var bd=document.getElementById('tdboard'), sc=document.getElementById('tdscrim');
   if(bd)bd.classList.remove('open'); if(sc)sc.classList.remove('open');
-  TD.orig=null; tdErr_('');
+  TD.orig=null; tdErr_(''); tdNpMostrar_(false);
+  var n=document.getElementById('tdNpNombre'); if(n)n.value='';
 }
 function tdGuardar(evt){
   if(evt&&evt.preventDefault)evt.preventDefault();
   if(!TD.orig)return;
   var desc=(document.getElementById('tdDesc').value||'').trim();
   if(!desc){ tdErr_('La descripción no puede quedar vacía.'); try{document.getElementById('tdDesc').focus();}catch(_e){} return; }
+  // A.1: el centinela del <select> no es un id de proyecto — el server lo rechazaría con
+  // «Proyecto no encontrado: __nuevo__». Se corta acá con un mensaje que dice qué hacer.
+  if(document.getElementById('tdProy').value==='__nuevo__'){
+    tdErr_('Terminá de crear el proyecto nuevo (o cancelá) antes de guardar la tarea.'); return; }
   var v={ descripcion:desc,
           id_proyecto:document.getElementById('tdProy').value,
-          estado:document.getElementById('tdEstado').value,
           prioridad:document.getElementById('tdPrio').value,
           fecha_limite:document.getElementById('tdFecha').value,
           tipo:document.getElementById('tdTipo').value,
@@ -4922,6 +5009,14 @@ function tdGuardar(evt){
   var x=document.getElementById('tdClose'); if(x)x.addEventListener('click',tdCerrar);
   var c=document.getElementById('tdCancel'); if(c)c.addEventListener('click',tdCerrar);
   var s=document.getElementById('tdscrim'); if(s)s.addEventListener('click',tdCerrar);
+  /* A.1: «＋ nuevo proyecto…» revela la mini-alta; cualquier otra opción la cierra y pasa a ser
+     el valor al que vuelve Cancelar. Los botones son type="button": no submitean el form. */
+  var sp=document.getElementById('tdProy');
+  if(sp)sp.addEventListener('change',function(){
+    if(sp.value==='__nuevo__'){ tdNpAbrir_(); } else { TD.proyPrev=sp.value; tdNpMostrar_(false); }
+  });
+  var nc=document.getElementById('tdNpCancel'); if(nc)nc.addEventListener('click',tdNpCerrar_);
+  var nk=document.getElementById('tdNpCrear'); if(nk)nk.addEventListener('click',tdNpCrear_);
   /* Escape: NO se agrega un 2º listener — el panel se sumó como primera rama del handler
      único de E3.15 (un solo dueño del Escape; dos capture listeners cerrarían el tablero de
      atrás en el mismo golpe, porque stopPropagation no frena a los hermanos). */

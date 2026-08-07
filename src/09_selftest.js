@@ -327,6 +327,37 @@ function selfTest() {
       'D8c 🔒 guardarTarea rechaza un id_proyecto fuera del roster y NO reasigna la tarea (' + (rechazo8c || 'no cortó') + ')');
     chk(ENDPOINTS_UI.indexOf('listaProyectos') >= 0, 'D8c listaProyectos dado de alta en ENDPOINTS_UI (regla anti-drift)');
 
+    // ── D8d (A.0/P1, 07-ago) — la recurrencia SOLO se completa por el kanban; el panel NO ──
+    // El bug: guardarTarea whitelisteaba `estado`, así que marcar 'hecha' desde el panel completaba
+    // la tarea SIN clonar la recurrencia (moverTarea es el único que clona) → la serie moría muda.
+    var t8d = crearTarea({ descripcion: '__TEST__ A0 recurrente panel', prioridad: 'B', tipo: 'personal', recurrencia: '1s' });
+    var est8d = detalleTarea(t8d.id_tarea).estado;                  // 'pendiente'
+    var filasAntes8d = leerTabla(getMaestro().getSheetByName('Tareas')).length;
+    guardarTarea(t8d.id_tarea, { estado: 'hecha', prioridad: 'A' }); // manda estado + un campo válido
+    var d8d = detalleTarea(t8d.id_tarea);
+    chk(d8d.estado === est8d, 'D8d guardarTarea IGNORA estado (fuera del whitelist): el panel no completa (' + d8d.estado + ')');
+    chk(d8d.prioridad === 'A', 'D8d guardarTarea sí aplica el resto del form aunque venga estado');
+    chk(leerTabla(getMaestro().getSheetByName('Tareas')).length === filasAntes8d, 'D8d la recurrente NO renace por el panel');
+    var mv8d = moverTarea(t8d.id_tarea, 'hecha');
+    chk(!!mv8d.renace, 'D8d la MISMA recurrente completada por KANBAN sí renace (' + mv8d.renace + ')');
+
+    // ── D8e (A.1, 07-ago) — crearProyecto: alta + validación de roster (AISLAMIENTO §3/§9) ──
+    var cli8e = listaClientes()[0];
+    if (cli8e) {
+      var pr8e = crearProyecto({ id_cliente: cli8e.id_cliente, nombre: '__TEST__ proyecto A1', estado: 'activo' });
+      chk(/^PRO-\d+$/.test(pr8e.id_proyecto), 'D8e crearProyecto devuelve id (' + pr8e.id_proyecto + ')');
+      chk(listaProyectos().some(function (p) { return String(p.id_proyecto) === pr8e.id_proyecto; }), 'D8e el proyecto aparece en listaProyectos');
+      var rc8e = '';
+      try { crearProyecto({ id_cliente: 'CLI-NO-EXISTE-9999', nombre: 'x' }); } catch (e8e) { rc8e = String(e8e && e8e.message); }
+      chk(/no encontrado/i.test(rc8e), 'D8e 🔒 crearProyecto rechaza un id_cliente fuera del roster (' + (rc8e || 'no cortó') + ')');
+      var rn8e = '';
+      try { crearProyecto({ id_cliente: cli8e.id_cliente, nombre: '   ' }); } catch (e8e2) { rn8e = String(e8e2 && e8e2.message); }
+      chk(/falta el nombre/i.test(rn8e), 'D8e crearProyecto exige nombre (' + (rn8e || 'no cortó') + ')');
+    } else {
+      chk(false, 'D8e sin clientes en el roster — el alta NO quedó ejercitada (revisar Clientes)');
+    }
+    chk(ENDPOINTS_UI.indexOf('crearProyecto') >= 0, 'D8e crearProyecto dado de alta en ENDPOINTS_UI (regla anti-drift)');
+
     // ── D9 Trillion-delta Tanda 2 (08-jul) — juicio anclado (A2) + rec→aprobación (B2) ──
     // A2: determinístico con `pre` inyectado (no depende del estado real del sistema).
     var pre9 = {

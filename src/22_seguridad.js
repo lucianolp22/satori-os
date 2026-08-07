@@ -151,6 +151,8 @@ var ENDPOINTS_UI = [
   'tableroTareas', 'crearTarea', 'crearTareaQuick', 'moverTarea',
   // 08_webapp.js — BLOQUE 4 F3 (05-ago): panel de detalle/edición de tarea + notas de proyecto
   'detalleTarea', 'guardarTarea', 'guardarNotaProyecto', 'listaProyectos',
+  // 08_webapp.js — A.1 (07-ago): alta de Proyecto desde el CM (espina Cliente→Proyecto→Tarea)
+  'crearProyecto',
   // 18_direccion.js
   'agendaRango', 'recomendacionesAbiertas', 'marcarRecomendacion', 'registrarFeedback',
   'aprobacionDesdeRecomendacion',

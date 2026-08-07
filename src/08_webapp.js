@@ -745,6 +745,43 @@ function listaProyectos() {
 }
 
 /**
+ * Alta de un Proyecto desde el CM (A.1, 07-ago). Espejo de `crearTarea`. Desbloquea la espina
+ * Cliente→Proyecto→Tarea: hasta hoy `Proyectos` no tenía ningún camino de alta desde la app.
+ * AISLAMIENTO §3: el `id_cliente` SIEMPRE se valida contra el roster real — nunca se adivina ni
+ * se escribe un id inexistente (mandaría el proyecto al limbo o, peor, cerca del cliente de otro).
+ * `estado` no tiene lista-contrato declarada (no existe ESTADOS_PROYECTO): default 'activo' y se
+ * acepta el valor entrante normalizado a minúsculas — NO se constrainea para no romper filas viejas.
+ * AREL: interno + reversible = avanzar (sin gate). Endpoint client-callable ⇒ `_soloOwner_` +
+ * alta en ENDPOINTS_UI en el MISMO commit (regla anti-drift).
+ */
+function crearProyecto(payload) {
+  _soloOwner_('crearProyecto');
+  var p = payload || {};
+  var nombre = String(p.nombre || '').trim();
+  if (!nombre) throw new Error('crearProyecto: falta el nombre.');
+  var idCli = String(p.id_cliente || '').trim();
+  if (!idCli || !listaClientes().some(function (c) { return String(c.id_cliente) === idCli; })) {
+    throw new Error('Cliente no encontrado: ' + idCli);   // roster real — corta ruidoso, no en silencio
+  }
+  var sh = getMaestro().getSheetByName('Proyectos');
+  if (!sh) throw new Error('Falta la pestaña Proyectos — correr setup().');
+  var estado = String(p.estado || 'activo').toLowerCase().trim() || 'activo';
+  var fObj = aFechaISO(p.fecha_objetivo) || '';
+  var hito = String(p.proximo_hito || '').slice(0, 200);
+  // conLock: appendFila hace appendRow+getLastRow+setValue (no atómico) sobre columnas tipo-ID.
+  return conLock(function () {
+    var id = nextId(sh, 'id_proyecto', 'PRO', 4);
+    appendFila(sh, {
+      id_proyecto: id, id_cliente: idCli, nombre: nombre.slice(0, 120), estado: estado,
+      '%_avance': 0, fecha_objetivo: fObj, proximo_hito: hito,
+      fecha_ultimo_movimiento: hoyISO(), notas: ''
+    });
+    try { feed_('Director', 'accion', idCli, 'Proyecto creado: ' + id + ' · ' + nombre.slice(0, 80), '', ''); } catch (e) {}
+    return { id_proyecto: id, id_cliente: idCli, nombre: nombre, estado: estado };
+  });
+}
+
+/**
  * Panel completo de un cliente: ficha, proyectos con % avance, próximos pasos,
  * observaciones (Bitácora), widget de consumo API (stub desde Costos_API del
  * Sheet cliente) y ficha de gobernanza.
@@ -1695,6 +1732,8 @@ function moverTarea(idTarea, estadoDestino) {
  * Edita campos de UNA tarea desde el panel de detalle del CM. Espejo de moverTarea:
  *  (1) whitelist de campos editables; ignora cualquier otro; (2) valida cada valor y escribe SOLO
  *  las columnas presentes; (3) `notas` pasa por sanitizarCelda (antifórmula) + truncado. Loguea.
+ *  `estado` quedó FUERA del whitelist (A.0/P1, 07-ago): el único camino a `estado` es `moverTarea`,
+ *  que es el que clona la recurrencia. El panel edita contenido; el kanban mueve el estado.
  * AREL: interno + reversible = avanzar. _soloOwner_ como el resto de endpoints CM (ENDPOINTS_UI).
  */
 function guardarTarea(idTarea, campos) {
@@ -1709,7 +1748,12 @@ function guardarTarea(idTarea, campos) {
   var w = {};
   if (c.descripcion !== undefined) { var d = String(c.descripcion).trim(); if (d) w.descripcion = d.slice(0, 300); }
   if (c.prioridad !== undefined) { var p = String(c.prioridad).toUpperCase(); if (['A', 'B', 'C'].indexOf(p) >= 0) w.prioridad = p; }
-  if (c.estado !== undefined) { var e = String(c.estado).toLowerCase(); if (ESTADOS_TAREA_UI.indexOf(e) >= 0) w.estado = e; }
+  // A.0/P1 (07-ago): `estado` NO es editable acá — a propósito. Completar una tarea es el único
+  // camino que CLONA una recurrente, y ese clon lo hace `moverTarea` (kanban). Cuando el panel
+  // también podía escribir estado, marcar 'hecha' desde acá completaba la tarea SIN renacer la
+  // recurrencia: la serie se cortaba en silencio. Un solo camino a `estado` = un solo lugar que
+  // clona. Si alguna vez hace falta cambiar estado desde el panel, se DELEGA en `moverTarea`
+  // (fuera del conLock de acá — moverTarea no usa conLock), nunca se re-abre este whitelist.
   if (c.tipo !== undefined) { var tp = String(c.tipo).toLowerCase(); if (TAREA_TIPOS.indexOf(tp) >= 0 || tp === '') w.tipo = tp; }
   if (c.recurrencia !== undefined) { var r = String(c.recurrencia).toLowerCase(); if (TAREA_RECS.indexOf(r) >= 0 || r === '') w.recurrencia = r; }
   if (c.fecha_limite !== undefined) w.fecha_limite = aFechaISO(c.fecha_limite) || '';

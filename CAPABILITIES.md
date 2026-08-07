@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-07 13:14 · commit: b9ec803
+> Generado: 2026-08-07 16:08 · commit: af4484f
 
 ## Módulos
 
@@ -15,7 +15,7 @@
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 10 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 30 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 69 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 70 |
 | `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 46 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
@@ -138,7 +138,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente _trashArchivo_ _driveUrlCarpeta_ _driveUrlSheet_ _driveCopiar_ _driveGet_ _driveCrearCarpeta_ _driveMover_ _driveListarHijos_ getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
-**08_webapp.js:** doGet doPost vozOut_ vozAuth_ charlaExportAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes listaProyectos datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea guardarTarea detalleTarea guardarNotaProyecto aHoraLegible_ 
+**08_webapp.js:** doGet doPost vozOut_ vozAuth_ charlaExportAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ _sgicResumenVentas_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes listaProyectos crearProyecto datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea guardarTarea detalleTarea guardarNotaProyecto aHoraLegible_ 
 
 **09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ _asertsD40_ _asertsP2_ _selfTestRegistrar_ selfTestTramo selfTestVeredicto _asertsD41_ selfTestTramo2 selfTestTramo3 selfTestTramo4 selfTestTramo5 _asertsD43_ 
 
