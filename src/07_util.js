@@ -41,6 +41,19 @@ function aFechaISO(v) {
 }
 
 /**
+ * PURA: ¿el valor de una celda representa "sí"? Sheets devuelve el MISMO booleano de tres formas
+ * según cómo se escribió la celda: `true` (setValue booleano / casilla), `'TRUE'` (tipeado a mano
+ * o importado) o `'si'`/`'sí'`/`'1'` (un humano llenando la columna). Vacío/`false`/cualquier otra
+ * cosa = no. Fail-closed a propósito: ante la duda la fila NO está marcada — para `archivada` eso
+ * significa que la tarea sigue VISIBLE, que es el error barato (perder una tarea es el caro).
+ */
+function esVerdadero_(v) {
+  if (v === true) return true;
+  var s = String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+  return s === 'true' || s === 'si' || s === 'sí' || s === '1' || s === 'x' || s === 'verdadero';
+}
+
+/**
  * Garantiza una pestaña con encabezados. Idempotente: crea si falta,
  * escribe la fila de encabezados solo si está vacía. Devuelve el Sheet.
  */

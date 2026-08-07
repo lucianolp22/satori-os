@@ -658,7 +658,8 @@ function estadoSistema() {
   return {
     clientes: leerTabla(ss.getSheetByName('Clientes')).length,
     proyectos: leerTabla(ss.getSheetByName('Proyectos')).length,
-    tareas: leerTabla(ss.getSheetByName('Tareas')).length,
+    // A.2: las archivadas no cuentan — el número del CM diría que tenés más carga de la que tenés.
+    tareas: leerTabla(ss.getSheetByName('Tareas')).filter(function (t) { return !esVerdadero_(t.archivada); }).length,
     avisos_activos: avisosActivos.length,
     aprobaciones_pendientes: pendientes,
     ultima_sync_ok: getConfig('ultima_sync_ok'),
@@ -1047,10 +1048,17 @@ function briefCliente(idCliente) {
 // PURGA #23: soporte D/E (antes solo A/B/C; D/E caían al peso por defecto).
 var PRIORIDAD_PESO = { A: 0, B: 1, C: 2, D: 3, E: 4 };
 
-/** Tareas no terminales, ordenadas por prioridad (A>B>C) y luego fecha_límite. */
+/**
+ * Tareas no terminales Y no archivadas, ordenadas por prioridad (A>B>C) y luego fecha_límite.
+ * A.2 (07-ago): `archivada` es ortogonal a `estado` — una tarea archivada sale de TODA superficie
+ * viva aunque siga 'pendiente'. Es el filtro CENTRAL: por acá pasan datosHoy, datosCliente.proximos,
+ * el brief/snapshot de 18_direccion y vigilanciaCliente. Los que NO pasan por acá (tableroTareas,
+ * estadoSistema, avisos, el dedupe de clones) llevan el filtro propio — ver el contrato en el schema.
+ */
 function tareasActivasOrdenadas(tareas) {
   _soloOwner_('tareasActivasOrdenadas');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   return tareas.filter(function (t) {
+    if (esVerdadero_(t.archivada)) return false;
     return ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) < 0;
   }).sort(function (a, b) {
     var pa = PRIORIDAD_PESO[String(a.prioridad).toUpperCase()]; if (pa === undefined) pa = 9;
@@ -1546,7 +1554,11 @@ var TERMINALES_TAREA = ['hecha', 'completada', 'cancelada'];
 function tableroTareas() {
   _soloOwner_('tableroTareas');   // S1 (T3-S): endpoint client-callable — gate de identidad
   var ss = getMaestro();
-  return leerTabla(ss.getSheetByName('Tareas')).map(function (t) {
+  // A.2: el kanban NO usa el filtro central (mapea carriles, incluido el terminal 'hecha'), así que
+  // lleva su propio filtro de archivadas. Si esto se olvida, archivar no saca nada del tablero.
+  return leerTabla(ss.getSheetByName('Tareas')).filter(function (t) {
+    return !esVerdadero_(t.archivada);
+  }).map(function (t) {
     var est = String(t.estado || '').toLowerCase();
     // riel: en lectura, los 3 terminales caen en el carril 'hecha'
     var carril = (TERMINALES_TAREA.indexOf(est) >= 0) ? 'hecha' : (est === 'en_curso' ? 'en_curso' : 'pendiente');
@@ -1708,9 +1720,13 @@ function moverTarea(idTarea, estadoDestino) {
       var rec = cRec >= 0 ? String(filas[fila - 2][cRec] || '').toLowerCase() : '';
       if (rec && TAREA_RECS.indexOf(rec) >= 0) {
         var descV = String(filas[fila - 2][H.indexOf('descripcion')] || '');
+        // A.2 (07-ago): una ARCHIVADA no cuenta como "viva" para el dedupe. Si contara, archivar
+        // el clon pendiente y completar el original mataría la serie en silencio — misma clase de
+        // fallo que P1 (el camino que clona es uno solo, y no puede quedarse mudo).
         var yaViva = leerTabla(sh).some(function (f) {
           return String(f.descripcion) === descV &&
                  String(f.recurrencia || '').toLowerCase() === rec &&
+                 !esVerdadero_(f.archivada) &&
                  TERMINALES_TAREA.indexOf(String(f.estado).toLowerCase()) < 0;
         });
         if (!yaViva) {
@@ -1800,8 +1816,70 @@ function detalleTarea(idTarea) {
     prioridad: t.prioridad || 'B', estado: String(t.estado || '').toLowerCase(),
     fecha_limite: aFechaISO(t.fecha_limite) || '', tipo: String(t.tipo || '').toLowerCase(),
     etiquetas: String(t.etiquetas || ''), recurrencia: String(t.recurrencia || '').toLowerCase(),
-    notas: String(t.notas || '')
+    notas: String(t.notas || ''),
+    archivada: esVerdadero_(t.archivada)   // A.2: aditivo — alimenta el botón Archivar del panel
   };
+}
+
+/* ── A.2 (07-ago) · archivar tareas ────────────────────────────────────────────────────────
+   Archivar NO es un estado: es la columna booleana `archivada`, ortogonal a `estado`. Reusar
+   `estado='archivada'` habría roto el mapeo de carriles de tableroTareas (no está en
+   TERMINALES_TAREA ⇒ la tarea caía en 'pendiente') y tocado los 3 estados load-bearing.
+   Las 3 funciones son endpoints client-callable ⇒ `_soloOwner_` + alta en ENDPOINTS_UI. */
+
+/** Escribe la columna `archivada` de UNA tarea. Idempotente. Interno — el gate lo ponen los wrappers. */
+function _setArchivada_(idTarea, valor) {
+  idTarea = String(idTarea || '').trim();
+  if (!idTarea) throw new Error('falta id_tarea');
+  var sh = getMaestro().getSheetByName('Tareas');
+  if (!sh) throw new Error('No existe la pestaña Tareas');
+  var H = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  var cId = H.indexOf('id_tarea'), cA = H.indexOf('archivada');
+  if (cId < 0) throw new Error('Schema Tareas sin id_tarea');
+  // Corta ruidoso: si la columna no existe, archivar sería un no-op silencioso y la tarea
+  // seguiría a la vista después de un toast que dice "archivada".
+  if (cA < 0) throw new Error('Falta la columna archivada en Tareas — correr setup()');
+  return conLock(function () {
+    var n = sh.getLastRow(); if (n < 2) throw new Error('Sin tareas');
+    var filas = sh.getRange(2, 1, n - 1, sh.getLastColumn()).getValues();
+    for (var i = 0; i < filas.length; i++) if (String(filas[i][cId]) === idTarea) {
+      sh.getRange(i + 2, cA + 1).setValue(valor);
+      var idProy = H.indexOf('id_proyecto') >= 0 ? filas[i][H.indexOf('id_proyecto')] : '';
+      try { feed_('Director', 'accion', clienteDeProyecto(idProy), 'Tarea ' + idTarea + (valor ? ' archivada' : ' desarchivada') + ' desde el CM', idTarea, ''); } catch (e) {}
+      return { id_tarea: idTarea, archivada: !!valor };
+    }
+    throw new Error('Tarea no encontrada: ' + idTarea);
+  });
+}
+
+/** Saca la tarea de TODA superficie viva (kanban, Hoy, brief, avisos) sin borrarla. */
+function archivarTarea(idTarea) {
+  _soloOwner_('archivarTarea');
+  return _setArchivada_(idTarea, true);
+}
+
+/** Devuelve la tarea a las vivas, con el `estado` que tenía (archivar nunca lo tocó). */
+function desarchivarTarea(idTarea) {
+  _soloOwner_('desarchivarTarea');
+  return _setArchivada_(idTarea, false);
+}
+
+/** Solo-lectura: las archivadas, para la vista «Archivadas» del tablero. Mismo shape que detalleTarea. */
+function tareasArchivadas() {
+  _soloOwner_('tareasArchivadas');
+  var sh = getMaestro().getSheetByName('Tareas');
+  if (!sh) throw new Error('No existe la pestaña Tareas');
+  return leerTabla(sh).filter(function (t) {
+    return esVerdadero_(t.archivada);
+  }).map(function (t) {
+    return {
+      id_tarea: t.id_tarea, id_proyecto: t.id_proyecto || '', descripcion: t.descripcion || '',
+      prioridad: t.prioridad || 'B', estado: String(t.estado || '').toLowerCase(),
+      fecha_limite: aFechaISO(t.fecha_limite) || '', tipo: String(t.tipo || '').toLowerCase(),
+      etiquetas: String(t.etiquetas || ''), recurrencia: String(t.recurrencia || '').toLowerCase(),
+      id_cliente: clienteDeProyecto(t.id_proyecto), archivada: true
+    };
+  });
 }
 
 /** Setea la nota (fila-es-documento) de un Proyecto. Espejo mínimo de guardarTarea. _soloOwner_. */

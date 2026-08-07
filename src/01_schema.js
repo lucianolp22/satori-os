@@ -15,7 +15,13 @@ var MAESTRO_SHEETS = {
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.
-  Tareas: ['id_tarea', 'id_proyecto', 'descripcion', 'prioridad', 'estado', 'fecha_limite', 'fecha_creacion', 'tipo', 'etiquetas', 'recurrencia', 'orden', 'notas'],
+  // +archivada (A.2, 07-ago): BOOLEANA y ORTOGONAL a `estado` — archivar NO es un estado (reusar
+  // `estado='archivada'` rompería el mapeo de carriles de tableroTareas y tocaría los 3 estados
+  // load-bearing). Celda vacía = no archivada; se lee con esVerdadero_ (07_util.js).
+  // CONTRATO — la filtran los 8 consumidores del predicado "tarea viva": tareasActivasOrdenadas ·
+  // tableroTareas · estadoSistema.tareas · el dedupe de clones de moverTarea · _focoPazMetricas_ ·
+  // detectarVencimientos · detectarTareasEstancadas · el conteo de cartera de 18_direccion.
+  Tareas: ['id_tarea', 'id_proyecto', 'descripcion', 'prioridad', 'estado', 'fecha_limite', 'fecha_creacion', 'tipo', 'etiquetas', 'recurrencia', 'orden', 'notas', 'archivada'],
   Avisos: ['id_aviso', 'origen', 'id_cliente', 'tipo', 'mensaje', 'estado', 'fecha'],
   Bitacora: ['fecha', 'id_cliente', 'observacion', 'etiqueta'],
   // Espejo de pendientes de cada Sheet cliente (solo lectura agregada — 0.3).

@@ -848,6 +848,10 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
    tablero seguía clickeable detrás del panel y se podía arrastrar una card mientras se editaba.
    Se sube el par en los DOS modos (normal y Akasha, que reasigna 210/211 a los hermanos). */
 #centro #tdscrim.kscrim{z-index:72}
+/* A.2: mismo tratamiento para el scrim de Archivadas — sin esto quedaría en 70, DEBAJO del
+   #kboard (71) que está atrás, y el velo no taparía el tablero (mismo bug que arriba). */
+#centro #arscrim.kscrim{z-index:72}
+#centro.ak-on #arscrim.kscrim{z-index:212}
 #centro .kboard.tdboard{z-index:73}
 #centro.ak-on #tdscrim.kscrim{z-index:212}
 #centro.ak-on .kboard.tdboard{z-index:213}
@@ -1352,6 +1356,9 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <div class="khead"><h3>Tablero · Tareas</h3>
       <span class="chip c-info" style="margin-left:6px">arrastrá las tarjetas entre columnas</span>
       <input id="kadd" class="kadd-in" type="text" placeholder="Nueva tarea…  !a  #etiqueta  @cliente  15/08  cada semana" aria-label="Alta rápida de tarea (Enter crea)">
+      <!-- A.2 (07-ago): vive en la khead, NO en #kfilters — la delegación de filtros es
+           `#kfilters .fchip` y esto no filtra el tablero, abre otra vista. -->
+      <button class="fchip" id="kArchivadas" type="button" style="flex:none" aria-label="Ver tareas archivadas">Archivadas</button>
       <button class="icon-btn" id="kclose" style="margin-left:auto" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="kfrow" id="kfilters" role="group" aria-label="Filtrar tarjetas por tipo">
@@ -1435,11 +1442,33 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <label class="ancho">Notas<textarea id="tdNotas" rows="5" maxlength="4000" placeholder="Contexto, decisiones, links… — la fila es el documento"></textarea></label>
       <div class="td-hint">Se guarda solo lo que cambiaste.</div>
       <div class="td-err" id="tdErr" role="alert" hidden></div>
+      <!-- A.2 · confirmación INLINE (nada de confirm() nativo: un diálogo modal del navegador
+           congela la página y deja la extensión sin poder responder). Dos pasos, mismo lugar. -->
+      <div class="td-hint ancho" id="tdArConfirm" style="display:none">
+        Archivar la saca del tablero y de los avisos. Se puede desarchivar cuando quieras.
+        <span style="display:inline-flex; gap:var(--space-2); margin-left:var(--space-2)">
+          <button type="button" class="btn btn-ghost btn-sm" id="tdArNo">No</button>
+          <button type="button" class="btn btn-sm" id="tdArSi">Sí, archivar</button>
+        </span>
+      </div>
       <span class="td-acts">
+        <button type="button" class="btn btn-ghost btn-sm" id="tdArchivar" style="margin-right:auto">Archivar</button>
         <button type="button" class="btn btn-ghost btn-sm" id="tdCancel">Cerrar</button>
         <button type="submit" class="btn btn-sm" id="tdGuardar">Guardar cambios</button>
       </span>
     </form>
+  </div>
+
+  <!-- TAREAS ARCHIVADAS (A.2 · 07-ago) — overlay read-only hermano del panel de tarea. Reusa el
+       diálogo `.tdboard` (cero primitivas nuevas); solo su scrim necesita z-index propio para
+       ganarle al #kboard (71) que queda atrás. Datos: tareasArchivadas() → desarchivarTarea(). -->
+  <div class="kscrim" id="arscrim"></div>
+  <div class="kboard tdboard" id="arboard" role="dialog" aria-modal="true" aria-label="Tareas archivadas">
+    <div class="khead"><h3>Archivadas</h3>
+      <span class="chip c-info mono" id="arCount">—</span>
+      <button class="icon-btn" id="arClose" style="margin-left:auto" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div id="arList" style="overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-4) var(--space-5) var(--space-5)"></div>
   </div>
 
   <!-- FICHA DE CLIENTE 360 (T1 tanda UI · 28-jul) — overlay hermano del tablero/calendario.
@@ -3054,6 +3083,9 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
     // F3 (05-ago): el panel de detalle de tarea vive ARRIBA del tablero → se cierra primero.
     var tb=document.getElementById('tdboard');
     if(tb&&tb.classList.contains('open')){ e.stopPropagation(); tdCerrar(); return; }
+    // A.2: Archivadas está al mismo nivel que el panel de tarea (ambas sobre el tablero).
+    var ab2=document.getElementById('arboard');
+    if(ab2&&ab2.classList.contains('open')){ e.stopPropagation(); arCerrar(); return; }
     var fb=document.getElementById('fichaboard');
     if(fb&&fb.classList.contains('open')){ e.stopPropagation(); fichaCerrar(); return; }
     var cb=document.getElementById('calboard');
@@ -4970,8 +5002,82 @@ function tdAbrir(idTarea){
 function tdCerrar(){
   var bd=document.getElementById('tdboard'), sc=document.getElementById('tdscrim');
   if(bd)bd.classList.remove('open'); if(sc)sc.classList.remove('open');
-  TD.orig=null; tdErr_(''); tdNpMostrar_(false);
+  TD.orig=null; tdErr_(''); tdNpMostrar_(false); tdArConfirm_(false);
   var n=document.getElementById('tdNpNombre'); if(n)n.value='';
+}
+/* ── A.2 (07-ago) · archivar desde el panel ────────────────────────────────────────────────
+   Archivar es reversible pero saca la tarea de TODA superficie viva (kanban, Hoy, avisos, brief),
+   así que pide confirmación. INLINE, nunca `confirm()` nativo: un modal del navegador bloquea
+   todos los eventos y deja la extensión sin poder responder. */
+function tdArConfirm_(v){
+  var c=document.getElementById('tdArConfirm'); if(c)c.style.display=v?'block':'none';
+  var b=document.getElementById('tdArchivar'); if(b)b.style.visibility=v?'hidden':'visible';
+}
+function tdArchivar_(){
+  if(!TD.id)return;
+  var id=TD.id;
+  tdErr_(''); tdBloquear_(true);
+  google.script.run.withSuccessHandler(function(){
+    tdBloquear_(false); tdArConfirm_(false); tdCerrar();
+    cmToast('Tarea '+id+' archivada ✓'); ccKanbanLoad();
+  }).withFailureHandler(function(e){
+    tdBloquear_(false); tdArConfirm_(false);
+    tdErr_('No se pudo archivar: '+((e&&e.message)||'error'));
+  }).archivarTarea(id);
+}
+/* ── A.2 · vista Archivadas (read-only + desarchivar) ── */
+function arCerrar(){
+  var bd=document.getElementById('arboard'), sc=document.getElementById('arscrim');
+  if(bd)bd.classList.remove('open'); if(sc)sc.classList.remove('open');
+}
+function arPintar_(ts){
+  var cont=document.getElementById('arList'), ct=document.getElementById('arCount');
+  if(!cont)return; clear(cont);
+  if(ct)ct.textContent=(ts||[]).length+(ts&&ts.length===1?' tarea':' tareas');
+  if(!ts||!ts.length){
+    var v=document.createElement('div'); v.className='td-hint';
+    v.textContent='No hay tareas archivadas.'; cont.appendChild(v); return;
+  }
+  ts.forEach(function(t){
+    var row=document.createElement('div'); row.className='ag-row';
+    var izq=document.createElement('div'); izq.style.cssText='flex:1; min-width:0';
+    var d=document.createElement('div'); d.className='nm'; d.textContent=t.descripcion||t.id_tarea;
+    var meta=document.createElement('div'); meta.className='ac2';
+    meta.textContent=[t.id_tarea, t.estado, t.prioridad?'prio '+t.prioridad:'',
+                      t.fecha_limite?'vence '+t.fecha_limite:'', t.id_cliente||'']
+                     .filter(String).join(' · ');
+    izq.appendChild(d); izq.appendChild(meta);
+    var b=document.createElement('button'); b.type='button'; b.className='btn btn-ghost btn-sm';
+    b.style.flex='none'; b.textContent='Desarchivar';
+    b.addEventListener('click',function(){
+      b.disabled=true; b.textContent='…';
+      google.script.run.withSuccessHandler(function(){
+        cmToast('Tarea '+t.id_tarea+' desarchivada ✓'); arCargar_(); ccKanbanLoad();
+      }).withFailureHandler(function(e){
+        b.disabled=false; b.textContent='Desarchivar';
+        cmToast('No se pudo desarchivar: '+((e&&e.message)||'error'));
+      }).desarchivarTarea(t.id_tarea);
+    });
+    row.appendChild(izq); row.appendChild(b); cont.appendChild(row);
+  });
+}
+function arCargar_(){
+  var cont=document.getElementById('arList'); if(!cont)return;
+  clear(cont);
+  var l=document.createElement('div'); l.className='td-hint'; l.textContent='Cargando…'; cont.appendChild(l);
+  google.script.run.withSuccessHandler(arPintar_)
+    .withFailureHandler(function(e){
+      // Un error acá NO se traga: sin aviso, "no hay archivadas" y "no pude leerlas" se ven igual.
+      clear(cont); var v=document.createElement('div'); v.className='td-err';
+      v.textContent='No se pudieron leer las archivadas: '+((e&&e.message)||'error');
+      cont.appendChild(v); var c2=document.getElementById('arCount'); if(c2)c2.textContent='—';
+    }).tareasArchivadas();
+}
+function arAbrir(){
+  var bd=document.getElementById('arboard'), sc=document.getElementById('arscrim'); if(!bd||!sc)return;
+  if(typeof EN_GAS==='undefined'||!EN_GAS){ cmToast('Las archivadas se ven dentro del CM (GAS)'); return; }
+  sc.classList.add('open'); bd.classList.add('open');
+  arCargar_();
 }
 function tdGuardar(evt){
   if(evt&&evt.preventDefault)evt.preventDefault();
@@ -5017,6 +5123,13 @@ function tdGuardar(evt){
   });
   var nc=document.getElementById('tdNpCancel'); if(nc)nc.addEventListener('click',tdNpCerrar_);
   var nk=document.getElementById('tdNpCrear'); if(nk)nk.addEventListener('click',tdNpCrear_);
+  /* A.2: archivar (2 pasos) + la vista Archivadas. */
+  var ab=document.getElementById('tdArchivar'); if(ab)ab.addEventListener('click',function(){ tdArConfirm_(true); });
+  var an=document.getElementById('tdArNo'); if(an)an.addEventListener('click',function(){ tdArConfirm_(false); });
+  var as=document.getElementById('tdArSi'); if(as)as.addEventListener('click',tdArchivar_);
+  var ka=document.getElementById('kArchivadas'); if(ka)ka.addEventListener('click',arAbrir);
+  var ax=document.getElementById('arClose'); if(ax)ax.addEventListener('click',arCerrar);
+  var az=document.getElementById('arscrim'); if(az)az.addEventListener('click',arCerrar);
   /* Escape: NO se agrega un 2º listener — el panel se sumó como primera rama del handler
      único de E3.15 (un solo dueño del Escape; dos capture listeners cerrarían el tablero de
      atrás en el mismo golpe, porque stopPropagation no frena a los hermanos). */

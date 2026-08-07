@@ -342,21 +342,59 @@ function selfTest() {
     chk(!!mv8d.renace, 'D8d la MISMA recurrente completada por KANBAN sí renace (' + mv8d.renace + ')');
 
     // ── D8e (A.1, 07-ago) — crearProyecto: alta + validación de roster (AISLAMIENTO §3/§9) ──
-    var cli8e = listaClientes()[0];
-    if (cli8e) {
-      var pr8e = crearProyecto({ id_cliente: cli8e.id_cliente, nombre: '__TEST__ proyecto A1', estado: 'activo' });
+    // El __TEST__ se crea SIEMPRE bajo CLI-000 (tenant sistema), nunca sobre `listaClientes()[0]`:
+    // ese [0] no es determinístico y podía caer sobre un cliente REAL, ensuciándole el #tdProy.
+    var SIS8e = 'CLI-000';
+    var hayCli000 = listaClientes().some(function (c) { return String(c.id_cliente) === SIS8e; });
+    chk(hayCli000, 'D8e existe el tenant sistema ' + SIS8e + ' para las altas de prueba');
+    if (hayCli000) {
+      var pr8e = crearProyecto({ id_cliente: SIS8e, nombre: '__TEST__ proyecto A1', estado: 'activo' });
       chk(/^PRO-\d+$/.test(pr8e.id_proyecto), 'D8e crearProyecto devuelve id (' + pr8e.id_proyecto + ')');
       chk(listaProyectos().some(function (p) { return String(p.id_proyecto) === pr8e.id_proyecto; }), 'D8e el proyecto aparece en listaProyectos');
       var rc8e = '';
       try { crearProyecto({ id_cliente: 'CLI-NO-EXISTE-9999', nombre: 'x' }); } catch (e8e) { rc8e = String(e8e && e8e.message); }
       chk(/no encontrado/i.test(rc8e), 'D8e 🔒 crearProyecto rechaza un id_cliente fuera del roster (' + (rc8e || 'no cortó') + ')');
       var rn8e = '';
-      try { crearProyecto({ id_cliente: cli8e.id_cliente, nombre: '   ' }); } catch (e8e2) { rn8e = String(e8e2 && e8e2.message); }
+      try { crearProyecto({ id_cliente: SIS8e, nombre: '   ' }); } catch (e8e2) { rn8e = String(e8e2 && e8e2.message); }
       chk(/falta el nombre/i.test(rn8e), 'D8e crearProyecto exige nombre (' + (rn8e || 'no cortó') + ')');
-    } else {
-      chk(false, 'D8e sin clientes en el roster — el alta NO quedó ejercitada (revisar Clientes)');
     }
     chk(ENDPOINTS_UI.indexOf('crearProyecto') >= 0, 'D8e crearProyecto dado de alta en ENDPOINTS_UI (regla anti-drift)');
+
+    // ── D8f (A.2, 07-ago) — archivar saca de TODAS las superficies vivas; desarchivar revierte ──
+    // `archivada` es ortogonal a `estado`: la tarea sigue 'pendiente' y aun así desaparece.
+    var shT8f = getMaestro().getSheetByName('Tareas');
+    // La columna la agrega la reconciliación ADITIVA de ensureSheet vía el setup() de la línea 19.
+    // Se asera explícito: sin ella, archivar sería un error confuso en vez de un diagnóstico.
+    var H8f = shT8f.getRange(1, 1, 1, shT8f.getLastColumn()).getValues()[0].map(String);
+    chk(H8f.indexOf('archivada') >= 0, 'D8f setup() reconcilió la columna archivada en Tareas (aditivo)');
+    chk(MAESTRO_SHEETS.Tareas.indexOf('archivada') === MAESTRO_SHEETS.Tareas.length - 1, 'D8f archivada va AL FINAL del schema (aditivo: no reordena columnas viejas)');
+    var t8f = crearTarea({ descripcion: '__TEST__ A2 archivar', prioridad: 'C', tipo: 'personal' });
+    var enVivas8f = function () {
+      return tareasActivasOrdenadas(leerTabla(shT8f)).some(function (t) { return String(t.id_tarea) === t8f.id_tarea; });
+    };
+    chk(enVivas8f(), 'D8f la tarea nace viva (en tareasActivasOrdenadas)');
+    archivarTarea(t8f.id_tarea);
+    chk(!enVivas8f(), 'D8f archivada NO está en las vivas (filtro central)');
+    chk(detalleTarea(t8f.id_tarea).estado !== 'hecha', 'D8f archivar NO tocó el estado (ortogonal, no es un estado)');
+    chk(tareasArchivadas().some(function (t) { return String(t.id_tarea) === t8f.id_tarea; }), 'D8f archivada aparece en tareasArchivadas');
+    chk(tableroTareas().every(function (t) { return String(t.id_tarea) !== t8f.id_tarea; }), 'D8f archivada NO está en el kanban (tableroTareas lleva filtro propio)');
+    archivarTarea(t8f.id_tarea);
+    chk(tareasArchivadas().filter(function (t) { return String(t.id_tarea) === t8f.id_tarea; }).length === 1, 'D8f archivar es idempotente (2× no duplica)');
+    desarchivarTarea(t8f.id_tarea);
+    chk(enVivas8f(), 'D8f desarchivar la devuelve a las vivas');
+    chk(!detalleTarea(t8f.id_tarea).archivada, 'D8f detalleTarea expone archivada=false tras desarchivar');
+    // El dedupe de clones NO estaba en el encargo y es la misma clase de fallo que P1: si una
+    // archivada contara como "viva", archivar el clon mataría la serie en silencio.
+    var t8g = crearTarea({ descripcion: '__TEST__ A2 recurrente archivada', prioridad: 'B', tipo: 'personal', recurrencia: '1s' });
+    var mv8g = moverTarea(t8g.id_tarea, 'hecha');
+    chk(!!mv8g.renace, 'D8f la recurrente renace la 1ª vez (' + mv8g.renace + ')');
+    archivarTarea(mv8g.renace);                       // archivo el clon vivo
+    moverTarea(t8g.id_tarea, 'pendiente');
+    var mv8g2 = moverTarea(t8g.id_tarea, 'hecha');
+    chk(!!mv8g2.renace && mv8g2.renace !== mv8g.renace, 'D8f con el clon ARCHIVADO la serie vuelve a renacer, no muere muda (' + (mv8g2.renace || 'no renació') + ')');
+    ['archivarTarea', 'desarchivarTarea', 'tareasArchivadas'].forEach(function (fn) {
+      chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D8f ' + fn + ' dado de alta en ENDPOINTS_UI');
+    });
 
     // ── D9 Trillion-delta Tanda 2 (08-jul) — juicio anclado (A2) + rec→aprobación (B2) ──
     // A2: determinístico con `pre` inyectado (no depende del estado real del sistema).

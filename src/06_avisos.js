@@ -194,6 +194,7 @@ function _focoPazMetricas_(u) {
 
   var peorFecha = '';
   leerTabla(ss.getSheetByName('Tareas')).forEach(function (t) {
+    if (esVerdadero_(t.archivada)) return;   // A.2: lo archivado no pesa en el foco/paz
     if (String(t.prioridad).toUpperCase() !== 'A') return;
     if (['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0) return;
     var fl = aFechaISO(t.fecha_limite);
@@ -379,6 +380,7 @@ function detectarVencimientos() {
   var hoy = hoyISO();
   var n = 0;
   leerTabla(sh).forEach(function (t) {
+    if (esVerdadero_(t.archivada)) return;   // A.2: archivar es decir "esto ya no me interpela"
     var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
     var fl = aFechaISO(t.fecha_limite);
     if (!term && fl && fl < hoy) {
@@ -411,6 +413,7 @@ function detectarTareasEstancadas() {
   var sh = getMaestro().getSheetByName('Tareas');
   var limite = hace(dias);
   var estancadas = leerTabla(sh).filter(function (t) {
+    if (esVerdadero_(t.archivada)) return false;   // A.2: una archivada no puede estar "estancada"
     var term = ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) >= 0;
     var activa = ['en_curso', 'pendiente', 'en curso', ''].indexOf(String(t.estado).toLowerCase()) >= 0;
     var fc = aFechaISO(t.fecha_creacion);

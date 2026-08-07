@@ -40,7 +40,12 @@ function estadoVigenteSistema_() {
 
   // Conteo directo (datosHoy capa proximos_pasos a 25; el snapshot no debe subcontar).
   var tareas = leerTabla(getMaestro().getSheetByName('Tareas'));
-  var abiertas = tareas.filter(function (t) { return ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) < 0; });
+  // A.2: este conteo NO pasa por tareasActivasOrdenadas (duplica el predicado a propósito, para no
+  // subcontar por el tope de 25 de datosHoy) ⇒ lleva el filtro de archivadas propio.
+  var abiertas = tareas.filter(function (t) {
+    return !esVerdadero_(t.archivada) &&
+           ['hecha', 'cancelada', 'completada'].indexOf(String(t.estado).toLowerCase()) < 0;
+  });
   var tareasVenc = abiertas.filter(function (t) { return esVencida(t.fecha_limite, t.estado); }).length;
   L.push('## Cartera');
   L.push('- Clientes: ' + e.clientes + ' · Proyectos: ' + e.proyectos + ' · Tareas abiertas: ' + abiertas.length + ' (vencidas: ' + tareasVenc + ')');

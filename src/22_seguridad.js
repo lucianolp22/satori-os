@@ -153,6 +153,8 @@ var ENDPOINTS_UI = [
   'detalleTarea', 'guardarTarea', 'guardarNotaProyecto', 'listaProyectos',
   // 08_webapp.js — A.1 (07-ago): alta de Proyecto desde el CM (espina Cliente→Proyecto→Tarea)
   'crearProyecto',
+  // 08_webapp.js — A.2 (07-ago): archivar tareas (columna booleana, ortogonal a estado)
+  'archivarTarea', 'desarchivarTarea', 'tareasArchivadas',
   // 18_direccion.js
   'agendaRango', 'recomendacionesAbiertas', 'marcarRecomendacion', 'registrarFeedback',
   'aprobacionDesdeRecomendacion',

@@ -92,6 +92,16 @@ for (const mal of ['=IMPORTRANGE("x")', '+1+1', '-2', '@cmd', '\tx', '\rx', '\nx
 chk(ctx.sanitizarCelda('hola') === 'hola', 'sanitizarCelda deja el texto benigno intacto');
 chk(ctx.sanitizarCelda(123) === 123, 'sanitizarCelda no toca números');
 
+seccion('esVerdadero_ (A.2: coerción de la celda booleana `archivada`)');
+for (const si of [true, 'TRUE', 'true', 'Sí', ' si ', '1', 'x', 'VERDADERO']) {
+  chk(ctx.esVerdadero_(si) === true, `esVerdadero_ reconoce ${JSON.stringify(si)} como sí`);
+}
+// Fail-closed: ante la duda la tarea NO está archivada ⇒ sigue VISIBLE. Perder una tarea de vista
+// es el error caro; mostrarla de más es el barato.
+for (const no of [false, '', 'FALSE', 'false', 'no', '0', null, undefined, 'quizás']) {
+  chk(ctx.esVerdadero_(no) === false, `esVerdadero_ NO da por archivado ${JSON.stringify(no)}`);
+}
+
 seccion('_puertaOwner_ (criterio puro del gate de identidad)');
 chk(ctx._puertaOwner_('a@x.com', 'a@x.com') === true, 'owner exacto pasa');
 chk(ctx._puertaOwner_('otro@x.com', 'a@x.com') === false, 'otro usuario NO pasa');
