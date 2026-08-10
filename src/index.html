@@ -7526,12 +7526,21 @@ window.AKASHA = (function () {
       // Segunda entrada a la Oficina: el módulo ya viajó, solo hay que volver a montarlo.
       if (EDIF.html) { try { montar(EDIF.html); } catch (e) { try { console.error('[Edificio]', e); } catch (_x) {} toast('El Edificio no pudo montarse.'); } return; }
       EDIF.cargando = true; velo(true);
-      pedir('moduloEdificio').then(function (html) {
+      // CONTRATO DE `pedir` (L6612): NUNCA rechaza — resuelve `{ok:true,v}` o `{ok:false,e}`. Dos
+      // consecuencias que ya mordieron acá: (1) el `then` recibe el sobre, no el string, así que
+      // leerlo como texto daba "el módulo no llegó" SIEMPRE; (2) un segundo handler de rechazo es
+      // código muerto — si el apagado del velo vive ahí, un fallo del server deja el velo pegado
+      // y `cargando` en true, que bloquea todo reintento. Por eso todo se apaga en el ÚNICO handler.
+      pedir('moduloEdificio').then(function (r) {
         EDIF.cargando = false; velo(false);
-        if (!html || typeof html !== 'string') { toast('El módulo del Edificio no llegó.'); return; }
+        var html = (r && r.ok) ? r.v : null;
+        if (!html || typeof html !== 'string') {
+          toast((r && !r.ok) ? 'No se pudo traer el Edificio.' : 'El módulo del Edificio no llegó.');
+          return;
+        }
         EDIF.html = html;
         try { montar(html); } catch (e) { try { console.error('[Edificio]', e); } catch (_x) {} toast('El Edificio no pudo montarse.'); }
-      }, function () { EDIF.cargando = false; velo(false); toast('No se pudo traer el Edificio.'); });
+      });
     }
     var be = $('btn-edificio'); if (be) be.addEventListener('click', function () {
       // Con el Edificio montado y la cámara abajo, el botón sube. En cualquier otro caso, baja.

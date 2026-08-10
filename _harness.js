@@ -2030,6 +2030,36 @@ seccion('P3 tramos del selfTest');
         (huerfanos.length ? ' — HUÉRFANOS: ' + huerfanos.join(', ') : ''));
   }
 
+  // E-i · CONTRATO DE `pedir` (index.html L6612). `pedir` NUNCA rechaza: resuelve un SOBRE
+  // `{ok:true,v}` / `{ok:false,e}`. Dos formas de equivocarse, las dos silenciosas:
+  //   (a) leer el `then` como si trajera el valor crudo → el dato "nunca llega" y el usuario ve
+  //       un mensaje de error permanente sobre una llamada que funcionó perfecto;
+  //   (b) poner un 2º handler de rechazo → es código MUERTO, y si ahí vive el apagado de un velo
+  //       o de un flag `cargando`, un fallo del server deja la UI trabada sin reintento posible.
+  // Las dos pasaron en el hook del Edificio. Es un contrato de FORMA-DE-RETORNO, así que se
+  // audita sobre el código, no sobre la memoria de quien lo escriba la próxima vez.
+  {
+    const idx = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
+    const malos = [], muertos = [];
+    const re = /pedir\((['"])([^'"]+)\1[^)]*\)\s*\.then\(\s*function\s*\((\w+)\)\s*\{/g;
+    let m;
+    while ((m = re.exec(idx))) {
+      const fn = m[2], v = m[3];
+      // cuerpo del handler, hasta cerrar la llave que abre
+      let d = 1, i = re.lastIndex;
+      while (i < idx.length && d) { if (idx[i] === '{') d++; else if (idx[i] === '}') d--; i++; }
+      const cuerpo = idx.slice(re.lastIndex, i);
+      if (!new RegExp('\\b' + v + '\\s*(&&|\\.)\\s*\\w*\\s*\\.?ok\\b|\\b' + v + '\\.ok\\b').test(cuerpo)) malos.push(fn);
+      if (/^\s*,\s*function/.test(idx.slice(i))) muertos.push(fn);   // 2º handler = rechazo que nunca llega
+    }
+    chk(malos.length === 0,
+        'E-i 🔒 todo `pedir(x).then` abre el sobre con `.ok` antes de usar el valor' +
+        (malos.length ? ' — LO LEEN CRUDO: ' + malos.join(', ') : ''));
+    chk(muertos.length === 0,
+        'E-i `pedir(x).then` sin 2º handler (pedir no rechaza: ahí el código nunca corre)' +
+        (muertos.length ? ' — CÓDIGO MUERTO EN: ' + muertos.join(', ') : ''));
+  }
+
   // E-h · el módulo 3D se sirve por endpoint, NO inlineado en index.html: si alguien lo inlinea,
   // le devuelve al Centro de Mando los ~300KB que esta arquitectura le sacó del boot.
   {
