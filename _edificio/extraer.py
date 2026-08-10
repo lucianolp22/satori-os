@@ -32,13 +32,25 @@ SRC  = ROOT / 'AKASHA-EDIFICIO-v4.html'
 OUT  = ROOT / 'src' / 'edificio.html'
 
 lines = SRC.read_text(encoding='utf-8').split('\n')
-def blk(a, b):           # 1-indexado inclusivo, como los sed de la verificacion
+def blk(a, b, ancla=None):
+    """Corta [a,b] 1-indexado inclusivo. Si se da `ancla`, verifica que la primera linea del
+    bloque EMPIECE con ese texto y aborta si no.
+
+    Por que: los cortes son por numero de linea, y la maqueta se sigue editando (v4 ya se
+    actualizo una vez para suavizar el nucleo). Una linea de mas arriba corre TODOS los rangos y
+    el generador escribe 320KB de basura sin quejarse — el modulo compila y monta mal. Con el
+    ancla, un v5 desalineado ABORTA en vez de mentir. Misma regla que `patch_engine.py` en el
+    port de E3: si un ancla no matchea, se corta; nunca se falla en silencio."""
+    if ancla is not None and not lines[a-1].startswith(ancla):
+        sys.exit('✗ rango desalineado: esperaba que L%d empezara con %r y dice %r.\n'
+                 '  La maqueta cambio de forma: reajusta los rangos en extraer.py.'
+                 % (a, ancla[:50], lines[a-1][:50]))
     return '\n'.join(lines[a-1:b])
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. CSS — scopear + prefijar
 # ─────────────────────────────────────────────────────────────────────────────
-css = blk(8, 161)                      # sin <style>/</style>
+css = blk(8, 161, ':root{')                      # sin <style>/</style>
 css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)   # los comentarios estorban al scopear selectores
 
 # Reglas globales que el modulo NO debe imponerle al CM: se descartan enteras.
@@ -118,21 +130,21 @@ css = prefijar_css(css)
 # ─────────────────────────────────────────────────────────────────────────────
 # 2. JS — bloques que se portan
 # ─────────────────────────────────────────────────────────────────────────────
-datos      = blk(205, 298)     # CSSC HEXC PISOS FEED_DEMO ST_* AV AV_MAP avTex
-post       = blk(311, 392)     # pipeline de post-proceso hand-written
-texturas   = blk(446, 524)     # tex carpetTex screenTexFactory glow M SCREEN_*
-base       = blk(525, 540)     # ground/ring/dimensiones/tower/arrays
-construct  = blk(542, 703)     # labelSprite ... buildDespacho
-pisos      = blk(702, 803)     # bucle PISOS + nucleo dorado
+datos      = blk(205, 298, 'const CSSC=')     # CSSC HEXC PISOS FEED_DEMO ST_* AV AV_MAP avTex
+post       = blk(311, 392, '/* ── Pipeline de post-proceso')     # pipeline de post-proceso hand-written
+texturas   = blk(446, 524, '/* texturas por canvas */')     # tex carpetTex screenTexFactory glow M SCREEN_*
+base       = blk(525, 540, '/* base */')     # ground/ring/dimensiones/tower/arrays
+construct  = blk(542, 703, 'function labelSprite(')     # labelSprite ... buildDespacho
+pisos      = blk(702, 803, 'PISOS.forEach(')     # bucle PISOS + nucleo dorado
 # DOM completo de v4: setGlow (el realce del agente al hover) + directorio, selectUniverse,
 # selectFloor, renderPanel, los mini-graficos SVG y el dashboard. Se porta entero para no
 # reescribir lo que la maqueta ya resolvio y Cowork ya verifico por render.
-domjs      = blk(981, 986) + '\n' + blk(996, 1130)
+domjs      = blk(981, 986, 'function setGlow(') + '\n' + blk(996, 1130, '/* ══════════ DOM')
 
 # El bucle de PISOS y la base comparten linea: recortar el solapamiento.
-base      = blk(525, 540)
-construct = blk(542, 701)
-pisos     = blk(702, 803)
+base      = blk(525, 540, '/* base */')
+construct = blk(542, 701, 'function labelSprite(')
+pisos     = blk(702, 803, 'PISOS.forEach(')
 
 # --- prefijar clases/IDs en el JS portado ---
 IDS = {'tip':'ediTip','dir':'ediDir','panel':'ediPanel','scrim':'ediScrim',

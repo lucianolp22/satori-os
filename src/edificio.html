@@ -657,13 +657,13 @@ for(let i=0;i<NP;i++){
   cs[i]=Math.random();
 }
 coreGeo.setAttribute('position',new THREE.BufferAttribute(cp,3));
-const core=new THREE.Points(coreGeo,new THREE.PointsMaterial({color:0xD4A857,size:2.6,transparent:true,opacity:.9,
+const core=new THREE.Points(coreGeo,new THREE.PointsMaterial({color:0xD4A857,size:1.5,map:glowTex,transparent:true,opacity:.5,
   blending:THREE.AdditiveBlending,depthWrite:false}));
 core.position.x=CORE_X;tower.add(core);
 const coreBeam=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,COREH,16,1,true),
-  new THREE.MeshBasicMaterial({color:0xD4A857,transparent:true,opacity:.22,blending:THREE.AdditiveBlending,depthWrite:false}));
+  new THREE.MeshBasicMaterial({color:0xD4A857,transparent:true,opacity:.08,blending:THREE.AdditiveBlending,depthWrite:false}));
 coreBeam.position.set(CORE_X,COREH/2-8,0);tower.add(coreBeam);
-const coreGlow=glow(0xD4A857,60);coreGlow.position.set(CORE_X,COREH*.55,0);coreGlow.material.opacity=.28;tower.add(coreGlow);
+const coreGlow=glow(0xD4A857,44);coreGlow.position.set(CORE_X,COREH*.55,0);coreGlow.material.opacity=.14;tower.add(coreGlow);
 
 
 /* ── Layout de la torre (portado de v4, sin la parte del universo: ese lo pone Akasha). Reparte
@@ -701,7 +701,7 @@ var extras = new THREE.Group(); extras.add(sun, rim, coreLight);   /* sin escala
 var beamLen = Math.max(2, 6 - EDI.TECHO);
 var univBeam = new THREE.Mesh(
   new THREE.CylinderGeometry(0.5, 1.5, 1, 16, 1, true),
-  new THREE.MeshBasicMaterial({color:0xD4A857, transparent:true, opacity:0.13,
+  new THREE.MeshBasicMaterial({color:0xD4A857, transparent:true, opacity:0.09,   /* suavizado a la par del nucleo (v4, 10-ago) */
     blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
 function ubicarHaz(){
   beamLen = Math.max(2, 6 - EDI.TECHO);
@@ -715,7 +715,9 @@ function ubicarHaz(){
 var Y_PISO_1 = EDI.TECHO - ALTO_TORRE;
 function yDePiso(pid){ return Y_PISO_1 + (pid-1)*GAP*EDI.K*(gapCur/GAP); }
 function focusUniverse(){ EXT.navOverview({ovY:0, radio:58, alt:18}); }
-function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:30, alt:7}); }
+/* radio 58 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
+   DENTRO de ella — se ve una pared, no una planta. Alejarla la deja apreciable entera. */
+function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:58, alt:15}); }
 function setCutaway(pid){ floorGroups.forEach(function(fg,i){ fg.visible = !(pid!==null && PISOS[i].id>pid); }); }
 
 /* ── DOM. Los nodos ya estan en el markup de arriba (dentro de #ediRoot); acá solo se toman las

@@ -129,7 +129,7 @@ var extras = new THREE.Group(); extras.add(sun, rim, coreLight);   /* sin escala
 var beamLen = Math.max(2, 6 - EDI.TECHO);
 var univBeam = new THREE.Mesh(
   new THREE.CylinderGeometry(0.5, 1.5, 1, 16, 1, true),
-  new THREE.MeshBasicMaterial({color:0xD4A857, transparent:true, opacity:0.13,
+  new THREE.MeshBasicMaterial({color:0xD4A857, transparent:true, opacity:0.09,   /* suavizado a la par del nucleo (v4, 10-ago) */
     blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide}));
 function ubicarHaz(){
   beamLen = Math.max(2, 6 - EDI.TECHO);
@@ -143,7 +143,9 @@ function ubicarHaz(){
 var Y_PISO_1 = EDI.TECHO - ALTO_TORRE;
 function yDePiso(pid){ return Y_PISO_1 + (pid-1)*GAP*EDI.K*(gapCur/GAP); }
 function focusUniverse(){ EXT.navOverview({ovY:0, radio:58, alt:18}); }
-function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:30, alt:7}); }
+/* radio 58 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
+   DENTRO de ella — se ve una pared, no una planta. Alejarla la deja apreciable entera. */
+function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:58, alt:15}); }
 function setCutaway(pid){ floorGroups.forEach(function(fg,i){ fg.visible = !(pid!==null && PISOS[i].id>pid); }); }
 
 /* ── DOM. Los nodos ya estan en el markup de arriba (dentro de #ediRoot); acá solo se toman las
