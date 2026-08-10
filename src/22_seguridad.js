@@ -182,6 +182,10 @@ var ENDPOINTS_UI = [
   // `altaConector` era la excepción: se le puso el gate en X2 (sus tres hermanas ya lo tenían).
   'altaConector', 'encenderConector', 'apagarConector', 'sembrarConectoresHallados',
   'probarConector', 'estadoConectores',
+  // 32_flota.js (10-ago) — EDIFICIO. Los tres son LECTORES puros de la flota propia de Satori
+  // (ni una hoja de tenant); `moduloEdificio` sirve el módulo 3D lazy. Alta en el MISMO commit
+  // que su definición, por la regla anti-drift.
+  'flotaEstado', 'agenteDetalle', 'moduloEdificio',
 
   // ── X4 (03-ago, TC-1): las 68 top-level que MUTAN estado o CONSUMEN servicios y seguían
   // sin puerta. Criterio aplicado (re-derivado contra el repo real, script `_x4_gates.js`):

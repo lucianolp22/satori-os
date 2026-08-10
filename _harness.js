@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '09_selftest.js'];
+                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '32_flota.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -1945,6 +1945,100 @@ seccion('P3 tramos del selfTest');
   chk(sinWrapper.length === 0,
       'P3h 🔒 todo tramo ≥2 tiene wrapper SIN argumentos, gateado, declarado y nombrado en su runner' +
       (sinWrapper.length ? ' — FALTAN: ' + sinWrapper.map((d) => 'selfTestTramo' + d.n).join(', ') : ''));
+}
+
+// ═══ E · EDIFICIO SATORI — los lectores de la flota propia (32_flota.js, 10-ago) ═══
+{
+  seccion('E · Edificio (32_flota.js): read-only, aislamiento y alta de endpoints');
+  // El archivo SIN comentarios: la cabecera de 32_flota.js nombra a propósito los helpers que NO
+  // usa (para que nadie los "reintroduzca simplificando"), así que buscar el nombre en el texto
+  // crudo daría rojo por la explicación misma. Lo que se audita es el código.
+  const sinComentarios = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const srcFlota = sinComentarios(fs.readFileSync(path.join(SRC, '32_flota.js'), 'utf8'));
+
+  // E-a · anti-drift: los tres nacen gateados y declarados, en el mismo commit que su definición.
+  for (const fn of ['flotaEstado', 'agenteDetalle', 'moduloEdificio']) {
+    chk(typeof ctx[fn] === 'function', 'E-a ' + fn + ' existe');
+    chk(String(ctx[fn]).indexOf('_soloOwner_') >= 0, 'E-a ' + fn + ' lleva _soloOwner_');
+    chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, 'E-a ' + fn + ' está en ENDPOINTS_UI (anti-drift)');
+  }
+
+  // E-b 🔒 READ-ONLY. El Edificio pide `flotaEstado` en CADA entrada: si escribiera, cada mirada a
+  // la torre movería el estado. Los dos helpers de 13_agentes.js que parecen servir NO sirven:
+  // `filaConsumoAgentes_` hace appendRow de la fila del mes y `guardPresupuesto_` escribe
+  // Properties, crea aviso y manda mail al 80%. Se prohíben por nombre en la fuente.
+  for (const prohibido of ['filaConsumoAgentes_', 'guardPresupuesto_', 'registrarConsumoAgente_', 'correrSalud(']) {
+    chk(srcFlota.indexOf(prohibido) < 0, 'E-b 🔒 32_flota.js no llama a ' + prohibido + ' (escribe / tiene efectos)');
+  }
+  for (const escritura of ['appendRow', 'setValue', 'setValues', 'deleteRow', 'insertSheet', 'sendEmail', 'setProperty']) {
+    chk(srcFlota.indexOf(escritura) < 0, 'E-b 🔒 32_flota.js no contiene ' + escritura + ' (lector puro)');
+  }
+
+  // E-c · el lector puro NO crea la fila del mes cuando falta (que es lo único que lo diferencia
+  // de `_filaConsumoCore_`). Se prueba con la hoja vacía: si tocara appendRow, el mock lo canta.
+  {
+    let escribio = 0;
+    const shVacia = { getLastRow: () => 1, getDataRange: () => ({ getValues: () => [['mes', 'gasto_usd', 'corridas_json']] }),
+                      appendRow: () => { escribio++; } };
+    ctx.getMaestro = () => ({ getSheetByName: () => shVacia });
+    const c = ctx._flotaConsumoRO_();
+    chk(escribio === 0, 'E-c 🔒 _flotaConsumoRO_ NO crea la fila del mes cuando falta (0 escrituras)');
+    chk(c.gasto === 0 && JSON.stringify(c.corridas) === '{}', 'E-c sin fila del mes devuelve ceros, no revienta');
+  }
+
+  // E-d · semáforo: tabla de verdad. Un agente apagado nunca sale verde y una falla manda sobre
+  // un verde viejo — si esto se invierte, la torre miente en el color, que es lo único que se mira.
+  chk(ctx._flotaSemaforo_(false, 'work', 0) === 'gr', 'E-d inactivo → gr (dormido), aunque la cola diga work');
+  chk(ctx._flotaSemaforo_(true, 'fail', 0) === 'y', 'E-d última fallida → y, aunque haya corrido hoy');
+  chk(ctx._flotaSemaforo_(true, 'work', null) === 'g', 'E-d con tarea viva → g');
+  chk(ctx._flotaSemaforo_(true, null, 0) === 'g', 'E-d corrió hoy → g');
+  chk(ctx._flotaSemaforo_(true, null, 9) === 'b', 'E-d activo sin corrida reciente → b (en guardia), no verde');
+  chk(ctx._flotaSemaforo_(true, null, null) === 'b', 'E-d sin telemetría → b, jamás un verde inventado');
+
+  // E-e · `agenteDetalle` no adivina: una clave fuera del roster corta con error.
+  let corto = false;
+  try { ctx.agenteDetalle('no-existe-este-agente'); } catch (e) { corto = /desconocido/.test(e.message); }
+  chk(corto, 'E-e agenteDetalle rechaza una clave fuera del roster (no devuelve objeto vacío)');
+
+  // E-f 🔒 AISLAMIENTO. El Edificio es la flota PROPIA de Satori: no puede tocar el Sheet de un
+  // tenant ni por accidente. Se prohíben los dos caminos que llevan ahí.
+  for (const puerta of ['abrirCliente', 'openByUrl', 'openById', "'charla'", 'url_sheet_cliente']) {
+    chk(srcFlota.indexOf(puerta) < 0, 'E-f 🔒 32_flota.js no usa ' + puerta + ' (no hay camino a un tenant)');
+  }
+  // Y lo que SÍ lee de una hoja con columna id_cliente, lo agrega descartándola.
+  chk(srcFlota.indexOf('Costos_API_consolidado') >= 0 && srcFlota.indexOf('f.id_cliente') < 0,
+      'E-f 🔒 el costo se agrega por módulo sin leer nunca la columna id_cliente');
+  chk(srcFlota.indexOf('ix.texto') < 0 && srcFlota.indexOf('f[ix.id_cliente]') < 0,
+      'E-f 🔒 de Actividad salen conteos y fechas, nunca `texto` ni `id_cliente` (ahí hay PII de tenants)');
+
+  // E-g · LISTA-CONTRATO: los nombres de `FLOTA_MODULOS.feed` tienen que existir de verdad como
+  // primer argumento de algún `feed_()` del repo. Si no, el módulo mostraría "sin actividad" para
+  // siempre y nadie se enteraría. Se DERIVA del código, no se clava una lista a mano.
+  {
+    // Escanea TODO src/, no solo los módulos que este harness carga: `feed_('Salud')` vive en
+    // 16_salud.js, que no está en MODULOS — mirando solo lo cargado, el assert declaraba huérfano
+    // a un nombre que sí existe. La lista-contrato se audita contra el repo entero.
+    const todoSrc = fs.readdirSync(SRC).filter((f) => f.endsWith('.js'))
+      .map((f) => fs.readFileSync(path.join(SRC, f), 'utf8')).join('\n');
+    const nombresFeed = new Set();
+    let m; const re = /feed_\(\s*'([^']+)'/g;
+    while ((m = re.exec(todoSrc))) nombresFeed.add(m[1]);
+    const huerfanos = Object.keys(ctx.FLOTA_MODULOS)
+      .map((k) => ctx.FLOTA_MODULOS[k].feed).filter((f) => f && !nombresFeed.has(f));
+    chk(huerfanos.length === 0,
+        'E-g todo `feed` declarado en FLOTA_MODULOS existe como agente real de Actividad' +
+        (huerfanos.length ? ' — HUÉRFANOS: ' + huerfanos.join(', ') : ''));
+  }
+
+  // E-h · el módulo 3D se sirve por endpoint, NO inlineado en index.html: si alguien lo inlinea,
+  // le devuelve al Centro de Mando los ~300KB que esta arquitectura le sacó del boot.
+  {
+    const idx = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
+    chk(idx.indexOf('moduloEdificio') >= 0, 'E-h index.html pide el módulo por RPC (carga perezosa)');
+    chk(idx.indexOf('window.__AK_EXT') >= 0, 'E-h el seam __AK_EXT está abierto en el engine');
+    chk(idx.indexOf('const AV={') < 0, 'E-h los avatares base64 del Edificio NO están inlineados en index.html');
+    chk(fs.existsSync(path.join(SRC, 'edificio.html')), 'E-h src/edificio.html existe (lo sube clasp como archivo del proyecto)');
+  }
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

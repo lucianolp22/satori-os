@@ -37,3 +37,6 @@ SPACE UNIVERSE 2.jpeg
 # cliente: lo más sensible que produce el sistema. Se generan para volcarlas al `.md` del Hilo
 # en el Mac y NO se versionan — un repo con las charlas adentro es una fuga esperando un push.
 entregables/charlas/
+
+# _edificio/_partes.py: intermedio generado por extraer.py (~300KB de base64). Se regenera solo.
+_edificio/_partes.py

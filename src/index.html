@@ -1705,7 +1705,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div class="hud" id="hud-top">
     <div class="topbar">
       <span class="brand">
-        <svg class="enso" viewBox="0 0 34 34" fill="none" aria-hidden="true"><path d="M28.5 21.5A12.2 12.2 0 1 1 24 7.6" stroke="#F4EEE2" stroke-width="2.1" stroke-linecap="round" opacity=".92"/></svg>
+        <!-- Isologo Satori: enso + punto dorado (pedido de Luciano, 10-ago). El trazo abierto y el
+             punto en el arranque son la marca real; el arco suelto de antes no era el isologo. -->
+        <svg class="enso" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+          <g transform="rotate(-122 50 50)"><circle cx="50" cy="50" r="38" stroke="#ECEAE3" stroke-width="13" stroke-linecap="round" stroke-dasharray="185 53.8"/></g>
+          <circle cx="57" cy="7.5" r="7.5" fill="#D4A857"/>
+        </svg>
         <span><span class="wm"><i>Akasha</i></span><span class="sub" style="margin-left:10px">La Oficina · Satori OS</span></span>
       </span>
       <span class="sys">
@@ -1718,6 +1723,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <button class="pill" id="btn-capturar" title="Capturar a la Bandeja">＋ Capturar</button>
         <button class="pill" id="btn-ayuda" aria-label="Ayuda y controles" style="min-width:38px;justify-content:center">?</button>
         <button class="pill" id="btn-calidad" aria-pressed="false" title="Alternar calidad">◈ Full</button>
+        <button class="pill" id="btn-edificio" aria-pressed="false" title="Bajar al Edificio — la torre de la flota, debajo del orbe (shift+arrastrar para bajar a mano)">⌄ Edificio</button>
         <button class="pill jade" id="btn-despacho">⟵ Despacho</button>
       </span>
     </div>
@@ -5814,6 +5820,11 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
   ]); riel.getLengths(200);
   const nav={ modo:'umbral', t:0, az:0, azV:0, radio:58, radioV:58, alt:18,
     look:new THREE.Vector3(0,4,60),
+    // ovY (10-ago) — DESCENSO AL EDIFICIO. Offset vertical del centro de órbita del overview:
+    // 0 = el universo de siempre (comportamiento idéntico al de antes de esta línea), negativo =
+    // bajás por el haz dorado hacia la torre. Es todo lo que el Edificio necesita de la cámara:
+    // no hay un segundo sistema de navegación, se corre el centro de éste.
+    ovY:0, ovYMin:0,          // ovYMin: hasta dónde se puede bajar. Lo declara el módulo del Edificio.
     dockId:null, camGoal:new THREE.Vector3(), lookGoal:new THREE.Vector3(0,4,0), idle:0 };
   // E3.9 — encuadre del overview (pedido Luciano: se veia "de costado"). alt = altura de camara
   // (antes 28 = muy picado/oblicuo, universo tirado abajo → 18 mas de frente). _ovLookY = a que
@@ -6144,7 +6155,11 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     const r=canvas.getBoundingClientRect();
     ptr.x=((cx-r.left)/r.width)*2-1; ptr.y=-((cy-r.top)/r.height)*2+1;
     ray.setFromCamera(ptr,camera);
-    const hit=ray.intersectObjects(hits,false)[0];
+    // Los hits de extensión (Edificio) entran al MISMO raycaster: un solo cast por evento, y el
+    // que está más cerca de la cámara gana. Con dos raycasters separados habría que arbitrar la
+    // profundidad a mano, que es justo el bug que nadie ve hasta que el orbe tapa un piso.
+    const lista = extHits.length ? hits.concat(extHits) : hits;
+    const hit=ray.intersectObjects(lista,false)[0];
     return hit?hit.object.userData:null;
   }
   canvas.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY}; moved=false; nav.idle=0; },sig);
@@ -6153,11 +6168,20 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     if(drag){
       const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
       if(Math.abs(dx)+Math.abs(dy)>6) moved=true;
-      if(nav.modo==='overview'){ nav.azV -= dx*0.0032; nav.alt=Math.min(48,Math.max(4,nav.alt - dy*0.06)); }
+      if(nav.modo==='overview'){
+        nav.azV -= dx*0.0032;
+        // shift + arrastrar vertical = BAJAR AL EDIFICIO por el haz dorado. Solo tiene efecto con
+        // el módulo cargado (nav.ovYMin < 0); sin él, shift no cambia nada y el arrastre sigue
+        // siendo el de siempre. `ovYMin` lo declara el módulo: el engine no sabe cuánto mide la torre.
+        if(e.shiftKey && nav.ovYMin<0) nav.ovY=Math.min(0,Math.max(nav.ovYMin, nav.ovY - dy*0.32));
+        else nav.alt=Math.min(48,Math.max(4,nav.alt - dy*0.06));
+      }
       drag={x:e.clientX,y:e.clientY};
     } else if(!S.isMobile && performance.now()-lastHover>33){
       lastHover=performance.now();
-      canvas.style.cursor = pick(e.clientX,e.clientY) ? 'pointer' : 'grab';
+      const u=pick(e.clientX,e.clientY);
+      if(extHover){ try{ extHover(u, e.clientX, e.clientY); }catch(err){ console.error('[AK_EXT] hover',err); extHover=null; } }
+      canvas.style.cursor = u ? 'pointer' : 'grab';
     }
   },sig);
   canvas.addEventListener('pointerup',e=>{
@@ -6166,6 +6190,10 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     if(nav.modo==='umbral'){ terminarUmbral(); return; }
     const u=pick(e.clientX,e.clientY);
     if(!u){ if(nav.modo!=='overview') volverOverview(); return; }
+    // Extensiones primero: si el Edificio se queda con el click (devuelve true), Akasha no lo
+    // vuelve a interpretar. Sin este corte, un click en un piso caería al `else` de abajo y no
+    // haría nada — que es peor que un error, porque parece que la UI está muerta.
+    if(extPick){ try{ if(extPick(u)) return; }catch(err){ console.error('[AK_EXT] pick',err); extPick=null; } }
     if(u.tipo==='estacion') flyToEstacion(u.id);
     else if(u.tipo==='cliente') flyToCliente(u.id);
     else if(u.tipo==='nucleo'){
@@ -6291,6 +6319,15 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     }
   }
 
+  /* ---------- extensiones de escena (seam del Edificio) ----------
+   * La ÚNICA costura que el engine abre hacia afuera. Nace con el Edificio (10-ago) pero no sabe
+   * nada de él: recibe grupos, funciones por cuadro, hits para el raycaster y —si alguien lo pide—
+   * un reemplazo del render final. Todo lo que entra puede salir (`remove*`/`off*`), porque el
+   * teardown de Akasha tiene que poder desmontar lo ajeno sin dejar geometría colgada.
+   * Invariantes que el seam NO negocia: el renderer y el canvas #gl son de este engine, y hay UN
+   * solo loop — por eso se ofrece `onFrame`, no un rAF propio.  */
+  const extFrames=[], extHits=[];
+  let extRender=null, extPick=null, extHover=null;
   /* ---------- loop ---------- */
   const clock=new THREE.Clock(); let raf=0, running=false;
   const D=THREE.MathUtils.damp, tmpV=new THREE.Vector3();
@@ -6373,9 +6410,9 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
       nav.idle+=dt; if(nav.idle>5) nav.azV+=dt*0.015;
       nav.az+=nav.azV; nav.azV*=Math.pow(0.0001,dt);
       nav.radioV=D(nav.radioV,nav.radio,3,dt);
-      const ty=D(camera.position.y, nav.alt, 2.5, dt);
+      const ty=D(camera.position.y, nav.alt+nav.ovY, 2.5, dt);            // ovY: descenso al Edificio (0 = universo)
       camera.position.set(Math.sin(nav.az)*nav.radioV, ty, Math.cos(nav.az)*nav.radioV);
-      nav.look.x=D(nav.look.x,0,3,dt); nav.look.y=D(nav.look.y,_ovLookY,3,dt); nav.look.z=D(nav.look.z,0,3,dt);
+      nav.look.x=D(nav.look.x,0,3,dt); nav.look.y=D(nav.look.y,_ovLookY+nav.ovY,3,dt); nav.look.z=D(nav.look.z,0,3,dt);
       camera.up.set(0,1,0); camera.lookAt(nav.look);
     } else {
       camera.position.x=D(camera.position.x,nav.camGoal.x,2.6,dt);
@@ -6389,8 +6426,56 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     }
 
     anclarPanel(); drawMinimap(now); fpsCheck(now);
+    // ── Extensiones (Edificio). Corren DENTRO de este loop a propósito: el invariante del gate E2
+    // dice un solo loop de render a la vez, así que un módulo que se sume no trae su propio rAF.
+    // Una extensión que reviente no puede matar el cuadro del universo → cada una en su try.
+    for(let i=0;i<extFrames.length;i++){
+      try{ extFrames[i](dt,t); }
+      catch(e){ console.error('[AK_EXT] frame',e); extFrames.splice(i--,1); }   // la que falla se baja, no se arrastra
+    }
+    if(extRender){ try{ extRender(scene,camera); return; }catch(e){ console.error('[AK_EXT] render',e); extRender=null; } }
     renderer.render(scene,camera);
   }
+
+  /* ---------- __AK_EXT — la costura hacia los módulos de escena (Edificio, 10-ago) ----------
+   * Se publica en `window` porque el módulo llega DESPUÉS, por RPC, y no puede recibir la
+   * clausura por parámetro. Es deliberadamente chica: presta el motor, no lo entrega. Nada acá
+   * expone datos de cliente — `clientes()` devuelve lo que la escena YA está dibujando (id,
+   * nombre y estado del semáforo), que es exactamente lo que el panel del Universo tiene que
+   * listar y ni un campo más.  */
+  window.__AK_EXT = {
+    THREE, renderer, scene, camera, canvas, nav,
+    isMobile:S.isMobile, reducedMotion:S.reducedMotion,
+    addGroup(g){ if(g && scene.children.indexOf(g)<0) scene.add(g); },
+    removeGroup(g){ if(g) scene.remove(g); },
+    onFrame(fn){ if(typeof fn==='function' && extFrames.indexOf(fn)<0) extFrames.push(fn); },
+    offFrame(fn){ const i=extFrames.indexOf(fn); if(i>=0) extFrames.splice(i,1); },
+    addHits(list){ (list||[]).forEach(o=>{ if(extHits.indexOf(o)<0) extHits.push(o); }); },
+    removeHits(list){ (list||[]).forEach(o=>{ const i=extHits.indexOf(o); if(i>=0) extHits.splice(i,1); }); },
+    onPick(fn){ extPick=fn; },
+    onHover(fn){ extHover=fn; },
+    setRenderHook(fn){ extRender=fn||null; },
+    /* Conducir la cámara sin duplicar el sistema de navegación: se corre el centro de órbita. */
+    navOverview(o){ o=o||{};
+      if(nav.modo!=='overview') volverOverview();
+      if(o.ovY!=null) nav.ovY=+o.ovY;
+      if(o.radio!=null) nav.radio=+o.radio;
+      if(o.alt!=null) nav.alt=+o.alt;
+      nav.idle=0;
+    },
+    setCrumb(s){ setStatus(String(s||'').replace(/&middot;/g,'·')); },
+    clientes(){ return Object.keys(clientes).map(k=>({ id:k, nombre:clientes[k].cliente.nombre,
+                                                       estado:clientes[k].cliente.estado })); },
+    /* Puente RPC. El módulo no habla con GAS por su cuenta: pasa por acá, que ya sabe si estamos
+       en GAS o en un harness offline. Fail-closed: sin `google.script.run`, va el callback de error
+       y el módulo se queda con su roster estático en vez de pintar datos que no existen. */
+    rpc(nombre, args, ok, err){
+      try{
+        if(typeof google==='undefined' || !google.script || !google.script.run){ if(err) err(new Error('sin RPC')); return; }
+        google.script.run.withSuccessHandler(ok||function(){}).withFailureHandler(err||function(){})[nombre].apply(null, args||[]);
+      }catch(e){ if(err) err(e); }
+    }
+  };
 
   /* ---------- API ---------- */
   return {
@@ -6421,6 +6506,13 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
     irAMuelle(){ if(nav.modo!=='umbral') flyToMuelle(); },
     destroy(){
       destruirMapaCerebro();   // H4: si se sale de la Oficina con el mapa abierto, baja primero
+      // El Edificio se desmonta ANTES de que se dispongan escena y renderer: su `destroy` libera
+      // geometría y texturas propias y se saca del loop. Si se hiciera después, el módulo quedaría
+      // apuntando a un renderer con el contexto perdido y su torre viviría en una escena muerta.
+      try{ if(window.__EDIFICIO && window.__EDIFICIO.destroy) window.__EDIFICIO.destroy(); }
+      catch(e){ console.error('[AK_EXT] destroy módulo',e); }
+      extFrames.length=0; extHits.length=0; extRender=extPick=extHover=null;
+      try{ delete window.__AK_EXT; }catch(_e){ window.__AK_EXT=null; }
       running=false; cancelAnimationFrame(raf); AC.abort();
       scene.traverse(o=>{ o.geometry?.dispose?.();
         (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ m?.map?.dispose?.(); m?.dispose?.(); }); });
@@ -7370,6 +7462,87 @@ window.AKASHA = (function () {
       if (S.engine) S.engine.setEco(S.eco);
       toast(S.eco ? 'Modo eco: menos partículas, más batería' : 'Calidad plena');
     });
+    /* ── EDIFICIO — carga perezosa del módulo de escena (10-ago) ──────────────────────────────
+     * El Edificio no es otra pantalla: es la misma escena, más abajo. Pero sus ~300KB (240 de
+     * avatares base64) no viajan en index.html — se los pide a `moduloEdificio()` la PRIMERA vez
+     * que alguien baja, y de ahí en más el botón solo mueve la cámara. Así el boot diario del CM
+     * no paga un byte por una sala a la que quizás no entrás.
+     * Fail-closed y honesto: si el módulo no llega, se dice y el universo sigue intacto.  */
+    // `html` cachea el módulo: al SALIR de la Oficina, `destroy()` del engine desmonta el Edificio
+    // (tiene que hacerlo: si no, su torre quedaría colgada de un renderer con el contexto perdido).
+    // O sea que la segunda entrada necesita volver a montarlo — pero no a volver a pedirlo. Sin
+    // este caché, entrar y salir tres veces son tres round-trips de 300KB.
+    var EDIF = { cargando: false, html: null };
+    function edifVivo() { return !!window.__EDIFICIO; }
+    // Los nodos de la inyección anterior tienen que irse ANTES de re-inyectar, o quedan dos
+    // #ediRoot y dos <style> peleándose por los mismos ids.
+    function limpiarDOM() {
+      ['ediRoot', 'ediStyle', 'ediScript'].forEach(function (id) {
+        var n = document.getElementById(id); if (n && n.parentNode) n.parentNode.removeChild(n);
+      });
+    }
+    // El velo se crea acá y no en el módulo: la primera bajada es JUSTO cuando el módulo todavía
+    // no existe, que es cuando el velo hace falta. Mismo lenguaje honesto que el de E3.7: dice qué
+    // está pasando en vez de dejar la pantalla quieta.
+    function velo(on) {
+      var v = $('ediVelo');
+      if (!v && on) {
+        v = document.createElement('div'); v.id = 'ediVelo';
+        v.style.cssText = 'position:fixed;inset:0;z-index:220;display:grid;place-items:center;' +
+          'background:rgba(10,9,6,.72);backdrop-filter:blur(3px);color:#ECEAE3;' +
+          'font:500 14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;letter-spacing:.02em';
+        v.textContent = 'Bajando al Edificio…';
+        document.body.appendChild(v);
+        return;
+      }
+      if (v && !on && v.parentNode) v.parentNode.removeChild(v);
+    }
+    function inyectarModulo(html) {
+      // innerHTML NO ejecuta <script>: hay que recrear el nodo. Se recorre en orden para que el
+      // script entre DESPUÉS de su markup — si no, el módulo no encuentra sus propios divs.
+      limpiarDOM();
+      var tmp = document.createElement('div'); tmp.innerHTML = html;
+      var nodos = [].slice.call(tmp.childNodes);
+      nodos.forEach(function (n) {
+        if (n.tagName === 'SCRIPT') {
+          var s = document.createElement('script'); s.id = 'ediScript'; s.textContent = n.textContent;
+          document.body.appendChild(s);
+        } else if (n.nodeType === 1) {
+          document.body.appendChild(n);   // <style> y los overlays van a nivel <body>: hermanos de
+        }                                 // #akasha, jamás dentro de #centro (regla de stacking).
+      });
+    }
+    function montar(html) {
+      inyectarModulo(html);
+      if (!edifVivo()) { toast('El Edificio no montó — mirá la consola.'); return false; }
+      var b = $('btn-edificio'); if (b) { b.setAttribute('aria-pressed', 'true'); b.textContent = '⌃ Universo'; }
+      window.__EDIFICIO.selectFloor(8);
+      return true;
+    }
+    function bajarAlEdificio() {
+      if (!AK.on || EDIF.cargando) return;
+      if (edifVivo()) { window.__EDIFICIO.selectFloor(8); return; }
+      if (!window.__AK_EXT) { toast('El Edificio necesita la Oficina 3D cargada.'); return; }
+      // Segunda entrada a la Oficina: el módulo ya viajó, solo hay que volver a montarlo.
+      if (EDIF.html) { try { montar(EDIF.html); } catch (e) { try { console.error('[Edificio]', e); } catch (_x) {} toast('El Edificio no pudo montarse.'); } return; }
+      EDIF.cargando = true; velo(true);
+      pedir('moduloEdificio').then(function (html) {
+        EDIF.cargando = false; velo(false);
+        if (!html || typeof html !== 'string') { toast('El módulo del Edificio no llegó.'); return; }
+        EDIF.html = html;
+        try { montar(html); } catch (e) { try { console.error('[Edificio]', e); } catch (_x) {} toast('El Edificio no pudo montarse.'); }
+      }, function () { EDIF.cargando = false; velo(false); toast('No se pudo traer el Edificio.'); });
+    }
+    var be = $('btn-edificio'); if (be) be.addEventListener('click', function () {
+      // Con el Edificio montado y la cámara abajo, el botón sube. En cualquier otro caso, baja.
+      if (edifVivo() && window.__AK_EXT && window.__AK_EXT.nav.ovY < 0) {
+        window.__EDIFICIO.selectUniverse();
+        this.setAttribute('aria-pressed', 'false'); this.textContent = '⌄ Edificio';
+        return;
+      }
+      bajarAlEdificio();
+    });
+
     var ft = $('flat-try'); if (ft) ft.addEventListener('click', function () {
       if (S.reducedMotion) { toast('Tu sistema pide movimiento reducido — la Vista Plana es tu Akasha.'); return; }
       if (!S.engine && DATA) {

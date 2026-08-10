@@ -25,6 +25,26 @@ function ctx2d() {
   });
 }
 let nodeSeq = 0;
+/* Busca en un innerHTML los nodos que matchean un selector simple (#id, .clase o etiqueta) y
+   devuelve un elemento stub por cada ocurrencia, con su `dataset` leído de los data-*. Alcanza
+   para lo que hace la UI real: pintar innerHTML y después enganchar los botones que acaba de
+   escribir. No pretende ser un parser de CSS. */
+function _qsa(html, sel) {
+  html = String(html || ''); sel = String(sel || '').trim();
+  let re;
+  if (sel[0] === '#') re = new RegExp('<([a-z]+)([^>]*\\bid="' + sel.slice(1) + '"[^>]*)>', 'gi');
+  else if (sel[0] === '.') re = new RegExp('<([a-z]+)([^>]*\\bclass="[^"]*\\b' + sel.slice(1) + '\\b[^"]*"[^>]*)>', 'gi');
+  else re = new RegExp('<(' + sel + ')(\\b[^>]*)>', 'gi');
+  const out = []; let m;
+  while ((m = re.exec(html))) {
+    const el = mkEl();
+    const attrs = m[2] || '';
+    let d; const rd = /data-([a-z0-9-]+)="([^"]*)"/gi;
+    while ((d = rd.exec(attrs))) el.dataset[d[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = d[2];
+    out.push(el);
+  }
+  return out;
+}
 function mkEl(id) {
   const el = {
     id: id || ('n' + (++nodeSeq)), tagName: 'DIV', hidden: false, width: 1200, height: 800,
@@ -34,7 +54,12 @@ function mkEl(id) {
     addEventListener: noop, removeEventListener: noop, setAttribute: noop, getAttribute: () => null,
     appendChild(c) { this.children.push(c); return c; }, insertBefore(c) { this.children.push(c); return c; },
     removeChild: noop, remove: noop, focus: noop, click: noop, blur: noop,
-    querySelector: () => null, querySelectorAll: () => [],
+    // querySelector/All mirando el innerHTML que se acaba de escribir. El stub viejo devolvía
+    // SIEMPRE null, que es justo lo que el DOM real NUNCA hace después de un innerHTML con ese id:
+    // un panel que se pinta y engancha sus botones moría acá y en el navegador anda. Un stub que
+    // no matchea la función real es un verde (o un rojo) falso — la lección de D25e.
+    querySelector(sel) { return _qsa(this._html, sel)[0] || null; },
+    querySelectorAll(sel) { return _qsa(this._html, sel); },
     getBoundingClientRect: () => ({ left: 0, top: 0, width: 1200, height: 800, right: 1200, bottom: 800 }),
     getContext(t) { return t === '2d' ? ctx2d() : { getExtension: () => null, getParameter: () => 8 }; },
     cloneNode() { return mkEl(this.id); }, replaceWith: noop, toDataURL: () => 'data:,',
@@ -88,6 +113,36 @@ const GAS = {
     tareas_ctx: { hoy: 0, clientes: 7, periodicas: 3, en_curso: 1, abiertas: 8 }
   }),
   estadoSalud: () => ({ global: 'ok', integridad: 98, hallazgos: [], ts: '2026-07-17 12:00' }),
+  // Shape REAL de prefsUI (08_webapp.js:526), no inventado: el CM lo pide al entrar a Akasha y
+  // sin él el harness contaba un console.error que no era de Akasha.
+  prefsUI: () => ({ orbe_calidad: 'alto', cerebro_map: 'off' }),
+  // EDIFICIO (10-ago) — shape REAL de flotaEstado (32_flota.js): `runtime` son los runners de
+  // AGENTES y `modulos` los motores del OS. Es el contrato que el módulo usa para pisar el roster
+  // estático de la torre. Ojo con la forma: si cambia en el server, este payload cambia también —
+  // un stub que no matcha la función real es un verde falso (D25e).
+  flotaEstado: () => ({
+    runtime: [
+      { clave: 'vigia', nombre: 'Vigía', rol: 'Monitoreo', activo: true, gate: false, estado: 'g', fuente: 'cola', ultimaCorrida: '2026-08-10 11:40', diasDesdeCorrida: 0, cupo: { usado: 3, max: 24, ok: true } },
+      { clave: 'lift', nombre: 'Lift', rol: 'Retención', activo: false, gate: false, estado: 'gr', fuente: 'ninguna', ultimaCorrida: '', diasDesdeCorrida: null, cupo: { usado: 0, max: 2, ok: true } }
+    ],
+    modulos: [
+      { clave: 'director', nombre: 'Director', rol: 'Runtime · 14_director.js', activo: true, gate: false, estado: 'g', fuente: 'actividad', ultimaCorrida: '2026-08-10 07:00', diasDesdeCorrida: 0 },
+      { clave: 'salud', nombre: 'Salud', rol: 'Runtime · 16_salud.js', activo: true, gate: false, estado: 'b', fuente: 'actividad', ultimaCorrida: '2026-08-04 07:00', diasDesdeCorrida: 6 },
+      { clave: 'cerebro', nombre: 'Cerebro', rol: 'Runtime · 15_cerebro.js', activo: true, gate: false, estado: 'b', fuente: 'ninguna', ultimaCorrida: '', diasDesdeCorrida: null }
+    ],
+    salud: { global: 'ok', integridad: 98, hallazgos: [], ts: '2026-08-10 12:00' },
+    consumo: { gastoUsd: 0.43, topeUsd: 25, mes: '2026-08' },
+    ts: '2026-08-10 12:00'
+  }),
+  // Ficha de UN agente, on-demand al abrir su dashboard. Shape real de agenteDetalle (32_flota.js).
+  agenteDetalle: (clave) => ({
+    clave, nombre: 'Director', rol: 'Runtime · 14_director.js', tipo: 'modulo', activo: true, gate: false,
+    corridas30d: 27, ultimaCorrida: '2026-08-10 07:00', diasDesdeCorrida: 0,
+    costoMes: { llamadas: 84, tokens: 120400, usd: 1.37, eur: 1.26, mes: '2026-08' },
+    fuentes: { corridas: 'Actividad · últimas 400 filas · ventana 30 días',
+               costo: 'Costos_API_consolidado · mes 2026-08 · agregado de todos los módulos, sin id_cliente',
+               cupo: '' }
+  }),
   recomendacionesAbiertas: () => ([{ id: 'REC-0001', fecha: '2026-07-16', texto: '[A] ARMAR REUNIONES LC TRAVEL', kpi: 'north_star', se_hizo: '', kpi_movio: '', id_cliente: 'CLI-003' }]),
   listaClientes: () => ([
     { id_cliente: 'CLI-001', nombre: 'FRANFLACA / Mesaquince', estado: 'activo', rubro: 'Dirección Administrativa' },
@@ -117,6 +172,10 @@ const GAS = {
 };
 
 /* google.script.run: async como en GAS (los handlers vuelven en otro tick) */
+/* Bitácora de llamadas a google.script.run. Lo que se le pide al server (y lo que NO) es
+   observable y verificable; el innerHTML resultante no lo es con estos stubs, porque
+   `querySelector` devuelve nodos nuevos y no referencias vivas del árbol. */
+const RPCS = [];
 function mkRun() {
   const st = { ok: null, fail: null };
   const api = new Proxy({}, {
@@ -124,6 +183,7 @@ function mkRun() {
       if (k === 'withSuccessHandler') return f => (st.ok = f, api);
       if (k === 'withFailureHandler') return f => (st.fail = f, api);
       return (...args) => {
+        RPCS.push({ fn: k, args });      // bitácora: qué se le pidió al server y con qué
         // cerebroGrafo abre el Sheet de cada Espacio: es LENTO (BUG B).
         // bootResto lleva estadoSalud (caro): más lento que bootUniverso, para
         // probar que el universo puebla ANTES que los docks (E3.7 B).
@@ -199,6 +259,20 @@ const be = h.indexOf('window.AK_T = AK_T;', bs) + 'window.AK_T = AK_T;'.length;
 if (bs < 0 || be < 20) { console.error('✗ no encontré el bloque de boot compartido (bootUniversoP/AK_T)'); process.exit(1); }
 vm.runInContext(h.slice(bs, be), sandbox);
 console.log('· boot compartido evaluado (bootUniversoP/bootRestoP/AK_T)');
+
+/* 3a-bis. Formateadores de fecha del CM (10-ago). El adaptador de Akasha los llama por nombre y
+   viven en el top-level del CM, FUERA del bloque de arriba: sin esto, `universo` y `resto` morían
+   con ReferenceError y el harness daba B y C en rojo por una razón que no era de Akasha.
+   Se extraen del index REAL (no se stubean): un stub que no matchea la función real es un verde
+   falso — la lección de D25e. */
+const HELPERS_CM = ['fechaHoraCorta', 'fechaHoraDosLineas', 'semaforoCliente'];
+HELPERS_CM.forEach(function (fn) {
+  const a = h.indexOf('\nfunction ' + fn + '(');
+  if (a < 0) { console.error('✗ no encontré function ' + fn + '( en index.html'); process.exit(1); }
+  const sig = h.indexOf('\nfunction ', a + 1);   // cortar donde arranca la siguiente top-level
+  vm.runInContext(h.slice(a + 1, sig > 0 ? sig : a + 3000), sandbox);
+});
+console.log('· helpers top-level del CM evaluados (' + HELPERS_CM.join(', ') + ')');
 
 /* 3b. el código REAL de Akasha, tal como quedó en index.html */
 const banner = h.indexOf('AKASHA · Motor 3D E3');
@@ -311,17 +385,126 @@ console.log('· bloque Akasha evaluado (' + code.length + ' bytes)');
   }
   console.log('── TOGGLES ──');
   console.log('  5 toggles Despacho↔Akasha:', 'sin excepción ✓');
-  console.log('  renderer.dispose()        :', disposed, '(esperado 7: A/B + warm + 5 toggles)');
-  console.log('  forceContextLoss()        :', ctxLost, '(esperado 7)');
+
+  /* ── E · EL EDIFICIO (10-ago) ────────────────────────────────────────────────────────────────
+   * El módulo lazy corre contra el motor REAL y THREE REAL, igual que el resto del harness. No
+   * verifica píxeles (eso es el eyeball de Luciano en /dev): verifica que la torre se construya
+   * sin excepción, que se cuelgue de la escena viva, que el semáforo real pise al roster estático
+   * y que el teardown no deje nada colgado.
+   * Se corre en una entrada PROPIA, después de los toggles, y por eso suma un dispose más — el
+   * esperado de abajo se deriva, no se clava a mano (la lección de D14g). */
+  console.log('\n── E · EDIFICIO ──');
+  let ediOk = false, ediCounts = null, ediPisos = 0, ediVivoTrasDestroy = null;
+  const ediEsperado = { pisos: 8, agentes: 68 };
+  {
+    A.entrar();
+    await wait(RESTO_MS + 120);
+    const EXT = sandbox.window.__AK_EXT;
+    console.log('  __AK_EXT publicado        :', !!EXT ? '✓' : '✗');
+    if (EXT) {
+      const modulo = fs.readFileSync(IDX.replace(/index\.html$/, 'edificio.html'), 'utf8');
+      const m = modulo.match(/<script>\n([\s\S]*)\n<\/script>/);
+      if (!m) { console.log('  ✗ no encontré el <script> de edificio.html'); }
+      else {
+        const antes = EXT.scene.children.length;
+        try {
+          vm.runInContext(m[1], sandbox);
+          const E = sandbox.window.__EDIFICIO;
+          ediCounts = E && E._counts ? E._counts() : null;
+          ediPisos = EXT.scene.children.length - antes;
+          console.log('  módulo montado            :', !!E ? '✓' : '✗');
+          console.log('  grupos sumados a la escena:', ediPisos, '(esperado 2: torre + extras)');
+          console.log('  torre                     :', ediCounts ? ediCounts.pisos + ' plantas · ' + ediCounts.agentes + ' agentes · ' +
+            (ediCounts.hitsPiso + ediCounts.hitsAgente) + ' hits' : '—');
+
+          // El semáforo REAL pisa al roster estático. `flotaEstado` ya volvió (el módulo la pide
+          // al montar), así que acá se comprueba el resultado del merge, no se simula.
+          await wait(30);
+          const p8 = E.PISOS.filter(p => p.id === 8)[0];
+          const dir8 = p8.ags.filter(a => a.n === 'Director')[0];
+          const p3 = E.PISOS.filter(p => p.id === 3)[0];
+          const salud3 = p3.ags.filter(a => a.n === 'Salud')[0];
+          const critico = p8.ags.filter(a => a.n === 'Jefe de Gabinete')[0];   // persona-skill: sin runtime
+          const mergeOk = dir8 && dir8._k === 'director' && dir8.st === 'g' &&
+                          salud3 && salud3._k === 'salud' && salud3.st === 'b' &&
+                          critico && critico._k === undefined && critico.st === 'b';
+          console.log('  merge flotaEstado         :', mergeOk ? '✓' : '✗',
+            '(Director=' + (dir8 && dir8.st) + ' · Salud=' + (salud3 && salud3.st) +
+            ' · persona-skill sin tocar=' + (critico && critico._k === undefined) + ')');
+          // AISLAMIENTO: lo que el módulo recibió no puede traer un solo campo de tenant.
+          const crudo = JSON.stringify(GAS.flotaEstado());
+          const fugas = ['id_cliente', 'CLI-0', 'charla', 'url_sheet_cliente'].filter(t => crudo.indexOf(t) >= 0);
+          console.log('  aislamiento del payload   :', fugas.length ? '✗ ' + fugas.join(',') : '✓ ni un campo de tenant');
+
+          E.selectFloor(8);                                   // abre panel: no debe tirar
+
+          // DASHBOARD CON DATOS REALES (encargo §4, on-demand). Se abre el de un agente CON
+          // runtime: tiene que pedir `agenteDetalle` y reemplazar los KPIs ilustrativos por los
+          // del server. Y el de una persona-skill NO debe pedir nada — no tiene qué leer.
+          const antesDeAbrir = RPCS.filter(r => r.fn === 'agenteDetalle').length;
+          console.log('  detalle NO se precarga    :', antesDeAbrir === 0 ? '✓' : '✗',
+            '(0 llamadas a agenteDetalle con 68 agentes en pantalla)');
+          E.openDash(8, p8.ags.indexOf(dir8));                // agente CON runtime
+          await wait(30);
+          const pedidos = RPCS.filter(r => r.fn === 'agenteDetalle');
+          const pidioReal = pedidos.length === 1 && pedidos[0].args[0] === 'director';
+          console.log('  dashboard pide el detalle :', pidioReal ? '✓' : '✗',
+            '(agenteDetalle("' + (pedidos[0] && pedidos[0].args[0]) + '") al abrirlo, no antes)');
+          E.openDash(8, p8.ags.indexOf(critico));             // persona-skill: sin _k
+          await wait(30);
+          const skillSinRPC = RPCS.filter(r => r.fn === 'agenteDetalle').length === 1;
+          console.log('  persona-skill no pide nada:', skillSinRPC ? '✓' : '✗',
+            '(sin runtime no hay endpoint que llamar: su ficha estática alcanza)');
+
+          E.selectUniverse();
+          const okNav = mergeOk && !fugas.length && pidioReal && skillSinRPC;
+
+          // teardown
+          E.destroy();
+          ediVivoTrasDestroy = !!sandbox.window.__EDIFICIO;
+          const grupos = EXT.scene.children.length - antes;
+          console.log('  navegación P8 → Universo  :', okNav ? '✓' : '✗');
+          console.log('  destroy: grupos residuales:', grupos, grupos === 0 ? '✓' : '✗');
+          console.log('  destroy: __EDIFICIO nulo  :', !ediVivoTrasDestroy ? '✓' : '✗');
+
+          // RE-MONTAJE. Salir de la Oficina destruye el Edificio (tiene que hacerlo), así que la
+          // SEGUNDA entrada lo vuelve a montar sobre la misma escena. Montarlo una sola vez no
+          // prueba nada de eso: acá se cazó que el hook daba por vivo un módulo ya destruido.
+          vm.runInContext(m[1], sandbox);
+          const E2 = sandbox.window.__EDIFICIO;
+          const c2 = E2 && E2._counts ? E2._counts() : null;
+          const gruposRe = EXT.scene.children.length - antes;
+          const remontaOk = !!E2 && gruposRe === 2 && c2 && c2.pisos === ediEsperado.pisos &&
+                            c2.agentes === ediEsperado.agentes && c2.hitsAgente === ediCounts.hitsAgente;
+          console.log('  re-montaje (2ª entrada)   :', remontaOk ? '✓' : '✗',
+            '(grupos=' + gruposRe + ' · ' + (c2 ? c2.pisos + ' plantas · ' + c2.hitsAgente + ' hits' : '—') + ' · sin duplicar)');
+          if (E2) E2.destroy();
+
+          ediOk = !!E && ediPisos === 2 && grupos === 0 && !ediVivoTrasDestroy && remontaOk && okNav &&
+                  ediCounts && ediCounts.pisos === ediEsperado.pisos &&
+                  ediCounts.agentes === ediEsperado.agentes;
+        } catch (e) {
+          console.log('  ✗ el módulo reventó:', String(e && e.stack || e).slice(0, 400));
+        }
+      }
+    }
+    A.salir();
+    await wait(10);
+  }
+
+  const entradas = 7 + 1;   // A/B + warm + 5 toggles + la entrada del Edificio (derivado, no clavado)
+  console.log('\n── TEARDOWN ──');
+  console.log('  renderer.dispose()        :', disposed, '(esperado ' + entradas + ')');
+  console.log('  forceContextLoss()        :', ctxLost, '(esperado ' + entradas + ')');
   console.log('  AK.on tras salir          :', sandbox.window.AK.on, '(esperado false → el orbe del CM retoma)');
 
   const graves = errores.filter(e => e[0] === 'error');
   console.log('\n── CONSOLA ──');
   if (!graves.length) console.log('  sin console.error ✓');
   else graves.forEach(e => console.log('  ✗', e[1].slice(0, 160)));
-  const teardownOk = disposed === 7 && ctxLost === 7;
-  const ok = teardownOk && !graves.length && sandbox.window.AK.on === false && okA && okB && okC && idem;
-  console.log('\n  A esqueleto:', okA ? '✓' : '✗', '· B 2 olas:', okB ? '✓' : '✗', '· C snapshot:', okC ? '✓' : '✗', '· D17j idempotente:', idem ? '✓' : '✗', '· teardown:', teardownOk ? '✓' : '✗');
+  const teardownOk = disposed === entradas && ctxLost === entradas;
+  const ok = teardownOk && !graves.length && sandbox.window.AK.on === false && okA && okB && okC && idem && ediOk;
+  console.log('\n  A esqueleto:', okA ? '✓' : '✗', '· B 2 olas:', okB ? '✓' : '✗', '· C snapshot:', okC ? '✓' : '✗', '· D17j idempotente:', idem ? '✓' : '✗', '· E edificio:', ediOk ? '✓' : '✗', '· teardown:', teardownOk ? '✓' : '✗');
   console.log('\n' + (ok ? '✓ HARNESS VERDE' : '✗ HARNESS EN ROJO'));
   process.exit(ok ? 0 : 1);
 })();

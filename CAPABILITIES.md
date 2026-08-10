@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-10 18:03 · commit: 9bf957a
+> Generado: 2026-08-10 20:33 · commit: 4000029
 
 ## Módulos
 
@@ -39,6 +39,7 @@
 | `29_vigilancia.js` | TC-11 · A5 · VIGILANCIA MULTI-SUPERFICIE (04-ago-2026) | 9 |
 | `30_correo.js` | T7 · CORREO → TRIAJE A BANDEJA (04-ago-2026) | 5 |
 | `31_admin.js` | TC-7 · F4a · MOTOR DE ADMINISTRACIÓN PROPIA (04-ago-2026) | 14 |
+| `32_flota.js` | EDIFICIO SATORI · lectores de la FLOTA PROPIA (10-ago-2026) | 6 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -185,4 +186,6 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 **30_correo.js:** _correoDebeCorrer_ _extractoCorreo_ _correoIgnorado_ _correoDecidirMensaje_ correoTriaje 
 
 **31_admin.js:** _calendarioFiscalPlaceholders_ _adminNum_ _adminClave_ _adminResumir_ _adminLineasBrief_ _adminAbrir_ _adminHoja_ adminSetup altaFactura altaGasto altaCobro adminResumenMes adminRefrescarResumen_ _adminResumenCacheado_ 
+
+**32_flota.js:** _flotaConsumoRO_ _flotaTelemetria_ _flotaSemaforo_ flotaEstado agenteDetalle moduloEdificio 
 
