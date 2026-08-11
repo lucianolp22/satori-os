@@ -1339,8 +1339,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <button class="cm-btn" id="cmSato" title="Sato — te acompaña en todo el sistema (memoria propia + ve toda la cartera)">🜂 Sato</button>
       <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_blank" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
       <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
-      <a class="cm-btn cerebro" id="cmGrafo" href="http://127.0.0.1:8788/" target="_blank" rel="noopener"
-         title="Cerebro — el mapa de tus notas (local · loopback)">🧠 Cerebro</a>
+      <a class="cm-btn cerebro" id="cmGrafo" href="#" target="_blank" rel="noopener"
+         title="Cerebro — el mapa de tus notas (cerebro_url de Config)" style="display:none">🧠 Cerebro</a>
       <button class="cm-btn akasha" id="cmAkasha" title="Entrar a la Oficina Universo">⟶ Akasha</button>
       <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
       <button class="icon-btn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -2433,6 +2433,14 @@ function cmAplicarCfg(cfg){
   if(of){ // B1: botón Oficina solo si oficina_url tiene valor (loopback => funciona solo en el Mac; vacía => oculto)
     if(cfg.oficina_url){of.href=cfg.oficina_url;of.style.display='';}
     else{of.style.display='none';}
+  }
+  // E0 (11-ago): mismo criterio para el Cerebro. Antes venía hardcodeado a 127.0.0.1:8788 y
+  // SIEMPRE visible: en la PWA del iPhone era un botón muerto (loopback no existe fuera del Mac).
+  // Ahora sin cerebro_url en Config no hay botón — el CM no ofrece lo que no puede abrir.
+  var ce=document.getElementById('cmGrafo');
+  if(ce){
+    if(cfg.cerebro_url){ce.href=cfg.cerebro_url;ce.style.display='';}
+    else{ce.style.display='none';}
   }
 }
 /* E3.7 — Primer paint del cockpit desde las 2 olas compartidas (bootUniversoP +

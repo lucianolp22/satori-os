@@ -1126,7 +1126,10 @@ function estadoAgentes() {
     feed: feed,
     // E1.1: URLs de servicios locales que el CM abre. voz_url cae al hardcode histórico si Config
     // aún no se sembró; oficina_url va CRUDA (vacía => el CM oculta el botón, por diseño B1).
+    // cerebro_url va CRUDA igual que oficina_url (E0, 11-ago): sin fallback al hardcode, porque el
+    // fallback es justo lo que hacía que el botón apareciera vivo en el iPhone apuntando al Mac.
     cfg: { voz_url: getConfig('voz_url') || 'http://127.0.0.1:8787', oficina_url: getConfig('oficina_url'),
+      cerebro_url: getConfig('cerebro_url'),
       // 16-jul: avatares propios de los nodos nav del CM (Config avatar_bandeja / avatar_cerebro;
       // vacías => el CM conserva el glifo SVG, fail-closed en cmAvataresOrbita)
       avatar_bandeja: getConfig('avatar_bandeja'), avatar_cerebro: getConfig('avatar_cerebro') },

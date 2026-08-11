@@ -219,6 +219,11 @@ var CONFIG_DEFAULTS = [
   ['cerebro_map', 'off'],
   ['voz_url', 'http://127.0.0.1:8787'],
   ['oficina_url', 'http://127.0.0.1:8420'],
+  // E0 (11-ago) — Cerebro (mapa de notas, loopback). Mismo criterio que `oficina_url`: el CM lo
+  // manda CRUDO y el botón nace oculto, así que vaciar esta clave APAGA el botón. Estaba
+  // hardcodeado en index.html y en la PWA del iPhone era un botón muerto: 127.0.0.1 no existe
+  // fuera del Mac. Cambiala a la URL ts.net para que abra desde el teléfono.
+  ['cerebro_url', 'http://127.0.0.1:8788/'],
   // E1.1 — slots de avatar por agente (arte IA cargado como DATO, sin tocar código). Vacío => el CM
   // cae al placeholder con inicial + color de acento. Clave = 'avatar_' + clave del agente.
   ['avatar_director', ''],
