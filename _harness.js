@@ -2071,6 +2071,52 @@ seccion('P3 tramos del selfTest');
   }
 }
 
+// ── E-c (E1, 11-ago) · CARTERA. Offline y ESTÁTICO: lo que toca el roster real lo asera D44 en el
+// editor. Acá se cuidan las tres cosas que se pudren en silencio entre commits: que el enum tenga
+// UN solo dueño, que el schema crezca por el final, y que los endpoints nuevos estén declarados.
+{
+  const schema = fs.readFileSync(path.join(SRC, '01_schema.js'), 'utf8');
+  const cartera = fs.readFileSync(path.join(SRC, '33_cartera.js'), 'utf8');
+  const seg = fs.readFileSync(path.join(SRC, '22_seguridad.js'), 'utf8');
+  const idx = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
+
+  // El enum se lee del archivo, no se copia acá: un enum duplicado en el arnés es el próximo
+  // que se desincroniza del schema (misma clase que los conteos clavados a mano).
+  const mEnum = schema.match(/var ETAPAS_COMERCIALES = \[([^\]]*)\]/);
+  chk(!!mEnum, 'E-c ETAPAS_COMERCIALES está declarada en 01_schema.js');
+  const etapas = mEnum ? mEnum[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
+  chk(etapas.length >= 5 && etapas.indexOf('activo') >= 0 && etapas.indexOf('perdido') >= 0,
+      'E-c el embudo declara sus etapas (' + etapas.join('→') + ')');
+
+  // Aditivo por el final: la lección de `archivada` en Tareas (D8f). Insertar en el medio es lo
+  // que rompe a cualquier consumidor que lea por posición.
+  const mCli = schema.match(/\n\s*Clientes: \[([^\]]*)\]/);
+  const cols = mCli ? mCli[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')) : [];
+  chk(cols[cols.length - 2] === 'etapa_comercial' && cols[cols.length - 1] === 'logo_url',
+      'E-c etapa_comercial y logo_url son las DOS ÚLTIMAS columnas de Clientes (aditivo)');
+
+  // Un enum clavado en el front es una segunda fuente de verdad. El front tiene que pintar lo que
+  // le manda el backend; si copia la lista, el día que se agregue una etapa la vista la pierde.
+  const enFront = etapas.filter((e) => new RegExp("['\"]" + e + "['\"]").test(idx.slice(idx.indexOf('function carteraPanel_'), idx.indexOf('function carteraMover_'))));
+  chk(enFront.length === 0,
+      'E-c la vista NO clava el enum: pinta las etapas que devuelve el backend' +
+      (enFront.length ? ' — CLAVADAS EN EL FRONT: ' + enFront.join(', ') : ''));
+
+  // El validador valida contra la lista, no contra un literal suelto.
+  chk(/ETAPAS_COMERCIALES\.indexOf/.test(cartera), 'E-c la etapa se valida contra ETAPAS_COMERCIALES (fuente única)');
+  // AISLAMIENTO §3: el id que llega del front se contrasta con el roster antes de escribir.
+  chk(/fuera del roster/.test(cartera), 'E-c 🔒 moverEtapaComercial rechaza id fuera del roster (aislamiento §3)');
+  // El default del seed es mirar, no escribir.
+  chk(/function seedCartera2026_08_11\(\)[\s\S]{0,180}_seedCartera_\(false\)/.test(cartera),
+      'E-c el seed sin sufijo es DRY-RUN (el que escribe es el wrapper Aplicar)');
+
+  // Anti-drift: endpoint client-callable nuevo ⇒ alta en ENDPOINTS_UI en el MISMO commit.
+  const sinAlta = ['carteraPipeline', 'moverEtapaComercial', 'seedCartera2026_08_11', 'seedCartera2026_08_11Aplicar']
+    .filter((f) => seg.indexOf("'" + f + "'") < 0);
+  chk(sinAlta.length === 0, 'E-c los endpoints de Cartera están declarados en ENDPOINTS_UI' +
+      (sinAlta.length ? ' — SIN DECLARAR: ' + sinAlta.join(', ') : ''));
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

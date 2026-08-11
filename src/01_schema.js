@@ -11,7 +11,14 @@ var MAESTRO_NOMBRE = 'Satori OS — MAESTRO';
 
 // ── Pestañas del MAESTRO (0.3) ──────────────────────────────────────────────
 var MAESTRO_SHEETS = {
-  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta'],
+  // E1 (11-ago): +etapa_comercial (pipeline) +logo_url (card de la vista Cartera). Van AL FINAL a
+  // propósito — misma regla que `archivada` en Tareas (D8f): agregar al final es aditivo y ningún
+  // consumidor viejo se entera, porque TODOS leen por `leerTabla` (mapea por nombre de header) y
+  // ninguno accede por índice. `ensureSheet` las reconcilia solo, así que la migración es `setup()`.
+  // `etapa_comercial` es ORTOGONAL a `estado`: `estado` es la relación contractual (potencial /
+  // activo / …) y `etapa_comercial` es dónde está en el pipeline. MesaQuince es el caso que lo
+  // prueba: `estado=activo` con conector ON, `etapa_comercial=tibio` esperando respuesta.
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.
@@ -87,6 +94,14 @@ var MAESTRO_SHEETS = {
 // columnas revienta con `undefined.forEach`. Es el mismo fallo que `CLIENTE_SHEETS_SENSIBLES`
 // con las hojas lazy (23-jul). Lo asera D32a1.
 var MAESTRO_ORDEN = ['Clientes', 'Proyectos', 'Tareas', 'Avisos', 'Bitacora', 'Aprobaciones_agregadas', 'Costos_API_consolidado', 'Gobernanza', 'Cola_tareas', 'Cola_archivo', 'Actividad', 'Consumo_agentes', 'Cerebro_index', 'Bandeja', 'Correo_visto', 'Feedback', 'Recomendaciones', 'Agenda', 'Direcciones', 'NS_serie', 'Decisiones', 'Agentes_estado', 'Config'];
+
+// ── LISTA-CONTRATO · etapas del pipeline comercial (E1, 11-ago) ─────────────
+// El ORDEN es el del embudo y la vista Cartera pinta las columnas en este orden: cambiarlo
+// reordena la UI. Agregar una etapa obliga a mirar: `moverEtapaComercial` (valida contra esta
+// lista), la vista del CM (una columna por etapa) y el assert que deriva el enum de acá.
+// Vacío es un valor LEGÍTIMO y distinto de todos éstos: significa "todavía no clasificado" —
+// un cliente viejo que nadie tocó, no un error. Por eso el validador acepta '' explícitamente.
+var ETAPAS_COMERCIALES = ['frio', 'tibio', 'caliente', 'activo', 'en_pausa', 'perdido'];
 // ⚠ T7 (04-ago): agregar `Correo_visto` acá obliga a correr `setup()` en el MAESTRO vivo — es
 // idempotente. Hasta que la hoja exista, `correrSalud` la reporta como faltante, el `selfTest`
 // falla el chequeo de pestañas y `drillRestore` (que compara contra MAESTRO_ORDEN.length) da rojo.

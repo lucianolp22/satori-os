@@ -3026,6 +3026,79 @@ function _asertsP2_(chk, log, opts) {
  * Cada tramo es AUTOSUFICIENTE: hace su `setup()`, corre con `completo:true`, y se limpia en un
  * `finally` (crea y borra sus propios clientes __TEST__). No hay orden obligatorio entre tramos.
  */
+/**
+ * D44 (E1, 11-ago) — CARTERA / pipeline comercial. Corre contra Sheets REALES: el roster del
+ * MAESTRO. Todo lo que escribe va sobre un cliente `__TEST__` que `limpiarTodoTest` ya barre.
+ */
+function _asertsD44_(chk, log, opts) {
+  // (a) el schema declara las dos columnas nuevas y las declara AL FINAL. El orden importa:
+  //     agregar al final es aditivo (nadie lee por índice); insertarlas en el medio correría
+  //     las columnas viejas de cualquier consumidor que algún día sí lea por posición.
+  var d44c = MAESTRO_SHEETS.Clientes;
+  chk(d44c.indexOf('etapa_comercial') === d44c.length - 2 && d44c.indexOf('logo_url') === d44c.length - 1,
+      'D44a etapa_comercial y logo_url van AL FINAL del schema de Clientes (aditivo)');
+
+  // (b) la hoja VIVA tiene las columnas. Si esto falla, `setup()` no corrió en el MAESTRO: es el
+  //     mismo modo de fallo que `Correo_visto` en T7, y se arregla corriendo setup(), no tocando código.
+  var d44sh = getMaestro().getSheetByName('Clientes');
+  var d44H = d44sh.getRange(1, 1, 1, d44sh.getLastColumn()).getValues()[0].map(String);
+  var d44falt = MAESTRO_SHEETS.Clientes.filter(function (c) { return d44H.indexOf(c) < 0; });
+  chk(d44falt.length === 0, 'D44b la hoja Clientes tiene TODAS las columnas del schema' +
+      (d44falt.length ? ' — FALTAN (corré setup()): ' + d44falt.join(', ') : ''));
+
+  // (c) el enum es la fuente única y la vista deriva sus columnas de él (conteo DERIVADO, no clavado).
+  var d44p = carteraPipeline();
+  chk(d44p.etapas.join(',') === ETAPAS_COMERCIALES.join(','), 'D44c carteraPipeline expone las etapas de ETAPAS_COMERCIALES, en su orden');
+  var d44sinCol = ETAPAS_COMERCIALES.filter(function (e) { return !d44p.columnas[e]; });
+  chk(d44sinCol.length === 0, 'D44c2 hay UNA columna por etapa del enum' + (d44sinCol.length ? ' — sin columna: ' + d44sinCol.join(',') : ''));
+  // CLI-000 es el tenant de sistema: no es cartera y no puede aparecer en el embudo.
+  var d44todos = ETAPAS_COMERCIALES.map(function (e) { return d44p.columnas[e]; }).concat([d44p.sin_etapa]);
+  var d44sis = d44todos.filter(function (col) { return col.filter(function (c) { return c.id_cliente === 'CLI-000'; }).length; });
+  chk(d44sis.length === 0, 'D44c3 CLI-000 (tenant de sistema) queda FUERA del pipeline');
+
+  // (d) mover de etapa: el camino feliz sobre un cliente de prueba.
+  var d44cli = crearCliente({ nombre: '__TEST__ cartera ' + ahoraISO(), rubro: 'test', estado: 'potencial' });
+  var d44mov = moverEtapaComercial(d44cli.id_cliente, 'caliente');
+  chk(d44mov.ok === true && d44mov.a === 'caliente', 'D44d moverEtapaComercial escribe la etapa (' + JSON.stringify(d44mov) + ')');
+  var d44rel = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return c.id_cliente === d44cli.id_cliente; })[0];
+  chk(!!d44rel && String(d44rel.etapa_comercial) === 'caliente', 'D44d2 la etapa quedó PERSISTIDA en el roster (releído fresco)');
+  chk(ETAPAS_COMERCIALES.indexOf(String(d44rel.etapa_comercial)) >= 0, 'D44d3 la etapa persistida pertenece al enum');
+  // Mover NO puede tocar el resto de la fila: es un update de UNA celda, no un upsert.
+  chk(String(d44rel.estado) === 'potencial' && String(d44rel.nombre).indexOf('__TEST__ cartera') === 0,
+      'D44d4 mover de etapa NO pisa estado ni nombre (update de UNA celda)');
+
+  // (e) 🔒 AISLAMIENTO §3: el id llega del front ⇒ se valida contra el roster REAL. Un id que no
+  //     está no se crea ni se consulta: se rechaza CON MOTIVO (nunca en silencio).
+  var d44mal = moverEtapaComercial('CLI-999-NO-EXISTE', 'tibio');
+  chk(d44mal.ok === false && String(d44mal.error).indexOf('fuera del roster') >= 0,
+      'D44e 🔒 id fuera del roster ⇒ rechazo con motivo (' + JSON.stringify(d44mal) + ')');
+  var d44vacio = moverEtapaComercial('', 'tibio');
+  chk(d44vacio.ok === false, 'D44e2 🔒 id vacío ⇒ rechazo (no adivina "el cliente actual")');
+
+  // (f) etapa fuera del enum: fail-closed. Si entrara, la vista no sabría en qué columna pintarla.
+  var d44enum = moverEtapaComercial(d44cli.id_cliente, 'inventada');
+  chk(d44enum.ok === false && String(d44enum.error).indexOf('fuera del enum') >= 0,
+      'D44f etapa fuera de ETAPAS_COMERCIALES ⇒ rechazo con motivo');
+  var d44rel2 = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return c.id_cliente === d44cli.id_cliente; })[0];
+  chk(!!d44rel2 && String(d44rel2.etapa_comercial) === 'caliente', 'D44f2 el rechazo NO dejó la celda a medias (sigue en caliente)');
+  // Vacía SÍ es válida: "todavía no clasificado" es un estado real, no un error.
+  chk(moverEtapaComercial(d44cli.id_cliente, '').ok === true, 'D44f3 etapa vacía es válida (des-clasificar)');
+
+  // (g) el seed es DRY-RUN por default y no escribe nada. Se compara el roster antes y después.
+  var d44antes = leerTabla(getMaestro().getSheetByName('Clientes')).length;
+  var d44dry = seedCartera2026_08_11();
+  chk(d44dry.modo === 'DRY-RUN', 'D44g seedCartera2026_08_11() es DRY-RUN (el que aplica es el wrapper Aplicar)');
+  chk(leerTabla(getMaestro().getSheetByName('Clientes')).length === d44antes,
+      'D44g2 🔒 el dry-run NO dio de alta ningún cliente (el roster no cambió de largo)');
+  // Los dos wrappers corren el MISMO cuerpo: si divergieran, el dry-run mentiría sobre lo que
+  // haría el real (la lección del stub divergente, 24-jul).
+  chk(String(seedCartera2026_08_11).indexOf('_seedCartera_(false)') >= 0 &&
+      String(seedCartera2026_08_11Aplicar).indexOf('_seedCartera_(true)') >= 0,
+      'D44g3 dry-run y aplicar comparten cuerpo (_seedCartera_): el dry-run no puede divergir');
+
+  log.push('   ↳ D44 E1: pipeline comercial (schema aditivo + enum + mover con aislamiento + seed dry-run)');
+}
+
 var SELFTEST_TANDAS = [
   { n: 'D14 contrato F2', f: _asertsD14_, tramo: 2 },
   { n: 'D15 mantenimiento', f: _asertsD15_, tramo: 2 },
@@ -3055,7 +3128,8 @@ var SELFTEST_TANDAS = [
   { n: 'D40 T7 (correo → triaje a Bandeja)', f: _asertsD40_, tramo: 5 },
   { n: 'D41 TC-7 (F4a administración propia)', f: _asertsD41_, tramo: 5 },
   { n: 'D43 BK-1 (backups migrados a Drive avanzado)', f: _asertsD43_, tramo: 5 },
-  { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 }
+  { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 },
+  { n: 'D44 E1 (cartera: pipeline comercial en el roster)', f: _asertsD44_, tramo: 5 }
 ];
 
 /**

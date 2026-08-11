@@ -1000,7 +1000,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
    acá los var(--color-*) caían al tema CLARO del :root → texto oscuro sobre panel oscuro
    (ilegible) y burbujas del usuario en verde (primary claro) en vez del terra de Sato. El panel
    SIEMPRE es oscuro (fondo rgba(18,14,11,.985)), así que fija su propio tema oscuro y es autónomo. */
-.f360-sato, .f360-cierre{
+.f360-sato, .f360-cierre, .cartera{
   color:#F4EEE2;
   --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
   --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
@@ -1008,6 +1008,40 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   --color-primary:#D5824F; --color-primary-hover:#E0975F; --color-danger:#E0795F;
   --radius-lg:18px; --radius-md:12px; --radius-sm:8px;
 }
+/* ── CARTERA (E1, 11-ago) · pipeline comercial ────────────────────────────────────────────────
+   Registro satori-design: OPERATIVO (datos densos), no marca — es un tablero de trabajo, no una
+   portada. Vive a nivel <body> por la misma razón que Sato: #centro es fixed z-index:50 y crea
+   stacking context, así que un panel adentro NUNCA puede taparlo a #akasha (200). z-index 310
+   lo pone por encima de los dos, y toma sus tokens del bloque de tema oscuro de arriba (fuera
+   del scope de #centro las primitivas del tema no existen y caería al :root claro). */
+.cartera{position:fixed;inset:3vh 2vw;z-index:310;display:none;flex-direction:column;
+  background:rgba(18,14,11,.985);border:1px solid var(--color-border);border-radius:var(--radius-lg);
+  box-shadow:0 24px 60px -20px rgba(0,0,0,.85);overflow:hidden}
+.cartera.open{display:flex}
+.cartera-h{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--color-border);flex:0 0 auto}
+.cartera-h b{font-size:15px;letter-spacing:.02em}
+.cartera-h .st{color:var(--color-text-subtle);font-size:12px}
+.cartera-h .sp{margin-left:auto}
+.cartera-cols{display:flex;gap:12px;padding:14px 18px 18px;overflow-x:auto;overflow-y:hidden;flex:1 1 auto;align-items:flex-start}
+.cartera-col{flex:0 0 236px;display:flex;flex-direction:column;gap:8px;max-height:100%;overflow-y:auto}
+.cartera-col > h6{position:sticky;top:0;background:rgba(18,14,11,.985);margin:0;padding:4px 0 8px;
+  font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:var(--color-text-muted);
+  display:flex;align-items:center;gap:6px;z-index:1}
+.cartera-col > h6 .n{color:var(--color-text-subtle);font-variant-numeric:tabular-nums}
+.cartera-card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);
+  padding:10px;display:flex;flex-direction:column;gap:7px}
+.cartera-card .top{display:flex;align-items:center;gap:8px}
+.cartera-card .logo{width:26px;height:26px;border-radius:7px;flex:0 0 auto;object-fit:cover;
+  background:var(--color-primary);color:#1a1410;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:12px}
+.cartera-card .nm{font-weight:600;font-size:13px;line-height:1.25}
+.cartera-card .id{font-size:11px;color:var(--color-text-subtle);font-variant-numeric:tabular-nums}
+.cartera-card .rb{font-size:12px;color:var(--color-text-muted);line-height:1.35}
+.cartera-card select{width:100%;background:rgba(0,0,0,.28);color:var(--color-text);
+  border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:5px 7px;font-size:12px}
+.cartera-card select:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
+.cartera-vacia{color:var(--color-text-subtle);font-size:12px;padding:6px 2px}
+@media (max-width:900px){ .cartera{inset:0;border-radius:0} .cartera-col{flex-basis:80vw} }
 #centro .kboard.fichaboard.open.con-sato{transform:translateX(calc(-50% - 195px))}
 @media (max-width:1700px){
   #centro .kboard.fichaboard.open.con-sato{transform:translateX(-50%)}
@@ -1341,6 +1375,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
       <a class="cm-btn cerebro" id="cmGrafo" href="#" target="_blank" rel="noopener"
          title="Cerebro — el mapa de tus notas (cerebro_url de Config)" style="display:none">🧠 Cerebro</a>
+      <button class="cm-btn" id="cmCartera" title="Cartera — el pipeline comercial (etapa por cliente)">▦ Cartera</button>
       <button class="cm-btn akasha" id="cmAkasha" title="Entrar a la Oficina Universo">⟶ Akasha</button>
       <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
       <button class="icon-btn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -2358,7 +2393,102 @@ document.getElementById('cmdBtn').addEventListener('click',centroAbrir);
 document.getElementById('navCentro').addEventListener('click',function(){centroAbrir();toggleSide(false);});
 document.getElementById('cmClose').addEventListener('click',function(){centroCerrar();loadHoy();});
 /* T1.7 — Sato desde el Centro de Mando: el MISMO panel, en modo sistema (sin ficha abierta). */
+/* ── CARTERA (E1, 11-ago) · pipeline comercial ──────────────────────────────────────────────────
+   NO hay hoja de pipeline: esto renderiza la columna `etapa_comercial` del roster (regla
+   multi-vista de BLOQUE 4 — filtro/orden/render sobre la MISMA hoja, jamás una copia).
+   Las columnas y las opciones del selector salen de lo que devuelve el backend
+   (`ETAPAS_COMERCIALES`), no de una lista clavada acá: agregar una etapa en el schema la pinta
+   sola, y una lista duplicada en el front sería la próxima que se desincroniza.
+   NIVEL 0: el OS muestra, Luciano mueve. Nada avanza de etapa solo. */
+function carteraPanel_(){
+  var pan=document.getElementById('cartera');
+  if(!pan) return;
+  if(pan.classList.contains('open')){ pan.classList.remove('open'); return; }
+  pan.classList.add('open');
+  carteraRefrescar_();
+}
+function carteraRefrescar_(){
+  var st=document.getElementById('carteraSt'); if(st) st.textContent='cargando…';
+  google.script.run
+    .withSuccessHandler(function(p){ carteraPintar_(p||{}); })
+    .withFailureHandler(function(e){
+      // Fail-closed y RUIDOSO: sin datos no se pinta una cartera vacía (parecería que no hay
+      // clientes). Se dice que no se pudo traer.
+      if(st) st.textContent='no pude traer la cartera';
+      cmToast('No pude traer la cartera: '+((e&&e.message)||e));
+    })
+    .carteraPipeline();
+}
+function carteraPintar_(p){
+  var cols=document.getElementById('carteraCols'), st=document.getElementById('carteraSt');
+  if(!cols) return;
+  clear(cols);
+  var etapas=p.etapas||[];
+  // `migrada:false` ⇒ la hoja todavía no tiene la columna: lo decimos en vez de mostrar todo
+  // en «sin clasificar», que se leería como "perdí los datos".
+  if(st) st.textContent = (p.migrada===false)
+    ? 'la hoja Clientes aún no tiene etapa_comercial — corré setup()'
+    : (p.total||0)+' cliente(s) en el roster';
+  function columna(clave, titulo, cards){
+    var c=el('div','cartera-col');
+    var h=el('h6',null,titulo);
+    var n=el('span','n',String(cards.length)); h.appendChild(n);
+    c.appendChild(h);
+    if(!cards.length) c.appendChild(el('div','cartera-vacia','—'));
+    cards.forEach(function(card){ c.appendChild(carteraCard_(card,etapas)); });
+    cols.appendChild(c);
+  }
+  etapas.forEach(function(e){ columna(e, String(e).replace(/_/g,' '), (p.columnas&&p.columnas[e])||[]); });
+  // Los sin clasificar NO se esconden: un cliente invisible es un cliente que se olvida.
+  if((p.sin_etapa||[]).length) columna('', 'sin clasificar', p.sin_etapa);
+}
+function carteraCard_(card, etapas){
+  var d=el('div','cartera-card');
+  var top=el('div','top');
+  // Logo con fallback a inicial (patrón avatar E1.1): sin logo_url no hay hueco roto.
+  var lg;
+  if(card.logo_url){ lg=el('img','logo'); lg.src=card.logo_url; lg.alt=''; lg.setAttribute('aria-hidden','true');
+    lg.onerror=function(){ var f=el('div','logo',(card.nombre||'?').trim().charAt(0).toUpperCase()); d.replaceChild(f,lg); }; }
+  else lg=el('div','logo',(card.nombre||'?').trim().charAt(0).toUpperCase());
+  top.appendChild(lg);
+  var nm=el('div');
+  nm.appendChild(el('div','nm',card.nombre||'(sin nombre)'));
+  nm.appendChild(el('div','id',card.id_cliente+(card.estado?' · '+card.estado:'')));
+  top.appendChild(nm);
+  d.appendChild(top);
+  if(card.rubro) d.appendChild(el('div','rb',card.rubro));
+  var sel=el('select');
+  sel.setAttribute('aria-label','Etapa comercial de '+(card.nombre||card.id_cliente));
+  var opts=[''].concat(etapas);
+  opts.forEach(function(e){
+    var o=el('option',null,e?String(e).replace(/_/g,' '):'sin clasificar');
+    o.value=e; if(String(card.etapa||'')===String(e)) o.selected=true;
+    sel.appendChild(o);
+  });
+  sel.onchange=function(){ carteraMover_(card.id_cliente, sel.value, sel, card.etapa||''); };
+  d.appendChild(sel);
+  return d;
+}
+function carteraMover_(id, etapa, sel, etapaPrevia){
+  sel.disabled=true;
+  google.script.run
+    .withSuccessHandler(function(r){
+      sel.disabled=false;
+      // El server puede RECHAZAR (id fuera del roster, etapa fuera del enum). Un rechazo que el
+      // front ignora deja la UI mintiendo: el selector mostraría una etapa que la hoja no tiene.
+      if(!r||r.ok!==true){ sel.value=etapaPrevia; cmToast('No se movió: '+((r&&r.error)||'motivo desconocido')); return; }
+      cmToast('Etapa: '+(r.de||'sin clasificar')+' → '+(r.a||'sin clasificar'));
+      carteraRefrescar_();
+    })
+    .withFailureHandler(function(e){
+      sel.disabled=false; sel.value=etapaPrevia;
+      cmToast('No pude mover la etapa: '+((e&&e.message)||e));
+    })
+    .moverEtapaComercial(id, etapa);
+}
 document.getElementById('cmSato').addEventListener('click',function(){ satoPanel_(); });
+document.getElementById('cmCartera').addEventListener('click',function(){ carteraPanel_(); });
+document.getElementById('carteraX').addEventListener('click',function(){ document.getElementById('cartera').classList.remove('open'); });
 document.getElementById('cmCapturar').addEventListener('click',function(){ // Fase 1: captura única a la Bandeja
   var t=window.prompt('Capturá a la bandeja (idea, tarea, link, lead — lo que sea):');
   if(!t||!t.trim())return;
@@ -7652,6 +7782,18 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
       <div class="f360-sato-in">
         <textarea id="f360SatoTx" maxlength="1200" placeholder="Hablá con Sato… (Enter envía · Shift+Enter salto)" aria-label="Mensaje para Sato"></textarea>
       </div>
+    </div>
+    <!-- E1 (11-ago): CARTERA — el pipeline comercial. Hermano de #centro y #akasha por la regla de
+       stacking context (un panel dentro de #centro queda encapsulado bajo z-index:50). No hay hoja
+       de pipeline: esto RENDERIZA la columna etapa_comercial del roster (regla multi-vista B4). -->
+    <div class="cartera" id="cartera" role="dialog" aria-label="Cartera — pipeline comercial">
+      <div class="cartera-h">
+        <b>▦ Cartera</b>
+        <span class="st" id="carteraSt">—</span>
+        <span class="sp"></span>
+        <button class="icon-btn" id="carteraX" aria-label="Cerrar Cartera"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="cartera-cols" id="carteraCols"></div>
     </div>
     <!-- T2.1: panel de cierre de sesión — Sato propone, Luciano tilda, el sistema registra -->
     <div class="f360-cierre" id="f360Cierre" role="dialog" aria-label="Cierre de sesión">
