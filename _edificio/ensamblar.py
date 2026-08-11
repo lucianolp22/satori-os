@@ -143,11 +143,12 @@ function ubicarHaz(){
 var Y_PISO_1 = EDI.TECHO - ALTO_TORRE;
 function yDePiso(pid){ return Y_PISO_1 + (pid-1)*GAP*EDI.K*(gapCur/GAP); }
 function focusUniverse(){ EXT.navOverview({ovY:0, radio:58, alt:18}); }
-/* radio 78 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
-   DENTRO de ella — se ve una pared, no una planta. A 58 entraba el piso pero no su contexto; 78 es
-   el arranque desde el que ya se ve la torre, y de ahi la rueda acerca (el techo de zoom-out con
-   ovY<0 es 170, no 86). */
-function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:78, alt:15}); }
+/* Seleccionar un piso NO encuadra ese piso: encuadra la torre entera desde su centro. Encuadrar el
+   piso (ovY a su altura, radio 58/78) dejaba a la camara adentro o pegada — se veia una pared, no
+   el edificio. El detalle del piso ya lo da el panel de la derecha; lo que la camara tiene que
+   aportar es DONDE cae ese piso en la torre. De ahi la rueda acerca (techo de zoom-out con ovY<0
+   es 170). Lee EDI.TECHO/ALTO_TORRE en cada llamada porque `encuadre()` los retunea en vivo. */
+function focusFloor(pid){ EXT.navOverview({ovY:(EDI.TECHO - ALTO_TORRE/2), radio:100, alt:16}); }
 function setCutaway(pid){ floorGroups.forEach(function(fg,i){ fg.visible = !(pid!==null && PISOS[i].id>pid); }); }
 
 /* ── DOM. Los nodos ya estan en el markup de arriba (dentro de #ediRoot); acá solo se toman las

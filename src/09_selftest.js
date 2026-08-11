@@ -3362,3 +3362,128 @@ function _asertsD43_(chk, log, opts) {
   }
   log.push('   ↳ D43 BK-1/BK-2: flujo real del backup ejercido (copiar dentro + listar + legible)');
 }
+
+
+/**
+ * AUDITORÍA DE LA PURGA (11-ago) — READ-ONLY. No escribe NADA: solo mira y cuenta.
+ *
+ * Existe porque `clasp run` está muerto (scopes excluyentes) y las tres preguntas del cierre
+ * ("¿quedó basura del selfTest?", "¿por qué se degradó el backup?", "¿ese rechazo de voz fue real?")
+ * solo se contestan mirando el MAESTRO de PRODUCCIÓN — el mismo Sheet que comparte /exec. Leerlo a
+ * ojo desde el editor es lento y se equivoca; esto lo hace de una y deja el veredicto en el Logger.
+ *
+ * Deliberadamente NO limpia: quien decide qué se borra de producción es Luciano, no una función que
+ * corre sola. La limpieza es `limpiarTodoTest()`, que ya existe y es idempotente.
+ */
+function purgaAuditoria() {
+  _soloOwner_('purgaAuditoria');
+  var out = [], ss = getMaestro();
+  function L(s) { out.push(s); }
+  /* Toda hoja se abre con guard: `Voz_log` es LAZY (la crea vozLog_ en la primera llamada) y varias
+     del barrido pueden no existir en un MAESTRO que nunca las necesitó. Es la lección del
+     `TypeError: null.isSheetHidden` del 23-jul: ausente no es un fallo, es un dato. */
+  function tabla(nombre) {
+    var sh = ss.getSheetByName(nombre);
+    if (!sh) return null;
+    try { return leerTabla(sh); } catch (e) { L('   ⚠ no pude leer ' + nombre + ': ' + ((e && e.message) || e)); return null; }
+  }
+  function corta(s, n) { s = String(s == null ? '' : s); return s.length > n ? s.slice(0, n) + '…' : s; }
+
+  L('═══ AUDITORÍA DE PURGA · ' + ahoraISO() + ' ═══');
+
+  /* ── A · TEARDOWN ──────────────────────────────────────────────────────────────────────── */
+  L('');
+  L('── A · TEARDOWN (restos del selfTest en producción) ──');
+  var cli = tabla('Clientes') || [];
+  var cliTest = cli.filter(function (f) { return String(f.nombre).indexOf('__TEST__') >= 0; });
+  L('A1 Clientes con __TEST__: ' + cliTest.length +
+    (cliTest.length ? ' → ' + cliTest.map(function (f) { return f.id_cliente + ' "' + corta(f.nombre, 40) + '"'; }).join(' · ') : ' (limpio)'));
+  // CLI-008 se pregunta por id y no por marcador: si el teardown borró la fila pero el contador ya
+  // había avanzado, el hueco es normal; lo que importa es si HAY una fila viva con ese id.
+  var c008 = cli.filter(function (f) { return String(f.id_cliente) === 'CLI-008'; })[0];
+  L('A2 CLI-008: ' + (c008 ? 'EXISTE → nombre="' + corta(c008.nombre, 40) + '" estado=' + c008.estado +
+      (String(c008.nombre).indexOf('__TEST__') >= 0 ? '  ⚠ ES DE PRUEBA' : '  (parece real)')
+      : 'no existe (el id quedó libre — normal si el teardown borró la fila)'));
+  L('A3 ids de cliente vivos: ' + cli.map(function (f) { return f.id_cliente; }).join(',') || '(ninguno)');
+
+  // El North Star vive en Config y el selfTest lo restaura INLINE (no en un finally): si un assert
+  // entre el set y el restore tira, '__TEST__ NS' queda pisando el North Star real de Satori.
+  var nsD = String(getConfig('ns_satori_desc') || '');
+  L('A4 ns_satori_desc = "' + corta(nsD, 60) + '"' + (nsD.indexOf('__TEST__') >= 0 ? '  ⚠ QUEDÓ EL DE PRUEBA' : '  (ok)'));
+  L('   ns_satori_metrica = "' + corta(getConfig('ns_satori_metrica'), 40) + '" · ns_satori_valor = "' + corta(getConfig('ns_satori_valor'), 20) + '"');
+
+  var tar = tabla('Tareas') || [];
+  var tarTest = tar.filter(function (f) {
+    return String(f.id_tarea).indexOf('TAR-TEST') === 0 || String(f.descripcion).indexOf('__TEST__') >= 0 ||
+           String(f.fecha_limite).indexOf('2020-01-01') === 0;
+  });
+  L('A5 Tareas de prueba (TAR-TEST* / __TEST__ / vencidas 2020-01-01): ' + tarTest.length +
+    (tarTest.length ? ' → ' + tarTest.slice(0, 6).map(function (f) { return f.id_tarea + ' "' + corta(f.descripcion, 34) + '" lim=' + f.fecha_limite; }).join(' · ') : ' (limpio)'));
+
+  // El resto de las superficies que barre limpiarTodoTest, contadas con SU mismo criterio: si acá
+  // sale un número, ese barrido no corrió o corrió y falló.
+  var restos = [];
+  function resto(hoja, pred) { var t = tabla(hoja); if (t) { var n = t.filter(pred).length; if (n) restos.push(hoja + ':' + n); } }
+  resto('Aprobaciones_agregadas', function (f) { return String(f.id).indexOf('APR-TEST') === 0 || String(f.cliente).indexOf('__TEST__') >= 0; });
+  resto('Avisos', function (f) { var m = String(f.mensaje); return m.indexOf('TAR-TEST') >= 0 || m.indexOf('APR-TEST') >= 0; });
+  resto('Cola_tareas', function (f) { return String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__'; });
+  resto('Cola_archivo', function (f) { return String(f.tipo) === 'noop' || String(f.worker) === '__TESTWORKER__'; });
+  resto('Actividad', function (f) { return String(f.texto).indexOf('__TEST__') >= 0; });
+  resto('Bandeja', function (f) { return String(f.fuente) === '__TEST__' || String(f.texto).indexOf('__TEST__') >= 0; });
+  resto('Feedback', function (f) { return String(f.origen_id).indexOf('__TEST__') === 0; });
+  resto('Recomendaciones', function (f) { return String(f.id).indexOf('REC-TEST') === 0 || String(f.texto).indexOf('__TEST__') === 0; });
+  resto('Direcciones', function (f) { return String(f.id).indexOf('DIR-TEST') === 0; });
+  resto('Agenda', function (f) { return String(f.titulo).indexOf('__TEST__') === 0; });
+  resto('Agentes_estado', function (f) { return String(f.notas).indexOf('__TEST__') >= 0; });
+  resto('Decisiones', function (f) { return String(f.decision).indexOf('__TEST__') === 0; });
+  L('A6 restos en el resto de las hojas: ' + (restos.length ? restos.join(' · ') + '  ⚠' : 'ninguno'));
+
+  /* ── B · BACKUP ────────────────────────────────────────────────────────────────────────── */
+  L('');
+  L('── B · BACKUP ──');
+  L('B1 backup_ultimo_ts = ' + corta(getConfig('backup_ultimo_ts'), 30) + ' · resumen = ' + corta(getConfig('backup_ultimo_resumen'), 80));
+  L('B2 retención configurada: ' + corta(getConfig('backup_retencion_semanas'), 10) + ' semana(s)');
+  var avisos = tabla('Avisos') || [];
+  // El mensaje del aviso YA trae la causa (`error_mover` o el fallo de retención): por eso va
+  // entero y sin recortar a 40 — recortarlo sería tirar justamente el dato que se vino a buscar.
+  var bkDeg = avisos.filter(function (f) { return String(f.tipo) === 'backup_degradado' || String(f.tipo) === 'backup_fallo'; });
+  L('B3 avisos backup_degradado/backup_fallo: ' + bkDeg.length);
+  bkDeg.forEach(function (f) { L('   · [' + f.fecha + '] ' + f.tipo + ' estado=' + f.estado + '\n     ' + corta(f.mensaje, 400)); });
+  try { L('B4 trigger backup: ' + JSON.stringify(estadoTriggerBackup())); } catch (e) { L('B4 trigger backup: no pude leerlo — ' + ((e && e.message) || e)); }
+  try {
+    var bl = backupListar() || {};
+    var cps = bl.carpetas || [];
+    L('B5 carpetas gestionables: ' + (bl.total != null ? bl.total : '?') +
+      (cps.length ? ' → ' + cps.slice(0, 6).map(function (x) { return x.carpeta + '(' + x.archivos + ')'; }).join(' · ') : '') +
+      (bl.error ? '  ⚠ error: ' + bl.error : ''));
+    if ((bl.errores || []).length) L('   ⚠ errores del listado: ' + bl.errores.slice(0, 4).join(' · '));
+    // Un 0 acá NO prueba que no haya backups: bajo `drive.file` la app solo ve lo que creó.
+    L('   alcance: ' + corta(bl.alcance, 200));
+  } catch (e) { L('B5 backupListar falló: ' + ((e && e.message) || e)); }
+
+  /* ── C · VOZ ───────────────────────────────────────────────────────────────────────────── */
+  L('');
+  L('── C · VOZ (rechazos de seguridad) ──');
+  var vozAvi = avisos.filter(function (f) { return String(f.tipo) === 'voz_acceso_no_autorizado'; });
+  L('C1 avisos voz_acceso_no_autorizado: ' + vozAvi.length);
+  vozAvi.forEach(function (f) { L('   · [' + f.fecha + '] estado=' + f.estado + ' :: ' + corta(f.mensaje, 220)); });
+  var vlog = tabla('Voz_log');
+  if (!vlog) L('C2 Voz_log: la hoja NO existe (lazy — nunca hubo una llamada de voz que la creara)');
+  else {
+    L('C2 Voz_log: ' + vlog.length + ' fila(s). Últimas 15:');
+    vlog.slice(-15).forEach(function (f) { L('   · ' + f.ts + ' tool=' + f.tool + ' ok=' + f.ok + (f.err ? ' err=' + corta(f.err, 60) : '')); });
+  }
+  // La correlación que contesta la pregunta: `vozRechazo_` graba 1 aviso/día (dedupe por
+  // `voz_alerta_fecha`) y el selfTest pisa esa property con hoy ANTES de sus rechazos justamente
+  // para NO generarlo. Un aviso cuya fecha NO cae en un día de corrida del selfTest es tráfico real.
+  L('C3 voz_alerta_fecha (dedupe diario) = ' + String(PropertiesService.getScriptProperties().getProperty('voz_alerta_fecha') || '(sin setear)'));
+  var vs = {};
+  try { vs = JSON.parse(getConfig(SELFTEST_CONFIG_KEY) || '{}') || {}; } catch (e) { vs = {}; }
+  L('C4 corridas registradas del selfTest (para cruzar fechas con C1):');
+  Object.keys(vs).sort().forEach(function (k) { L('   · ' + k + ' ts=' + vs[k].ts + ' pasa=' + vs[k].pasa + ' falla=' + vs[k].falla); });
+  if (!Object.keys(vs).length) L('   (ninguna registrada)');
+
+  var s = out.join('\n');
+  Logger.log(s);
+  return s;
+}
