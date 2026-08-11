@@ -1705,11 +1705,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div class="hud" id="hud-top">
     <div class="topbar">
       <span class="brand">
-        <!-- Isologo Satori: enso + punto dorado (pedido de Luciano, 10-ago). El trazo abierto y el
-             punto en el arranque son la marca real; el arco suelto de antes no era el isologo. -->
+        <!-- Isologo Satori: enso + punto dorado (pedido de Luciano, 10-ago). El corte va arriba-centro
+             y el punto dorado cae en ese hueco — verificado contra icon-512.png. El arco rotado de
+             antes abría el trazo en otro lado y no era el isologo. -->
         <svg class="enso" viewBox="0 0 100 100" fill="none" aria-hidden="true">
-          <g transform="rotate(-122 50 50)"><circle cx="50" cy="50" r="38" stroke="#ECEAE3" stroke-width="13" stroke-linecap="round" stroke-dasharray="185 53.8"/></g>
-          <circle cx="57" cy="7.5" r="7.5" fill="#D4A857"/>
+          <path d="M65.2 17.4 A36 36 0 1 1 34.8 17.4" stroke="#ECEAE3" stroke-width="11" stroke-linecap="round"/>
+          <circle cx="50" cy="12" r="7" fill="#D4A857"/>
         </svg>
         <span><span class="wm"><i>Akasha</i></span><span class="sub" style="margin-left:10px">La Oficina · Satori OS</span></span>
       </span>
@@ -6208,13 +6209,15 @@ window.__buildAkashaEngine = function(THREE, DATA, S, H){
   canvas.addEventListener('wheel',e=>{
     e.preventDefault(); nav.idle=0;
     if(nav.modo==='umbral'){ nav.t=Math.min(1,nav.t+0.035); if(nav.t>=1) terminarUmbral(); return; }
-    nav.radio=Math.min(86,Math.max(30,nav.radio+e.deltaY*0.04));
+    // techo de zoom-out según dónde estás: en el orbe 86 (más lejos y el universo queda de juguete);
+    // bajando al Edificio (ovY<0) 170, que es lo que hace falta para ver la torre entera.
+    nav.radio=Math.min(nav.ovY<0?170:86,Math.max(30,nav.radio+e.deltaY*0.04));
   },{passive:false, signal:AC.signal});
   let pinchD=0;
   canvas.addEventListener('touchmove',e=>{
     if(e.touches.length===2){
       const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
-      if(pinchD) nav.radio=Math.min(86,Math.max(30,nav.radio+(pinchD-d)*0.12));
+      if(pinchD) nav.radio=Math.min(nav.ovY<0?170:86,Math.max(30,nav.radio+(pinchD-d)*0.12));
       pinchD=d;
     }
   },sig);

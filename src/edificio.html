@@ -69,13 +69,13 @@
 #ediRoot .e-toast{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-8px);background:rgba(24,24,19,.96);border:1px solid var(--border-strong);border-radius:var(--r-md);padding:9px 15px;font-size:var(--tx-sm);color:var(--text);z-index:25;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;max-width:560px;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #ediRoot .e-toast.e-on{opacity:1;transform:translateX(-50%) translateY(0)}
 @media (max-width:880px){#ediRoot .e-crumbs .e-sep,#ediRoot .e-crumbs b{display:none}#ediRoot .e-prov{display:none}}
-#ediRoot .e-dir{position:fixed;left:var(--s4);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:5px;z-index:10}
-#ediRoot .e-dir button{display:flex;align-items:center;gap:8px;background:rgba(24,24,19,.82);border:1px solid var(--border-strong);
-  backdrop-filter:blur(8px);color:var(--text);border-radius:var(--r-md);padding:6px 10px;font:inherit;font-size:var(--tx-xs);
-  cursor:pointer;min-height:30px;min-width:172px;text-align:left;transition:border-color .15s var(--ease),transform .15s var(--ease)}
-#ediRoot .e-dir button .e-n{color:var(--dc,var(--jade));font-weight:600;font-variant-numeric:tabular-nums;min-width:22px}
-#ediRoot .e-dir button .e-c{margin-left:auto;color:var(--subtle);font-variant-numeric:tabular-nums}
-#ediRoot .e-dir button:hover{border-color:var(--dc,var(--jade));transform:translateX(2px)}
+#ediRoot .e-dir{position:fixed;top:60px;left:50%;transform:translateX(-50%);display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:5px;z-index:12;max-width:60vw}
+#ediRoot .e-dir button{display:flex;align-items:center;gap:6px;background:rgba(24,24,19,.86);border:1px solid var(--border-strong);
+  backdrop-filter:blur(8px);color:var(--text);border-radius:var(--r-full);padding:5px 11px;font:inherit;font-size:var(--tx-xs);
+  cursor:pointer;min-height:28px;text-align:center;transition:border-color .15s var(--ease),transform .15s var(--ease)}
+#ediRoot .e-dir button .e-n{color:var(--dc,var(--jade));font-weight:600;font-variant-numeric:tabular-nums}
+#ediRoot .e-dir button .e-c{color:var(--subtle);font-variant-numeric:tabular-nums}
+#ediRoot .e-dir button:hover{border-color:var(--dc,var(--jade));transform:translateY(-1px)}
 #ediRoot .e-dir button[aria-pressed="true"]{border-color:var(--dc,var(--jade));background:var(--surface-2);box-shadow:inset 2px 0 0 var(--dc,var(--jade))}
 #ediRoot .e-dir button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
 #ediRoot .e-viewbar{position:fixed;left:50%;bottom:var(--s4);transform:translateX(-50%);display:flex;gap:var(--s2);z-index:10}
@@ -715,9 +715,11 @@ function ubicarHaz(){
 var Y_PISO_1 = EDI.TECHO - ALTO_TORRE;
 function yDePiso(pid){ return Y_PISO_1 + (pid-1)*GAP*EDI.K*(gapCur/GAP); }
 function focusUniverse(){ EXT.navOverview({ovY:0, radio:58, alt:18}); }
-/* radio 58 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
-   DENTRO de ella — se ve una pared, no una planta. Alejarla la deja apreciable entera. */
-function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:58, alt:15}); }
+/* radio 78 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
+   DENTRO de ella — se ve una pared, no una planta. A 58 entraba el piso pero no su contexto; 78 es
+   el arranque desde el que ya se ve la torre, y de ahi la rueda acerca (el techo de zoom-out con
+   ovY<0 es 170, no 86). */
+function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:78, alt:15}); }
 function setCutaway(pid){ floorGroups.forEach(function(fg,i){ fg.visible = !(pid!==null && PISOS[i].id>pid); }); }
 
 /* ── DOM. Los nodos ya estan en el markup de arriba (dentro de #ediRoot); acá solo se toman las
@@ -751,8 +753,8 @@ const dir=document.getElementById('ediDir'),panel=document.getElementById('ediPa
 const scrim=document.getElementById('ediScrim'),dash=document.getElementById('ediDash');
 let SEL=null;
 
-dir.innerHTML=`<button style="--dc:${CSSC.gold}" aria-pressed="false" data-p="U"><span class="e-n">◉</span>Universo · Cerebro & clientes<span class="e-c">7</span></button>`+
- PISOS.map(p=>`<button style="--dc:${CSSC[p.c]}" aria-pressed="false" data-p="${p.id}"><span class="e-n">P${p.id}</span>${esc(p.nom)}<span class="e-c">${p.ags.length}</span></button>`).join('');
+dir.innerHTML=`<button style="--dc:${CSSC.gold}" aria-pressed="false" data-p="U" title="Universo · Cerebro & clientes"><span class="e-n">◉</span><span class="e-nm">Universo</span></button>`+
+ PISOS.map(p=>`<button style="--dc:${CSSC[p.c]}" aria-pressed="false" data-p="${p.id}" title="${esc(p.nom)}"><span class="e-n">P${p.id}</span><span class="e-c">${p.ags.length}</span></button>`).join('');
 dir.querySelectorAll('button').forEach(b=>b.onclick=()=>{b.dataset.p==='U'?selectUniverse():selectFloor(+b.dataset.p);});
 function selectUniverse(){
   SEL='U';

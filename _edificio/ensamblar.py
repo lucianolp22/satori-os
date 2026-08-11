@@ -143,9 +143,11 @@ function ubicarHaz(){
 var Y_PISO_1 = EDI.TECHO - ALTO_TORRE;
 function yDePiso(pid){ return Y_PISO_1 + (pid-1)*GAP*EDI.K*(gapCur/GAP); }
 function focusUniverse(){ EXT.navOverview({ovY:0, radio:58, alt:18}); }
-/* radio 58 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
-   DENTRO de ella — se ve una pared, no una planta. Alejarla la deja apreciable entera. */
-function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:58, alt:15}); }
+/* radio 78 / alt 15 y no 30/7: la torre mide ~78 unidades de alto y a radio 30 la camara queda
+   DENTRO de ella — se ve una pared, no una planta. A 58 entraba el piso pero no su contexto; 78 es
+   el arranque desde el que ya se ve la torre, y de ahi la rueda acerca (el techo de zoom-out con
+   ovY<0 es 170, no 86). */
+function focusFloor(pid){ EXT.navOverview({ovY:yDePiso(pid)+4, radio:78, alt:15}); }
 function setCutaway(pid){ floorGroups.forEach(function(fg,i){ fg.visible = !(pid!==null && PISOS[i].id>pid); }); }
 
 /* ── DOM. Los nodos ya estan en el markup de arriba (dentro de #ediRoot); acá solo se toman las
