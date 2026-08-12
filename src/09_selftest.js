@@ -3034,9 +3034,12 @@ function _asertsD44_(chk, log, opts) {
   // (a) el schema declara las dos columnas nuevas y las declara AL FINAL. El orden importa:
   //     agregar al final es aditivo (nadie lee por índice); insertarlas en el medio correría
   //     las columnas viejas de cualquier consumidor que algún día sí lea por posición.
+  //     T1.e: el assert DERIVA la cola de la lista de columnas de Cartera en vez de clavar índices
+  //     (`length - 2`), que fue justo lo que rompió D14g: agregar la 3ª columna corría el número.
   var d44c = MAESTRO_SHEETS.Clientes;
-  chk(d44c.indexOf('etapa_comercial') === d44c.length - 2 && d44c.indexOf('logo_url') === d44c.length - 1,
-      'D44a etapa_comercial y logo_url van AL FINAL del schema de Clientes (aditivo)');
+  var d44cols = ['etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde'];
+  chk(d44c.slice(-d44cols.length).join(',') === d44cols.join(','),
+      'D44a las columnas de Cartera van AL FINAL del schema de Clientes, en orden (aditivo) — cola: ' + d44c.slice(-d44cols.length).join(','));
 
   // (b) la hoja VIVA tiene las columnas. Si esto falla, `setup()` no corrió en el MAESTRO: es el
   //     mismo modo de fallo que `Correo_visto` en T7, y se arregla corriendo setup(), no tocando código.
@@ -3095,8 +3098,72 @@ function _asertsD44_(chk, log, opts) {
   chk(String(seedCartera2026_08_11).indexOf('_seedCartera_(false)') >= 0 &&
       String(seedCartera2026_08_11Aplicar).indexOf('_seedCartera_(true)') >= 0,
       'D44g3 dry-run y aplicar comparten cuerpo (_seedCartera_): el dry-run no puede divergir');
+  // El dry-run vigente tiene que listar ALTAS LIVIANAS. El de T1 listaba 14 `crearCliente` y quedó
+  // obsoleto con la decisión de Luciano (11-ago tarde): si esto se rompiera, el plan que Luciano
+  // lee antes de aplicar estaría describiendo una corrida distinta de la que ocurriría.
+  chk((d44dry.altas || []).every(function (a) { return a.sin_sheet === true; }),
+      'D44g4 el dry-run lista altas LIVIANAS (fila sin Spreadsheet), no 14 archivos en Drive');
+  chk((d44dry.altas || []).every(function (a) { return !a.rubro; }),
+      'D44g5 el seed NO inventa `rubro`: la cartera v2 dice qué OFRECER, no a qué se dedica cada uno');
 
-  log.push('   ↳ D44 E1: pipeline comercial (schema aditivo + enum + mover con aislamiento + seed dry-run)');
+  // ── T1.e ──────────────────────────────────────────────────────────────────────────────────
+  // (h) cada movimiento SELLA la fecha. Sin `etapa_desde` los días-en-etapa no existen, y un tibio
+  //     quieto hace 90 días se ve igual que uno de ayer — que es exactamente la señal del embudo.
+  var d44hoy = hoyISO();
+  var d44m2 = moverEtapaComercial(d44cli.id_cliente, 'tibio');
+  chk(d44m2.ok === true && d44m2.desde === d44hoy, 'D44h moverEtapaComercial devuelve el sello etapa_desde');
+  var d44rel3 = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return c.id_cliente === d44cli.id_cliente; })[0];
+  chk(!!d44rel3 && aFechaISO(d44rel3.etapa_desde) === d44hoy, 'D44h2 etapa_desde quedó PERSISTIDA con la fecha de hoy');
+
+  // (i) la vista sirve lo que la card muestra, y `dias_etapa` sale del BACKEND (una sola zona horaria).
+  var d44p2 = carteraPipeline();
+  var d44card = d44p2.columnas.tibio.filter(function (c) { return c.id_cliente === d44cli.id_cliente; })[0];
+  chk(!!d44card && d44card.dias_etapa === 0, 'D44i la card trae dias_etapa computado en el server (recién movido ⇒ 0)');
+  chk(!!d44card && d44card.hasOwnProperty('prox_accion') && d44card.hasOwnProperty('prox_accion_fecha'),
+      'D44i2 la card trae prox_accion + fecha (la casa que T1 no tenía)');
+  chk(d44p2.hoy === d44hoy, 'D44i3 el pipeline manda su propio HOY (el front no decide vencimientos con el reloj del navegador)');
+
+  // (j) la señal PASIVA del brief, con una fecha vencida SIMULADA sobre el cliente de prueba.
+  _setColumnasCliente_(getMaestro().getSheetByName('Clientes'), d44rel3,
+                       { prox_accion: '__TEST__ ofrecer algo', prox_accion_fecha: '2026-01-15' });
+  var d44roster = leerTabla(getMaestro().getSheetByName('Clientes'));
+  var d44brief = _carteraLineasBrief_(d44roster, d44hoy);
+  chk(d44brief.length === 1 && d44brief[0].indexOf(d44cli.id_cliente) >= 0,
+      'D44j el brief levanta la prox_accion vencida del roster REAL (1 línea)');
+  chk(String(briefDiarioSistema_).indexOf('_carteraLineasBrief_') >= 0,
+      'D44j2 el brief de sistema invoca la señal (si no, existe y nadie la ve)');
+
+  // (k) 🔒 ALTA LIVIANA — la decisión de Luciano del 11-ago. Fila en el roster, NADA en Drive.
+  var d44liv = crearCliente({ nombre: '__TEST__ liviano ' + ahoraISO(), rubro: '', estado: 'potencial', sinSheet: true });
+  chk(d44liv.sin_sheet === true && !d44liv.url, 'D44k el alta liviana NO devuelve URL (no creó Spreadsheet)');
+  var d44filaLiv = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return c.id_cliente === d44liv.id_cliente; })[0];
+  chk(!!d44filaLiv && !String(d44filaLiv.url_sheet_cliente || '').trim(),
+      'D44k2 la fila liviana está en el roster con url_sheet_cliente VACÍO');
+  // LISTA-CONTRATO `url_sheet_cliente`: los consumidores tienen que SALTEAR la fila, no reventar.
+  // Se corren los dos que barren el roster entero — si un liviano los rompiera, 14 prospectos
+  // dejarían el sistema sin sync y sin salud.
+  var d44sync = null, d44syncErr = '';
+  try { d44sync = syncMaestro(); } catch (xs) { d44syncErr = String((xs && xs.message) || xs); }
+  chk(!!d44sync && !d44syncErr, 'D44k3 🔒 syncMaestro sobrevive a una fila sin Sheet' + (d44syncErr ? ' — REVENTÓ: ' + d44syncErr : ''));
+  var d44sal = null, d44salErr = '';
+  // `dryRun` como el resto de los asserts de salud: acá se prueba que no REVIENTE con una fila
+  // sin Sheet, no se le pide que repare nada de paso.
+  try { d44sal = correrSalud({ dryRun: true }); } catch (xh) { d44salErr = String((xh && xh.message) || xh); }
+  chk(!!d44sal && !d44salErr, 'D44k4 🔒 correrSalud sobrevive a una fila sin Sheet' + (d44salErr ? ' — REVENTÓ: ' + d44salErr : ''));
+  // Y la salud NO puede degradar por prospectos: un tibio sin Sheet es un estado legítimo.
+  var d44schema = (d44sal && d44sal.hallazgos || []).filter(function (h) { return h.nombre === 'schema'; })[0];
+  chk(!d44schema || String(d44schema.detalle).indexOf(d44liv.id_cliente) < 0,
+      'D44k5 un prospecto sin Sheet NO se reporta como schema roto (es alta liviana, no daño)');
+
+  // (l) pasar un liviano a caliente/activo AVISA que falta el alta real. El movimiento SÍ ocurre:
+  //     el que decide es Luciano; el sistema recuerda, no bloquea.
+  var d44av = moverEtapaComercial(d44liv.id_cliente, 'caliente');
+  chk(d44av.ok === true && String(d44av.aviso || '').indexOf('crearCliente') >= 0,
+      'D44l caliente/activo sin Sheet ⇒ aviso de alta real pendiente (' + JSON.stringify(d44av.aviso || '') + ')');
+  chk(moverEtapaComercial(d44liv.id_cliente, 'tibio').aviso === '',
+      'D44l2 volver a tibio NO avisa: un prospecto sin Sheet está bien');
+
+  log.push('   ↳ D44 E1+T1.e: pipeline comercial (schema aditivo + enum + mover con aislamiento + sello de etapa + señal del brief + alta liviana)');
 }
 
 var SELFTEST_TANDAS = [

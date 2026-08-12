@@ -119,7 +119,7 @@ function _ejecutarBackup_() {
     return { ok: false, stamp: stamp, error: subC.error, copiados: [], fallidos: [{ que: 'subcarpeta', error: subC.error }] };
   }
   var sub = subC.id;
-  var copiados = [], fallidos = [];
+  var copiados = [], fallidos = [], sinSheet = [];
 
   // MAESTRO
   try {
@@ -133,7 +133,12 @@ function _ejecutarBackup_() {
   var clientes = leerTabla(getMaestro().getSheetByName('Clientes'));
   clientes.forEach(function (c) {
     var etiqueta = (c.id_cliente || '?') + ' ' + (c.nombre || '');
-    if (!c.url_sheet_cliente) { fallidos.push({ que: etiqueta, error: 'sin url_sheet_cliente' }); return; }
+    // ALTA LIVIANA (11-ago): una fila sin Sheet NO es un backup fallido — es un prospecto que
+    // todavía no tiene nada que respaldar. Contarlo como fallo mandaba un aviso + un email TODOS
+    // los domingos por los 14 tibios de la cartera, y dejaba `ok:false` para siempre: la alarma
+    // de backup se volvía ruido justo en el sistema que existe para que se le crea.
+    // Se cuenta aparte y se REPORTA: saltear en silencio sería el otro error.
+    if (!c.url_sheet_cliente) { sinSheet.push(etiqueta); return; }
     try {
       var srcId = SpreadsheetApp.openByUrl(c.url_sheet_cliente).getId();
       var nombre = _nombreSeguro_(etiqueta) + ' — ' + stamp;
@@ -163,6 +168,7 @@ function _ejecutarBackup_() {
     folder_url: _driveUrlCarpeta_(sub),
     copiados: copiados,
     fallidos: fallidos,
+    sin_sheet: sinSheet,   // prospectos de alta liviana: nada que copiar, y no es un fallo
     retenidas: Math.min(ret, nombres.length),
     purgadas: purgadas,
     fallos_retencion: fallosRetencion
@@ -171,11 +177,13 @@ function _ejecutarBackup_() {
   // Telemetría liviana para el CM/estado (última corrida).
   try {
     setConfig('backup_ultimo_ts', ahoraISO());
-    setConfig('backup_ultimo_resumen', copiados.length + ' ok / ' + fallidos.length + ' fallo(s) · ' + stamp);
+    setConfig('backup_ultimo_resumen', copiados.length + ' ok / ' + fallidos.length + ' fallo(s)' +
+      (sinSheet.length ? ' / ' + sinSheet.length + ' sin Sheet' : '') + ' · ' + stamp);
   } catch (_c) {}
 
   // Feed siempre; Aviso + email SOLO si hubo fallo (no ensuciar "Hoy" cuando va bien).
-  try { feed_('Backup', 'backup', '', 'Backup ' + stamp + ': ' + copiados.length + ' copiados, ' + fallidos.length + ' fallidos.'); } catch (_fe) {}
+  try { feed_('Backup', 'backup', '', 'Backup ' + stamp + ': ' + copiados.length + ' copiados, ' + fallidos.length + ' fallidos' +
+    (sinSheet.length ? ', ' + sinSheet.length + ' sin Sheet (prospectos)' : '') + '.'); } catch (_fe) {}
   if (fallidos.length) {
     var det = fallidos.map(function (x) { return x.que + ' (' + x.error + ')'; }).join('; ');
     try { crearAviso({ origen: 'sistema', tipo: 'backup_fallo', mensaje: 'Backup ' + stamp + ' con fallos: ' + det }); } catch (_a) {}

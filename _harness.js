@@ -71,7 +71,11 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '32_flota.js', '09_selftest.js'];
+                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '32_flota.js',
+                 // T1.e (11-ago): entra al arnés porque ahora tiene funciones PURAS que se pueden
+                 // aserir offline (`_carteraLineasBrief_`, `_diasEntreISO_`). Lo que toca el roster
+                 // real sigue siendo D44 en el editor.
+                 '33_cartera.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -2092,8 +2096,11 @@ seccion('P3 tramos del selfTest');
   // que rompe a cualquier consumidor que lea por posición.
   const mCli = schema.match(/\n\s*Clientes: \[([^\]]*)\]/);
   const cols = mCli ? mCli[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')) : [];
-  chk(cols[cols.length - 2] === 'etapa_comercial' && cols[cols.length - 1] === 'logo_url',
-      'E-c etapa_comercial y logo_url son las DOS ÚLTIMAS columnas de Clientes (aditivo)');
+  // T1.e: las 3 nuevas se apilaron DETRÁS de las de T1. El assert deriva la posición de la lista
+  // (`slice(-N)`) en vez de clavar índices: el que agregue la 4ª no tiene que venir a arreglarlo.
+  const T1E = ['etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde'];
+  chk(cols.slice(-T1E.length).join(',') === T1E.join(','),
+      'E-c las columnas de Cartera son las ÚLTIMAS de Clientes, en orden (aditivo) — cola actual: ' + cols.slice(-T1E.length).join(','));
 
   // Un enum clavado en el front es una segunda fuente de verdad. El front tiene que pintar lo que
   // le manda el backend; si copia la lista, el día que se agregue una etapa la vista la pierde.
@@ -2111,10 +2118,113 @@ seccion('P3 tramos del selfTest');
       'E-c el seed sin sufijo es DRY-RUN (el que escribe es el wrapper Aplicar)');
 
   // Anti-drift: endpoint client-callable nuevo ⇒ alta en ENDPOINTS_UI en el MISMO commit.
-  const sinAlta = ['carteraPipeline', 'moverEtapaComercial', 'seedCartera2026_08_11', 'seedCartera2026_08_11Aplicar']
+  const sinAlta = ['carteraPipeline', 'moverEtapaComercial', 'seedCartera2026_08_11', 'seedCartera2026_08_11Aplicar',
+                   'seedAvataresLab', 'seedAvataresLabPisar']
     .filter((f) => seg.indexOf("'" + f + "'") < 0);
-  chk(sinAlta.length === 0, 'E-c los endpoints de Cartera están declarados en ENDPOINTS_UI' +
+  chk(sinAlta.length === 0, 'E-c los endpoints de Cartera y avatares están declarados en ENDPOINTS_UI' +
       (sinAlta.length ? ' — SIN DECLARAR: ' + sinAlta.join(', ') : ''));
+
+  // ── T1.e · la señal PASIVA del brief. Pura ⇒ se asera acá, no en el editor. ──
+  const HOYC = '2026-08-11';
+  const rosterC = [
+    { id_cliente: 'CLI-000', nombre: 'Oficina', prox_accion: 'x', prox_accion_fecha: '2026-01-01' },
+    { id_cliente: 'CLI-001', nombre: 'MesaQuince', prox_accion: 'Ofrecer SGIC', prox_accion_fecha: '2026-08-01' },
+    { id_cliente: 'CLI-005', nombre: 'SIP', prox_accion: 'Reunión', prox_accion_fecha: '2026-08-30' },
+    { id_cliente: 'CLI-009', nombre: 'Sin fecha', prox_accion: 'algo', prox_accion_fecha: '' }
+  ];
+  const lb = ctx._carteraLineasBrief_(rosterC, HOYC);
+  chk(lb.length === 1 && lb[0].indexOf('CLI-001') >= 0, 'E-c el brief levanta la prox_accion VENCIDA (1 línea, no más)');
+  chk(lb[0].indexOf('CLI-005') < 0, 'E-c una fecha FUTURA no es una vencida (no ensucia el brief)');
+  chk(lb[0].indexOf('CLI-009') < 0, 'E-c sin fecha no hay vencimiento que reclamar');
+  // CLI-000 es el tenant de sistema: no es cartera ni en el brief ni en la vista.
+  chk(lb[0].indexOf('CLI-000') < 0, 'E-c 🔒 CLI-000 queda fuera también de la señal del brief');
+  chk(ctx._carteraLineasBrief_([{ id_cliente: 'CLI-001', prox_accion_fecha: '2026-12-01' }], HOYC).length === 0,
+      'E-c sin vencidas el brief NO gana una línea que diga «todo bien»');
+  chk(ctx._carteraLineasBrief_(null, HOYC).length === 0, 'E-c roster nulo ⇒ [] (no revienta el brief)');
+  // Recorte declarado: un «top 3» mudo se lee como lista completa.
+  const muchasC = ['a', 'b', 'c', 'd', 'e'].map((n, i) => ({ id_cliente: 'CLI-10' + i, nombre: n, prox_accion: 'x', prox_accion_fecha: '2026-08-0' + (i + 1) }));
+  chk(ctx._carteraLineasBrief_(muchasC, HOYC)[0].indexOf('+2 más') >= 0, 'E-c el recorte a 3 se DECLARA (+N más)');
+  chk(String(ctx.briefDiarioSistema_).indexOf('_carteraLineasBrief_') >= 0,
+      'E-c el brief de sistema invoca _carteraLineasBrief_ (si no, la señal existe y nadie la ve)');
+  // El roster se lee UNA vez en el brief: dos lecturas de Clientes en el mismo render es I/O regalado.
+  chk((String(ctx.briefDiarioSistema_).match(/getSheetByName\('Clientes'\)/g) || []).length === 1,
+      'E-c el brief lee Clientes UNA sola vez (la señal de cartera reusa la lectura de insumos)');
+
+  // Días-en-etapa: puro y con la distinción que importa — «no sé» ≠ «hoy».
+  chk(ctx._diasEntreISO_('2026-08-01', '2026-08-11') === 10, 'E-c _diasEntreISO_ cuenta días calendario');
+  chk(ctx._diasEntreISO_('2026-08-11', '2026-08-11') === 0, 'E-c mismo día ⇒ 0');
+  chk(ctx._diasEntreISO_('', '2026-08-11') === null, 'E-c fecha vacía ⇒ null (no 0: «no sé» no es «hoy»)');
+
+  // ── T1.e · ALTA LIVIANA (decisión de Luciano 11-ago): el seed NO crea 14 Spreadsheets. ──
+  const cli = fs.readFileSync(path.join(SRC, '03_cliente.js'), 'utf8');
+  chk(/sinSheet: true/.test(cartera), 'E-c el seed da altas LIVIANAS (sinSheet:true), no 14 Spreadsheets en Drive');
+  chk(/datos\.sinSheet === true/.test(cli) && cli.indexOf('datos.sinSheet === true') < cli.indexOf('SpreadsheetApp.create'),
+      'E-c 🔒 el alta liviana corta ANTES de SpreadsheetApp.create (no toca Drive)');
+  chk(/crearCliente\(\{[^}]*sinSheet: true[^}]*\}\)/.test(cartera) && !/crearCliente\(\{ nombre: a\.nombre, rubro: a\.rubro, estado: 'potencial' \}\)/.test(cartera),
+      'E-c el seed ya no usa el alta pesada para los tibios');
+  // El rubro NO se inventa: la cartera v2 dice qué OFRECER, no a qué se dedica cada uno.
+  chk(!/rubro: 'SGIC/.test(cartera), 'E-c el «qué ofrecer» NO vive en `rubro` (eso es prox_accion)');
+  chk((cartera.match(/prox: 'Ofrecer/g) || []).length >= 10, 'E-c el «qué ofrecer» de la cartera v2 vive en prox_accion');
+  // Cada movimiento sella la fecha: sin esto, los días-en-etapa no existen.
+  chk(/etapa_desde: hoy/.test(cartera), 'E-c moverEtapaComercial sella etapa_desde en cada movimiento');
+  chk(/falta el alta real|Falta el alta real/i.test(cartera),
+      'E-c pasar a caliente/activo SIN Sheet avisa que falta el alta real (crearCliente)');
+
+  // ── LISTA-CONTRATO `url_sheet_cliente` (CLAUDE.md): una fila sin URL se SALTEA, no revienta. ──
+  // Con 14 prospectos livianos en el roster esto deja de ser teórico. Se barre CADA consumidor que
+  // abre el Sheet del cliente y se exige un guard en las 6 líneas previas al open.
+  const consumidores = ['02_setup.js', '04_sync.js', '05_costos.js', '06_avisos.js', '14_director.js',
+                        '15_cerebro.js', '16_salud.js', '18_direccion.js', '21_backup.js', '22_seguridad.js', '25_hilo.js'];
+  const sinGuard = [];
+  for (const f of consumidores) {
+    const txt = fs.readFileSync(path.join(SRC, f), 'utf8').split('\n');
+    txt.forEach((linea, i) => {
+      if (!/SpreadsheetApp\.openByUrl\(\s*c(li)?\./.test(linea)) return;
+      const ventana = txt.slice(Math.max(0, i - 6), i + 1).join('\n');
+      if (!/url_sheet_cliente/.test(ventana.replace(linea, '')) ) sinGuard.push(f + ':' + (i + 1));
+    });
+  }
+  chk(sinGuard.length === 0, 'E-c 🔒 todo consumidor de url_sheet_cliente guardea la fila sin URL' +
+      (sinGuard.length ? ' — SIN GUARD: ' + sinGuard.join(', ') : ''));
+  // `abrirCliente` es el que NO puede saltear (le pidieron ESE cliente): falla con motivo.
+  const util = fs.readFileSync(path.join(SRC, '07_util.js'), 'utf8');
+  chk(/sin Sheet/.test(util), 'E-c 🔒 abrirCliente falla CON MOTIVO ante un cliente sin Sheet (no devuelve null mudo)');
+  // El consumidor que la alta liviana SÍ rompía: el backup contaba «sin url_sheet_cliente» como
+  // FALLO ⇒ aviso + email todos los domingos por los 14 prospectos, y `ok:false` permanente.
+  const bk = fs.readFileSync(path.join(SRC, '21_backup.js'), 'utf8');
+  chk(!/fallidos\.push\(\{ que: etiqueta, error: 'sin url_sheet_cliente' \}\)/.test(bk) && /sinSheet\.push\(etiqueta\)/.test(bk),
+      'E-c 🔒 el backup NO cuenta un prospecto sin Sheet como fallo (la alarma no se vuelve ruido)');
+  chk(/sin_sheet: sinSheet/.test(bk), 'E-c el backup igual REPORTA los sin Sheet (saltear en silencio es el otro error)');
+
+  // ── E2 · AVATARES DEL LAB: 8 claves, derivadas del roster, y el límite de scope declarado. ──
+  const flota = fs.readFileSync(path.join(SRC, '32_flota.js'), 'utf8');
+  const lab = Object.keys(ctx.AGENTES).filter((k) => ctx.AGENTES[k].activo === false);
+  chk(lab.length === 8, 'E2 el laboratorio son 8 agentes (' + lab.join(', ') + ')');
+  const sinSlot = lab.filter((k) => schema.indexOf("['avatar_" + k + "', '']") < 0);
+  chk(sinSlot.length === 0, 'E2 los 8 del lab tienen slot avatar_<clave> en CONFIG_DEFAULTS' +
+      (sinSlot.length ? ' — SIN SLOT: ' + sinSlot.join(', ') : ''));
+  chk(ctx._avataresLabClaves_().join(',') === lab.join(','),
+      'E2 las claves del seed se DERIVAN de AGENTES (no una lista paralela que se desincroniza)');
+  // `estadoAgentes` es el único que arma avatar_url: si dejara de mapear por clave, el lab se apaga.
+  const web = fs.readFileSync(path.join(SRC, '08_webapp.js'), 'utf8');
+  chk(/avatar_url: avatares\[k\]/.test(web) && /Object\.keys\(AGENTES\)/.test(web),
+      'E2 estadoAgentes resuelve avatar_url por clave para TODO AGENTES (los 8 lab incluidos)');
+  // El front: el anillo exterior y los chips móviles pintan lab con el MISMO helper que los activos.
+  chk(/cmRing\(document\.getElementById\('cmOrbit2'\),lab/.test(idx) && /agAvatar\(a,'av'\)/.test(idx),
+      'E2 la órbita del lab (cmOrbit2) pinta avatar con agAvatar — no un placeholder aparte');
+  chk(/function cmChips[\s\S]{0,600}agAvatar\(a,'agm-av'\)/.test(idx),
+      'E2 los chips móviles pintan avatar por clave, activos y lab por igual');
+  // DRIVE: DriveApp exige un scope que este proyecto NO declara (P2 · BK-1 · BK-2). 4ª vez que
+  // muerde: el assert impide que vuelva a entrar por la puerta de atrás.
+  chk(!/DriveApp/.test(flota), 'E2 🔒 el seed de avatares NO usa DriveApp (exige `drive`, el manifiesto declara `drive.file`)');
+  chk(/drive\.file/.test(flota), 'E2 el límite real del scope queda DICHO en el módulo, no descubierto en la corrida');
+  chk(/function seedAvataresLab\(\)[\s\S]{0,160}_seedAvataresLab_\(false\)/.test(flota) &&
+      /function seedAvataresLabPisar\(\)[\s\S]{0,160}_seedAvataresLab_\(true\)/.test(flota),
+      'E2 los dos wrappers comparten cuerpo: el idempotente no puede divergir del que pisa');
+  const manif = JSON.parse(fs.readFileSync(path.join(SRC, 'appsscript.json'), 'utf8'));
+  chk(manif.oauthScopes.indexOf('https://www.googleapis.com/auth/drive') < 0 &&
+      manif.oauthScopes.indexOf('https://www.googleapis.com/auth/drive.readonly') < 0,
+      'E2 🔒 el manifiesto sigue en mínimo privilegio de Drive (`drive.file`, sin ampliar)');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

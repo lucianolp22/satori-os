@@ -350,6 +350,27 @@ function _driveListarHijos_(parentId, soloCarpetas) {
   } catch (e) { return { ok: false, items: [], error: String((e && e.message) || e).slice(0, 140) }; }
 }
 
+/**
+ * Busca archivos por nombre EXACTO en todo el Drive alcanzable. Gemelo de `_driveListarHijos_`
+ * para el caso «no sé en qué carpeta está».
+ *
+ * ⚠ ALCANCE REAL bajo `drive.file` (mismo límite que documenta BK-1 arriba, no una sospecha):
+ * `files.list` devuelve SOLO lo que esta app creó o abrió. Un archivo que el usuario subió a mano
+ * desde la web de Drive NO entra — y la búsqueda devuelve `items: []`, no un error. Por eso el
+ * llamador tiene que distinguir «no está» de «no lo puedo ver»: ver `seedAvataresLab`.
+ *
+ * @return {{ok:boolean, items:Array<{id,name,mimeType}>, error?:string}}
+ */
+function _driveBuscarPorNombre_(nombre) {
+  var n = String(nombre || '').trim();
+  if (!n) return { ok: false, items: [], error: 'sin nombre' };
+  try {
+    var q = "name = '" + n.replace(/'/g, "\\'") + "' and trashed = false";
+    var r = Drive.Files.list({ q: q, fields: 'files(id,name,mimeType)', pageSize: 20 });
+    return { ok: true, items: (r.files || []).map(function (f) { return { id: f.id, name: f.name, mimeType: f.mimeType }; }) };
+  } catch (e) { return { ok: false, items: [], error: String((e && e.message) || e).slice(0, 140) }; }
+}
+
 /** Lee un valor de Config por clave (string). '' si no existe. */
 function getConfig(clave) {
   _soloOwner_('getConfig');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.

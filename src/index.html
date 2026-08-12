@@ -1037,6 +1037,13 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cartera-card .nm{font-weight:600;font-size:13px;line-height:1.25}
 .cartera-card .id{font-size:11px;color:var(--color-text-subtle);font-variant-numeric:tabular-nums}
 .cartera-card .rb{font-size:12px;color:var(--color-text-muted);line-height:1.35}
+/* T1.e — próxima acción: es lo accionable de la card, así que pesa más que el rubro. */
+.cartera-card .px{font-size:12px;color:var(--color-text);line-height:1.35;
+  border-left:2px solid var(--color-primary);padding-left:7px}
+.cartera-card .meta{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:11px;
+  color:var(--color-text-subtle);font-variant-numeric:tabular-nums}
+.cartera-card .meta .venc{color:var(--color-danger);font-weight:600}
+.cartera-card .meta .falta{color:var(--color-warning)}
 .cartera-card select{width:100%;background:rgba(0,0,0,.28);color:var(--color-text);
   border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:5px 7px;font-size:12px}
 .cartera-card select:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
@@ -2419,10 +2426,14 @@ function carteraRefrescar_(){
     })
     .carteraPipeline();
 }
+/* El HOY con el que se decide si una fecha está vencida lo manda el BACKEND (zona horaria del
+   Sheet). El reloj del navegador puede estar un día corrido y pintar de rojo lo que no lo está. */
+var CARTERA_HOY='';
 function carteraPintar_(p){
   var cols=document.getElementById('carteraCols'), st=document.getElementById('carteraSt');
   if(!cols) return;
   clear(cols);
+  CARTERA_HOY=String(p.hoy||'');
   var etapas=p.etapas||[];
   // `migrada:false` ⇒ la hoja todavía no tiene la columna: lo decimos en vez de mostrar todo
   // en «sin clasificar», que se leería como "perdí los datos".
@@ -2457,6 +2468,20 @@ function carteraCard_(card, etapas){
   top.appendChild(nm);
   d.appendChild(top);
   if(card.rubro) d.appendChild(el('div','rb',card.rubro));
+  // T1.e: próxima acción + su fecha + días-en-etapa. Los días los computa el BACKEND (`dias_etapa`):
+  // calcularlos acá usaría el reloj del navegador, que no es el del Sheet. `null` => no se muestra
+  // nada — «no sé hace cuánto» y «hace 0 días» no son lo mismo.
+  if(card.prox_accion) d.appendChild(el('div','px',card.prox_accion));
+  var meta=el('div','meta'), hayMeta=false;
+  if(card.prox_accion_fecha){
+    var vencida = !!(CARTERA_HOY && card.prox_accion_fecha < CARTERA_HOY);
+    meta.appendChild(el('span',vencida?'venc':null,(vencida?'⚠ vencía ':'para el ')+card.prox_accion_fecha));
+    hayMeta=true;
+  }
+  if(card.dias_etapa!=null){ meta.appendChild(el('span',null,card.dias_etapa+' día(s) en '+String(card.etapa||'sin clasificar').replace(/_/g,' '))); hayMeta=true; }
+  // Alta liviana: un prospecto sin Sheet está bien; uno caliente/activo sin Sheet es alta a medias.
+  if(card.sin_sheet){ meta.appendChild(el('span','falta','sin Sheet')); hayMeta=true; }
+  if(hayMeta) d.appendChild(meta);
   var sel=el('select');
   sel.setAttribute('aria-label','Etapa comercial de '+(card.nombre||card.id_cliente));
   var opts=[''].concat(etapas);
@@ -2477,7 +2502,10 @@ function carteraMover_(id, etapa, sel, etapaPrevia){
       // El server puede RECHAZAR (id fuera del roster, etapa fuera del enum). Un rechazo que el
       // front ignora deja la UI mintiendo: el selector mostraría una etapa que la hoja no tiene.
       if(!r||r.ok!==true){ sel.value=etapaPrevia; cmToast('No se movió: '+((r&&r.error)||'motivo desconocido')); return; }
-      cmToast('Etapa: '+(r.de||'sin clasificar')+' → '+(r.a||'sin clasificar'));
+      // Alta liviana: el movimiento SÍ ocurrió, pero si el cliente llegó a caliente/activo sin
+      // Sheet hay un alta a medio hacer. Va en el MISMO toast: cmToast pisa el texto anterior,
+      // así que dos llamadas seguidas serían una sola vista y el aviso se comería el resultado.
+      cmToast('Etapa: '+(r.de||'sin clasificar')+' → '+(r.a||'sin clasificar')+(r.aviso?' · ⚠ '+r.aviso:''));
       carteraRefrescar_();
     })
     .withFailureHandler(function(e){

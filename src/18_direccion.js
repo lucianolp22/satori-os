@@ -510,6 +510,12 @@ function briefDiarioSistema_() {
   // TC-11 · A5: vigilancia por cliente — SOLO el resumen que persistió la corridaDiaria (este
   // brief no abre ningún Sheet de cliente, regla SPEC-GAS 14-jul). Sin corrida ⇒ se dice.
   _vigLineasBrief_(_vigResumenCacheado_(), hoy).forEach(function (l) { metricas.push(l); });
+  // T1.e (11-ago) · CARTERA: señal PASIVA del pipeline — una línea SOLO si hay `prox_accion_fecha`
+  // vencida, y nada si no. El roster se lee UNA vez acá y se reusa en la sección 8 (insumos): dos
+  // lecturas de la misma hoja en el mismo render es I/O regalado en la función que ya colgaba el
+  // doPost de voz. Nivel 0: esto avisa, no persigue.
+  var rosterBrief = leerTabla(getMaestro().getSheetByName('Clientes'));
+  _carteraLineasBrief_(rosterBrief, hoy).forEach(function (l) { metricas.push(l); });
   // TC-7 · F4a: administración propia. Mismo patrón que la vigilancia — solo el resumen que dejó
   // la corrida, sin abrir el Sheet ADMIN desde el brief. Sin facturas cargadas se DICE que faltan.
   _adminLineasBrief_(_adminResumenCacheado_()).forEach(function (l) { metricas.push(l); });
@@ -539,7 +545,9 @@ function briefDiarioSistema_() {
   if (!ns) insumos.push('- Definí el North Star de Satori (cargarNorthStarSatori en el editor) — sin eso el reporte no puede medir avance.');
   // OJO: datosHoy() NO expone la cartera (solo estado/avisos/proximos/aprobaciones) → lectura propia
   // del MAESTRO. Con d.clientes esta rama quedaba muerta en silencio (undefined → nunca dispara).
-  var sinSheet = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) {
+  // 11-ago: reusa `rosterBrief` (ya leído en la sección 3). El filtro por `estado` activo es lo que
+  // deja fuera a los prospectos de ALTA LIVIANA: un tibio sin Sheet no es un insumo faltante.
+  var sinSheet = rosterBrief.filter(function (c) {
     return ['activo', 'activo-piloto'].indexOf(String(c.estado).toLowerCase()) >= 0 && !String(c.url_sheet_cliente || '').trim();
   });
   if (sinSheet.length) insumos.push('- ' + sinSheet.length + ' cliente(s) sin Sheet vinculado — no puedo leer sus datos.');

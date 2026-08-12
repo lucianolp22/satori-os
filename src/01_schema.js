@@ -18,7 +18,12 @@ var MAESTRO_SHEETS = {
   // `etapa_comercial` es ORTOGONAL a `estado`: `estado` es la relación contractual (potencial /
   // activo / …) y `etapa_comercial` es dónde está en el pipeline. MesaQuince es el caso que lo
   // prueba: `estado=activo` con conector ON, `etapa_comercial=tibio` esperando respuesta.
-  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url'],
+  // T1.e (11-ago tarde): +prox_accion +prox_accion_fecha +etapa_desde. También AL FINAL, mismas
+  // reglas. Le dan CASA a lo que el encargo pedía mostrar en la card y que T1 no tenía dónde poner:
+  // el «qué ofrecer» vivía prestado en `rubro`, que es rubro real y no una acción comercial.
+  // `etapa_desde` la escribe `moverEtapaComercial` en CADA movimiento — de ahí salen los
+  // días-en-etapa, que es la única métrica del embudo que se puede derivar sin pedirle nada a nadie.
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.
@@ -247,6 +252,21 @@ var CONFIG_DEFAULTS = [
   ['avatar_cobrador', ''],
   ['avatar_analista', ''],
   ['avatar_abastecedor', ''],
+  // E2 (11-ago tarde) — los 8 del LABORATORIO. Tienen slot igual que los activos: `estadoAgentes`
+  // arma `avatar_url` para TODA clave de `AGENTES`, y el anillo exterior del CM (`cmOrbit2`) y los
+  // chips móviles ya los pintan con `agAvatar`. Sin la clave en Config quedaban con la inicial.
+  // Las carga `seedAvataresLab()` desde Drive (32_flota.js); vacías => placeholder, sin hueco roto.
+  ['avatar_flux', ''],
+  ['avatar_relay', ''],
+  ['avatar_scout', ''],
+  ['avatar_prism', ''],
+  ['avatar_atlas', ''],
+  ['avatar_spark', ''],
+  ['avatar_forge', ''],
+  ['avatar_lift', ''],
+  // Carpeta de Drive donde viven los PNG de avatares. Vacía => `seedAvataresLab` busca por nombre
+  // en todo lo alcanzable. NO empieza con `avatar_`, así que no la levanta configPrefijo_('avatar_').
+  ['avatares_folder_id', ''],
   // TC-2 (03-ago) — GUARDIÁN FOCO/PAZ. Umbrales de sobrecarga, editables sin tocar código.
   // Defaults DELIBERADAMENTE prudentes: el guardián avisa cuando la carga es objetivamente
   // rara, no cuando el día está ocupado. Un guardián que canta todos los días se ignora a la

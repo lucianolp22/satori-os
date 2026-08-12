@@ -7,8 +7,21 @@
  */
 
 /**
- * @param {Object} datos { nombre, rubro, estado, responsable_lado_cliente }
- * @return {Object} { id_cliente, url, ya_existia }
+ * ALTA LIVIANA (`datos.sinSheet === true`, decisión de Luciano 11-ago): registra la fila en el
+ * roster SIN crear el Spreadsheet del cliente. Existe para los PROSPECTOS (tibios del pipeline):
+ * 14 Sheets de gente que todavía no compró son +14 copias en cada `backupSemanal` (creciendo
+ * semana a semana), sync y vigilancia iterando tenants vacíos, y basura en Drive si nunca avanzan.
+ *
+ * La fila nace con `url_sheet_cliente` vacío y eso es un ESTADO LEGÍTIMO, no un dato faltante: los
+ * consumidores del roster ya se saltean las filas sin URL (lista-contrato `url_sheet_cliente`,
+ * verificada en el mismo commit — ver `_asertsD44_` D44k). El alta real es `crearCliente` sin el
+ * flag, y `moverEtapaComercial` avisa cuando un liviano llega a `caliente`/`activo` sin Sheet.
+ *
+ * El flag vive ACÁ y no en una función aparte a propósito: la idempotencia por nombre, la reserva
+ * de id y el lock son los mismos: duplicarlos afuera era garantizar que un día divergieran.
+ *
+ * @param {Object} datos { nombre, rubro, estado, responsable_lado_cliente, forceId, sinSheet }
+ * @return {Object} { id_cliente, url, ya_existia, sin_sheet? }
  */
 function crearCliente(datos) {
   _soloOwner_('crearCliente');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
@@ -29,6 +42,22 @@ function crearCliente(datos) {
   // E3.2: id forzado (CLI-000 = tenant Oficina Virtual, reservado, fuera de la secuencia de nextId
   // que arranca en CLI-001). Sin forceId, sigue el correlativo normal.
   var idCliente = datos.forceId ? String(datos.forceId) : nextId(shClientes, 'id_cliente', 'CLI', 3);
+
+  // ALTA LIVIANA: fila y nada más. Corta ANTES de tocar Drive — no hay Spreadsheet que crear, ni
+  // pestañas que proteger, ni nada que limpiar si el prospecto nunca avanza.
+  if (datos.sinSheet === true) {
+    appendFila(shClientes, {
+      id_cliente: idCliente,
+      nombre: datos.nombre,
+      rubro: datos.rubro || '',
+      estado: datos.estado || 'potencial',
+      url_sheet_cliente: '',
+      responsable_lado_cliente: datos.responsable_lado_cliente || '',
+      fecha_alta: hoyISO()
+    });
+    Logger.log('Cliente ' + idCliente + ' registrado SIN Sheet (alta liviana).');
+    return { id_cliente: idCliente, url: '', ya_existia: false, sin_sheet: true };
+  }
 
   // Crear el Spreadsheet del cliente con la plantilla completa.
   var clienteSS = SpreadsheetApp.create('Satori OS — ' + datos.nombre + ' [' + idCliente + ']');

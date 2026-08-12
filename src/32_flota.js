@@ -249,3 +249,109 @@ function moduloEdificio() {
   _soloOwner_('moduloEdificio');   // endpoint client-callable — gate de identidad
   return HtmlService.createHtmlOutputFromFile('edificio').getContent();
 }
+
+// ═══ E2 (11-ago) · AVATARES DEL LABORATORIO ═════════════════════════════════
+//
+// Los 8 del lab tenían arte aprobado y ningún slot: `estadoAgentes` arma `avatar_url` para toda
+// clave de `AGENTES` leyendo Config `avatar_<clave>`, y esas 8 claves no existían. Ahora existen
+// (CONFIG_DEFAULTS) y esto las llena desde Drive, sin que nadie copie un id a mano.
+//
+// ⚠ LO QUE ESTA FUNCIÓN NO PUEDE HACER, y por qué se dice en vez de fallar mudo: el manifiesto
+// declara `drive.file` (mínimo privilegio, dictamen Bastión) y bajo ese scope `files.list` ve
+// SOLO lo que ESTA app creó o abrió. Un PNG arrastrado a mano desde la web de Drive NO entra en
+// ese universo. O sea: si Luciano sube los avatares a mano, la búsqueda devuelve VACÍO — no un
+// error, vacío — y el reporte tiene que decir exactamente eso, con el camino alterno, en vez de
+// dejar un «0 encontrados» que se lee como «los archivos no están». Es la 4ª vez que este scope
+// muerde (P2 papelera · BK-1 backups · BK-2 copias): acá se documenta ANTES del incidente.
+// El camino que SIEMPRE funciona: pegar la URL a mano en las 8 claves de la hoja Config.
+
+/** Los 8 del laboratorio, DERIVADOS del roster (no una lista paralela que se desincroniza). */
+function _avataresLabClaves_() {
+  return Object.keys(AGENTES).filter(function (k) { return AGENTES[k].activo === false; });
+}
+
+/** URL de miniatura pública de Drive. Requiere que el archivo sea legible por enlace. */
+function _avatarUrlDrive_(id) {
+  return 'https://drive.google.com/thumbnail?id=' + String(id || '') + '&sz=w512';
+}
+
+/**
+ * ONE-SHOT — carga las 8 claves `avatar_<lab>` de Config buscando `avatar_<clave>.png` en Drive.
+ *
+ * Sin argumentos y sin `_` final: sale en el desplegable del editor (regla dura 04-ago).
+ * IDEMPOTENTE: una clave que YA tiene valor no se pisa (correrla dos veces no cambia nada). Para
+ * reemplazar arte viejo está `seedAvataresLabPisar()` — wrapper aparte, no un flag, porque el
+ * desplegable corre sin argumentos y un `seed(pisar)` recibiría `undefined` (incidente
+ * `selfTestTramo(n)`, 04-ago).
+ *
+ * Busca primero DENTRO de la carpeta `avatares_folder_id` (Config) si está declarada, y si no,
+ * por nombre en todo lo alcanzable. Reporta clave por clave: cargada / ya tenía / no encontrada.
+ */
+function seedAvataresLab() {
+  _soloOwner_('seedAvataresLab');
+  return _seedAvataresLab_(false);
+}
+
+/** Igual, pero PISA las claves que ya tienen valor. Para reemplazar arte, no para el alta. */
+function seedAvataresLabPisar() {
+  _soloOwner_('seedAvataresLabPisar');
+  return _seedAvataresLab_(true);
+}
+
+/** Cuerpo compartido de los dos wrappers: el que pisa no puede divergir del que no. */
+function _seedAvataresLab_(pisar) {
+  var claves = _avataresLabClaves_();
+  var actuales = configPrefijo_('avatar_');
+  var carpeta = getConfig('avatares_folder_id');
+  var out = { modo: pisar ? 'PISAR' : 'IDEMPOTENTE', carpeta: carpeta || '(sin avatares_folder_id — búsqueda global)',
+              cargadas: [], ya_tenian: [], no_encontradas: [], ambiguas: [], errores: [] };
+
+  // Una sola lectura de la carpeta para las 8 (en vez de 8 búsquedas). Si la carpeta no se puede
+  // leer se DICE y se cae a la búsqueda por nombre — degradar en silencio es cómo se pierde el motivo.
+  var enCarpeta = {};
+  if (carpeta) {
+    var hijos = _driveListarHijos_(carpeta, false);
+    if (!hijos.ok) out.errores.push('no pude leer avatares_folder_id: ' + hijos.error);
+    else hijos.items.forEach(function (f) { (enCarpeta[String(f.name)] = enCarpeta[String(f.name)] || []).push(f.id); });
+  }
+
+  claves.forEach(function (k) {
+    if (!pisar && String(actuales[k] || '').trim()) { out.ya_tenian.push(k); return; }
+    var archivo = 'avatar_' + k + '.png';
+    var ids = enCarpeta[archivo] || [];
+    if (!ids.length) {
+      var b = _driveBuscarPorNombre_(archivo);
+      if (!b.ok) { out.errores.push(k + ': ' + b.error); return; }
+      ids = b.items.map(function (f) { return f.id; });
+    }
+    if (!ids.length) { out.no_encontradas.push(archivo); return; }
+    // Dos archivos con el mismo nombre: NO se elige uno al azar. Se dice y se deja sin cargar —
+    // el arte equivocado en el agente equivocado es peor que el placeholder.
+    if (ids.length > 1) { out.ambiguas.push(archivo + ' (' + ids.length + ' copias en Drive — resolvé cuál y pegá la URL a mano)'); return; }
+    try { setConfig('avatar_' + k, _avatarUrlDrive_(ids[0])); out.cargadas.push(k); }
+    catch (x) { out.errores.push(k + ': ' + ((x && x.message) || x)); }
+  });
+
+  var res = 'seedAvataresLab [' + out.modo + '] · carpeta: ' + out.carpeta + '\n' +
+    '  cargadas: ' + (out.cargadas.length ? out.cargadas.join(', ') : 'ninguna') + '\n' +
+    '  ya tenían valor (no se pisan): ' + (out.ya_tenian.length ? out.ya_tenian.join(', ') : 'ninguna') + '\n' +
+    '  NO encontradas en Drive: ' + (out.no_encontradas.length ? out.no_encontradas.join(', ') : 'ninguna') + '\n' +
+    '  ambiguas: ' + (out.ambiguas.length ? out.ambiguas.join(' · ') : 'ninguna') + '\n' +
+    '  errores: ' + (out.errores.length ? out.errores.join(' · ') : 'ninguno');
+  // El aviso de scope solo aparece cuando ES la explicación probable — no como ruido permanente.
+  if (out.no_encontradas.length) {
+    res += '\n  ⚠ OJO: bajo `drive.file` esta app ve SOLO los archivos que ella creó o abrió. Si los' +
+           '\n    PNG los subiste a mano desde la web de Drive, NO los puede encontrar aunque estén ahí.' +
+           '\n    Camino que siempre funciona: compartí cada PNG "cualquiera con el enlace" y pegá' +
+           '\n    https://drive.google.com/thumbnail?id=<ID>&sz=w512 en la clave avatar_<agente> de Config.';
+  }
+  // La miniatura de Drive solo carga si el archivo es legible por enlace. Se recuerda SIEMPRE que
+  // se cargó algo: una URL bien formada sobre un archivo privado da un cuadro roto, no un error.
+  if (out.cargadas.length) {
+    res += '\n  ⚠ Verificá que esos archivos estén compartidos como "cualquiera con el enlace":' +
+           '\n    la miniatura de un archivo privado no carga y el CM cae al placeholder.';
+  }
+  Logger.log(res);
+  out.resumen = res;
+  return out;
+}
