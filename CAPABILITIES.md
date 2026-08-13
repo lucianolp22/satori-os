@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-13 02:10 · commit: f1db724
+> Generado: 2026-08-13 13:25 · commit: 9abfe09
 
 ## Módulos
 
@@ -118,6 +118,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 - ELEVENLABS_API_KEY
 - OFICINA_SYNC_SECRET
 - OWNER_EMAIL
+- SISTEMA_PAUSADO
 - VOZ_TOOL_SECRET
 - WORKER
 - alertas_email_on
