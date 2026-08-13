@@ -46,6 +46,15 @@ function doGet(e) {
   var vista = (v === 'despacho' || v === 'akasha') ? v : '';   // whitelist: nada más entra
   var url = '';
   try { url = ScriptApp.getService().getUrl() || ''; } catch (_u) { url = ''; }  // fail-safe: sin URL, la voz cae a sus fallbacks
+  // E3 v0 — SATORI HQ (Ficha 360 propia) como página APARTE: cero colisión de CSS/JS con el CM
+  // (mismo criterio que edificio.html). El gate de owner ya corrió arriba: la sirve solo Luciano.
+  // Vuelve al OS con SATORI_WRAPPER_URL (mismo contrato de retorno que la voz, FIX 3 20-jul).
+  if (v === 'hq') {
+    return HtmlService.createHtmlOutputFromFile('hq')
+      .append('<script>var SATORI_WRAPPER_URL=' + JSON.stringify(url) + ';<\/script>')
+      .setTitle('Satori HQ')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
   return HtmlService.createHtmlOutputFromFile('index')
     .append('<script>var SATORI_WRAPPER_URL=' + JSON.stringify(url) +
             ',SATORI_VISTA=' + JSON.stringify(vista) + ';<\/script>')
@@ -728,7 +737,10 @@ function datosHoy() {
 function listaClientes() {
   _soloOwner_('listaClientes');   // S1 (T3-S): endpoint client-callable — gate de identidad
   return leerTabla(getMaestro().getSheetByName('Clientes')).map(function (c) {
-    return { id_cliente: c.id_cliente, nombre: c.nombre, estado: c.estado, rubro: c.rubro };
+    // E2b (13-ago): +logo_url — campo ADITIVO (ningún consumidor fija la forma; selfTest solo usa
+    // id_cliente). Con él, la barra lateral y el semáforo del CM pintan el logo del roster.
+    return { id_cliente: c.id_cliente, nombre: c.nombre, estado: c.estado, rubro: c.rubro,
+             logo_url: String(c.logo_url || '') };
   });
 }
 

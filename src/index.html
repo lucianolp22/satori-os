@@ -1034,6 +1034,12 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cartera-card .logo{width:26px;height:26px;border-radius:7px;flex:0 0 auto;object-fit:cover;
   background:var(--color-primary);color:#1a1410;display:flex;align-items:center;justify-content:center;
   font-weight:700;font-size:12px}
+/* E2b (13-ago) — logo de cliente COMPARTIDO (barra lateral + Cartera·Semáforo del CM). Mismo
+   patrón que .cartera-card .logo: img si hay logo_url, inicial si no — sin hueco roto jamás. */
+.cli-logo{width:22px;height:22px;border-radius:6px;flex:0 0 auto;object-fit:cover;
+  background:var(--color-primary);color:#1a1410;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:11px}
+.navitem .name{flex:1;min-width:0}
 .cartera-card .nm{font-weight:600;font-size:13px;line-height:1.25}
 .cartera-card .id{font-size:11px;color:var(--color-text-subtle);font-variant-numeric:tabular-nums}
 .cartera-card .rb{font-size:12px;color:var(--color-text-muted);line-height:1.35}
@@ -1383,6 +1389,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       <a class="cm-btn cerebro" id="cmGrafo" href="#" target="_blank" rel="noopener"
          title="Cerebro — el mapa de tus notas (cerebro_url de Config)" style="display:none">🧠 Cerebro</a>
       <button class="cm-btn" id="cmCartera" title="Cartera — el pipeline comercial (etapa por cliente)">▦ Cartera</button>
+      <button class="cm-btn" id="cmHQ" title="SATORI HQ — tu Ficha 360 propia (v0)">◉ HQ</button>
       <button class="cm-btn akasha" id="cmAkasha" title="Entrar a la Oficina Universo">⟶ Akasha</button>
       <button class="cm-btn" id="cmCapturar" title="Capturar a la bandeja">＋ Capturar</button>
       <button class="icon-btn cm-close" id="cmClose" aria-label="Cerrar Centro de Mando"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
@@ -2036,11 +2043,26 @@ function showError(err){
 }
 
 // ── navegación de clientes ───────────────────────────────────────────────────
+/* E2b (13-ago) — logo de cliente desde el roster (logo_url de listaClientes). Compartido por la
+   barra lateral y el semáforo del CM. onerror ⇒ inicial (mismo criterio que carteraCard_):
+   sin logo no hay hueco roto, y un 403/404 de Drive degrada a la letra, no a un ícono muerto. */
+function cliLogo_(c){
+  var lg;
+  if(c&&c.logo_url){
+    lg=el('img','cli-logo'); lg.src=c.logo_url; lg.alt=''; lg.setAttribute('aria-hidden','true');
+    lg.onerror=function(){ var f=el('div','cli-logo',String((c.nombre||'?')).trim().charAt(0).toUpperCase());
+      if(lg.parentNode)lg.parentNode.replaceChild(f,lg); };
+  } else {
+    lg=el('div','cli-logo',String((c&&c.nombre)||'?').trim().charAt(0).toUpperCase());
+  }
+  return lg;
+}
 function renderClientNav(cs){
   var nav=document.getElementById('clientNav');clear(nav);
   if(!cs.length){nav.appendChild(el('div','navlabel','(sin clientes)'));return;}
   cs.forEach(function(c){
     var it=el('div','navitem');it.setAttribute('data-view','cliente');it.setAttribute('data-id',c.id_cliente);
+    it.appendChild(cliLogo_(c));   // E2b: el logo ANTES del nombre — la lista se lee de un vistazo
     it.appendChild(el('span','name',c.nombre));
     it.appendChild(chip(c.estado, ESTADO_KIND[c.estado]||''));
     it.onclick=function(){loadCliente(c.id_cliente);toggleSide(false);};
@@ -2516,6 +2538,13 @@ function carteraMover_(id, etapa, sel, etapaPrevia){
 }
 document.getElementById('cmSato').addEventListener('click',function(){ satoPanel_(); });
 document.getElementById('cmCartera').addEventListener('click',function(){ carteraPanel_(); });
+/* E3 v0 — SATORI HQ: navega window.top a ?v=hq con la URL wrapper (mismo contrato que irAVoz,
+   FIX 3 20-jul: el iframe no puede leer su propia wrapper, la inyecta doGet). Fuera de GAS
+   (render offline / sin wrapper) avisa en vez de navegar a ninguna parte. */
+document.getElementById('cmHQ').addEventListener('click',function(){
+  if(!window.SATORI_WRAPPER_URL){ cmToast('HQ: sin URL del OS (abrí la app por /exec)'); return; }
+  (window.top||window).location.href = SATORI_WRAPPER_URL + (SATORI_WRAPPER_URL.indexOf('?')<0?'?':'&') + 'v=hq';
+});
 document.addEventListener('DOMContentLoaded',function(){ var _cx=document.getElementById('carteraX'); if(_cx) _cx.addEventListener('click',function(){ document.getElementById('cartera').classList.remove('open'); }); });
 document.getElementById('cmCapturar').addEventListener('click',function(){ // Fase 1: captura única a la Bandeja
   var t=window.prompt('Capturá a la bandeja (idea, tarea, link, lead — lo que sea):');
@@ -3479,6 +3508,7 @@ function ccCartera(){
   (hoy.avisos||[]).forEach(function(a){ if(a.id_cliente)avi[a.id_cliente]=(avi[a.id_cliente]||0)+1; });
   (state.clientes||[]).forEach(function(c){
     var row=el('div','client');
+    row.appendChild(cliLogo_(c));   // E2b: logo del roster también en el semáforo del CM
     var left=el('div'); left.appendChild(el('div','n',c.nombre)); left.appendChild(el('div','ns',c.estado||'')); row.appendChild(left);
     var rt=el('span','rt');
     var sem=semaforoCliente(c.estado, venc[c.id_cliente]||0, avi[c.id_cliente]||0);  // FIX 5: fuente única
