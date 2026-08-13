@@ -1771,6 +1771,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <button class="pill jade" id="btn-voz" title="Hablar con Sato (voz_url de Config)">🎙 Hablar con Sato</button>
         <button class="pill" id="btn-ov" title="Abrir la Oficina Virtual (oficina_url de Config)">▦ Oficina Virtual</button>
         <button class="pill" id="btn-capturar" title="Capturar a la Bandeja">＋ Capturar</button>
+        <button class="pill" id="btn-hq" title="SATORI HQ — tu Ficha 360 propia (v0)">◉ HQ</button>
         <button class="pill" id="btn-ayuda" aria-label="Ayuda y controles" style="min-width:38px;justify-content:center">?</button>
         <button class="pill" id="btn-calidad" aria-pressed="false" title="Alternar calidad">◈ Full</button>
         <button class="pill" id="btn-edificio" aria-pressed="false" title="Bajar al Edificio — la torre de la flota, debajo del orbe (shift+arrastrar para bajar a mano)">⌄ Edificio</button>
@@ -6890,7 +6891,7 @@ window.AKASHA = (function () {
       return {
         id: c.id_cliente, nombre: c.nombre, ns: c.id_cliente,
         estado: sem.estado, chip: sem.chip, servicio: c.rubro || '—',
-        ini: iniciales(c.nombre), flujo: flujo,
+        ini: iniciales(c.nombre), logo: String(c.logo_url || ''), flujo: flujo,
         kpis: [],                 // se llenan on-demand con datosCliente()
         aprob: aprobaciones.filter(function (a) { return a.cli === c.id_cliente; }).map(function (a) { return a.id; }),
         reg: [],                  // índices de sus nodos en el Núcleo (los pone mergeCerebro)
@@ -7030,6 +7031,12 @@ window.AKASHA = (function () {
     abrirVoz: function () {
       if (!CFG.voz_url) { toast('No hay URL de voz configurada (voz_url de Config)'); return; }
       window.open(CFG.voz_url, '_blank', 'noopener');
+    },
+    /* E3 v0 — SATORI HQ desde el Akasha. Navega window.top a ?v=hq con la wrapper que inyecta
+       doGet (mismo contrato que la voz, FIX 3). Sin wrapper (fuera de /exec) avisa, no navega. */
+    abrirHQ: function () {
+      if (!window.SATORI_WRAPPER_URL) { toast('HQ: sin URL del OS (abrí la app por /exec)'); return; }
+      (window.top || window).location.href = SATORI_WRAPPER_URL + (SATORI_WRAPPER_URL.indexOf('?') < 0 ? '?' : '&') + 'v=hq';
     },
     /* Tablero y calendario: los del CM, tal cual. Un solo dueño por función. */
     /* Ronda 2: se llama a openB DIRECTO (window.cmBoardOpen) en vez de sintetizar un click
@@ -7274,7 +7281,12 @@ window.AKASHA = (function () {
     var ct = $('atril-cartera'); ct.innerHTML = '';
     DATA.clientes.forEach(function (c) {
       var it = el('button', 'cli-item'), aro = c.estado === 'ok' ? 'var(--_jade-400)' : 'var(--_amber-400)';
-      it.innerHTML = '<span class="ag-dot" style="--ac:' + aro + ';font-style:italic">' + esc(c.ini) + '</span>' +
+      // E2c (13-ago): logo del roster en el semáforo del Akasha (mismo patrón que el avatar del
+      // agente: background-image si hay logo, inicial si no — sin hueco roto).
+      var dot = c.logo
+        ? '<span class="ag-dot" style="--ac:' + aro + ';background-image:url(' + esc(c.logo) + ');background-size:cover;background-position:center;color:transparent"></span>'
+        : '<span class="ag-dot" style="--ac:' + aro + ';font-style:italic">' + esc(c.ini) + '</span>';
+      it.innerHTML = dot +
         '<span class="bd"><span class="nm">' + esc(c.nombre) + '</span><br><span class="ac mono">' + esc(c.ns) + ' · ' + esc(c.flujo[0][0]) + '</span></span>' +
         '<span class="chip sm ' + CLI_CHIP[c.estado].split(' ')[1] + '">' + esc(c.chip) + '</span>';
       /* T1 (28-jul, encargo tanda UI): click en el cliente de la cartera → FICHA 360 (antes volaba
@@ -7650,6 +7662,7 @@ window.AKASHA = (function () {
     var bv = $('btn-voz'); if (bv) bv.addEventListener('click', acc.abrirVoz);
     var bo = $('btn-ov'); if (bo) bo.addEventListener('click', acc.abrirOV);
     var bc = $('btn-capturar'); if (bc) bc.addEventListener('click', acc.capturar);
+    var bhq = $('btn-hq'); if (bhq) bhq.addEventListener('click', acc.abrirHQ);
     var bb = $('atril-board'); if (bb) bb.addEventListener('click', function () { acc.abrirTablero('P3 Abrir tablero (panel TAREAS de Akasha)'); });
     var bh = $('btn-ayuda'); if (bh) bh.addEventListener('click', function () { $('ayuda').hidden = false; $('ayuda-close').focus(); });
     var bhc = $('ayuda-close'); if (bhc) bhc.addEventListener('click', function () { $('ayuda').hidden = true; });
