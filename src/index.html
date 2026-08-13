@@ -2516,7 +2516,7 @@ function carteraMover_(id, etapa, sel, etapaPrevia){
 }
 document.getElementById('cmSato').addEventListener('click',function(){ satoPanel_(); });
 document.getElementById('cmCartera').addEventListener('click',function(){ carteraPanel_(); });
-document.getElementById('carteraX').addEventListener('click',function(){ document.getElementById('cartera').classList.remove('open'); });
+document.addEventListener('DOMContentLoaded',function(){ var _cx=document.getElementById('carteraX'); if(_cx) _cx.addEventListener('click',function(){ document.getElementById('cartera').classList.remove('open'); }); });
 document.getElementById('cmCapturar').addEventListener('click',function(){ // Fase 1: captura única a la Bandeja
   var t=window.prompt('Capturá a la bandeja (idea, tarea, link, lead — lo que sea):');
   if(!t||!t.trim())return;
