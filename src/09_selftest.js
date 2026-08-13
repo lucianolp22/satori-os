@@ -509,6 +509,16 @@ function selfTest() {
     var vAlertB = PropertiesService.getScriptProperties().getProperty('voz_alerta_fecha');
     PropertiesService.getScriptProperties().setProperty('voz_alerta_fecha', hoyISO());   // PURGA #8: suprime el aviso real durante los tests de rechazo
     PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', '__TESTSECRET__');
+    // (13-ago) HERMETICIDAD vs PAUSA COLGADA. El bloque de abajo prueba el PATH FELIZ de la voz
+    // (estado/brief/sgic responden). Ese path exige el sistema NO pausado: el dispatch de doPost
+    // corta con `sistema_en_pausa` DESPUÉS del check de whitelist (por eso los rechazos pasan) y
+    // ANTES de resolver la tool. Si prod quedó con una pausa COLGADA — p.ej. un smokeKillSwitch
+    // interrumpido dejó SISTEMA_PAUSADO='1' sin aviso — el test del path feliz fallaba por ESTADO,
+    // no por código (regresión 13-ago: 'estado' en rojo, resto verde). Se AÍSLA: guardar el valor
+    // real, forzar despausado para el path feliz, y RESTAURAR en el finally. El selfTest NO decide
+    // reanudar producción (eso es del owner con reanudarSistema()); solo se vuelve inmune al estado.
+    var vPausaB = PropertiesService.getScriptProperties().getProperty('SISTEMA_PAUSADO');
+    PropertiesService.getScriptProperties().setProperty('SISTEMA_PAUSADO', '0');
     // Bonus (14-jul): baseline de avisos voz para resolver SOLO los que este test pudiera crear (nunca
     // toca un aviso de seguridad real preexistente — limpiarTodoTest no puede identificarlos sin marker).
     var _vozAviPre = {};
@@ -553,11 +563,23 @@ function selfTest() {
       // (f) celda hostil sale sanitizada (sin \n\t) + truncada
       var d13f = _sgicFila_({ concepto: 'x', notas: 'a\nb\tc ' + new Array(300).join('z') });
       chk(String(d13f.notas).indexOf('\n') < 0 && String(d13f.notas).indexOf('\t') < 0 && d13f.notas.length <= 201, 'D13f celda hostil sanitizada + truncada');
+      // (13-ago) PATH PAUSADO — cobertura de la regresión: con el sistema en pausa, la tool corta
+      // con `sistema_en_pausa` (después de la whitelist, antes de resolver). Se prueba explícito y
+      // se vuelve a despausar para no dejar el estado sucio dentro del propio bloque.
+      PropertiesService.getScriptProperties().setProperty('SISTEMA_PAUSADO', '1');
+      var vPausa = vozCall_({ secret: '__TESTSECRET__', tool: 'estado' });
+      chk(vPausa.ok === false && vPausa.error === 'sistema_en_pausa', 'Voz en PAUSA: la tool corta con sistema_en_pausa (no filtra dato)');
+      PropertiesService.getScriptProperties().setProperty('SISTEMA_PAUSADO', '0');
     } finally {
       if (vSecB == null) PropertiesService.getScriptProperties().deleteProperty('VOZ_TOOL_SECRET');
       else PropertiesService.getScriptProperties().setProperty('VOZ_TOOL_SECRET', vSecB);
       if (vAlertB == null) PropertiesService.getScriptProperties().deleteProperty('voz_alerta_fecha');
       else PropertiesService.getScriptProperties().setProperty('voz_alerta_fecha', vAlertB);
+      // (13-ago) Restaurar el valor REAL de la pausa (no lo que forzó el test). Si prod tenía una
+      // pausa colgada en '1', queda en '1' — limpiarla es decisión del owner (reanudarSistema()),
+      // no del selfTest. Estado previo null (nunca seteada) ⇒ se borra, no se inventa un '0'.
+      if (vPausaB == null) PropertiesService.getScriptProperties().deleteProperty('SISTEMA_PAUSADO');
+      else PropertiesService.getScriptProperties().setProperty('SISTEMA_PAUSADO', vPausaB);
       // Bonus (14-jul): resolver los avisos voz_acceso_no_autorizado que ESTE test creó (baseline diff).
       // Junto con limpiarTodoTest (que ya barre tarea_vencida [TAR-TEST-1] y aprobacion_expirada
       // [APR-TEST-EXP] por marcador), el selfTest deja de ensuciar el CM con avisos de prueba.
