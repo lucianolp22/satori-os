@@ -909,7 +909,17 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-stat .v.warn{color:var(--color-warning)}
 .f360-stat .v.danger{color:var(--color-danger)}
 .f360-stat .v.muted{color:var(--color-text-muted);font-weight:400}
-.f360-body{flex:1;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr) minmax(0,1.05fr);gap:10px;padding:10px 14px;min-height:0;overflow:hidden}
+.f360-body{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.f360-tabbar{display:flex;gap:2px;padding:6px 14px 0;flex-wrap:wrap;border-bottom:1px solid var(--color-border);flex:0 0 auto}
+.f360-tab{appearance:none;background:transparent;border:0;border-bottom:2px solid transparent;color:var(--color-text-muted);font:inherit;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:8px 12px;cursor:pointer;border-radius:6px 6px 0 0}
+.f360-tab:hover{color:var(--color-text)}
+.f360-tab[aria-selected="true"]{color:var(--color-text);border-bottom-color:#E8956D}
+.f360-panels{flex:1;min-height:0;overflow:hidden;padding:10px 14px 4px}
+.f360-panel{display:none;height:100%;overflow-y:auto;flex-direction:column;gap:10px;padding-right:2px}
+.f360-panel.on{display:flex}
+.f360-panel .f360-sec.hilo{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.f360-panel.p-cerebro{align-items:center}
+.f360-panel.p-cerebro .f360-orbe-sec{width:100%;max-width:640px}
 .f360-col{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding-right:2px}
 .f360-sec{position:relative;background:var(--glass-bg);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px 14px;flex:0 0 auto;backdrop-filter:blur(var(--glass-blur)) saturate(1.25);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25)}
 .f360-sec>h4{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);display:flex;align-items:center;gap:8px}
@@ -973,7 +983,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-sug .d{font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:2px}
 /* ── T1.3: ORBE del cliente — constelación del Cerebro (mini Núcleo Akasha por tenant) ── */
 .f360-orbe-sec .f360-cont{display:flex;flex-direction:column;align-items:center;gap:6px}
-#f360OrbeCv{width:100%;max-width:300px;height:172px;display:block;cursor:pointer}
+#f360OrbeCv{width:100%;max-width:600px;height:460px;display:block;cursor:pointer;margin:0 auto}
 .f360-orbe-leg{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
 .f360-orbe-leg b{font-family:var(--font-mono);font-weight:600;color:var(--color-text-muted)}
 .f360-orbe-leg .dneg::before{content:'◆ ';color:#E8956D}
@@ -1659,29 +1669,43 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
     <!-- v2 dashboard: fila de stats — la puebla f360Tiles_() con datos reales (mock jamás). -->
     <div class="f360-stats" id="f360Stats" aria-label="Resumen del cliente"></div>
     <div class="f360-body">
-      <div class="f360-col a">
-        <section class="f360-sec f360-orbe-sec"><h4>Cerebro del cliente <span class="cnt mono" id="f360OrbeN"></span></h4>
+      <div class="f360-tabbar" role="tablist" aria-label="Secciones de la ficha">
+        <button class="f360-tab" role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
+        <button class="f360-tab" role="tab" data-tab="plan" aria-selected="false">Plan</button>
+        <button class="f360-tab" role="tab" data-tab="numeros" aria-selected="false">Números</button>
+        <button class="f360-tab" role="tab" data-tab="hilo" aria-selected="false">Hilo</button>
+        <button class="f360-tab" role="tab" data-tab="cerebro" aria-selected="false">Cerebro</button>
+        <button class="f360-tab" role="tab" data-tab="contexto" aria-selected="false">Contexto</button>
+      </div>
+      <div class="f360-panels">
+        <div class="f360-panel p-resumen on" data-panel="resumen" role="tabpanel">
+          <section class="f360-sec"><h4>Situación <span class="cnt mono" id="f360SitN">brief diario</span></h4><div class="f360-cont" id="f360Sit"><div class="served">Cargando…</div></div></section>
+          <section class="f360-sec"><h4>Vigilancia <span class="cnt mono" id="f360VigN"></span></h4><div class="f360-cont" id="f360Vig"><div class="served">Cargando…</div></div></section>
+        </div>
+        <div class="f360-panel p-plan" data-panel="plan" role="tabpanel">
+          <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
+          <section class="f360-sec"><h4>Pendientes <span class="cnt mono" id="f360ProxN"></span></h4><div class="f360-cont" id="f360Prox"><div class="served">Cargando…</div></div></section>
+          <section class="f360-sec"><h4>Checklist <span class="cnt mono" id="f360ChkN"></span></h4><div class="f360-cont" id="f360Chk"><div class="served">Cargando…</div></div></section>
+        </div>
+        <div class="f360-panel p-numeros" data-panel="numeros" role="tabpanel">
+          <section class="f360-sec"><h4>Números <span class="cnt mono" id="f360NumN"></span></h4><div class="f360-cont" id="f360Num"><div class="served">Cargando…</div></div></section>
+        </div>
+        <div class="f360-panel p-hilo" data-panel="hilo" role="tabpanel">
+          <section class="f360-sec hilo"><h4>Avance — Hilo de trabajo</h4><div class="f360-cont" id="f360Hilo"><div class="served">Cargando…</div></div></section>
+        </div>
+        <div class="f360-panel p-cerebro" data-panel="cerebro" role="tabpanel">
+          <section class="f360-sec f360-orbe-sec"><h4>Cerebro del cliente <span class="cnt mono" id="f360OrbeN"></span></h4>
           <div class="f360-cont">
             <canvas id="f360OrbeCv" title="Abrir el Espacio 3D del cliente" aria-label="Orbe del Cerebro del cliente"></canvas>
             <div class="f360-orbe-leg" id="f360OrbeLeg"></div>
           </div>
         </section>
-        <section class="f360-sec"><h4>Situación <span class="cnt mono" id="f360SitN">brief diario</span></h4><div class="f360-cont" id="f360Sit"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>Números <span class="cnt mono" id="f360NumN"></span></h4><div class="f360-cont" id="f360Num"><div class="served">Cargando…</div></div></section>
-        <!-- TC-11 · A5: fila de semáforos multi-superficie. GRIS = sin datos (jamás verde);
-             cada chip lleva su dato ancla en el title. Es TAMBIÉN artefacto de venta S1/S2. -->
-        <section class="f360-sec"><h4>Vigilancia <span class="cnt mono" id="f360VigN"></span></h4><div class="f360-cont" id="f360Vig"><div class="served">Cargando…</div></div></section>
-      </div>
-      <div class="f360-col b">
-        <section class="f360-sec"><h4>Checklist <span class="cnt mono" id="f360ChkN"></span></h4><div class="f360-cont" id="f360Chk"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>Pendientes <span class="cnt mono" id="f360ProxN"></span></h4><div class="f360-cont" id="f360Prox"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>Sugerencias de Satori</h4><div class="f360-cont" id="f360Sug"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>Novedades del rubro</h4><div class="f360-cont" id="f360Nov"><div class="served">Cargando…</div></div></section>
-        <section class="f360-sec"><h4>Bitácora</h4><div class="f360-cont" id="f360Bit"><div class="served">Cargando…</div></div></section>
-      </div>
-      <div class="f360-col der">
-        <section class="f360-sec hilo"><h4>Avance — Hilo de trabajo</h4><div class="f360-cont" id="f360Hilo"><div class="served">Cargando…</div></div></section>
+        </div>
+        <div class="f360-panel p-contexto" data-panel="contexto" role="tabpanel">
+          <section class="f360-sec"><h4>Sugerencias de Satori</h4><div class="f360-cont" id="f360Sug"><div class="served">Cargando…</div></div></section>
+          <section class="f360-sec"><h4>Novedades del rubro</h4><div class="f360-cont" id="f360Nov"><div class="served">Cargando…</div></div></section>
+          <section class="f360-sec"><h4>Bitácora</h4><div class="f360-cont" id="f360Bit"><div class="served">Cargando…</div></div></section>
+        </div>
       </div>
     </div>
     <div class="f360-foot">
@@ -3857,7 +3881,7 @@ function fichaAbrir(id,puerta,opts){
   var ks=document.getElementById('fichascrim'), kb=document.getElementById('fichaboard');
   if(ks)ks.classList.add('open'); if(kb)kb.classList.add('open');
   var be=document.getElementById('f360Espacio'); if(be)be.hidden=!F360.espacioCb;
-  f360Sel_(); fichaCargar_(F360.id);
+  f360Sel_(); f360TabReset_(); fichaCargar_(F360.id);
 }
 function fichaCerrar(){
   var ks=document.getElementById('fichascrim'), kb=document.getElementById('fichaboard');
@@ -7877,5 +7901,25 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
       </div>
     </div>
 
+<script>
+/* E4 (14-ago) - solapas de la Ficha 360. Un panel por vez; redibuja el orbe al entrar a
+   Cerebro (el canvas necesita caja visible para medir). No toca los renders: los IDs de
+   seccion viven intactos adentro de los paneles. */
+function f360Tab_(name){
+  var bar=document.querySelector("#fichaboard .f360-tabbar"); if(!bar)return;
+  var tabs=bar.querySelectorAll(".f360-tab");
+  var panels=document.querySelectorAll("#fichaboard .f360-panel");
+  var found=false;
+  tabs.forEach(function(t){ var on=t.getAttribute("data-tab")===name; t.setAttribute("aria-selected",on?"true":"false"); if(on)found=true; });
+  if(!found)return;
+  panels.forEach(function(p){ p.classList.toggle("on",p.getAttribute("data-panel")===name); });
+  if(name==="cerebro"&&typeof f360Orbe_==="function"){ try{ f360Orbe_(); }catch(e){} }
+}
+function f360TabReset_(){ f360Tab_("resumen"); }
+document.addEventListener("click",function(e){
+  var b=e.target.closest?e.target.closest(".f360-tab"):null;
+  if(b&&b.getAttribute("data-tab")){ e.preventDefault(); f360Tab_(b.getAttribute("data-tab")); }
+});
+</script>
 </body>
 </html>
