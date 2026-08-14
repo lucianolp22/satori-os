@@ -634,7 +634,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .hilo-sem.ambar .hilo-pip{background:#ffd479;box-shadow:0 0 9px -1px #ffd479}
 .hilo-sem.rojo .hilo-pip{background:#ff8d7a;box-shadow:0 0 9px -1px #ff8d7a}
 .hilo-sem-t{flex:1;min-width:0}
-.hilo-sem-h{font-size:12.5px;color:#dfe5f2;font-weight:600}
+.hilo-sem-h{font-size:13px;color:#dfe5f2;font-weight:600}
 .hilo-sem-s{font-size:10.5px;color:#6b7488;margin-top:1px}
 /* TC-11 · A5 — vigilancia multi-superficie (Ficha 360). Misma paleta que .hilo-sem:
    verde #6cddba · ámbar #ffd479 · rojo #ff8d7a · gris #6b7488 (gris = sin datos, D26c). */
@@ -647,20 +647,20 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .vig-chip .d{color:#6b7488;font-size:10.5px}
 .vig-chip.rojo .d,.vig-chip.ambar .d{color:#dfe5f2}
 .vig-nota{font-size:10.5px;color:#6b7488;margin-top:7px}
-.hilo-num{display:flex;gap:8px;align-items:baseline;font-size:11px;padding:5px 10px;margin-bottom:8px;background:rgba(108,221,186,.06);border-radius:6px}
+.hilo-num{display:flex;gap:8px;align-items:baseline;font-size:11.5px;padding:5px 10px;margin-bottom:8px;background:rgba(108,221,186,.06);border-radius:6px}
 .hilo-num-k{color:#6b7488;text-transform:uppercase;letter-spacing:.1em;font-size:9.5px;flex:none}
 .hilo-num-v{color:#c3ccdd}
 .hilo-sec{margin-bottom:9px}
 .hilo-sec-h{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:#6b7488;margin-bottom:4px}
 .hilo-sec.desviado .hilo-sec-h{color:#ff8d7a} .hilo-sec.pendiente .hilo-sec-h{color:#ffd479}
-.hilo-sec-v{font-size:11px;color:#4e5666;padding:2px 0 4px}
+.hilo-sec-v{font-size:11.5px;color:#4e5666;padding:2px 0 4px}
 .hilo-it{padding:5px 0 5px 9px;border-left:2px solid rgba(108,221,186,.15);margin-bottom:3px;cursor:pointer}
 .hilo-it:hover{background:rgba(255,255,255,.03)}
 .hilo-sec.desviado .hilo-it{border-left-color:rgba(255,141,122,.35)}
 .hilo-sec.pendiente .hilo-it{border-left-color:rgba(255,212,121,.32)}
-.hilo-it-t{font-size:12.5px;color:#dfe5f2}
+.hilo-it-t{font-size:13px;color:#dfe5f2}
 .hilo-pri{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(108,221,186,.14);color:#6cddba;vertical-align:middle}
-.hilo-it-d{font-size:11px;color:#aeb6cc;margin-top:2px}
+.hilo-it-d{font-size:11.5px;color:#aeb6cc;margin-top:2px}
 /* Fix 27-jul (eyeball): con Hilos REALES (40-58 filas) el render completo ahogaba el panel.
    El cuerpo scrollea SOLO (no empuja el resto del panel) y el detalle va plegado a 2 líneas. */
 .hilo-body{max-height:340px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
@@ -673,8 +673,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .hilo-it-m{font-size:10px;color:#6b7488;margin-top:2px}
 .hilo-it-e{font-size:10px;color:#4e5666;margin-top:2px;font-style:italic}
 .hilo-vacio{padding:10px 2px}
-.hilo-vacio-t{font-size:12.5px;color:#aeb6cc;font-weight:600}
-.hilo-vacio-s{font-size:11px;color:#6b7488;margin-top:3px;line-height:1.5}
+.hilo-vacio-t{font-size:13px;color:#aeb6cc;font-weight:600}
+.hilo-vacio-s{font-size:11.5px;color:#6b7488;margin-top:3px;line-height:1.5}
 /* ── a4.2 móvil: agentes como chips tappables (en vez de órbita apretada) ── */
 .cm-agents-m{display:none;grid-template-columns:repeat(2,1fr);gap:8px;padding:2px}
 .agm{display:flex;align-items:center;gap:9px;background:rgba(18,22,34,.72);border:1px solid rgba(108,221,186,.14);border-radius:11px;padding:9px 11px;min-height:48px;cursor:pointer}
@@ -918,36 +918,38 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-panel{display:none;height:100%;overflow-y:auto;flex-direction:column;gap:10px;padding-right:2px}
 .f360-panel.on{display:flex}
 .f360-panel .f360-sec.hilo{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
-.f360-panel.p-cerebro{align-items:center}
-.f360-panel.p-cerebro .f360-orbe-sec{width:100%;max-width:640px}
+.f360-res-top{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:10px;align-items:stretch}
+.f360-res-top .f360-orbe-sec,.f360-res-top>.f360-sec{margin:0}
+.f360-res-top #f360OrbeCv{height:300px}
+@media (max-width:760px){.f360-res-top{grid-template-columns:1fr}}
 .f360-col{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding-right:2px}
 .f360-sec{position:relative;background:var(--glass-bg);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px 14px;flex:0 0 auto;backdrop-filter:blur(var(--glass-blur)) saturate(1.25);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25)}
-.f360-sec>h4{margin:0 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);display:flex;align-items:center;gap:8px}
-.f360-sec>h4 .cnt{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:10.5px;color:var(--color-text-subtle)}
+.f360-sec>h4{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);display:flex;align-items:center;gap:8px}
+.f360-sec>h4 .cnt{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:11px;color:var(--color-text-subtle)}
 .f360-col.der .f360-sec.hilo{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
 /* Rediseño del Hilo-en-panel (feedback 27-jul "se ve cortado, cuadro muy arriba"): dentro de la
    ficha el Hilo ocupa la COLUMNA ENTERA con su propio scroll — nunca recortado ni flotando. */
 .f360-sec.hilo .f360-cont{flex:1;min-height:0;overflow-y:auto}
 .f360-sec.hilo .hilo-body{max-height:none;overflow:visible}
-.f360-row{display:flex;gap:8px;align-items:baseline;padding:5.5px 0;border-bottom:1px solid var(--glass-border);font-size:12.5px}
+.f360-row{display:flex;gap:8px;align-items:baseline;padding:5.5px 0;border-bottom:1px solid var(--glass-border);font-size:13px}
 .f360-row:last-child{border-bottom:0}
-.f360-row .k{color:var(--color-text-muted);flex:0 0 auto;font-size:11px}
+.f360-row .k{color:var(--color-text-muted);flex:0 0 auto;font-size:11.5px}
 .f360-row .v{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .f360-row .num{margin-left:auto;flex:0 0 auto;text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 .f360-bar{position:relative;height:5px;border-radius:999px;background:rgba(255,255,255,.09);overflow:hidden;margin-top:5px}
 .f360-bar>i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--color-primary);transition:width .32s var(--ease-out)}
 .f360-obj{padding:8px 0;border-bottom:1px solid var(--glass-border)}
 .f360-obj:last-child{border-bottom:0}
-.f360-obj .t{font-size:13px}
+.f360-obj .t{font-size:13.5px}
 .f360-obj .m{font-size:11px;color:var(--color-text-muted);margin-top:3px;display:flex;gap:8px;align-items:baseline}
 .f360-obj .m .num{margin-left:auto;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
-.f360-vacio{font-size:12px;color:var(--color-text-muted);padding:6px 0}
+.f360-vacio{font-size:12.5px;color:var(--color-text-muted);padding:6px 0}
 .f360-foot{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--glass-border)}
 .f360-fuente{font-size:9.5px;color:var(--color-text-subtle);letter-spacing:.05em;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .f360-acts{margin-left:auto;display:flex;gap:8px;flex:0 0 auto}
 #f360Sel{margin-left:auto;max-width:210px}
 /* ── T1.2: checklist interactivo ── */
-.f360-chk{display:flex;gap:9px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--glass-border);font-size:12.5px}
+.f360-chk{display:flex;gap:9px;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--glass-border);font-size:13px}
 .f360-chk:last-child{border-bottom:0}
 .f360-chk input[type=checkbox]{appearance:none;-webkit-appearance:none;width:15px;height:15px;flex:0 0 15px;margin-top:1px;border:1.5px solid var(--color-border-strong,var(--color-border));border-radius:4px;background:transparent;cursor:pointer;display:grid;place-items:center;transition:all .14s var(--ease-out)}
 .f360-chk input[type=checkbox]:checked{background:var(--color-primary);border-color:var(--color-primary)}
@@ -983,7 +985,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-sug .d{font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:2px}
 /* ── T1.3: ORBE del cliente — constelación del Cerebro (mini Núcleo Akasha por tenant) ── */
 .f360-orbe-sec .f360-cont{display:flex;flex-direction:column;align-items:center;gap:6px}
-#f360OrbeCv{width:100%;max-width:600px;height:460px;display:block;cursor:pointer;margin:0 auto}
+#f360OrbeCv{width:100%;max-width:100%;height:300px;display:block;cursor:pointer;margin:0 auto}
 .f360-orbe-leg{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
 .f360-orbe-leg b{font-family:var(--font-mono);font-weight:600;color:var(--color-text-muted)}
 .f360-orbe-leg .dneg::before{content:'◆ ';color:#E8956D}
@@ -1674,13 +1676,20 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <button class="f360-tab" role="tab" data-tab="plan" aria-selected="false">Plan</button>
         <button class="f360-tab" role="tab" data-tab="numeros" aria-selected="false">Números</button>
         <button class="f360-tab" role="tab" data-tab="hilo" aria-selected="false">Hilo</button>
-        <button class="f360-tab" role="tab" data-tab="cerebro" aria-selected="false">Cerebro</button>
         <button class="f360-tab" role="tab" data-tab="contexto" aria-selected="false">Contexto</button>
       </div>
       <div class="f360-panels">
         <div class="f360-panel p-resumen on" data-panel="resumen" role="tabpanel">
+          <div class="f360-res-top">
+            <section class="f360-sec f360-orbe-sec"><h4>Cerebro del cliente <span class="cnt mono" id="f360OrbeN"></span></h4>
+          <div class="f360-cont">
+            <canvas id="f360OrbeCv" title="Abrir el Espacio 3D del cliente" aria-label="Orbe del Cerebro del cliente"></canvas>
+            <div class="f360-orbe-leg" id="f360OrbeLeg"></div>
+          </div>
+        </section>
+            <section class="f360-sec"><h4>Vigilancia <span class="cnt mono" id="f360VigN"></span></h4><div class="f360-cont" id="f360Vig"><div class="served">Cargando…</div></div></section>
+          </div>
           <section class="f360-sec"><h4>Situación <span class="cnt mono" id="f360SitN">brief diario</span></h4><div class="f360-cont" id="f360Sit"><div class="served">Cargando…</div></div></section>
-          <section class="f360-sec"><h4>Vigilancia <span class="cnt mono" id="f360VigN"></span></h4><div class="f360-cont" id="f360Vig"><div class="served">Cargando…</div></div></section>
         </div>
         <div class="f360-panel p-plan" data-panel="plan" role="tabpanel">
           <section class="f360-sec"><h4>El plan <span class="cnt mono" id="f360PlanN"></span></h4><div class="f360-cont" id="f360Plan"><div class="served">Cargando…</div></div></section>
@@ -1692,14 +1701,6 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         </div>
         <div class="f360-panel p-hilo" data-panel="hilo" role="tabpanel">
           <section class="f360-sec hilo"><h4>Avance — Hilo de trabajo</h4><div class="f360-cont" id="f360Hilo"><div class="served">Cargando…</div></div></section>
-        </div>
-        <div class="f360-panel p-cerebro" data-panel="cerebro" role="tabpanel">
-          <section class="f360-sec f360-orbe-sec"><h4>Cerebro del cliente <span class="cnt mono" id="f360OrbeN"></span></h4>
-          <div class="f360-cont">
-            <canvas id="f360OrbeCv" title="Abrir el Espacio 3D del cliente" aria-label="Orbe del Cerebro del cliente"></canvas>
-            <div class="f360-orbe-leg" id="f360OrbeLeg"></div>
-          </div>
-        </section>
         </div>
         <div class="f360-panel p-contexto" data-panel="contexto" role="tabpanel">
           <section class="f360-sec"><h4>Sugerencias de Satori</h4><div class="f360-cont" id="f360Sug"><div class="served">Cargando…</div></div></section>
@@ -1982,6 +1983,7 @@ function thc(h){var t=el('th',null,h);t.setAttribute('scope','col');return t;}
 function montoEl(v){return el('span','mono','€'+v);}
 function clear(node){while(node.firstChild)node.removeChild(node.firstChild);}
 function fmtNum(n){n=Number(n)||0;return n.toLocaleString('es-ES');}
+function fmtMoneda(valor,hint){ if(valor==null||valor===''||isNaN(Number(valor)))return null; var t=String(hint||'').toLowerCase(); var sym=/ars|ar\$|pesos|\$/.test(t)?'$ ':(/eur|euro|\u20ac/.test(t)?'\u20ac ':''); return sym+fmtNum(valor); }
 /* Formato ÚNICO de fecha+hora de todo el sistema: dd/mm/aaaa hh:mm (decisión Luciano 20-jul).
    Antes omitía el año; se agregó para que TODA superficie muestre lo mismo y ninguna quede
    ambigua entre años. Nunca devolver el crudo de Sheets con GMT. */
@@ -2222,7 +2224,7 @@ function hiloRender_(cont, h){
   if(h.numerico){
     var n=el('div','hilo-num');
     n.appendChild(el('span','hilo-num-k','Respaldo del conector'));
-    n.appendChild(el('span','hilo-num-v',h.numerico.concepto+' = '+h.numerico.valor+(h.numerico.fecha?' · '+h.numerico.fecha:'')));
+    n.appendChild(el('span','hilo-num-v',h.numerico.concepto+' = '+(fmtMoneda(h.numerico.valor,(h.numerico.concepto||'')+' '+(h.numerico.fuente||''))||h.numerico.valor)+(h.numerico.fecha?' · '+h.numerico.fecha:'')));
     cont.appendChild(n);
   }
 
@@ -3956,7 +3958,7 @@ function f360Tiles_(){
   if(fc===null) tile('Conector','…','muted');
   else if(!fc.ok||!fc.operacion.length) tile('Conector','sin datos','muted');
   else { var o=fc.operacion[0];
-    tile('Conector · '+(o.fecha||''), (o.valor!=null?String(o.valor):'—')); }
+    tile('Conector · '+(o.fecha||''), (o.valor!=null?(fmtMoneda(o.valor,(o.concepto||'')+' '+(o.fuente||''))||String(o.valor)):'—')); }
 }
 function fichaCargar_(id){
   var gen=++F360.gen;
@@ -4894,7 +4896,7 @@ function f360Num_(fc){
     var r=el('div','f360-row');
     r.appendChild(el('span','v',k.kpi||'—'));
     if(k.alerta)r.appendChild(chip('⚠ '+k.alerta,'c-warn'));
-    var num=el('span','mono num',(k.valor!=null?k.valor:'—')+(k.objetivo!=null?' / obj '+k.objetivo:''));
+    var num=el('span','mono num',(k.valor!=null?(fmtMoneda(k.valor,k.kpi||'')||k.valor):'—')+(k.objetivo!=null?' / obj '+(fmtMoneda(k.objetivo,k.kpi||'')||k.objetivo):''));
     r.appendChild(num); cont.appendChild(r);
   });
   cont.appendChild(el('div','f360-vacio','Operación reciente (conector):'));
@@ -4904,7 +4906,7 @@ function f360Num_(fc){
     var r=el('div','f360-row');
     r.appendChild(el('span','k mono',o.fecha||'—'));
     var v=el('span','v',o.concepto||'—'); if(o.notas)v.title=o.notas; r.appendChild(v);
-    r.appendChild(el('span','mono num',o.valor!=null?String(o.valor):'—'));
+    r.appendChild(el('span','mono num',o.valor!=null?(fmtMoneda(o.valor,(o.concepto||'')+' '+(o.fuente||''))||String(o.valor)):'—'));
     cont.appendChild(r);
   });
 }
@@ -7913,7 +7915,7 @@ function f360Tab_(name){
   tabs.forEach(function(t){ var on=t.getAttribute("data-tab")===name; t.setAttribute("aria-selected",on?"true":"false"); if(on)found=true; });
   if(!found)return;
   panels.forEach(function(p){ p.classList.toggle("on",p.getAttribute("data-panel")===name); });
-  if(name==="cerebro"&&typeof f360Orbe_==="function"){ try{ f360Orbe_(); }catch(e){} }
+  if(name==="resumen"&&typeof f360Orbe_==="function"){ try{ f360Orbe_(); }catch(e){} }
 }
 function f360TabReset_(){ f360Tab_("resumen"); }
 document.addEventListener("click",function(e){
