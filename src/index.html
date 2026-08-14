@@ -922,6 +922,15 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-res-top .f360-orbe-sec,.f360-res-top>.f360-sec{margin:0}
 .f360-res-top #f360OrbeCv{height:300px}
 @media (max-width:760px){.f360-res-top{grid-template-columns:1fr}}
+.f360-sgic-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;background:rgba(232,149,109,.14);border:1px solid rgba(232,149,109,.4);color:#E8956D;font:inherit;font-size:12px;font-weight:600;padding:9px 14px;border-radius:8px;cursor:pointer;margin-bottom:10px}
+.f360-sgic-btn:hover{background:rgba(232,149,109,.22)}
+.f360-dash-h{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:var(--color-text-subtle);margin:12px 0 4px;font-weight:600}
+.f360-dash-h:first-of-type{margin-top:2px}
+.f360-bar-w{display:flex;align-items:center;gap:8px;margin:-1px 0 7px}
+.f360-bar{flex:1;height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden}
+.f360-bar-f{height:100%;background:#E8956D;border-radius:3px}
+.f360-bar-f.ok{background:#7BC4B8}
+.f360-bar-p{font-size:10px;color:var(--color-text-subtle);font-family:var(--font-mono);flex:0 0 auto;min-width:30px;text-align:right}
 .f360-col{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding-right:2px}
 .f360-sec{position:relative;background:var(--glass-bg);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:12px 14px;flex:0 0 auto;backdrop-filter:blur(var(--glass-blur)) saturate(1.25);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(1.25)}
 .f360-sec>h4{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);display:flex;align-items:center;gap:8px}
@@ -3980,9 +3989,9 @@ function fichaCargar_(id){
       var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
     return;
   }
-  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null;
+  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null; F360.sheetUrl='';
   f360Tiles_(); f360Orbe_();   // v2/v3: stats y orbe arrancan en "cargando" y se completan fuente a fuente
-  google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); f360Sug_(); f360Nov_(); f360Bit_(); if(FC)f360Plan_(DC,FC); })
+  google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); f360Sug_(); f360Nov_(); f360Bit_(); if(FC){f360Plan_(DC,FC);f360Num_(FC);} })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; DC='err'; F360.dc='err';
       var c=document.getElementById('f360Plan'); if(c)f360Vacio_(c,'No se pudo leer el MAESTRO: '+((e&&e.message)||'sesión o permisos'));
       var n=document.getElementById('f360Nov'); if(n)f360Vacio_(n,'Sin datos del MAESTRO.');
@@ -4792,7 +4801,7 @@ function f360Bit_(){
   });
 }
 function f360Cabecera_(d){
-  var c=(d&&d.cliente)||{};
+  var c=(d&&d.cliente)||{}; F360.sheetUrl=(c.url_sheet_cliente||'');
   var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'), est=document.getElementById('f360Estado');
   if(nom)nom.textContent=c.nombre||F360.id;
   if(sub)sub.textContent=(c.id_cliente||'')+' · '+(c.rubro||'—')+(c.responsable?' · '+c.responsable:'');
@@ -4888,27 +4897,45 @@ function f360NotaProy_(p){
 /* FILA 2 — Números: KPIs del tenant + operación reciente que escribió el conector. */
 function f360Num_(fc){
   var cont=document.getElementById('f360Num'); if(!cont)return; clear(cont);
+  // Acceso directo al SGIC del cliente (arriba, prominente) — dato en vivo + un clic al Sheet.
+  if(F360.sheetUrl){ var acc=el('button','f360-sgic-btn'); acc.type='button';
+    acc.appendChild(document.createTextNode('\u25a4 Abrir el SGIC del cliente'));
+    acc.onclick=function(){ window.open(F360.sheetUrl,'_blank'); }; cont.appendChild(acc); }
   if(!fc||!fc.ok){ f360Vacio_(cont,(fc&&fc.error)||'SGIC no accesible.'); return; }
-  var n=document.getElementById('f360NumN'); if(n)n.textContent=fc.kpis.length+' KPI · '+fc.operacion.length+' mov';
+  var n=document.getElementById('f360NumN'); if(n)n.textContent=fc.kpis.length+' KPI \u00b7 '+fc.operacion.length+' mov';
+  // ── Indicadores (KPIs) con barra de progreso real cuando hay objetivo ──
+  cont.appendChild(el('div','f360-dash-h','Indicadores (KPIs)'));
   if(fc.hoja_falta.kpis)cont.appendChild(el('div','f360-vacio','El SGIC no tiene hoja `KPIs`.'));
   else if(!fc.kpis.length)cont.appendChild(el('div','f360-vacio','Sin KPIs cargados.'));
   fc.kpis.forEach(function(k){
-    var r=el('div','f360-row');
-    r.appendChild(el('span','v',k.kpi||'—'));
-    if(k.alerta)r.appendChild(chip('⚠ '+k.alerta,'c-warn'));
-    var num=el('span','mono num',(k.valor!=null?(fmtMoneda(k.valor,k.kpi||'')||k.valor):'—')+(k.objetivo!=null?' / obj '+(fmtMoneda(k.objetivo,k.kpi||'')||k.objetivo):''));
-    r.appendChild(num); cont.appendChild(r);
+    var r=el('div','f360-row'); r.appendChild(el('span','v',k.kpi||'—'));
+    if(k.alerta)r.appendChild(chip('\u26a0 '+k.alerta,'c-warn'));
+    var vv=(k.valor!=null?(fmtMoneda(k.valor,k.kpi||'')||k.valor):'—');
+    var oo=(k.objetivo!=null?' / obj '+(fmtMoneda(k.objetivo,k.kpi||'')||k.objetivo):'');
+    r.appendChild(el('span','mono num',vv+oo)); cont.appendChild(r);
+    if(k.valor!=null&&k.objetivo!=null&&Number(k.objetivo)>0){
+      var pct=Math.max(0,Math.min(100,Math.round(Number(k.valor)/Number(k.objetivo)*100)));
+      var w=el('div','f360-bar-w'), bar=el('div','f360-bar'), fill=el('div','f360-bar-f');
+      fill.style.width=pct+'%'; if(pct>=100)fill.classList.add('ok'); bar.appendChild(fill);
+      w.appendChild(bar); w.appendChild(el('span','f360-bar-p',pct+'%')); cont.appendChild(w); }
   });
-  cont.appendChild(el('div','f360-vacio','Operación reciente (conector):'));
+  // ── Metas y mediciones (objetivos del cliente con métrica/target) ──
+  var metas=(fc.objetivos||[]).filter(function(o){return o.metrica||o.valor_objetivo!=null;});
+  if(metas.length){ cont.appendChild(el('div','f360-dash-h','Metas y mediciones'));
+    metas.forEach(function(o){ var r=el('div','f360-row');
+      r.appendChild(el('span','v',(o.metrica||o.descripcion||'—')+(o.horizonte?' \u00b7 '+o.horizonte:'')));
+      if(o.estado)r.appendChild(chip(o.estado,'c-info'));
+      r.appendChild(el('span','mono num',o.valor_objetivo!=null?(fmtMoneda(o.valor_objetivo,o.metrica||'')||o.valor_objetivo):'—'));
+      cont.appendChild(r); }); }
+  // ── Operación reciente (Datos_operativos del SGIC) ──
+  cont.appendChild(el('div','f360-dash-h','Operación reciente'));
   if(fc.hoja_falta.operacion)cont.appendChild(el('div','f360-vacio','El SGIC no tiene hoja `Datos_operativos`.'));
   else if(!fc.operacion.length)cont.appendChild(el('div','f360-vacio','Sin datos operativos todavía.'));
-  fc.operacion.forEach(function(o){
-    var r=el('div','f360-row');
+  fc.operacion.forEach(function(o){ var r=el('div','f360-row');
     r.appendChild(el('span','k mono',o.fecha||'—'));
     var v=el('span','v',o.concepto||'—'); if(o.notas)v.title=o.notas; r.appendChild(v);
     r.appendChild(el('span','mono num',o.valor!=null?(fmtMoneda(o.valor,(o.concepto||'')+' '+(o.fuente||''))||String(o.valor)):'—'));
-    cont.appendChild(r);
-  });
+    cont.appendChild(r); });
 }
 /* FILA 3 — Próximos pasos: tareas activas (vencidas marcadas) + aprobaciones pendientes +
    eventos de agenda del cliente a 30 días. Se pinta al llegar CADA fuente (dc y agenda). */
