@@ -57,6 +57,26 @@
 > `ENCARGO-F2-SATO-EJECUTOR-gate-bastion-2026-08-24.md` (amenazas T1-T5, controles C1-C7
 > default-deny, spec hoja `Encargos`, orden F2.a→d con purga-cebo antes de habilitar código).
 > F2 se construye contra ese doc — quien la tome, ahí arranca.
+>
+> **24-ago (noche) — F2 CONSTRUIDO + VERIFICADO OFFLINE (working tree, SIN promover).** La voz puede
+> ENCARGAR y el circuito de ejecucion esta listo, gateado. **GAS (F2.a):** hoja `Encargos` lazy
+> (`01_schema` + COLUMNAS_TEXTO) · tool voz `encargar` (VOZ_TOOLS=13) que crea el encargo
+> `pendiente_aprobacion` + una Aprobacion `ejecutar_encargo` en CLI-000 — **aprobable por el CM o
+> por la voz con `decidir` de F1** · actions `encargos_poll`/`encargos_reportar` con secreto DEDICADO
+> `ENCARGOS_SECRET` (ruteo antes de vozAuth_, 4to bloque autenticado — D31h actualizado) · caso
+> `ejecutar_encargo` en `ejecutarAprobada` que solo flipea el encargo a `aprobado` (NO corre codigo).
+> **Runner (F2.b):** `voz/runner/encargos_runner.py` DESHABILITADO (2 llaves: `HABILITADO=False` +
+> marcador `.encargos_runner_enabled` que crea el cebo). Ejecuta con `claude -p` en un scratch
+> AISLADO por encargo (cwd sin acceso al repo ni al .env), tools de SOLO LECTURA
+> (Read/Grep/Glob/WebSearch/WebFetch), SIN `--dangerously-skip-permissions`; captura stdout a
+> `entregables/encargos/<id>/resultado.md`; respeta kill-switch #7, timeout 20min, cap 10/dia.
+> **Cebo (F2.c):** `encargos_runner_selftest.py` VERDE (rechaza 11 cebos, acepta 2 legitimos).
+> **Plantilla launchd + README** (NO instalados). **Verificado offline:** `_f2_voz_checks.js` 30/30
+> + harness 658/0 + `node --check`/`py_compile` + cebo. **GO-LIVE PENDIENTE (2 pasos deliberados de
+> Luciano):** (1) GAS: capabilities+commit+clasp push+`_promote_exec.sh --go` (@49)+`kickstart -k`
+> del agente (para la tool `encargar`); (2) RUNNER (cuando quieras ejecucion): `ENCARGOS_SECRET` en
+> Script Properties + `.env.local`, correr el cebo (crea el marcador), `HABILITADO=True`, prueba
+> manual, y opcional el launchd. Detalle: `voz/runner/README.md`.
 
 ## Qué incluye exactamente este estado (a)
 

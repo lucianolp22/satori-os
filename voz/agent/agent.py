@@ -103,7 +103,7 @@ INSTRUCCIONES = (
     "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, sgic_consulta, aprobaciones, capturar. "
     # F1 · SATO EJECUTOR (24-ago) — la voz ahora ACTUA dentro del OS. S5 es LEY para toda escritura.
     "F1 EJECUCION: ahora tambien ACTUAS dentro del sistema con las tools 'aprobaciones' (listar pendientes), "
-    "'decidir_aprobacion', 'disparar_agente' y 'crear_tarea'. Las tres de escritura exigen el flujo S5 SIN excepcion: "
+    "'decidir_aprobacion', 'disparar_agente', 'crear_tarea' y 'encargar' (encolar una investigacion o documento para el runner). Las de escritura exigen el flujo S5 SIN excepcion: "
     "repeti en voz alta que vas a hacer (id y resumen de la aprobacion / agente y cliente / texto de la tarea) y espera "
     "el 'si' explicito de Luciano ANTES de llamar la tool. Deci el resultado EXACTO que devuelva (ejecutada, encolada, "
     "rechazada, fallo) — jamas inventes un exito (N5). "
@@ -555,6 +555,26 @@ class SatoriVoz(Agent):
         res = await _llamar_backend("tarea", args)
         if res is _MSG_BACKEND_TIMEOUT:
             return ("El sistema tardo demasiado y no puedo confirmar si la tarea quedo creada. "
+                    "Volve a pedirmelo en un momento y lo verifico.")
+        return res
+
+    @function_tool()
+    async def encargar(self, context: RunContext, texto: str, tipo: str = "investigar") -> str:
+        """Registra un ENCARGO para que el equipo lo EJECUTE despues (una investigacion o un
+        documento): queda en cola con una aprobacion, y cuando la aprobas lo levanta el runner y te
+        reporta el resultado. NO se ejecuta en el momento (distinto de 'capturar', que es una nota).
+
+        FLUJO OBLIGATORIO (S5): repeti en voz alta QUE vas a encargar y de que tipo, y espera el 'si'
+        de Luciano antes de llamarla. Un pedido directo NO reemplaza el 'si'.
+
+        Args:
+            texto: el encargo en palabras de Luciano (requerido).
+            tipo: 'investigar' (research) o 'documento' (redactar algo). Default 'investigar'.
+        """
+        context.disallow_interruptions()  # escritura: no dejarla a medias
+        res = await _llamar_backend("encargar", {"texto": texto, "tipo": tipo})
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardo demasiado y no puedo confirmar si el encargo quedo registrado. "
                     "Volve a pedirmelo en un momento y lo verifico.")
         return res
 

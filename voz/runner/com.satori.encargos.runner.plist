@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PLANTILLA (NO instalada). Instalar SOLO tras: cebo verde + HABILITADO=True. Ver README.md.
+     Corre el runner cada 5 min; con el runner deshabilitado, sale al instante sin efecto. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.satori.encargos.runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/lucianopablolp/Documents/Claude/Projects/SatoriOS/voz/agent/.venv/bin/python</string>
+    <string>/Users/lucianopablolp/Documents/Claude/Projects/SatoriOS/voz/runner/encargos_runner.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/lucianopablolp/Documents/Claude/Projects/SatoriOS/voz/runner</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PYTHONUNBUFFERED</key><string>1</string></dict>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/lucianopablolp/Library/Logs/satori-encargos-runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/lucianopablolp/Library/Logs/satori-encargos-runner.log</string>
+</dict>
+</plist>

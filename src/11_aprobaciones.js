@@ -332,6 +332,10 @@ function ejecutarAprobada(idCliente, id) {
       case 'promover_agente':
         res = _forgeAplicarPromocion_(payload);
         break;
+      case 'ejecutar_encargo':
+        // F2: NO corre codigo -- solo flipea el encargo a `aprobado` para que el runner del Mac lo levante.
+        res = _encargoAprobar_(payload);
+        break;
       default:
         // Sin sistema externo cableado todavía (Etapa 3): se registra como ejecutada.
         res = { ok: true, detalle: 'acción "' + a.tipo_accion + '" registrada (sin destino externo en E2)' };

@@ -72,7 +72,7 @@ function doGet(e) {
  * + capturar — nada de aprobaciones / email / borrados por este canal. Responde JSON.
  */
 var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1, accion: 1,
-  aprobaciones: 1, decidir: 1, agente: 1, tarea: 1 };  // F1 Sato Ejecutor (24-ago): S5 en el cliente + validacion server-side default-deny aca
+  aprobaciones: 1, decidir: 1, agente: 1, tarea: 1, encargar: 1 };  // F1+F2 Sato Ejecutor (24-ago): S5 en el cliente + validacion server-side default-deny aca
 
 // ── Voz-acciones P2 (16-jul) — la voz ESCRIBE estructuras, con gate ──────────
 //
@@ -129,6 +129,19 @@ function doPost(e) {
       } catch (err3) { vozLog_('charla_export', false, String((err3 && err3.message) || err3));
         return vozOut_({ ok: false, error: 'error_interno' }); }
     }
+    // F2 (24-ago): el RUNNER de encargos habla por su PROPIO secreto (ENCARGOS_SECRET), ruteado ANTES
+    // de vozAuth_ (least-privilege: el secreto de voz no habilita esto y este no habilita tools de voz).
+    if (String(body.action || '') === 'encargos_poll' || String(body.action || '') === 'encargos_reportar') {
+      if (!encargosAuth_(body.secret)) { vozRechazo_('encargos_unauth'); return vozOut_({ ok: false, error: 'unauthorized' }); }
+      if (_secretoVencido_(PROP_ENCARGOS_EXPIRA)) { vozRechazo_('encargos_secret_expirado'); return vozOut_({ ok: false, error: 'secret_expirado' }); }
+      _ctxSistema_();
+      try {
+        var reEnc = (body.action === 'encargos_poll') ? encargosPoll_() : encargosReportar_(body.payload);
+        vozLog_(body.action, !!reEnc.ok, reEnc.error || '');
+        return vozOut_(reEnc);
+      } catch (errE) { vozLog_(body.action, false, String((errE && errE.message) || errE));
+        return vozOut_({ ok: false, error: 'error_interno' }); }
+    }
     if (!vozAuth_(body.secret)) { vozRechazo_('unauthorized'); return vozOut_({ ok: false, error: 'unauthorized' }); } // fail-closed + alerta
     if (_secretoVencido_(PROP_VOZ_EXPIRA)) { vozRechazo_('secret_expirado'); return vozOut_({ ok: false, error: 'secret_expirado' }); } // T3-S2: vencido = mismo corte que unauthorized
     _ctxSistema_();   // T3-S1: secreto válido y vigente → ejecución de sistema (ver bloque de oficina_sync)
@@ -155,6 +168,7 @@ function doPost(e) {
       case 'decidir':  data = vozDecidirAprobacion_(vozStr_(args.id, 12), vozStr_(args.decision, 12), vozStr_(args.nota, 300)); break;  // F1: id_cliente resuelto server-side
       case 'agente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = vozDispararAgente_(id, vozStr_(args.agente, 24)); break;  // F1: encola SIN drenar
       case 'tarea':    data = vozCrearTarea_(vozStr_(args.descripcion, 500), vozStr_(args.prioridad, 2), vozStr_(args.fecha_limite, 10), id); break;  // F1
+      case 'encargar': data = vozEncargar_(vozStr_(args.texto, 1000), vozStr_(args.tipo, 20), vozStr_(args.repo, 40)); break;  // F2 Sato Ejecutor
       case 'sgic': {    // SGIC 14-jul: consulta read-only de una hoja whitelisted del cliente (o ventas de la fuente viva)
         if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' });
         var sres = sgicConsulta_(id, vozStr_(args.hoja, 40), vozStr_(args.mes, 7), args.limite);
@@ -254,6 +268,106 @@ function vozCrearTarea_(descripcion, prioridad, fechaLimite, idCliente) {
   }
 }
 
+// == F2 · SATO EJECUTOR (24-ago) -- BANDEJA DE ENCARGOS (voz encarga -> gate -> runner ejecuta) ==
+// El texto del encargo es DATO, nunca instruccion server-side (frontera 16-jul). La voz solo lo
+// registra con gate; el runner del Mac (voz/runner/) es quien ejecuta, y arranca DESHABILITADO.
+var ENCARGO_TIPOS_VOZ = { investigar: 1, documento: 1 };   // v1: codigo_dry NO por voz (F2.d, tras el cebo)
+var ENCARGO_REPOS = { SatoriOS: 1 };                        // whitelist dura de repos (v1: solo el propio)
+var ENCARGO_TENANT = 'CLI-000';                            // host de la Aprobacion (tenant de sistema)
+
+function _encHoja_() { return _hqHoja_('Encargos'); }      // hoja lazy (reusa el accesor generico)
+
+/** Actualiza campos de una fila de Encargos por id. Bajo conLock. */
+function _encSet_(id, campos) {
+  var sh = _encHoja_(); if (!sh) return false;
+  return conLock(function () {
+    var m = sh.getDataRange().getValues(); var H = m[0]; var iId = H.indexOf('id_encargo');
+    for (var r = 1; r < m.length; r++) {
+      if (String(m[r][iId]) !== String(id)) continue;
+      Object.keys(campos).forEach(function (k) { var c = H.indexOf(k); if (c >= 0) m[r][c] = campos[k]; });
+      sh.getRange(1, 1, m.length, H.length).setValues(m);
+      return true;
+    }
+    return false;
+  });
+}
+
+/** Crea un encargo por voz: fila `pendiente_aprobacion` + Aprobacion `ejecutar_encargo` (gate humano:
+ * decidible por el CM o por la voz con `decidir` de F1). NO ejecuta. El runner solo levanta `aprobado`. */
+function vozEncargar_(texto, tipo, repo) {
+  tipo = String(tipo || 'investigar').trim().toLowerCase();
+  if (!ENCARGO_TIPOS_VOZ[tipo]) return { ok: false, error: 'tipo_no_permitido', mensaje: 'Por ahora solo puedo encargar investigaciones o documentos.' };
+  repo = String(repo || 'SatoriOS').trim();
+  if (!ENCARGO_REPOS[repo]) return { ok: false, error: 'repo_no_permitido', mensaje: 'Ese repositorio no esta habilitado para encargos.' };
+  var t = limpiarHostilTexto_(String(texto || ''), 1000);
+  if (!t) return { ok: false, error: 'falta_texto', mensaje: 'Necesito el texto del encargo.' };
+  var gr = gateRiesgo_('escribir_tenant', { con_aprobacion: true, id_cliente: ENCARGO_TENANT, detalle: 'encargo:' + tipo });
+  if (!gr.ok) return { ok: false, error: 'riesgo_bloqueado', mensaje: 'Los encargos estan bloqueados por la matriz de riesgo.' };
+  var sh = _encHoja_(); if (!sh) return { ok: false, error: 'schema_encargos_ausente' };
+  return conLock(function () {
+    var id = nextId(sh, 'id_encargo', 'ENC', 4);
+    appendFila(sh, { id_encargo: id, ts_creacion: ahoraISO(), origen: 'voz', id_cliente: '',
+      tipo: tipo, repo: repo, texto: t, estado: 'pendiente_aprobacion', id_aprobacion: '',
+      ts_inicio: '', ts_fin: '', resultado_resumen: '', artefactos: '', log_ref: '', decidido_por: '' });
+    var apr = crearAprobacion(ENCARGO_TENANT, 'encargos', 'ejecutar_encargo',
+      { id_encargo: id, tipo: tipo, repo: repo },
+      { descripcion: 'Ejecutar encargo (' + tipo + '): ' + truncar_(t, 90), confianza: '', patron: 'P1' });
+    _encSet_(id, { id_aprobacion: apr.id });
+    if (apr.auto) {   // una Direccion vigente lo auto-aprobo -> queda aprobado en el acto
+      try { ejecutarAprobada(ENCARGO_TENANT, apr.id); } catch (e) {}
+      return { ok: true, id_encargo: id, estado: 'aprobado', id_aprobacion: apr.id, auto: true,
+               mensaje: 'Encargo ' + id + ' registrado y aprobado por direccion. Lo levanta el runner cuando este activo.' };
+    }
+    return { ok: true, id_encargo: id, estado: 'pendiente_aprobacion', id_aprobacion: apr.id, auto: false,
+             mensaje: 'Encargo ' + id + ' registrado. Te deje la aprobacion ' + apr.id + ' en el Centro de Mando: aprobala y el runner lo ejecuta.' };
+  });
+}
+
+/** Ejecutor de la Aprobacion `ejecutar_encargo`: NO corre codigo -- solo flipea el encargo a
+ * `aprobado` para que el runner lo levante. El trabajo real pasa en el Mac, gateado por el runner. */
+function _encargoAprobar_(payload) {
+  var id = payload && payload.id_encargo;
+  if (!id) return { ok: false, error: 'sin_id_encargo' };
+  var ok = _encSet_(String(id), { estado: 'aprobado' });
+  return ok ? { ok: true, detalle: 'encargo ' + id + ' aprobado (a la espera del runner)' }
+            : { ok: false, error: 'encargo_no_encontrado' };
+}
+
+/** Poll del runner (ENCARGOS_SECRET): devuelve encargos `aprobado` y los pasa a `en_ejecucion`
+ * (lock idempotente). Respeta el kill-switch #7. Solo expone id/tipo/repo/texto -- nada mas. */
+function encargosPoll_() {
+  if (_sistemaPausado_()) return { ok: true, pausado: true, encargos: [] };
+  var sh = _encHoja_(); if (!sh) return { ok: true, encargos: [] };
+  return conLock(function () {
+    var m = sh.getDataRange().getValues(); var H = m[0];
+    var iEst = H.indexOf('estado'), iIni = H.indexOf('ts_inicio');
+    var out = [];
+    for (var r = 1; r < m.length; r++) {
+      if (String(m[r][iEst]).toLowerCase() !== 'aprobado') continue;
+      m[r][iEst] = 'en_ejecucion'; if (iIni >= 0) m[r][iIni] = ahoraISO();
+      var o = {}; H.forEach(function (h, c) { o[h] = m[r][c]; });
+      out.push({ id_encargo: String(o.id_encargo), tipo: String(o.tipo), repo: String(o.repo), texto: String(o.texto) });
+    }
+    if (out.length) sh.getRange(1, 1, m.length, H.length).setValues(m);
+    return { ok: true, encargos: out };
+  });
+}
+
+/** Reporte del runner: estado final (hecho|fallido) + resumen + artefactos + log_ref + aviso. */
+function encargosReportar_(payload) {
+  if (!payload || !payload.id_encargo) return { ok: false, error: 'falta_id_encargo' };
+  var est = String(payload.estado || '').toLowerCase();
+  if (['hecho', 'fallido'].indexOf(est) < 0) return { ok: false, error: 'estado_invalido' };
+  var campos = { estado: est, ts_fin: ahoraISO(),
+    resultado_resumen: limpiarHostilTexto_(String(payload.resumen || ''), 300),
+    artefactos: limpiarHostilTexto_(String(payload.artefactos || ''), 300),
+    log_ref: limpiarHostilTexto_(String(payload.log_ref || ''), 200) };
+  var ok = _encSet_(String(payload.id_encargo), campos);
+  if (ok) { try { crearAviso({ origen: 'sistema', tipo: 'encargo_' + est,
+    mensaje: 'Encargo ' + payload.id_encargo + ' ' + est + ': ' + campos.resultado_resumen }); } catch (e) {} }
+  return ok ? { ok: true } : { ok: false, error: 'encargo_no_encontrado' };
+}
+
 /** Salida JSON estándar del tool-backend. */
 function vozOut_(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
@@ -272,6 +386,14 @@ function vozAuth_(secret) {
 /** TC-5 · auth de `charla_export`. Secreto PROPIO y fail-closed: sin la property, nadie entra. */
 function charlaExportAuth_(secret) {
   var k = PropertiesService.getScriptProperties().getProperty('CHARLA_EXPORT_SECRET');
+  if (!k) return false;
+  return ctEq_(String(secret == null ? '' : secret), String(k));
+}
+
+/** F2 · auth del RUNNER de encargos. Secreto PROPIO y fail-closed (patron charla_export/oficina_sync). */
+var PROP_ENCARGOS_EXPIRA = 'ENCARGOS_SECRET_EXPIRA';
+function encargosAuth_(secret) {
+  var k = PropertiesService.getScriptProperties().getProperty('ENCARGOS_SECRET');
   if (!k) return false;
   return ctEq_(String(secret == null ? '' : secret), String(k));
 }

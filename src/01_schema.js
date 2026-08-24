@@ -119,6 +119,8 @@ var MAESTRO_SHEETS = {
   // `moneda` es OBLIGATORIA y no hay total global: dos monedas no se suman (lección B8/purga B5).
   // `estado` = activo | propuesta — una propuesta en curso NO es ingreso: se muestra atenuada.
   recurrentes_propios: ['id_rec', 'id_cliente', 'cliente', 'servicio', 'importe', 'moneda', 'estado', 'notas'],
+  // F2 Sato Ejecutor (24-ago): bandeja de encargos (voz -> gate -> runner Claude Code). LAZY, fuera de MAESTRO_ORDEN.
+  Encargos: ['id_encargo', 'ts_creacion', 'origen', 'id_cliente', 'tipo', 'repo', 'texto', 'estado', 'id_aprobacion', 'ts_inicio', 'ts_fin', 'resultado_resumen', 'artefactos', 'log_ref', 'decidido_por'],
   Config: ['clave', 'valor']
 };
 
@@ -354,7 +356,8 @@ var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla',
   // E3 HQ (18-ago): los ids de las hojas propias. `CHK-0001`/`OBJ-0001`/`REC-0001` no son
   // coercibles a fecha, pero el precedente `id_objetivo` dice que se declaran igual — el día
   // que un id cambie de prefijo, nadie se acuerda de venir a agregarlo.
-  'id_item', 'id_obj', 'id_rec'];
+  // F2 (24-ago): ids de la bandeja de encargos.
+  'id_item', 'id_obj', 'id_rec', 'id_encargo', 'id_aprobacion'];
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];

@@ -40,3 +40,8 @@ entregables/charlas/
 
 # _edificio/_partes.py: intermedio generado por extraer.py (~300KB de base64). Se regenera solo.
 _edificio/_partes.py
+
+# F2 runner (estado runtime local — NUNCA se commitea; el marcador es un gate per-maquina)
+voz/runner/.encargos_runner_enabled
+voz/runner/.runner_state.json
+entregables/encargos/

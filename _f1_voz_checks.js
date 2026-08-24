@@ -32,9 +32,9 @@ ctx.quitarAgregada_ = (id, idc) => { llamadas.quitar.push([id, idc]); };
 ctx.crearTarea = (p) => { llamadas.crearTarea.push(p); return { id_tarea: 'TAR-0009', descripcion: p.descripcion, prioridad: p.prioridad, fecha_limite: p.fecha_limite }; };
 
 // 1 · whitelist exacta
-const esperadas = ['estado','brief','vehemence','cliente','cerebro','capturar','sgic','accion','aprobaciones','decidir','agente','tarea'];
+const esperadas = ['estado','brief','vehemence','cliente','cerebro','capturar','sgic','accion','aprobaciones','decidir','agente','tarea','encargar'];
 chk(ctx.VOZ_TOOLS && esperadas.every(k => ctx.VOZ_TOOLS[k] === 1), 'VOZ_TOOLS: las 8 viejas + 4 F1 presentes');
-chk(Object.keys(ctx.VOZ_TOOLS).length === 12, 'VOZ_TOOLS: ninguna tool de mas (12 exactas)');
+chk(Object.keys(ctx.VOZ_TOOLS).length === 13, 'VOZ_TOOLS: 13 exactas (12 + encargar F2)');
 // 2 · dispatch cablea las 4
 const dp = String(ctx.doPost);
 chk(["case 'aprobaciones'","case 'decidir'","case 'agente'","case 'tarea'"].every(c => dp.indexOf(c) >= 0), 'doPost: los 4 cases existen');

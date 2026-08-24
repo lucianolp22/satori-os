@@ -884,13 +884,13 @@ seccion('D31 · X4 · partición de la superficie RPC (toda pública: gateada o 
   //   · doGet, antes de `_puertaOwner_` — que corta ahí mismo, así que no alcanza nada.
   // Los 6 handlers de trigger declaran contexto en su segunda línea (D31c/D31d).
   const cuerpoDoPost = (cuerpos.get('doPost') || {}).cuerpo || '';
-  // TRES bloques autenticados: oficina_sync, charla_export (TC-5) y voz. Cada uno declara su
-  // contexto DESPUÉS de validar su propio secreto. Este número no es decorativo: cuando TC-5 sumó
-  // el tercero, este assert cortó y obligó a revisar las semillas de abajo antes de seguir — que
-  // es exactamente para lo que está.
-  chk((limpio(cuerpoDoPost).match(/_ctxSistema_\(/g) || []).length === 3,
-      'D31h doPost conserva sus TRES _ctxSistema_ — si cambió de forma, revisar las semillas de abajo');
-  const SEMILLAS = ['vozRechazo_', 'vozOut_', 'oficinaSyncAuth_', 'charlaExportAuth_', '_secretoVencido_', 'vozAuth_'];
+  // CUATRO bloques autenticados: oficina_sync, charla_export (TC-5), voz y encargos (F2). Cada uno
+  // declara su contexto DESPUÉS de validar su propio secreto. Este número no es decorativo: cada vez
+  // que se sumó un bloque (TC-5 el 3ro, F2 el 4to) este assert cortó y obligó a revisar las semillas
+  // de abajo antes de seguir — que es exactamente para lo que está.
+  chk((limpio(cuerpoDoPost).match(/_ctxSistema_\(/g) || []).length === 4,
+      'D31h doPost conserva sus CUATRO _ctxSistema_ — si cambió de forma, revisar las semillas de abajo');
+  const SEMILLAS = ['vozRechazo_', 'vozOut_', 'oficinaSyncAuth_', 'charlaExportAuth_', 'encargosAuth_', '_secretoVencido_', 'vozAuth_'];
   chk(SEMILLAS.every((s) => new RegExp('\\b' + s + '\\s*\\(').test(limpio(cuerpoDoPost))),
       'D31h2 las semillas pre-contexto siguen siendo las que doPost invoca antes de autenticar');
   const llamadasDe = (n) => {

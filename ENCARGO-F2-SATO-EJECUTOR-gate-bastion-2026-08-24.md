@@ -1,5 +1,14 @@
 # ENCARGO F2 · SATO EJECUTOR — Puente Encargos → runner Claude Code · GATE BASTIÓN (24-ago-2026)
 
+> **BUILD STATUS (24-ago noche): F2 CONSTRUIDO + VERIFICADO OFFLINE.** GAS (F2.a): hoja `Encargos`
+> lazy + tool voz `encargar` + actions `encargos_poll`/`encargos_reportar` (secreto `ENCARGOS_SECRET`)
+> + ejecutor `ejecutar_encargo` (flipea a `aprobado`, NO corre codigo). Runner (F2.b):
+> `voz/runner/encargos_runner.py` DESHABILITADO por default (2 llaves: HABILITADO=False + marcador),
+> ejecuta en scratch aislado con tools de solo lectura, sin skip-permissions. Cebo (F2.c):
+> `encargos_runner_selftest.py` VERDE (rechaza 11 cebos hostiles, acepta 2 legitimos). Verificado:
+> `node --check` + `py_compile` + `_f2_voz_checks.js` 30/30 + harness general 658/0 + cebo. **FALTA
+> el go-live deliberado (secreto + promote + habilitar el runner tras el cebo en tu Mac).**
+>
 > **Estado: GATE APROBADO PARA CONSTRUIR** (el análisis de seguridad de abajo ES el gate que el
 > plan exigía antes de escribir una línea de F2). Ejecuta: Cowork directo o Code — quien tome F2
 > construye EXACTAMENTE contra esta spec; todo desvío se declara. Contexto: F1 EN PROD @48
