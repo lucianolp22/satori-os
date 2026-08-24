@@ -1,3 +1,85 @@
+# HANDOFF — Satori OS — 2026-08-24 (espejo vivo · PROD @46 · CERTIFICADO 935/0)
+
+> Estado vigente arriba; todo lo que sigue de la cabecera del 04-ago es archivo.
+>
+> **24-ago — el sistema quedó CERTIFICADO y promovido.** `origin/main` en `2c40086`.
+> `/exec` = **@46** (mismo deployment `AKfycbxZJL…phLm`, **la URL no cambió**). GAS HEAD == repo
+> (verificado con pull y diff byte a byte, antes y después del push).
+>
+> **`selfTestVeredicto()` = CERTIFICADO: los 5 tramos corridos, 935 asserts, 0 fallos**, y
+> `limpiarTodoTest` corrido después (MAESTRO limpio). Esto cierra el bloqueante #1 del 04-ago:
+> lo que entonces era «código que pasa el arnés offline» ahora es un sistema certificado en el editor.
+> Offline en el mismo tramo: `node _harness.js` **657 / 0** + `python3 _verificar_index.py` OK.
+
+## Qué incluye exactamente este estado (a)
+
+| Tanda | Commit | Qué entró |
+|---|---|---|
+| Botón SGIC + E3 HQ | `5756d2b` | Los 7 archivos del trabajo (detalle abajo) |
+| CAPABILITIES | `5fc6b4a` | Regen del drift-checker: el hook `pre-push` abortaba con `08_webapp` 74→82 y `09_selftest` 48→50 |
+| promote /exec | `2c40086` | Corrido por Luciano con `bash _promote_exec.sh --go`. @45 → **@46** |
+
+**Botón SGIC (17-ago) — la Ficha 360 entra al sistema del cliente, no a su hoja.**
+`Clientes` suma **`url_exec_cliente` AL FINAL** (aditivo; `url_sheet_cliente` sigue siendo el Sheet
+y no se tocó — el acceso a la hoja vive en el botón de cabecera). El guard `safeExecUrl()`
+(`index.html`) exige **https + host `script.google.com`**: una URL de cualquier otro dominio en esa
+celda del MAESTRO no se abre. **Celda vacía = estado legítimo** (cliente sin sistema propio) ⇒ el
+botón no se renderiza, en vez de quedar muerto.
+⚠️ **Cabo con dueño: las URLs todavía no están cargadas.** Faltan las de **DAM, LC y Vehemence** —
+hasta que Luciano las pegue en la columna, el botón no aparece en ninguna ficha. No es un bug.
+
+**E3 SATORI HQ (18-ago) — la ficha 360 propia de Luciano, en el MAESTRO (CLI-000).**
+`src/hq.html` es **reemplazo total** (no un parche): **5 solapas vivas**, sin un solo dato
+hardcodeado — todo entra por el puente `hqPide` con `withFailureHandler` (nada falla mudo) y fuera
+de `/exec` la UI **lo dice** en vez de quedarse en «Cargando…» para siempre.
+**6 endpoints** en `08_webapp.js`, todos con `_soloOwner_` y de alta en `ENDPOINTS_UI` en el mismo
+commit: `hqHoy` · `hqChecklist` · `hqObjetivos` · `hqNumeros` (lectura) · `hqChecklistToggle`
+(**único write path**) · `sembrarHQ` (no la llama el front, pero es top-level ⇒ RPC-invocable ⇒
+gateada igual). La captura rápida **reusa `capturar`** (Bandeja): sin write path nuevo.
+**3 schemas LAZY y PII personal** — `checklist_propia` · `objetivos_propios` ·
+`recurrentes_propios`. Fuera de `MAESTRO_ORDEN` (patrón `hilo`/`checklist`): un MAESTRO viejo no
+falla salud por hojas que todavía no hicieron falta. **Viven en el MAESTRO y nunca en el Sheet de
+un cliente** — el aislamiento §2 corre en las dos direcciones. Los recurrentes subtotalizan **por
+moneda, sin total global**, y una propuesta en curso **no** suma como ingreso.
+⚠️ **Desvío del encargo, declarado:** el encargo E3 pedía `hqNumeros()` con ingresos recurrentes y
+declaraba solo dos schemas. Ese dato **no existía en el sistema** (`grep recurrent` = 0 fuentes), así
+que la única alternativa era la solapa mintiendo con números pintados. De ahí la tercera hoja.
+
+## Qué queda ABIERTO (b) y dónde vive cada cabo (c)
+
+**De este tramo:**
+1. **Verificación manual del promote, sin correr** — los 2 minutos que pide `_promote_exec.sh`:
+   abrir el `/exec` como `luciano@` (eyeball del render; el CM no es auto-screenshoteable) y probar
+   la voz 30 s. Rollback en `_promote_rollback.txt` (versión anterior: **@45**).
+2. **Cargar `url_exec_cliente`** para DAM, LC y Vehemence en el MAESTRO (arriba).
+3. **`HANDOFF.md` lo actualiza el agente, no el script.** `_promote_exec.sh` commitea con el mensaje
+   «CAPABILITIES regen + HANDOFF al \<fecha\>» **sin tocar `HANDOFF.md`**: el 24-ago ese commit movió
+   1 archivo y el handoff seguía en el 04-ago. El mensaje del script no es evidencia de nada.
+4. **7 deployments viejos congelados** (@4…@14, algunos de junio) sin podar. No molestan. El único
+   que no se toca nunca es `AKfycbxZJL…phLm` (prod).
+
+**Sigue abierto del 04-ago (nada de esto se tocó):**
+5. **Purga integral de Cowork** sobre la cadena TC-1…TC-11. Seguía pendiente por diseño como paso
+   previo al promote; **el promote se hizo igual**, así que hoy es deuda, no gate.
+6. **F4a espera las facturas 2026 de Luciano** (`31_admin.js` + Sheet ADMIN). Gate real = un
+   trimestre cuadrado contra el gestor.
+7. **Calendario fiscal: 8 filas vacías** «verificar con gestor/AEAT». Las completa Luciano; el
+   código tiene prohibido escribirlas (aserido en D41m).
+8. **Encender el correo** (`correo_on=true`) es un acto aparte y elegido.
+9. **Backups semanales posiblemente en la raíz del Drive** — `_copiarSpreadsheet_` (`21_backup.js:78`),
+   `_backupRootFolder_` (`21_backup.js:53`), `_respaldarObjetivos_` (`18_direccion.js:1052`). Se
+   comprueba con `backupListar()`. Fix = `addParents`/`removeParents` por servicio avanzado.
+10. **El tramo 1 del selfTest no se troceó** (~470 líneas con estado compartido).
+11. **4 nits de TC-11** como insumo de purga · **`importarConocimientoEntrenamiento()`** sigue
+    especificada y sin implementar (`docs/INTEGRACION-ENTRENAMIENTO-AGENTES.md`).
+12. **Heredado del 03-ago:** rotar `OWNER_TOKEN` de Vehemence (comprometido) · `docs_cliente_<id>`
+    sin definir en Config · apagar LiveKit cuando Luciano confirme.
+
+> Los **diferidos con gatillo** (Forge, prompt caching, A5, B8, os@, VPS, Lift, D9/D10/Telegram)
+> no cambiaron: la tabla del 04-ago sigue siendo la vigente — está justo abajo, en el archivo.
+
+<!-- ══════════════ CABECERA ANTERIOR (04-ago) — ARCHIVO ══════════════ -->
+
 # HANDOFF — Satori OS — 2026-08-04 (espejo vivo · PLAN INTEGRAL: CÓDIGO COMPLETO, CERTIFICACIÓN PENDIENTE)
 
 > Estado vigente arriba; todo lo que sigue de la cabecera del 03-ago es archivo.
