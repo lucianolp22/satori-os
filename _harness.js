@@ -164,7 +164,7 @@ const r1 = ctx.estadoCacheado_();
 const r2 = ctx.estadoCacheado_();
 chk(renders === 1, 'miss renderiza UNA vez; el hit no recomputa');
 chk(r1 === r2 && r1.indexOf('# Estado vigente') === 0, 'hit devuelve byte a byte el render cacheado');
-chk(cacheScript._store['estado_v1_SISTEMA'].ttl === 600, 'TTL de voz = 600s (espejo del brief)');
+chk(cacheScript._store['estado_v1_SISTEMA'].ttl === 3600, 'TTL de voz = 3600s (Problema B 24-ago, espejo del brief)');
 const rc = ctx.estadoCacheado_('CLI-002');
 chk(renders === 2 && rc.indexOf('CLI-002') > 0, 'clave por cliente: CLI-002 tiene su propio cache');
 chk(cacheScript._store['estado_v1_CLI-002'] != null, 'la clave del cliente existe en el cache');

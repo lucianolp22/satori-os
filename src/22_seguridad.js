@@ -295,8 +295,9 @@ var ENDPOINTS_UI = [
 var ENTRY_POINTS_SISTEMA = [
   'corridaDiaria', 'drenarCola', 'sincronizarConectores', 'clasificarBandeja',
   'backupSemanal', 'chequeoLivianoDirector', 'correrDirector',
-  'correoTriaje'   // T7 (04-ago): declara `_ctxSistema_()` ⇒ va acá por la primera invariante,
+  'correoTriaje',  // T7 (04-ago): declara `_ctxSistema_()` ⇒ va acá por la primera invariante,
                    // aunque hoy no tenga trigger propio (lo llama `corridaDiaria`).
+  'calentarCachesVoz'  // Problema B (24-ago): warm horario de caches de voz (18_direccion.js).
 ];
 
 /**

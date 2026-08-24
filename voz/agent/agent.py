@@ -185,7 +185,7 @@ INSTRUCCIONES = (
 # vencer, la MISMA tool devuelve texto hablable (fail-closed, SIN reintento — brief no es idempotente
 # en costo/tiempo). El thread bloqueado en el executor no se puede cancelar; muere solo cuando el
 # requests interno alcanza su propio timeout=30 (huérfano acotado, sin efecto para el usuario).
-_TIMEOUT_BACKEND_S = 25
+_TIMEOUT_BACKEND_S = 35  # 24-ago (Problema B): 25s quedaba DEBAJO del brief frio medido (26,5s); el fix real es el warm horario del backend, esto es la red de seguridad
 # Sentinela hablable del timeout. Es un str normal (se relata al LLM como cualquier data), pero las
 # tools de ESCRITURA lo comparan por identidad para NO confirmar un guardado que quizá no ocurrió (N5).
 _MSG_BACKEND_TIMEOUT = "El sistema está tardando más de lo normal. Probá de nuevo en un momento."

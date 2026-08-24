@@ -11,6 +11,19 @@
 > lo que entonces era «código que pasa el arnés offline» ahora es un sistema certificado en el editor.
 > Offline en el mismo tramo: `node _harness.js` **657 / 0** + `python3 _verificar_index.py` OK.
 
+> **24-ago (tarde) — VOZ RECUPERADA ✅ + fix del backend frío (Problema B) CONSTRUIDO.**
+> La «voz degradada» del cierre anterior NO era STT/TTS ni el promote @46: el LaunchAgent
+> `com.satori.voz.agent` estaba DESCARGADO desde ~03-ago (se apagó según lo planeado el 30-jul y
+> nunca se volvió a cargar). `voz/launchagents/instalar_launchagents.sh` lo repuso (KeepAlive +
+> watchdog; arranca al login) y la prueba de voz de Luciano dio EXCELENTE — STT/TTS sanos.
+> Residual medido (gas_voz_client): backend frío `brief` 26,5s / `estado` 24,1s (el brief supera el
+> timeout de 25s del agente) vs ~4s caliente. **Fix en este commit:** TTL de caches de voz
+> 600→3600s + trigger horario `calentarCachesVoz` (SISTEMA + Config `voz_warm_clientes`, default
+> CLI-002; alta en `ENTRY_POINTS_SISTEMA`) + wrapper `instalarWarmVoz` (correr 1 vez en el editor,
+> 18_direccion.js) + timeout del agente 25→35s (`voz/agent/agent.py`, pide `kickstart -k`).
+> QUEDA ABIERTO hasta correr el runbook: clasp push → instalarWarmVoz → promote (@47) →
+> kickstart → probe (esperado: 4 llamadas <6s). Plan nuevo: `PLAN-SATO-EJECUTOR-2026-08-24.md`.
+
 ## Qué incluye exactamente este estado (a)
 
 | Tanda | Commit | Qué entró |

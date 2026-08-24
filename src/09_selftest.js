@@ -1915,8 +1915,8 @@ function _asertsD28_(chk, log, opts) {
       'D28b2 la recuperación (0 errores) resuelve los conector_error activos por baseline');
 
   // ── Fix A — estado cacheado para la voz (espejo del patrón brief).
-  chk(_ESTADO_CACHE_TTL === 600 && _ESTADO_CACHE_TTL_WARM === 21600,
-      'D28c TTLs del estado espejan el patrón del brief (600s voz / 6h warm)');
+  chk(_ESTADO_CACHE_TTL === 3600 && _ESTADO_CACHE_TTL_WARM === 21600,
+      'D28c TTLs del estado espejan el patrón del brief (3600s voz — Problema B 24-ago — / 6h warm)');
   chk(String(corridaDiaria).indexOf('calentarEstadoCacheSistema_') >= 0,
       'D28c2 corridaDiaria calienta el cache del estado junto al del brief');
   chk(String(doPost).indexOf('estadoCacheado_') >= 0,

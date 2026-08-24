@@ -166,7 +166,7 @@ function briefDiario(idCliente) {
 // SPEC-GAS 14-jul (incidente 08:22 = doPost brief colgado 24-31s). El render de briefDiario es CARO:
 // estadoSalud() (los 6 chequeos de correrSalud) + Tareas entera. Bajo contención (CM polleando) el doPost
 // se iba a 30s+ y la voz colgaba. Read-only ⇒ solo TTL, sin invalidación. CacheService = strings ≤100KB.
-var _BRIEF_CACHE_TTL = 600;         // voz: 10 min (una consulta cada tanto reusa el render)
+var _BRIEF_CACHE_TTL = 3600;        // voz: 1h (Problema B 24-ago: con 600s casi todo pegaba frio; el warm horario lo sostiene)
 var _BRIEF_CACHE_TTL_WARM = 21600;  // corridaDiaria calienta 6h → la consulta de la mañana es HIT instantáneo
 
 /**
@@ -231,7 +231,7 @@ function verifBriefCache() {
 // y el render de SISTEMA es CARO (estadoSalud 6-7 chequeos + Tareas + telemetría) → el audio de
 // Sato se trababa ~14 s. MISMO patrón que el brief (SPEC-GAS 14-jul): cache corto para la ruta de
 // voz, warm en corridaDiaria, la UI puede seguir en vivo. Read-only ⇒ solo TTL, sin invalidación.
-var _ESTADO_CACHE_TTL = 600;         // voz: 10 min
+var _ESTADO_CACHE_TTL = 3600;        // voz: 1h (Problema B 24-ago, espejo del brief)
 var _ESTADO_CACHE_TTL_WARM = 21600;  // corridaDiaria calienta 6h → la consulta de la mañana es HIT
 
 /**
@@ -722,6 +722,63 @@ function briefDiarioCliente_(id) {
     instrumentacion: instrumentacion,
     cierre: cierre
   });
+}
+
+// ── Problema B (24-ago) — WARM HORARIO de los caches de VOZ ──────────────────
+// Medido 24-ago (gas_voz_client, 4 llamadas): brief frio 26,5s / estado frio 24,1s vs ~4s caliente.
+// El brief frio SUPERA el timeout de 25s del agente (_TIMEOUT_BACKEND_S en voz/agent/agent.py) y la
+// primera consulta de voz moria con el fallback hablable (le paso a Luciano con el brief de
+// Vehemence). El warm de corridaDiaria (07:00) solo cubria SISTEMA y la ventana matinal. Este
+// trigger HORARIO re-calienta SISTEMA + los clientes de Config `voz_warm_clientes` (CSV de ids,
+// default CLI-002) para que toda consulta de voz pegue caliente. Solo escribe CacheService
+// (read-only sobre el negocio). Costo: ~1 min de computo GAS por hora, dentro de cuota Workspace.
+var _CACHE_TTL_WARM_CLIENTE = 7200;  // 2h: acota lo stale si una corrida del trigger fallara
+
+/**
+ * Handler del trigger horario. Entry point de SISTEMA: alta en ENTRY_POINTS_SISTEMA
+ * (22_seguridad.js, invariante 2) en el MISMO commit. Orden invariante: _ctxSistema_() PRIMERO
+ * (un trigger no tiene usuario activo), _soloOwner_ DESPUES. Respeta el kill-switch #7.
+ */
+function calentarCachesVoz() {
+  _ctxSistema_();
+  _soloOwner_('calentarCachesVoz');
+  if (_sistemaPausado_()) return { ok: false, pausado: true };   // riel #7: en pausa no se calienta
+  var out = { ok: true, sistema: false, clientes: [] };
+  try { calentarBriefCacheSistema_(); calentarEstadoCacheSistema_(); out.sistema = true; }
+  catch (e) { try { Logger.log('warmVoz SISTEMA fallo: ' + e); } catch (_e) {} }
+  var csv = 'CLI-002';
+  try { csv = String(getConfig('voz_warm_clientes') || 'CLI-002'); } catch (e) { /* default */ }
+  csv.split(',').forEach(function (id) {
+    id = String(id || '').trim().toUpperCase();
+    if (!id) return;
+    try {
+      if (!clienteExiste_(id)) { out.clientes.push(id + ':desconocido'); return; }
+      var cache = CacheService.getScriptCache();
+      cache.put('brief_v1_' + id, briefDiarioCliente_(id), _CACHE_TTL_WARM_CLIENTE);
+      cache.put('estado_v1_' + id, estadoVigente(id), _CACHE_TTL_WARM_CLIENTE);
+      out.clientes.push(id + ':ok');
+    } catch (e) {
+      out.clientes.push(id + ':error');
+      try { Logger.log('warmVoz ' + id + ' fallo: ' + e); } catch (_e) {}
+    }
+  });
+  try { Logger.log('warmVoz: sistema=' + out.sistema + ' clientes=' + out.clientes.join(' ')); } catch (e) {}
+  return out;
+}
+
+/**
+ * Instala (idempotente) el trigger horario del warm de voz Y corre un warm ahora mismo.
+ * Correr UNA vez desde el editor (sin guion bajo: visible en el desplegable, regla dura 16-jul).
+ */
+function instalarWarmVoz() {
+  _soloOwner_('instalarWarmVoz');   // X4: top-level => invocable por RPC => puerta.
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'calentarCachesVoz') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('calentarCachesVoz').timeBased().everyHours(1).create();
+  var w = calentarCachesVoz();
+  Logger.log('Trigger warmVoz instalado (cada 1h) + warm inicial: ' + JSON.stringify(w));
+  return { ok: true, warm: w };
 }
 
 // ── MUST #3 — North Star de Satori (nivel sistema, en Config) ─────────────────
