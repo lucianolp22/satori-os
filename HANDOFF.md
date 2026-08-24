@@ -77,6 +77,13 @@
 > del agente (para la tool `encargar`); (2) RUNNER (cuando quieras ejecucion): `ENCARGOS_SECRET` en
 > Script Properties + `.env.local`, correr el cebo (crea el marcador), `HABILITADO=True`, prueba
 > manual, y opcional el launchd. Detalle: `voz/runner/README.md`.
+>
+> **24-ago (noche) — F2 PROBADO EN PROD @49 ✅.** `encargar` por voz creo ENC-0002 + su Aprobacion;
+> aprobar por voz (`decidir`) la persistio (verificado: "que aprobaciones tengo pendientes" = 0).
+> **Fix UI @50:** el Muelle del Akasha se refresca al volver de la pestana de la Voz
+> (`visibilitychange` + debounce 20s, reusa `refrescar()`). Borde conocido: `encargar` es escritura
+> pesada y puede timeoutear en frio (retry OK). **Runner sigue gateado** (falta cebo + HABILITADO).
+> ENC-0002 quedo `aprobado`: sera el primer encargo que levante el runner al encenderlo.
 
 ## Qué incluye exactamente este estado (a)
 

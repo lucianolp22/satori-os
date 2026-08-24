@@ -7558,10 +7558,10 @@ window.AKASHA = (function () {
      memoizadas del boot. Repuebla el universo y los docks. */
   /* Ronda 2 (FIX 4): guard in-flight. Ahora esto lo llama el polling de 15s y son SEIS llamadas
      al server por vuelta; sin guard, una vuelta lenta apila la siguiente y se pisan los DATA. */
-  var _refBusy = false;
+  var _refBusy = false, _ultRef = 0;
   function refrescar() {
     if (!AK.on || !EN_GAS || _refBusy) return;
-    _refBusy = true;
+    _refBusy = true; _ultRef = Date.now();
     var r = _rangoSemanaISO ? _rangoSemanaISO() : [iso(lunesDeEstaSemana()), iso(new Date(lunesDeEstaSemana().getTime() + 6 * 864e5))];
     Promise.all([
       pedir('estadoAgentes'), pedir('listaClientes'),
@@ -7836,6 +7836,9 @@ window.AKASHA = (function () {
     document.addEventListener('visibilitychange', function () {
       if (S.engine) S.engine.setVisible(!document.hidden);
       if (document.hidden) starsOff(); else if (AK.on) starsDraw(performance.now());
+      // 24-ago: volver de otra pestana (p.ej. la Voz) refresca el Muelle/estado — una accion por
+      // voz (aprobar, encargar) cambia datos que esta vista no ve en vivo. Debounce 20s + guard boot.
+      if (!document.hidden && AK.on && !AK.cargando && Date.now() - _ultRef > 20000) refrescar();
     });
 
     /* AKASHA-HOME (pedido Luciano 17-jul): el OS abre DIRECTO en la Oficina.
