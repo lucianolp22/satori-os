@@ -3058,10 +3058,25 @@ function _asertsD44_(chk, log, opts) {
   //     las columnas viejas de cualquier consumidor que algún día sí lea por posición.
   //     T1.e: el assert DERIVA la cola de la lista de columnas de Cartera en vez de clavar índices
   //     (`length - 2`), que fue justo lo que rompió D14g: agregar la 3ª columna corría el número.
+  //     17-ago (botón SGIC): el assert dejó de exigir que Cartera sea la COLA ABSOLUTA y pasó a
+  //     exigir que su bloque esté CONTIGUO y EN ORDEN. Motivo: clavar la cola convertía a Cartera
+  //     en un tapón — toda columna aditiva futura (`url_exec_cliente` fue la primera) rompía un
+  //     assert que en realidad protege el orden relativo, no el ser último. Lo que sí se sigue
+  //     prohibiendo es INSERTAR en el medio del bloque o reordenarlo.
   var d44c = MAESTRO_SHEETS.Clientes;
   var d44cols = ['etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde'];
-  chk(d44c.slice(-d44cols.length).join(',') === d44cols.join(','),
-      'D44a las columnas de Cartera van AL FINAL del schema de Clientes, en orden (aditivo) — cola: ' + d44c.slice(-d44cols.length).join(','));
+  var d44i = d44c.indexOf(d44cols[0]);
+  chk(d44i >= 0 && d44c.slice(d44i, d44i + d44cols.length).join(',') === d44cols.join(','),
+      'D44a las columnas de Cartera van en bloque CONTIGUO y en orden dentro de Clientes (aditivo) — bloque: ' +
+      (d44i >= 0 ? d44c.slice(d44i, d44i + d44cols.length).join(',') : 'NO ESTÁ'));
+
+  // (a2) 17-ago — `url_exec_cliente` (botón SGIC → /exec del cliente): declarada, AL FINAL y
+  //      DISTINTA de `url_sheet_cliente`. Las dos conviven: la hoja y el sistema no son lo mismo,
+  //      y confundirlas es justo el bug que este encargo vino a arreglar.
+  chk(d44c[d44c.length - 1] === 'url_exec_cliente',
+      'D44a2 url_exec_cliente es la última columna de Clientes (aditiva) — cola: ' + d44c[d44c.length - 1]);
+  chk(d44c.indexOf('url_sheet_cliente') >= 0 && d44c.indexOf('url_exec_cliente') !== d44c.indexOf('url_sheet_cliente'),
+      'D44a3 url_sheet_cliente (la hoja) sigue viva y es otra columna que url_exec_cliente (el sistema)');
 
   // (b) la hoja VIVA tiene las columnas. Si esto falla, `setup()` no corrió en el MAESTRO: es el
   //     mismo modo de fallo que `Correo_visto` en T7, y se arregla corriendo setup(), no tocando código.
@@ -3218,8 +3233,112 @@ var SELFTEST_TANDAS = [
   { n: 'D41 TC-7 (F4a administración propia)', f: _asertsD41_, tramo: 5 },
   { n: 'D43 BK-1 (backups migrados a Drive avanzado)', f: _asertsD43_, tramo: 5 },
   { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 },
-  { n: 'D44 E1 (cartera: pipeline comercial en el roster)', f: _asertsD44_, tramo: 5 }
+  { n: 'D44 E1 (cartera: pipeline comercial en el roster)', f: _asertsD44_, tramo: 5 },
+  { n: 'D45 E3 (SATORI HQ: ficha 360 propia con data real)', f: _asertsD45_, tramo: 5 }
 ];
+
+/**
+ * D45 · E3 SATORI HQ (18-ago) — la ficha 360 PROPIA. Lo que se asera acá es lo que puede
+ * DRIFTEAR en silencio: los schemas nuevos, el gate de los endpoints, y sobre todo el
+ * AISLAMIENTO de la PII (que un refactor descuidado mande el checklist de Luciano a un Sheet
+ * cliente no lo canta ningún test funcional — la app seguiría "andando").
+ */
+function _asertsD45_(chk, log, opts) {
+  // (a) los tres schemas existen y declaran sus columnas de contrato.
+  var D45SCH = {
+    checklist_propia: ['id_item', 'capa', 'texto', 'recurrencia', 'estado', 'orden', 'fecha_check'],
+    objetivos_propios: ['id_obj', 'eje', 'horizonte', 'nombre', 'flow_pct', 'metrica', 'actual', 'meta', 'sgic_sugiere', 'estado'],
+    recurrentes_propios: ['id_rec', 'id_cliente', 'cliente', 'servicio', 'importe', 'moneda', 'estado', 'notas']
+  };
+  Object.keys(D45SCH).forEach(function (h) {
+    chk(!!MAESTRO_SHEETS[h], 'D45a schema `' + h + '` declarado en MAESTRO_SHEETS');
+    if (!MAESTRO_SHEETS[h]) return;
+    var faltan = D45SCH[h].filter(function (c) { return MAESTRO_SHEETS[h].indexOf(c) < 0; });
+    chk(faltan.length === 0, 'D45a2 `' + h + '` declara sus columnas de contrato' +
+        (faltan.length ? ' — FALTAN: ' + faltan.join(', ') : ''));
+  });
+
+  // (b) LAZY a propósito: fuera de MAESTRO_ORDEN. Meterlas ahí las volvería obligatorias en todo
+  //     MAESTRO y `correrSalud` las reportaría faltantes hasta correr setup — ruido, no señal.
+  //     (D32a1 asera lo inverso: que todo lo que SÍ está en MAESTRO_ORDEN tenga schema.)
+  Object.keys(D45SCH).forEach(function (h) {
+    chk(MAESTRO_ORDEN.indexOf(h) < 0, 'D45b `' + h + '` es LAZY (fuera de MAESTRO_ORDEN)');
+  });
+
+  // (c) 🔒 AISLAMIENTO DE PII — el assert que más importa de este bloque. El checklist, los
+  //     objetivos y los recurrentes son datos personales de Luciano: viven en el MAESTRO y NUNCA
+  //     en el Sheet de un cliente. Si alguien los agrega a CLIENTE_SHEETS, se replicarían a cada
+  //     tenant en el próximo alta y nadie se enteraría hasta ver la PII en el Drive de un cliente.
+  Object.keys(D45SCH).forEach(function (h) {
+    chk(!CLIENTE_SHEETS[h], 'D45c 🔒 `' + h + '` NO está en CLIENTE_SHEETS (PII de Luciano, jamás a un tenant)');
+    chk(CLIENTE_ORDEN.indexOf(h) < 0, 'D45c2 🔒 `' + h + '` NO está en CLIENTE_ORDEN');
+  });
+
+  // (d) los 6 endpoints gateados y declarados. Mismo criterio anti-drift que D32a4.
+  ['hqHoy', 'hqChecklist', 'hqChecklistToggle', 'hqObjetivos', 'hqNumeros', 'sembrarHQ'].forEach(function (fn) {
+    chk(ENDPOINTS_UI.indexOf(fn) >= 0, 'D45d ' + fn + ' dado de alta en ENDPOINTS_UI (regla anti-drift)');
+    chk(_tieneGate_(fn) === 'ok', 'D45d2 ' + fn + ' tiene gate _soloOwner_');
+  });
+
+  // (e) la recurrencia es la que decide si un tilde VIEJO sigue valiendo. Juicio puro, sin Sheets:
+  //     un check de ayer en una rutina diaria NO puede pintar verde el checklist de hoy.
+  var d45hoy = hoyISO();
+  var d45ayer = aFechaISO(new Date(new Date(d45hoy + 'T00:00:00Z').getTime() - 86400000));
+  chk(_hqCheckVigente_(d45hoy, '1d') === true, 'D45e tilde de HOY vigente en rutina diaria');
+  chk(_hqCheckVigente_(d45ayer, '1d') === false, 'D45e2 tilde de AYER ya NO vale en rutina diaria (vuelve a pendiente)');
+  chk(_hqCheckVigente_(d45ayer, '1s') === true, 'D45e3 el mismo tilde de ayer SÍ vale en una semanal');
+  chk(_hqCheckVigente_('', '1d') === false, 'D45e4 sin fecha_check no hay tilde vigente (vacío ≠ hecho)');
+
+  // (f) `sembrarHQ` es idempotente: la segunda corrida no duplica. Es el invariante de todo
+  //     importador del proyecto (regla canónica GAS+Sheets) y la única forma de que Luciano
+  //     pueda re-correrla sin miedo desde el dropdown del editor.
+  if (opts && opts.completo) {
+    var s1 = sembrarHQ();
+    var s2 = sembrarHQ();
+    chk(s2.checklist === 0 && s2.objetivos === 0 && s2.recurrentes === 0,
+        'D45f sembrarHQ es IDEMPOTENTE — 2ª corrida agrega 0 (fue ' +
+        s2.checklist + '/' + s2.objetivos + '/' + s2.recurrentes + ')');
+    log.push('D45f siembra 1ª corrida: ' + JSON.stringify(s1));
+
+    // (g) el toggle escribe y REVIERTE — el único write path del HQ, probado ida y vuelta.
+    var chkData = hqChecklist();
+    var primer = null;
+    (chkData.capas || []).forEach(function (c) {
+      if (!primer && (chkData.items[c] || []).length) primer = chkData.items[c][0];
+    });
+    if (primer) {
+      var antes = !!primer.hecho;
+      var t1 = hqChecklistToggle(primer.id_item);
+      chk(t1.ok === true && (t1.estado === 'hecho') !== antes, 'D45g hqChecklistToggle invierte el estado del ítem');
+      var t2 = hqChecklistToggle(primer.id_item);
+      chk(t2.ok === true && (t2.estado === 'hecho') === antes, 'D45g2 el segundo toggle DEVUELVE el estado original (sin residuo)');
+    } else {
+      chk(false, 'D45g no hay ítem de checklist para probar el toggle (¿sembrarHQ falló?)');
+    }
+    chk(hqChecklistToggle('NO-EXISTE-0000').ok === false, 'D45g3 un id inexistente NO escribe y devuelve el motivo');
+
+    // (h) los recurrentes NO se suman entre monedas y la propuesta no cuenta como ingreso.
+    var num = hqNumeros();
+    var monedas = (num.por_moneda || []).map(function (m) { return m.moneda; });
+    chk(monedas.length === _d45Unicos_(monedas), 'D45h hay UN subtotal por moneda (sin total global)');
+    var propuestas = (num.recurrentes || []).filter(function (r) { return r.estado !== 'activo'; });
+    if (propuestas.length) {
+      var mp = propuestas[0].moneda;
+      var sub = (num.por_moneda || []).filter(function (m) { return m.moneda === mp; })[0];
+      var sumaActivos = (num.recurrentes || []).filter(function (r) { return r.moneda === mp && r.estado === 'activo'; })
+        .reduce(function (a, r) { return a + Number(r.importe || 0); }, 0);
+      chk(!sub || Math.abs(sub.subtotal - sumaActivos) < 0.01,
+          'D45h2 el subtotal de ' + mp + ' EXCLUYE las propuestas (una propuesta no es ingreso)');
+    }
+  }
+}
+
+/** Cardinalidad de valores únicos — helper local de D45h (sin Set: GAS corre ES5). */
+function _d45Unicos_(arr) {
+  var vistos = {}, n = 0;
+  (arr || []).forEach(function (v) { if (!vistos[v]) { vistos[v] = 1; n++; } });
+  return n;
+}
 
 /**
  * Los tramos. El 1 es el bloque HISTÓRICO (el cuerpo de `selfTest()`: E1-E8 + D1-D13), que no se

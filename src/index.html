@@ -2011,6 +2011,9 @@ function fechaHoraDosLineas(iso){
 function saludoHora(){var h=new Date().getHours();return h<6?'Buenas noches':h<13?'Buenos días':h<20?'Buenas tardes':'Buenas noches';}
 // PURGA #10: solo aceptar http(s) en href; cualquier otro esquema (javascript:, data:) → ''.
 function safeUrl(u){return /^https?:\/\//i.test(String(u||''))?String(u):'';}
+/* /exec de un SGIC de cliente: además de protocolo, exige HTTPS y host script.google.com —
+   una URL de cualquier otro dominio en esa celda del MAESTRO no se abre (Bastión, 17-ago). */
+function safeExecUrl(u){var s=String(u||'');return /^https:\/\/script\.google\.com\//i.test(s)?s:'';}
 
 var ESTADO_KIND={activo:'success','activo-piloto':'info',potencial:'warning',pausado:''};
 
@@ -3989,7 +3992,7 @@ function fichaCargar_(id){
       var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
     return;
   }
-  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null; F360.sheetUrl='';
+  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null; F360.sheetUrl=''; F360.execUrl='';
   f360Tiles_(); f360Orbe_();   // v2/v3: stats y orbe arrancan en "cargando" y se completan fuente a fuente
   google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); f360Sug_(); f360Nov_(); f360Bit_(); if(FC){f360Plan_(DC,FC);f360Num_(FC);} })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; DC='err'; F360.dc='err';
@@ -4801,7 +4804,7 @@ function f360Bit_(){
   });
 }
 function f360Cabecera_(d){
-  var c=(d&&d.cliente)||{}; F360.sheetUrl=(c.url_sheet_cliente||'');
+  var c=(d&&d.cliente)||{}; F360.sheetUrl=(c.url_sheet_cliente||''); F360.execUrl=safeExecUrl(c.url_exec_cliente);
   var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'), est=document.getElementById('f360Estado');
   if(nom)nom.textContent=c.nombre||F360.id;
   if(sub)sub.textContent=(c.id_cliente||'')+' · '+(c.rubro||'—')+(c.responsable?' · '+c.responsable:'');
@@ -4897,10 +4900,12 @@ function f360NotaProy_(p){
 /* FILA 2 — Números: KPIs del tenant + operación reciente que escribió el conector. */
 function f360Num_(fc){
   var cont=document.getElementById('f360Num'); if(!cont)return; clear(cont);
-  // Acceso directo al SGIC del cliente (arriba, prominente) — dato en vivo + un clic al Sheet.
-  if(F360.sheetUrl){ var acc=el('button','f360-sgic-btn'); acc.type='button';
-    acc.appendChild(document.createTextNode('\u25a4 Abrir el SGIC del cliente'));
-    acc.onclick=function(){ window.open(F360.sheetUrl,'_blank'); }; cont.appendChild(acc); }
+  // Entrada al SGIC del cliente: su /exec (el sistema), NO la hoja — el Sheet sigue accesible
+  // desde el botón de cabecera. Sin URL cargada NO se renderiza: un botón muerto miente.
+  if(F360.execUrl){ var acc=el('button','f360-sgic-btn'); acc.type='button';
+    acc.appendChild(document.createTextNode('\u25b6 Entrar al SGIC del cliente'));
+    acc.onclick=function(){ var u=safeExecUrl(F360.execUrl); if(u)window.open(u,'_blank','noopener'); };
+    cont.appendChild(acc); }
   if(!fc||!fc.ok){ f360Vacio_(cont,(fc&&fc.error)||'SGIC no accesible.'); return; }
   var n=document.getElementById('f360NumN'); if(n)n.textContent=fc.kpis.length+' KPI \u00b7 '+fc.operacion.length+' mov';
   // ── Indicadores (KPIs) con barra de progreso real cuando hay objetivo ──

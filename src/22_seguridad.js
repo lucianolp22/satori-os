@@ -155,6 +155,10 @@ var ENDPOINTS_UI = [
   'crearProyecto',
   // 08_webapp.js — A.2 (07-ago): archivar tareas (columna booleana, ortogonal a estado)
   'archivarTarea', 'desarchivarTarea', 'tareasArchivadas',
+  // 08_webapp.js — E3 SATORI HQ (18-ago): las 5 lecturas de la ficha propia + el ÚNICO write
+  // path (el tilde del checklist) + la siembra. `sembrarHQ` no la llama el front, pero es
+  // top-level ⇒ RPC-invocable ⇒ gateada igual (invariante X2).
+  'hqHoy', 'hqChecklist', 'hqChecklistToggle', 'hqObjetivos', 'hqNumeros', 'sembrarHQ',
   // 18_direccion.js
   'agendaRango', 'recomendacionesAbiertas', 'marcarRecomendacion', 'registrarFeedback',
   'aprobacionDesdeRecomendacion',

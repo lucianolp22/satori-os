@@ -839,7 +839,9 @@ function datosCliente(idCliente) {
     cliente: {
       id_cliente: cli.id_cliente, nombre: cli.nombre, rubro: cli.rubro, estado: cli.estado,
       responsable: cli.responsable_lado_cliente, fecha_alta: aFechaISO(cli.fecha_alta),
-      url_sheet_cliente: cli.url_sheet_cliente
+      url_sheet_cliente: cli.url_sheet_cliente,
+      // /exec del sistema propio del cliente (17-ago). Vacío = no tiene ⇒ la UI oculta el botón.
+      url_exec_cliente: cli.url_exec_cliente || ''
     },
     proyectos: proyectos,
     proximos_pasos: proximos,
@@ -1927,4 +1929,341 @@ function aHoraLegible_(v) {
     return Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm');
   }
   return String(v).replace('T', ' ').substring(0, 16);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E3 · SATORI HQ (18-ago) — la Ficha 360 PROPIA de Luciano (`?v=hq` → hq.html)
+//
+// Cinco endpoints de LECTURA + uno de escritura (el tilde del checklist). Todos `_soloOwner_`
+// y dados de alta en ENDPOINTS_UI en ESTE commit (regla anti-drift D31/D24c).
+//
+// ⚠ BASTIÓN — PII: `checklist_propia`, `objetivos_propios` y `recurrentes_propios` son datos
+// PERSONALES de Luciano. Viven SOLO en el MAESTRO (tenant CLI-000) y jamás en un Sheet cliente.
+// El aislamiento §2 corre en las dos direcciones: ningún tenant ve esto, y esto no viaja a
+// ningún tenant.
+//
+// REGLA DE COMPOSICIÓN: acá NO se re-implementa lógica. `hqHoy` compone de `datosHoy`,
+// `northStarSatori_`, `_serieNorte_` y `_focoPaz*_`; `hqNumeros` de `_adminResumenCacheado_` y
+// `estadoSalud`. Duplicar el cálculo sería crear una segunda fuente de verdad para el mismo
+// número, que es exactamente el modo de fallo que el proyecto viene pagando caro.
+//
+// FAIL-CLOSED POR SECCIÓN (patrón `bootUnico` D17h): cada bloque va en su try. Si uno revienta,
+// vuelve en null CON motivo y los otros sobreviven. La UI pinta vacío honesto, nunca un número
+// inventado ni una solapa que parezca en orden estando rota.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Hoja lazy del HQ: se crea a demanda (no está en MAESTRO_ORDEN). null si no hay schema. */
+function _hqHoja_(nombre) {
+  if (!MAESTRO_SHEETS[nombre]) return null;   // sin schema no se inventa la hoja
+  return ensureSheet(getMaestro(), nombre, MAESTRO_SHEETS[nombre]);
+}
+
+/** ¿El tilde es de HOY? Un check viejo no puede pintar verde el checklist de hoy. */
+function _hqCheckVigente_(fechaCheck, recurrencia) {
+  var f = aFechaISO(fechaCheck);
+  if (!f) return false;
+  var hoy = hoyISO();
+  var r = String(recurrencia || '1d').toLowerCase();
+  if (r === '1d') return f === hoy;
+  // Para recurrencias más largas el tilde vale mientras no se cumpla el ciclo. Se compara en días
+  // por diferencia de fechas ISO — sin husos ni Date aritmético, que es de donde salen los off-by-one.
+  var dias = { '1s': 7, '2s': 14, '1m': 30 }[r] || 1;
+  var d1 = new Date(f + 'T00:00:00Z').getTime(), d2 = new Date(hoy + 'T00:00:00Z').getTime();
+  if (isNaN(d1) || isNaN(d2)) return false;
+  return Math.floor((d2 - d1) / 86400000) < dias;
+}
+
+/**
+ * hqHoy() — solapa «Hoy». Compone de las fuentes vivas; no calcula nada propio.
+ * North Star (anillo) + serie 30d (sparkline) + próximas 3 del Director + chips + guardián.
+ */
+function hqHoy() {
+  _soloOwner_('hqHoy');
+  var out = { ns: null, serie: [], proximas: [], chips: null, guardian: null, errores: {} };
+
+  try {
+    var ns = northStarSatori_();
+    if (ns) out.ns = { desc: ns.desc, metrica: ns.metrica, actual: Number(ns.actual) || 0,
+                       meta: ns.meta == null ? null : Number(ns.meta), horizonte: ns.horizonte || '' };
+  } catch (e) { out.errores.ns = String((e && e.message) || e); }
+
+  try {
+    // Últimos 30 puntos: la serie es la película, pero el sparkline no dibuja dos años.
+    out.serie = _serieNorte_().slice(-30);
+  } catch (e) { out.errores.serie = String((e && e.message) || e); }
+
+  try {
+    var dh = datosHoy();
+    // Las 3 que MOVERÍAN hoy: `datosHoy` ya las devuelve ordenadas por el criterio del Director.
+    out.proximas = (dh.proximos_pasos || []).slice(0, 3).map(function (t) {
+      return { descripcion: t.descripcion, prioridad: t.prioridad, vencida: !!t.vencida,
+               id_cliente: t.id_cliente || '', fecha_limite: t.fecha_limite || '' };
+    });
+    var nAprob = 0;
+    Object.keys(dh.aprobaciones_por_patron || {}).forEach(function (k) {
+      nAprob += (dh.aprobaciones_por_patron[k] || []).length;
+    });
+    var nBandeja = 0;
+    try {
+      nBandeja = leerTabla(getMaestro().getSheetByName('Bandeja')).filter(function (b) {
+        return String(b.estado || '').toLowerCase() === 'escalado';
+      }).length;
+    } catch (_b) { nBandeja = 0; }
+    out.chips = { aprobaciones: nAprob, escalados: nBandeja, avisos: (dh.avisos || []).length };
+  } catch (e) { out.errores.hoy = String((e && e.message) || e); }
+
+  try {
+    // Guardián: el MISMO evaluador que corre en corridaDiaria, en seco (no escribe aviso).
+    var u = _focoPazUmbrales_();
+    var g = _focoPazEvaluar_(_focoPazMetricas_(u), u);
+    out.guardian = { hay: !!g.hay, senales: g.senales || [], recomendacion: g.recomendacion || '', motivo: g.motivo || '' };
+  } catch (e) { out.errores.guardian = String((e && e.message) || e); }
+
+  return out;
+}
+
+/**
+ * hqChecklist() — rutinas propias agrupadas por capa, en el orden declarado.
+ * `hecho` es DERIVADO: la fila dice `estado`+`fecha_check`, pero lo que la UI pinta es si el
+ * tilde sigue VIGENTE para su recurrencia. Un tilde de ayer en una rutina diaria vuelve a
+ * pendiente sin que nadie tenga que barrer la hoja.
+ */
+function hqChecklist() {
+  _soloOwner_('hqChecklist');
+  var CAPAS = ['diaria_manana', 'diaria_cierre', 'semanal'];
+  var out = { capas: CAPAS, items: {}, total: 0, hechos: 0, error: '' };
+  CAPAS.forEach(function (c) { out.items[c] = []; });
+  try {
+    var sh = _hqHoja_('checklist_propia');
+    if (!sh) return { capas: CAPAS, items: out.items, total: 0, hechos: 0, error: 'schema checklist_propia ausente' };
+    leerTabla(sh).forEach(function (f) {
+      var capa = String(f.capa || '').trim();
+      if (CAPAS.indexOf(capa) < 0) return;   // una capa que no está en la lista-contrato no se pinta
+      var hecho = String(f.estado || '').toLowerCase() === 'hecho' && _hqCheckVigente_(f.fecha_check, f.recurrencia);
+      out.items[capa].push({
+        id_item: String(f.id_item || ''),
+        texto: limpiarHostilTexto_(String(f.texto || ''), 160),
+        recurrencia: String(f.recurrencia || '1d'),
+        orden: Number(f.orden) || 0,
+        hecho: hecho
+      });
+      out.total++; if (hecho) out.hechos++;
+    });
+    CAPAS.forEach(function (c) { out.items[c].sort(function (a, b) { return a.orden - b.orden; }); });
+  } catch (e) { out.error = String((e && e.message) || e); }
+  return out;
+}
+
+/**
+ * hqChecklistToggle(idItem) — tilda/destilda una rutina. ÚNICO write path del HQ.
+ * Escribe `estado` + `fecha_check` en la fila propia. No crea ítems (eso es la Bandeja) y no
+ * toca ninguna otra hoja.
+ */
+function hqChecklistToggle(idItem) {
+  _soloOwner_('hqChecklistToggle');
+  var id = String(idItem || '').trim();
+  if (!id) return { ok: false, error: 'sin id_item' };
+  var sh = _hqHoja_('checklist_propia');
+  if (!sh) return { ok: false, error: 'checklist_propia no existe' };
+  var filas = leerTabla(sh);
+  var cols = MAESTRO_SHEETS.checklist_propia;
+  for (var i = 0; i < filas.length; i++) {
+    if (String(filas[i].id_item) !== id) continue;
+    var vigente = String(filas[i].estado || '').toLowerCase() === 'hecho' &&
+                  _hqCheckVigente_(filas[i].fecha_check, filas[i].recurrencia);
+    var nuevo = vigente ? 'pendiente' : 'hecho';
+    var fila = i + 2;   // +1 encabezado, +1 base-1
+    sh.getRange(fila, cols.indexOf('estado') + 1).setValue(nuevo);
+    sh.getRange(fila, cols.indexOf('fecha_check') + 1).setValue(nuevo === 'hecho' ? hoyISO() : '');
+    return { ok: true, id_item: id, estado: nuevo, fecha_check: nuevo === 'hecho' ? hoyISO() : '' };
+  }
+  return { ok: false, error: 'id_item no encontrado: ' + id };
+}
+
+/** hqObjetivos() — 4 ejes × 3 horizontes. `sgic_sugiere` lo escribe el Director; acá solo se lee. */
+function hqObjetivos() {
+  _soloOwner_('hqObjetivos');
+  var EJES = ['profesional', 'calidad_vida', 'finanzas', 'oportunidades'];
+  var HZ = ['corto', 'mediano', 'largo'];
+  var out = { ejes: EJES, horizontes: HZ, por_horizonte: {}, total: 0, error: '' };
+  HZ.forEach(function (h) { out.por_horizonte[h] = []; });
+  try {
+    var sh = _hqHoja_('objetivos_propios');
+    if (!sh) return { ejes: EJES, horizontes: HZ, por_horizonte: out.por_horizonte, total: 0, error: 'schema objetivos_propios ausente' };
+    leerTabla(sh).forEach(function (f) {
+      if (String(f.estado || '').toLowerCase() === 'archivado') return;
+      var hz = String(f.horizonte || '').trim();
+      if (HZ.indexOf(hz) < 0) return;
+      var eje = String(f.eje || '').trim();
+      out.por_horizonte[hz].push({
+        id_obj: String(f.id_obj || ''),
+        eje: EJES.indexOf(eje) >= 0 ? eje : '',   // un eje fuera de la lista-contrato no pinta color inventado
+        nombre: limpiarHostilTexto_(String(f.nombre || ''), 120),
+        flow_pct: Math.max(0, Math.min(100, Number(f.flow_pct) || 0)),
+        metrica: limpiarHostilTexto_(String(f.metrica || ''), 80),
+        actual: String(f.actual == null ? '' : f.actual),
+        meta: String(f.meta == null ? '' : f.meta),
+        sgic_sugiere: limpiarHostilTexto_(String(f.sgic_sugiere || ''), 240)
+      });
+      out.total++;
+    });
+  } catch (e) { out.error = String((e && e.message) || e); }
+  return out;
+}
+
+/**
+ * hqNumeros() — recurrentes POR MONEDA (jamás un total global: dos monedas no se suman) +
+ * operación del OS. El subtotal se calcula por moneda y SOLO sobre `estado=activo`: una
+ * propuesta en curso no es ingreso.
+ */
+function hqNumeros() {
+  _soloOwner_('hqNumeros');
+  var out = { recurrentes: [], por_moneda: [], admin: null, operacion: null, errores: {} };
+
+  try {
+    var sh = _hqHoja_('recurrentes_propios');
+    if (!sh) throw new Error('schema recurrentes_propios ausente');
+    var acc = {};
+    leerTabla(sh).forEach(function (f) {
+      var moneda = String(f.moneda || '').trim().toUpperCase();
+      if (!moneda) return;   // sin moneda declarada la fila NO entra: es el bug B8 otra vez
+      var importe = Number(f.importe) || 0;
+      var estado = String(f.estado || 'activo').toLowerCase();
+      out.recurrentes.push({
+        id_rec: String(f.id_rec || ''), id_cliente: String(f.id_cliente || ''),
+        cliente: limpiarHostilTexto_(String(f.cliente || ''), 60),
+        servicio: limpiarHostilTexto_(String(f.servicio || ''), 80),
+        importe: importe, moneda: moneda, estado: estado,
+        notas: limpiarHostilTexto_(String(f.notas || ''), 80)
+      });
+      if (estado !== 'activo') return;   // las propuestas se listan, no se suman
+      acc[moneda] = (acc[moneda] || 0) + importe;
+    });
+    out.por_moneda = Object.keys(acc).sort().map(function (m) { return { moneda: m, subtotal: acc[m] }; });
+  } catch (e) { out.errores.recurrentes = String((e && e.message) || e); }
+
+  try {
+    var r = _adminResumenCacheado_();
+    // Sin facturación cargada el motor está pero los datos no — se DICE, no se pinta un 0 alegre.
+    out.admin = r ? { mes: r.mes, grupos: r.grupos || [], sin_datos: !!r.sin_datos, motivo: r.motivo || '' }
+                  : { mes: hoyISO().slice(0, 7), grupos: [], sin_datos: true,
+                      motivo: 'sin resumen de administración cacheado (corré adminRefrescarResumen_ o cargá facturas)' };
+  } catch (e) { out.errores.admin = String((e && e.message) || e); }
+
+  try {
+    // Gasto del mes: se AGREGA de `Costos_API_consolidado` (lo que dejó `consolidarCostosMes`).
+    // No se abre ningún Sheet cliente acá — el HQ es lectura barata, no una corrida de costos.
+    var mes = hoyISO().slice(0, 7);
+    var api = { mes: mes, llamadas: 0, tokens: 0, usd: 0, tope_usd: null };
+    try {
+      leerTabla(getMaestro().getSheetByName('Costos_API_consolidado')).forEach(function (f) {
+        if (String(f.mes || '').slice(0, 7) !== mes) return;
+        api.llamadas += Number(f.llamadas) || 0;
+        api.tokens += Number(f.tokens) || 0;
+        api.usd += Number(f.USD) || 0;
+      });
+      var tope = parseFloat(getConfig('presupuesto_usd_total'));
+      api.tope_usd = isFinite(tope) && tope > 0 ? tope : null;   // sin tope configurado se DICE null, no se inventa 25
+    } catch (_c) { api = null; }
+
+    var sal = null;
+    try { sal = estadoSalud(); } catch (_s) { sal = null; }
+
+    out.operacion = {
+      api: api,
+      integridad: sal ? sal.integridad : null,
+      salud_global: sal ? sal.global : '',
+      // Sello que deja `_ejecutarBackup_` (21_backup.js:179). Vacío = todavía no corrió: se dice.
+      backup_ts: getConfig('backup_ultimo_ts') || '',
+      backup_resumen: getConfig('backup_ultimo_resumen') || '',
+      ultima_sync_ok: getConfig('ultima_sync_ok') || '',
+      ultima_sync_estado: getConfig('ultima_sync_estado') || ''
+    };
+  } catch (e) { out.errores.operacion = String((e && e.message) || e); }
+
+  return out;
+}
+
+/**
+ * sembrarHQ() — siembra las tres hojas propias con los valores que Luciano aprobó en la maqueta v3.
+ * IDEMPOTENTE por id (patrón `sembrarNorthStarSatori_`/`sembrarConectoresHallados`): corrida dos
+ * veces no duplica ni pisa lo que ya se editó a mano en la hoja. Acto humano de un clic desde el
+ * dropdown del editor — no corre sola en ninguna corrida.
+ *
+ * ⚠ La semilla es el PUNTO DE PARTIDA, no la verdad permanente: el checklist y los objetivos son
+ * de Luciano y se editan en la hoja. Por eso solo agrega lo que falta.
+ */
+function sembrarHQ() {
+  _soloOwner_('sembrarHQ');
+  var out = { checklist: 0, objetivos: 0, recurrentes: 0 };
+
+  var CHK = [
+    ['CHK-0001', 'diaria_manana', 'Meditación / respiración (10 min)', '1d', 10],
+    ['CHK-0002', 'diaria_manana', 'Leer el brief del OS y elegir LA prioridad', '1d', 20],
+    ['CHK-0003', 'diaria_manana', 'Revisar aprobaciones pendientes', '1d', 30],
+    ['CHK-0004', 'diaria_cierre', 'Registrar lo trabajado por cliente (cierre de sesión Sato)', '1d', 10],
+    ['CHK-0005', 'diaria_cierre', 'Capturar pendientes sueltos a la Bandeja', '1d', 20],
+    ['CHK-0006', 'semanal', 'Revisión de objetivos (viernes) — mover flows', '1s', 10],
+    ['CHK-0007', 'semanal', '2 contactos comerciales de la cartera tibia', '1s', 20]
+  ];
+  var shC = _hqHoja_('checklist_propia');
+  if (shC) {
+    var yaC = {};
+    leerTabla(shC).forEach(function (f) { yaC[String(f.id_item)] = true; });
+    CHK.forEach(function (r) {
+      if (yaC[r[0]]) return;
+      appendFila(shC, { id_item: r[0], capa: r[1], texto: r[2], recurrencia: r[3],
+                        estado: 'pendiente', orden: r[4], fecha_check: '' });
+      out.checklist++;
+    });
+  }
+
+  // flow_pct/actual/meta son los de la maqueta aprobada; `sgic_sugiere` lo re-escribe el Director.
+  var OBJ = [
+    ['OBJ-0001', 'profesional', 'corto', '6 clientes pagos en paralelo', 83, 'clientes_pagos_paralelo', '5', '6',
+     'La #6 no es un desconocido — formalizá Vehemence (piloto desde junio, sin fecha).'],
+    ['OBJ-0002', 'finanzas', 'corto', 'Ingresos recurrentes > €2.000/mes', 62, 'ingresos_recurrentes_mes_eur', '1322', '2000',
+     '1 retención Nivel 1 (300–500 €) de la cartera tibia cierra el gap.'],
+    ['OBJ-0003', 'profesional', 'mediano', 'SGIC como producto replicable', 55, 'sgic_instalados', '4', '12',
+     'El patrón portal-token ya se reusó 3×: empaquetalo como oferta estándar.'],
+    ['OBJ-0004', 'calidad_vida', 'mediano', 'Semana sostenible (paz > sprint)', 70, '', '', '',
+     'Esta semana el techo es 2 contactos fríos — no lo subas por ansiedad.'],
+    ['OBJ-0005', 'finanzas', 'largo', 'Empresa y vida más libres y alineadas', 35, '', '', '',
+     'El fin no es facturar más: medí también paz, salud y propósito acá.'],
+    ['OBJ-0006', 'oportunidades', 'largo', 'Radar de oportunidades vivo', 40, '', '', '',
+     'Los escalados de Bandeja pueden esconder leads — triage antes de descartar.']
+  ];
+  var shO = _hqHoja_('objetivos_propios');
+  if (shO) {
+    var yaO = {};
+    leerTabla(shO).forEach(function (f) { yaO[String(f.id_obj)] = true; });
+    OBJ.forEach(function (r) {
+      if (yaO[r[0]]) return;
+      appendFila(shO, { id_obj: r[0], eje: r[1], horizonte: r[2], nombre: r[3], flow_pct: r[4],
+                        metrica: r[5], actual: r[6], meta: r[7], sgic_sugiere: r[8], estado: 'activo' });
+      out.objetivos++;
+    });
+  }
+
+  // ⚠ Importes de la maqueta aprobada. `+IVA` va en `notas`, NUNCA dentro de `importe`: un importe
+  // que a veces lleva texto es un número que no se puede sumar.
+  var REC = [
+    ['REC-0001', 'CLI-007', 'EJF + Figueras Music', 'Asesoramiento + SGIC', 400, 'EUR', 'activo', ''],
+    ['REC-0002', 'CLI-004', 'DAM Barbers', 'Asesoramiento + SGIC', 600, 'EUR', 'activo', '+IVA'],
+    ['REC-0003', 'CLI-003', 'LC Travel', 'Asesoramiento + SGIC', 350, 'USD', 'activo', ''],
+    ['REC-0004', 'CLI-002', 'Vehemence', 'Asesoramiento + SGIC', 250, 'USD', 'propuesta', 'propuesta en curso — no suma']
+  ];
+  var shR = _hqHoja_('recurrentes_propios');
+  if (shR) {
+    var yaR = {};
+    leerTabla(shR).forEach(function (f) { yaR[String(f.id_rec)] = true; });
+    REC.forEach(function (r) {
+      if (yaR[r[0]]) return;
+      appendFila(shR, { id_rec: r[0], id_cliente: r[1], cliente: r[2], servicio: r[3],
+                        importe: r[4], moneda: r[5], estado: r[6], notas: r[7] });
+      out.recurrentes++;
+    });
+  }
+
+  return out;
 }

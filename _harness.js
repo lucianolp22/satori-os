@@ -2099,8 +2099,29 @@ seccion('P3 tramos del selfTest');
   // T1.e: las 3 nuevas se apilaron DETRÁS de las de T1. El assert deriva la posición de la lista
   // (`slice(-N)`) en vez de clavar índices: el que agregue la 4ª no tiene que venir a arreglarlo.
   const T1E = ['etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde'];
-  chk(cols.slice(-T1E.length).join(',') === T1E.join(','),
-      'E-c las columnas de Cartera son las ÚLTIMAS de Clientes, en orden (aditivo) — cola actual: ' + cols.slice(-T1E.length).join(','));
+  // 17-ago (botón SGIC): de «son las ÚLTIMAS» a «van en bloque contiguo y en orden». Exigir la cola
+  // absoluta hacía de Cartera un tapón para toda columna aditiva posterior — que es lo contrario de
+  // lo que el assert protege. Sigue prohibido insertar en el medio del bloque o reordenarlo.
+  const iT1E = cols.indexOf(T1E[0]);
+  chk(iT1E >= 0 && cols.slice(iT1E, iT1E + T1E.length).join(',') === T1E.join(','),
+      'E-c las columnas de Cartera van en bloque CONTIGUO y en orden dentro de Clientes (aditivo) — bloque: ' +
+      (iT1E >= 0 ? cols.slice(iT1E, iT1E + T1E.length).join(',') : 'NO ESTÁ'));
+
+  // Botón SGIC (17-ago): `url_exec_cliente` = /exec del sistema propio del cliente. Distinta de
+  // `url_sheet_cliente` (la hoja) y última del schema. Y el front no puede abrirla a ciegas: el
+  // guard `safeExecUrl` es lo que impide que una celda del MAESTRO mande a cualquier dominio.
+  chk(cols[cols.length - 1] === 'url_exec_cliente',
+      'E-c url_exec_cliente es la última columna de Clientes (aditiva) — cola: ' + cols[cols.length - 1]);
+  chk(cols.indexOf('url_sheet_cliente') >= 0 && cols.indexOf('url_sheet_cliente') !== cols.indexOf('url_exec_cliente'),
+      'E-c url_sheet_cliente (la hoja) y url_exec_cliente (el sistema) son columnas DISTINTAS');
+  chk(/function safeExecUrl\(/.test(idx) && /script\\\.google\\\.com/.test(idx),
+      'E-c 🔒 safeExecUrl existe y ancla el host en script.google.com (no abre otro dominio)');
+  chk(/F360\.execUrl\s*=\s*safeExecUrl\(/.test(idx),
+      'E-c la ficha 360 pasa url_exec_cliente por safeExecUrl al cargar la cabecera');
+  chk(/if\(F360\.execUrl\)\{[\s\S]{0,400}?f360-sgic-btn/.test(idx),
+      'E-c el botón del SGIC se renderiza SOLO con /exec cargada (sin URL no hay botón muerto)');
+  chk(!/window\.open\(F360\.sheetUrl/.test(idx),
+      'E-c el botón del SGIC ya NO abre la hoja (url_sheet_cliente) — abre el sistema');
 
   // Un enum clavado en el front es una segunda fuente de verdad. El front tiene que pintar lo que
   // le manda el backend; si copia la lista, el día que se agregue una etapa la vista la pierde.
@@ -2225,6 +2246,68 @@ seccion('P3 tramos del selfTest');
   chk(manif.oauthScopes.indexOf('https://www.googleapis.com/auth/drive') < 0 &&
       manif.oauthScopes.indexOf('https://www.googleapis.com/auth/drive.readonly') < 0,
       'E2 🔒 el manifiesto sigue en mínimo privilegio de Drive (`drive.file`, sin ampliar)');
+}
+
+// ── E3 · SATORI HQ (18-ago) — el port de la maqueta v3 a data real ───────────
+// Offline no se puede correr GAS, así que lo que se asera acá es lo ESTRUCTURAL: que el HTML
+// servido dejó de ser la maqueta con números pintados, que cada solapa tiene su puente con
+// fallo cubierto, y que la PII no se escapó al schema de cliente.
+{
+  const hq = fs.readFileSync(path.join(SRC, 'hq.html'), 'utf8');
+  const web = fs.readFileSync(path.join(SRC, '08_webapp.js'), 'utf8');
+  const seg = fs.readFileSync(path.join(SRC, '22_seguridad.js'), 'utf8');
+  const sch = fs.readFileSync(path.join(SRC, '01_schema.js'), 'utf8');
+
+  // (1) los 6 endpoints existen, están gateados y declarados. Las tres cosas o ninguna.
+  ['hqHoy', 'hqChecklist', 'hqChecklistToggle', 'hqObjetivos', 'hqNumeros', 'sembrarHQ'].forEach((fn) => {
+    chk(new RegExp('function ' + fn + '\\s*\\(').test(web), 'E3 ' + fn + ' existe en 08_webapp.js');
+    chk(new RegExp("_soloOwner_\\('" + fn + "'\\)").test(web), 'E3 🔒 ' + fn + ' tiene gate _soloOwner_');
+    chk(new RegExp("'" + fn + "'").test(seg), 'E3 ' + fn + ' dado de alta en ENDPOINTS_UI');
+  });
+
+  // (2) los tres schemas nuevos son LAZY: declarados en MAESTRO_SHEETS y FUERA de MAESTRO_ORDEN.
+  const mOrden = (sch.match(/var MAESTRO_ORDEN = \[([^\]]*)\]/) || [, ''])[1];
+  ['checklist_propia', 'objetivos_propios', 'recurrentes_propios'].forEach((h) => {
+    chk(new RegExp('\\n\\s*' + h + ': \\[').test(sch), 'E3 schema `' + h + '` declarado en MAESTRO_SHEETS');
+    chk(mOrden.indexOf(h) < 0, 'E3 `' + h + '` es LAZY (fuera de MAESTRO_ORDEN)');
+  });
+
+  // (3) 🔒 PII: ninguna de las tres puede aparecer en el bloque de hojas de CLIENTE. Si esto se
+  //     rompe, el checklist personal de Luciano se replica al Drive de cada tenant en la próxima alta.
+  const bloqueCliente = sch.slice(sch.indexOf('var CLIENTE_SHEETS'), sch.indexOf('var COLUMNAS_TEXTO'));
+  ['checklist_propia', 'objetivos_propios', 'recurrentes_propios'].forEach((h) => {
+    chk(bloqueCliente.indexOf(h) < 0, 'E3 🔒 `' + h + '` NO aparece en las hojas de cliente (PII de Luciano)');
+  });
+
+  // (4) el HTML dejó de ser maqueta: los contenedores existen y los números pintados se fueron.
+  ['hqProximas', 'hqChips', 'hqGuardian', 'hqChkLista', 'hqObjGrid', 'hqRecTabla', 'hqRecBarras', 'hqApi', 'hqOperacion']
+    .forEach((id) => chk(new RegExp('id="' + id + '"').test(hq), 'E3 hq.html tiene el contenedor #' + id));
+  chk(!/Meditación \/ respiración/.test(hq), 'E3 el checklist ya NO está hardcodeado en el HTML (sale de la hoja)');
+  chk(!/EJF \+ Figueras Music<\/td>/.test(hq), 'E3 los recurrentes ya NO están hardcodeados en el HTML');
+  chk(!/data-w="\d+%"/.test(hq), 'E3 los flows de objetivos ya NO traen el % pintado en el marcado');
+
+  // (5) cada solapa pide su dato Y cubre el fallo. Un withSuccessHandler sin su failure es la
+  //     receta del "Cargando…" eterno que no dice qué pasó.
+  chk(/function hqPide\(/.test(hq) && /withFailureHandler/.test(hq),
+      'E3 hq.html tiene el puente hqPide con withFailureHandler (nada falla mudo)');
+  ['hqHoy', 'hqChecklist', 'hqObjetivos', 'hqNumeros'].forEach((fn) => {
+    chk(new RegExp("hqPide\\('" + fn + "'").test(hq), 'E3 la UI pide ' + fn + '()');
+  });
+  chk(/HQ_GAS/.test(hq) && /Sin backend/.test(hq),
+      'E3 fuera de /exec la UI lo DICE (no se queda en «Cargando…» para siempre)');
+
+  // (6) el único write path es el toggle, y la captura reusa el chokepoint de Bandeja.
+  chk(/\.hqChecklistToggle\(/.test(hq), 'E3 el tilde del checklist escribe por hqChecklistToggle');
+  chk(/\.capturar\(/.test(hq), 'E3 la captura rápida reusa `capturar` (Bandeja) — sin write path nuevo');
+
+  // (7) monedas: subtotal POR moneda y jamás uno global (lección B8/purga B5).
+  chk(/por_moneda/.test(web) && /Subtotal '\+m\.moneda/.test(hq),
+      'E3 los recurrentes subtotalizan POR MONEDA (nunca un total global)');
+  chk(/estado !== 'activo'/.test(web), 'E3 una propuesta en curso NO suma como ingreso');
+
+  // (8) targets ≥44px en mobile (Apple HIG) — el `→ 360` de 28px no se toca con el pulgar.
+  chk(/@media \(max-width:640px\)[\s\S]{0,700}\.b360\{min-height:44px/.test(hq),
+      'E3 en mobile el botón → 360 llega a 44px de alto');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

@@ -23,7 +23,11 @@ var MAESTRO_SHEETS = {
   // el «qué ofrecer» vivía prestado en `rubro`, que es rubro real y no una acción comercial.
   // `etapa_desde` la escribe `moverEtapaComercial` en CADA movimiento — de ahí salen los
   // días-en-etapa, que es la única métrica del embudo que se puede derivar sin pedirle nada a nadie.
-  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde'],
+  // Botón SGIC (17-ago): +url_exec_cliente AL FINAL, mismas reglas aditivas. Es el /exec del
+  // sistema PROPIO del cliente (su web app), NO la hoja: `url_sheet_cliente` sigue siendo el
+  // Sheet y no se toca. Celda vacía = estado LEGÍTIMO (cliente sin sistema propio) ⇒ los
+  // consumidores ocultan el acceso en vez de mostrar un botón muerto.
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.
@@ -90,6 +94,31 @@ var MAESTRO_SHEETS = {
   // ⚠ La hoja solo MODULA: un id que no existe en el roster del código se ignora. El código define
   // el universo de agentes; los datos solo dicen en qué estado está cada uno.
   Agentes_estado: ['id_agente', 'activo', 'gate', 'max_dia', 'promovido_en', 'promovido_por', 'notas'],
+  // ── E3 SATORI HQ (18-ago) — la ficha 360 PROPIA de Luciano ───────────────────
+  // ⚠ BASTIÓN: las dos hojas son PII PERSONAL. Viven en el MAESTRO (tenant CLI-000) y NUNCA en
+  // el Sheet de un cliente: el aislamiento §2 corre en las dos direcciones, y la rutina de la
+  // mañana de Luciano no es dato de nadie más. Fuera de capturas de demo.
+  // LAZY: NO entran en MAESTRO_ORDEN — se crean a demanda (patrón `hilo`/`checklist` del tenant),
+  // así un MAESTRO viejo no falla salud por dos hojas que todavía no hicieron falta.
+  //
+  // `capa` = diaria_manana | diaria_cierre | semanal · `recurrencia` = 1d|1s|2s|1m ·
+  // `estado` = pendiente|hecho. `fecha_check` sella CUÁNDO se tildó: sin ella la recurrencia no
+  // puede saber si el tilde es de hoy o de la semana pasada (y un check viejo mentiría de verde).
+  checklist_propia: ['id_item', 'capa', 'texto', 'recurrencia', 'estado', 'orden', 'fecha_check'],
+  // `eje` = profesional | calidad_vida | finanzas | oportunidades · `horizonte` = corto|mediano|largo.
+  // `flow_pct` es el avance declarado; `actual`/`meta` el par medible cuando `metrica` existe. Los
+  // tres conviven a propósito: hay objetivos que se miden y otros que solo se declaran, y forzar
+  // una métrica inventada a los segundos es peor que decir que no la tienen.
+  // `sgic_sugiere` lo escribe el Director (18_direccion.js) — es la recomendación, no el hecho.
+  objetivos_propios: ['id_obj', 'eje', 'horizonte', 'nombre', 'flow_pct', 'metrica', 'actual', 'meta', 'sgic_sugiere', 'estado'],
+  // ⚠ DESVÍO DEL ENCARGO E3, declarado (18-ago): el encargo pedía `hqNumeros()` con «ingresos
+  // recurrentes por moneda» y declaró SOLO dos schemas. Pero ese dato NO EXISTE en el sistema —
+  // ni en Clientes, ni en Gobernanza, ni en ADMIN (`grep recurrent` = 0 fuentes). Sin esta hoja
+  // el único origen posible era el hardcode de la maqueta, o sea la solapa mintiendo con números
+  // pintados. Tercera hoja, mismo patrón lazy y misma PII.
+  // `moneda` es OBLIGATORIA y no hay total global: dos monedas no se suman (lección B8/purga B5).
+  // `estado` = activo | propuesta — una propuesta en curso NO es ingreso: se muestra atenuada.
+  recurrentes_propios: ['id_rec', 'id_cliente', 'cliente', 'servicio', 'importe', 'moneda', 'estado', 'notas'],
   Config: ['clave', 'valor']
 };
 
@@ -321,7 +350,11 @@ var CONFIG_DEFAULTS = [
 var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla', 'tarea_id', 'aprobacion_id', 'mes', 'worker', 'id_nodo', 'id_arista', 'id_objetivo', 'periodo',
   // 04-ago: las que faltaban de las hojas nuevas (TC-2 Decisiones · TC-6 Correo_visto · TC-9
   // Agentes_estado · TC-7 ADMIN) + `id_aviso`, que nunca mordió sólo porque AVI no es un mes.
-  'id_decision', 'id_aviso', 'id_agente', 'id_mensaje', 'id_bandeja', 'numero', 'numero_factura'];
+  'id_decision', 'id_aviso', 'id_agente', 'id_mensaje', 'id_bandeja', 'numero', 'numero_factura',
+  // E3 HQ (18-ago): los ids de las hojas propias. `CHK-0001`/`OBJ-0001`/`REC-0001` no son
+  // coercibles a fecha, pero el precedente `id_objetivo` dice que se declaran igual — el día
+  // que un id cambie de prefijo, nadie se acuerda de venir a agregarlo.
+  'id_item', 'id_obj', 'id_rec'];
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];
