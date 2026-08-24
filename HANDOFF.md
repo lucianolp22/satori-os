@@ -52,7 +52,11 @@
 > la cola siguió en pie). **Parche aplicado en `agent.py`** (S5 reforzada en prompt + docstring:
 > un pedido directo NO reemplaza el 'sí'; frase cortada ⇒ repreguntar antes de tocar tools) —
 > **pendiente `kickstart -k` + commit** para que rija. Menor: una frase cortada al inicio disparó
-> una tool de Oficina no pedida (mismo parche la cubre).
+> una tool de Oficina no pedida (mismo parche la cubre). **Parche S5 ACTIVO** (commit `aca2f08`
+> 22:18 + kickstart, corrido por Luciano). **GATE BASTIÓN DE F2: LISTO** →
+> `ENCARGO-F2-SATO-EJECUTOR-gate-bastion-2026-08-24.md` (amenazas T1-T5, controles C1-C7
+> default-deny, spec hoja `Encargos`, orden F2.a→d con purga-cebo antes de habilitar código).
+> F2 se construye contra ese doc — quien la tome, ahí arranca.
 
 ## Qué incluye exactamente este estado (a)
 
