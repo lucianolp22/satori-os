@@ -71,7 +71,8 @@ function doGet(e) {
  * Router whitelist a funciones existentes (cero reinvención). Least-privilege: solo lectura
  * + capturar — nada de aprobaciones / email / borrados por este canal. Responde JSON.
  */
-var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1, accion: 1 };
+var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1, accion: 1,
+  aprobaciones: 1, decidir: 1, agente: 1, tarea: 1 };  // F1 Sato Ejecutor (24-ago): S5 en el cliente + validacion server-side default-deny aca
 
 // ── Voz-acciones P2 (16-jul) — la voz ESCRIBE estructuras, con gate ──────────
 //
@@ -150,6 +151,10 @@ function doPost(e) {
       case 'cerebro':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = leerEstado(id); break;
       case 'capturar':  data = capturar(vozStr_(args.texto, 4000), 'voz'); break;
       case 'accion':    data = accionVoz_(vozStr_(args.tipo, 40), args.payload, id); break;
+      case 'aprobaciones': data = vozAprobacionesPendientes_(); break;  // F1 (24-ago): lectura del espejo del MAESTRO
+      case 'decidir':  data = vozDecidirAprobacion_(vozStr_(args.id, 12), vozStr_(args.decision, 12), vozStr_(args.nota, 300)); break;  // F1: id_cliente resuelto server-side
+      case 'agente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = vozDispararAgente_(id, vozStr_(args.agente, 24)); break;  // F1: encola SIN drenar
+      case 'tarea':    data = vozCrearTarea_(vozStr_(args.descripcion, 500), vozStr_(args.prioridad, 2), vozStr_(args.fecha_limite, 10), id); break;  // F1
       case 'sgic': {    // SGIC 14-jul: consulta read-only de una hoja whitelisted del cliente (o ventas de la fuente viva)
         if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' });
         var sres = sgicConsulta_(id, vozStr_(args.hoja, 40), vozStr_(args.mes, 7), args.limite);
@@ -163,6 +168,89 @@ function doPost(e) {
   } catch (err) {
     vozLog_(tool, false, String((err && err.message) || err));    // detección; afuera error genérico (no filtra stack/PII)
     return vozOut_({ ok: false, error: 'error_interno' });
+  }
+}
+
+// ── F1 · SATO EJECUTOR (24-ago) — la voz EJECUTA dentro del OS ────────────────────────────────
+// 4 tools nuevas de VOZ_TOOLS. La confirmacion verbal (S5) vive en el cliente (docstrings de
+// agent.py); aca va la validacion server-side default-deny. Todas reusan el MISMO camino que la
+// UI del CM (resolverAprobacion / encolarAgente / crearTarea): cero write-paths nuevos.
+// PLAN: PLAN-SATO-EJECUTOR-2026-08-24.md · Frontera de confianza 16-jul intacta (nada de esto
+// escribe campos que un agente lea despues como instruccion; la `pregunta` del analista sigue vedada).
+
+/** Lista las aprobaciones PENDIENTES del espejo del MAESTRO (lectura pura, top 10 + total). */
+function vozAprobacionesPendientes_() {
+  var sh = getMaestro().getSheetByName('Aprobaciones_agregadas');
+  if (!sh) return { total: 0, items: [] };
+  var filas = leerTabla(sh).filter(function (f) { return String(f.estado).toLowerCase() === 'pendiente'; });
+  return { total: filas.length, items: filas.slice(0, 10).map(function (f) {
+    return { id: String(f.id), cliente: String(f.cliente || f.id_cliente || ''),
+             tipo: String(f.tipo_accion || ''), resumen: limpiarHostilTexto_(String(f.descripcion || '')).slice(0, 120),
+             monto: f.monto === '' || f.monto == null ? null : f.monto };
+  }) };
+}
+
+/** Decide una aprobacion por voz. El id_cliente se resuelve SERVER-SIDE desde el espejo (el LLM
+ * jamas lo aporta — misma regla que el roster en accionVoz_). aprobar|rechazar, nada mas. */
+function vozDecidirAprobacion_(idApr, decision, nota) {
+  var mapa = { aprobar: 'aprobada', rechazar: 'rechazada' };   // whitelist dura: 'editada' NO existe por voz
+  var d = mapa[String(decision || '').toLowerCase()];
+  if (!d) return { ok: false, error: 'decision_invalida', mensaje: 'Solo puedo aprobar o rechazar.' };
+  idApr = String(idApr || '').trim().toUpperCase();
+  if (!/^APR-[0-9]{3,6}$/.test(idApr)) return { ok: false, error: 'id_invalido', mensaje: 'Necesito el id exacto (APR-0000): pedime primero la lista de aprobaciones.' };
+  var sh = getMaestro().getSheetByName('Aprobaciones_agregadas');
+  var fila = sh ? leerTabla(sh).filter(function (f) {
+    return String(f.id).toUpperCase() === idApr && String(f.estado).toLowerCase() === 'pendiente';
+  })[0] : null;
+  if (!fila) return { ok: false, error: 'aprobacion_no_encontrada', mensaje: 'No encuentro esa aprobacion pendiente. Pedime la lista de aprobaciones.' };
+  var idCliente = String(fila.id_cliente);
+  try {
+    var ed = nota ? { notas: limpiarHostilTexto_(String(nota)).slice(0, 300) } : {};
+    var res = resolverAprobacion(idCliente, idApr, d, ed);   // unico punto de decision (11_aprobaciones)
+    if (res && res.ok) { try { quitarAgregada_(idApr, idCliente); } catch (e) { /* el sync de la manana la limpia */ } }
+    return { ok: true, id: idApr, cliente: String(fila.cliente || idCliente), estado: res.estado,
+             ejecucion: res.ejecucion ? (res.ejecucion.ok === false ? 'fallo' : 'ejecutada') : null };
+  } catch (e) {
+    return { ok: false, error: 'no_decidida', mensaje: String((e && e.message) || e).slice(0, 140) };
+  }
+}
+
+/** Encola una corrida de agente por voz. NO drena la cola a proposito (el trigger de 5 min la
+ * corre): drenar aca podia comerse el timeout de voz y dejar la escritura sin confirmar (N5).
+ * encolarAgente valida roster + tenant + gateRiesgo_ (default-deny) — cero logica duplicada. */
+function vozDispararAgente_(idCliente, clave) {
+  clave = String(clave || '').trim().toLowerCase();
+  if (!AGENTES[clave] || !AGENTES[clave].activo) {
+    return { ok: false, error: 'agente_desconocido', mensaje: 'No tengo ese agente activo. Activos: ' +
+      Object.keys(AGENTES).filter(function (k) { return AGENTES[k].activo; }).join(', ') + '.' };
+  }
+  try {
+    var idCola = encolarAgente(idCliente, clave, {});
+    return { ok: true, agente: AGENTES[clave].nombre, cliente: idCliente, encolado: true,
+             corre_en: 'la proxima pasada de la cola (maximo 5 minutos)', id_cola: idCola || null };
+  } catch (e) {
+    return { ok: false, error: 'no_encolado', mensaje: String((e && e.message) || e).slice(0, 140) };
+  }
+}
+
+/** Crea una tarea real por voz via crearTarea (whitelists y conLock alla). Cliente = etiqueta
+ * visible (patron crearTareaQuick); el roster ya valido idCliente en el doPost. */
+function vozCrearTarea_(descripcion, prioridad, fechaLimite, idCliente) {
+  var desc = limpiarHostilTexto_(String(descripcion || '')).slice(0, 300);
+  if (!desc) return { ok: false, error: 'falta_descripcion', mensaje: 'Necesito el texto de la tarea.' };
+  var p = { descripcion: desc, prioridad: prioridad || 'B', tipo: idCliente ? 'cliente' : '',
+            etiquetas: [], fecha_limite: fechaLimite || '' };
+  if (idCliente) {
+    try {
+      var cli = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === String(idCliente); })[0];
+      if (cli) p.etiquetas.push(String(cli.nombre).toLowerCase().split(' ')[0]);
+    } catch (e) { /* sin etiqueta: la tarea vale igual */ }
+  }
+  try {
+    var r = crearTarea(p);
+    return { ok: true, id_tarea: r.id_tarea, descripcion: r.descripcion, prioridad: r.prioridad, fecha_limite: r.fecha_limite || null };
+  } catch (e) {
+    return { ok: false, error: 'no_creada', mensaje: String((e && e.message) || e).slice(0, 140) };
   }
 }
 

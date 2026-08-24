@@ -100,7 +100,13 @@ INSTRUCCIONES = (
     "metas y notas — todo lo que quede ESCRITO. Seguís HABLANDO agrupado en palabras (A1): "
     "hablás natural, escribís en cifras. Nunca inventes ni redondees al convertir (N4). "
     # Datos y herramientas
-    "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, sgic_consulta, capturar. "
+    "Traé SIEMPRE datos reales con las tools (no inventes): estado, brief, vehemence, cliente, cerebro, sgic_consulta, aprobaciones, capturar. "
+    # F1 · SATO EJECUTOR (24-ago) — la voz ahora ACTUA dentro del OS. S5 es LEY para toda escritura.
+    "F1 EJECUCION: ahora tambien ACTUAS dentro del sistema con las tools 'aprobaciones' (listar pendientes), "
+    "'decidir_aprobacion', 'disparar_agente' y 'crear_tarea'. Las tres de escritura exigen el flujo S5 SIN excepcion: "
+    "repeti en voz alta que vas a hacer (id y resumen de la aprobacion / agente y cliente / texto de la tarea) y espera "
+    "el 'si' explicito de Luciano ANTES de llamar la tool. Deci el resultado EXACTO que devuelva (ejecutada, encolada, "
+    "rechazada, fallo) — jamas inventes un exito (N5). "
     # SGIC (14-jul) — capacidad general de consulta del sistema del cliente.
     "Si Luciano pregunta un dato fino de un cliente que NO está en tu snapshot (cuántas órdenes de venta, un KPI "
     "puntual, una regla, un umbral, un costo, una aprobación), usá 'sgic_consulta' ANTES de decir que no tenés el "
@@ -466,6 +472,84 @@ class SatoriVoz(Agent):
         # Honesto: encargado ≠ generado. El doc lo prepara Cowork y aparece en el Centro de Mando.
         return (f"Anotado: te preparo la reunión de {pedido}. El documento se arma con el Hilo del "
                 "cliente y te queda en el Centro de Mando — no lo tengo ahora mismo.")
+
+    # ── F1 · SATO EJECUTOR (24-ago) — 4 tools de ejecucion dentro del OS ──────────────────────
+    @function_tool()
+    async def aprobaciones(self, context: RunContext) -> str:
+        """Lista las aprobaciones PENDIENTES del Centro de Mando (todos los clientes).
+
+        Usala para 'que aprobaciones tengo' y SIEMPRE antes de decidir una: el id exacto
+        (APR-0000) sale de aca. Es de solo lectura.
+        """
+        _anunciar(context)  # T1: filler hablado atado a la ejecucion
+        return await _llamar_backend("aprobaciones")
+
+    @function_tool()
+    async def decidir_aprobacion(self, context: RunContext, id_aprobacion: str,
+                                 decision: str, nota: str = "") -> str:
+        """Decide una aprobacion pendiente del Centro de Mando: aprobar o rechazar.
+
+        FLUJO OBLIGATORIO (S5/N5): ANTES de llamarla, repeti en voz alta QUE aprobacion vas a
+        decidir (id + resumen corto + cliente) y QUE decision, y espera el 'si' explicito de
+        Luciano. Sin ese si, NO la llames. Si no sabes el id, llama primero 'aprobaciones'.
+        Al aprobar, el sistema EJECUTA la accion aprobada en el momento: deci el resultado tal
+        como vuelva (ejecutada / fallo / rechazada) — jamas inventes un exito.
+
+        Args:
+            id_aprobacion: id exacto, ej. APR-0012 (de la tool 'aprobaciones').
+            decision: 'aprobar' o 'rechazar' — nada mas.
+            nota: motivo opcional (util al rechazar).
+        """
+        context.disallow_interruptions()  # escritura: no dejarla a medias
+        res = await _llamar_backend("decidir", {"id": id_aprobacion, "decision": decision, "nota": nota})
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardo demasiado y no puedo confirmar si la decision quedo registrada. "
+                    "Pedime en un momento la lista de aprobaciones y lo verificamos.")
+        return res
+
+    @function_tool()
+    async def disparar_agente(self, context: RunContext, agente: str, id_cliente: str) -> str:
+        """Encola una corrida de un agente del roster para un cliente (vigia, analista,
+        conciliador, cobrador, abastecedor). NO corre al instante: entra a la cola y corre en la
+        proxima pasada (maximo 5 minutos). Los agentes con gate dejan su resultado como aprobacion.
+
+        FLUJO OBLIGATORIO (S5): repeti en voz alta que agente y para que cliente, y espera el 'si'
+        explicito de Luciano antes de llamarla.
+
+        Args:
+            agente: clave del agente, ej. 'analista'.
+            id_cliente: id del cliente, ej. CLI-002 (requerido).
+        """
+        context.disallow_interruptions()  # escritura: no dejarla a medias
+        res = await _llamar_backend("agente", {"idCliente": id_cliente, "agente": agente})
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardo demasiado y no puedo confirmar si quedo encolado. "
+                    "Volve a pedirmelo en un momento y lo verifico.")
+        return res
+
+    @function_tool()
+    async def crear_tarea(self, context: RunContext, descripcion: str, id_cliente: str = "",
+                          prioridad: str = "", fecha_limite: str = "") -> str:
+        """Crea una TAREA real en el tablero (no una nota: para notas sueltas esta 'capturar').
+
+        FLUJO OBLIGATORIO (S5): repeti el texto exacto de la tarea (y el cliente, si hay) y espera
+        el 'si' de Luciano antes de llamarla. Normaliza cifras dictadas a digitos (regla de ESCRITURA).
+
+        Args:
+            descripcion: la tarea en palabras de Luciano (requerido).
+            id_cliente: opcional, id del cliente (ej. CLI-003) — queda etiquetada a ese cliente.
+            prioridad: opcional 'A'|'B'|'C' (default B).
+            fecha_limite: opcional 'YYYY-MM-DD'.
+        """
+        context.disallow_interruptions()  # escritura: no dejarla a medias
+        args = {"descripcion": descripcion, "prioridad": prioridad, "fecha_limite": fecha_limite}
+        if id_cliente:
+            args["idCliente"] = id_cliente
+        res = await _llamar_backend("tarea", args)
+        if res is _MSG_BACKEND_TIMEOUT:
+            return ("El sistema tardo demasiado y no puedo confirmar si la tarea quedo creada. "
+                    "Volve a pedirmelo en un momento y lo verifico.")
+        return res
 
     @function_tool()
     async def oficina_estado(self, context: RunContext) -> str:

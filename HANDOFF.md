@@ -21,8 +21,29 @@
 > 600→3600s + trigger horario `calentarCachesVoz` (SISTEMA + Config `voz_warm_clientes`, default
 > CLI-002; alta en `ENTRY_POINTS_SISTEMA`) + wrapper `instalarWarmVoz` (correr 1 vez en el editor,
 > 18_direccion.js) + timeout del agente 25→35s (`voz/agent/agent.py`, pide `kickstart -k`).
-> QUEDA ABIERTO hasta correr el runbook: clasp push → instalarWarmVoz → promote (@47) →
-> kickstart → probe (esperado: 4 llamadas <6s). Plan nuevo: `PLAN-SATO-EJECUTOR-2026-08-24.md`.
+> **CERRADO 24-ago ~17:30 — runbook corrido por Luciano:** commit `1ce0a44` (harness **658/0**) +
+> `clasp push` · `instalarWarmVoz` OK en el editor (trigger horario VIVO; warm inicial
+> `sistema=true clientes=CLI-002:ok`) · promote **/exec @47** (`1862cca`, rollback @46 en
+> `_promote_rollback.txt`) · `kickstart -k` del agente (timeout 35s activo) · probe gas_voz_client:
+> 5,4s / 4,7s / 9,5s / 18,1s — los hits reales ~5s; la cola de 18s es variancia del doPost GAS
+> (overhead documentado en SPEC 14-jul), cubierta por el timeout 35s · **prueba de voz de Luciano:
+> brief de Vehemence respondido en <5s, sin timeout**. Purga corrida: sin Críticos/Altos; queda
+> como deuda menor correr `selfTest` completo en runtime en el próximo ciclo (con `limpiarTodoTest`,
+> lección +45). Plan nuevo: `PLAN-SATO-EJECUTOR-2026-08-24.md` → F1 en curso.
+>
+> **24-ago (noche) — F1 SATO EJECUTOR CONSTRUIDO (working tree, SIN promover): la voz EJECUTA.**
+> +4 tools en `VOZ_TOOLS` (12 exactas): `aprobaciones` (lista el espejo `Aprobaciones_agregadas`) ·
+> `decidir` (aprobar/rechazar; **id_cliente resuelto SERVER-SIDE desde el espejo**, whitelist dura
+> sin 'editada', reflejo inmediato vía `quitarAgregada_`) · `agente` (encola vía `encolarAgente` —
+> roster+tenant+`gateRiesgo_` — y **NO drena**: la cola de 5 min corre, así el turno de voz nunca
+> muere con la escritura hecha) · `tarea` (vía `crearTarea`, texto saneado, etiqueta del roster).
+> Helpers `voz*_` en `08_webapp.js` — **cero write-paths nuevos**. En `agent.py`: 4 function_tools
+> con flujo S5 obligatorio en docstring + bloque F1 en el prompt. Frontera de confianza 16-jul
+> intacta (nada escribe campos que un agente lea después como instrucción).
+> **Verificado offline:** `node --check` + `py_compile` + **`_f1_voz_checks.js` 24/24** (nuevo, en
+> el repo) + harness general **658/0**. **RUNBOOK F1 PENDIENTE (Luciano):** capabilities regen →
+> commit → clasp push → `_promote_exec.sh --go` (@48) → `kickstart -k` del agente → prueba de voz
+> (pedir aprobaciones · crear una tarea · disparar el analista, confirmando cada una).
 
 ## Qué incluye exactamente este estado (a)
 
