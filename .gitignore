@@ -45,3 +45,5 @@ _edificio/_partes.py
 voz/runner/.encargos_runner_enabled
 voz/runner/.runner_state.json
 entregables/encargos/
+voz/runner/.pending_reports.jsonl
+voz/runner/.bak-*

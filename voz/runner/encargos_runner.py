@@ -36,10 +36,11 @@ AGENT_DIR = REPO / "voz" / "agent"                        # reusa el auth probad
 ENTREGABLES = REPO / "entregables" / "encargos"
 MARKER = HERE / ".encargos_runner_enabled"               # GATE 2 (lo crea el cebo)
 STATE = HERE / ".runner_state.json"
+PENDING = HERE / ".pending_reports.jsonl"                # reportes ejecutados pero sin confirmar (reintento)
 LOGDIR = pathlib.Path(os.path.expanduser("~/Library/Logs"))
 
 # ==== GATE 1: interruptor duro. NO tocar a True sin haber corrido el cebo en verde. ====
-HABILITADO = False
+HABILITADO = True
 
 TIPOS_OK = {"investigar", "documento"}                   # v1: codigo_dry NO (F2.d, tras el cebo)
 REPOS_OK = {"SatoriOS"}
@@ -97,8 +98,10 @@ def prompt_guardia(enc):
     )
 
 
-def _post(action, payload=None):
-    """POST autenticado al /exec: Bearer (reusa gas_voz_client, creds luciano@) + ENCARGOS_SECRET en body."""
+def _post(action, payload=None, _timeout=90, _intentos=3):
+    """POST autenticado al /exec: Bearer (reusa gas_voz_client, creds luciano@) + ENCARGOS_SECRET en body.
+    Retry con backoff: GAS puede pegar frio (cold-start, Problema B) o detras del waitLock(120s) de conLock;
+    30s no alcanzaba. Todas las acciones son idempotentes (poll re-marca en_ejecucion, reportar re-setea)."""
     sys.path.insert(0, str(AGENT_DIR))
     import gas_voz_client  # carga .env.local (GAS_VOZ_URL + ENCARGOS_SECRET + creds)
     import requests
@@ -109,14 +112,62 @@ def _post(action, payload=None):
     body = {"secret": secret, "action": action}
     if payload is not None:
         body["payload"] = payload
-    s = requests.Session()
-    r = s.post(url, headers=headers, json=body, allow_redirects=False, timeout=30)
-    hops = 0
-    while r.is_redirect and hops < 5:
-        r = s.get(r.headers["Location"], headers=headers, allow_redirects=False, timeout=30)
-        hops += 1
-    r.raise_for_status()
-    return r.json()
+    ult = None
+    for intento in range(_intentos):
+        if intento:
+            time.sleep(min(5 * (2 ** (intento - 1)), 30))  # 5s,10s,20s: el 2do intento suele pegar caliente
+        try:
+            s = requests.Session()
+            r = s.post(url, headers=headers, json=body, allow_redirects=False, timeout=_timeout)
+            hops = 0
+            while r.is_redirect and hops < 5:
+                r = s.get(r.headers["Location"], headers=headers, allow_redirects=False, timeout=_timeout)
+                hops += 1
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.RequestException as e:
+            ult = e
+            log("_post %s intento %d/%d fallo: %s" % (action, intento + 1, _intentos, e))
+    raise ult
+
+
+def _flush_pendientes():
+    """Reenvia reportes que quedaron sin confirmar (ejecucion OK pero el POST fallo). Se corre al arranque:
+    poll marca en_ejecucion ANTES de ejecutar, asi que sin esto un reporte perdido deja el encargo huerfano."""
+    if not PENDING.exists():
+        return
+    try:
+        lineas = [l for l in PENDING.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except Exception:
+        return
+    quedan = []
+    for l in lineas:
+        try:
+            reporte = json.loads(l)
+        except Exception:
+            continue
+        try:
+            _post("encargos_reportar", reporte)
+            log("pendiente reenviado -> %s (%s)" % (reporte.get("id_encargo"), reporte.get("estado")))
+        except Exception as e:
+            log("pendiente sigue fallando %s: %s" % (reporte.get("id_encargo"), e))
+            quedan.append(l)
+    try:
+        if quedan:
+            PENDING.write_text("\n".join(quedan) + "\n", encoding="utf-8")
+        else:
+            PENDING.unlink()
+    except Exception:
+        pass
+
+
+def _encolar_pendiente(reporte):
+    try:
+        with open(PENDING, "a", encoding="utf-8") as f:
+            f.write(json.dumps(reporte) + "\n")
+        log("reporte de %s encolado (se reintenta al proximo run)" % reporte.get("id_encargo"))
+    except Exception as e:
+        log("no pude encolar pendiente de %s: %s" % (reporte.get("id_encargo"), e))
 
 
 def _contar_hoy():
@@ -141,6 +192,9 @@ def ejecutar(enc):
     idc = str(enc.get("id_encargo"))
     scratch = ENTREGABLES / idc
     scratch.mkdir(parents=True, exist_ok=True)
+    ya = scratch / "resultado.md"
+    if ya.exists() and ya.stat().st_size > 0:
+        return ("hecho", "(ya ejecutado; resultado.md en cache, no re-corro claude)", str(ya))
     cmd = ["claude", "-p", prompt_guardia(enc), "--allowedTools", CLAUDE_TOOLS]  # SIN skip-permissions
     try:
         p = subprocess.run(cmd, cwd=str(scratch), capture_output=True, text=True, timeout=TIMEOUT_S)
@@ -165,6 +219,7 @@ def main():
         log("runner DESHABILITADO (HABILITADO=%s, marcador=%s) -> no ejecuta. Corre el cebo y habilita."
             % (HABILITADO, MARKER.exists()))
         return
+    _flush_pendientes()
     try:
         res = _post("encargos_poll")
     except Exception as e:
@@ -198,12 +253,14 @@ def main():
         estado, resumen, artef = ejecutar(enc)
         n += 1
         _marcar_hoy(n)
+        reporte = {"id_encargo": idc, "estado": estado, "resumen": resumen,
+                   "artefactos": artef, "log_ref": "satori-encargos-runner.log"}
         try:
-            _post("encargos_reportar", {"id_encargo": idc, "estado": estado, "resumen": resumen,
-                                        "artefactos": artef, "log_ref": "satori-encargos-runner.log"})
+            _post("encargos_reportar", reporte)
             log("%s -> %s" % (idc, estado))
         except Exception as e:
-            log("reportar fallo %s: %s" % (idc, e))
+            log("reportar fallo %s: %s -> encolo para el proximo run" % (idc, e))
+            _encolar_pendiente(reporte)
 
 
 if __name__ == "__main__":
