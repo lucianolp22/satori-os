@@ -2110,8 +2110,10 @@ seccion('P3 tramos del selfTest');
   // Botón SGIC (17-ago): `url_exec_cliente` = /exec del sistema propio del cliente. Distinta de
   // `url_sheet_cliente` (la hoja) y última del schema. Y el front no puede abrirla a ciegas: el
   // guard `safeExecUrl` es lo que impide que una celda del MAESTRO mande a cualquier dominio.
-  chk(cols[cols.length - 1] === 'url_exec_cliente',
-      'E-c url_exec_cliente es la última columna de Clientes (aditiva) — cola: ' + cols[cols.length - 1]);
+  chk(cols[cols.length - 1] === 'moneda',
+      'E-c moneda es la última columna de Clientes (aditiva, 24-ago) — cola: ' + cols[cols.length - 1]);
+  chk(cols.indexOf('url_exec_cliente') >= 0,
+      'E-c url_exec_cliente sigue declarada en Clientes (aditiva del 17-ago)');
   chk(cols.indexOf('url_sheet_cliente') >= 0 && cols.indexOf('url_sheet_cliente') !== cols.indexOf('url_exec_cliente'),
       'E-c url_sheet_cliente (la hoja) y url_exec_cliente (el sistema) son columnas DISTINTAS');
   chk(/function safeExecUrl\(/.test(idx) && /script\\\.google\\\.com/.test(idx),

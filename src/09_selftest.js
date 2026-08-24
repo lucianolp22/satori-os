@@ -3073,8 +3073,10 @@ function _asertsD44_(chk, log, opts) {
   // (a2) 17-ago — `url_exec_cliente` (botón SGIC → /exec del cliente): declarada, AL FINAL y
   //      DISTINTA de `url_sheet_cliente`. Las dos conviven: la hoja y el sistema no son lo mismo,
   //      y confundirlas es justo el bug que este encargo vino a arreglar.
-  chk(d44c[d44c.length - 1] === 'url_exec_cliente',
-      'D44a2 url_exec_cliente es la última columna de Clientes (aditiva) — cola: ' + d44c[d44c.length - 1]);
+  chk(d44c[d44c.length - 1] === 'moneda',
+      'D44a2 moneda es la última columna de Clientes (aditiva, 24-ago) — cola: ' + d44c[d44c.length - 1]);
+  chk(d44c.indexOf('url_exec_cliente') >= 0,
+      'D44a2b url_exec_cliente sigue declarada en Clientes (aditiva del 17-ago)');
   chk(d44c.indexOf('url_sheet_cliente') >= 0 && d44c.indexOf('url_exec_cliente') !== d44c.indexOf('url_sheet_cliente'),
       'D44a3 url_sheet_cliente (la hoja) sigue viva y es otra columna que url_exec_cliente (el sistema)');
 

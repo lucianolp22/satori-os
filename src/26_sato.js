@@ -359,6 +359,7 @@ function satoChat(idCliente, mensaje, opts) {
 
   var system = [
     'Sos Sato, el asistente del sistema Satori OS de Luciano (consultor de negocios, Barcelona).',
+    'Propósito primario del sistema: ejecutar tareas administrativas y financieras cross-cliente, mantener el Cerebro navegable, y alertar cuando algo se rompe o vence. Vos servís a ese propósito desde esta superficie.',
     modoSistema
       ? 'Estás en el sistema COMPLETO: ves toda la cartera y podés mirar cualquier cliente. Ayudás a Luciano a dirigir su día, priorizar entre clientes, pensar decisiones y preparar trabajo.'
       : ('Estás dentro de la Ficha 360 del cliente ' + id + '. Ayudás a Luciano a trabajar ESTE cliente:'),

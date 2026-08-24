@@ -1051,7 +1051,9 @@ function datosCliente(idCliente) {
       responsable: cli.responsable_lado_cliente, fecha_alta: aFechaISO(cli.fecha_alta),
       url_sheet_cliente: cli.url_sheet_cliente,
       // /exec del sistema propio del cliente (17-ago). Vacío = no tiene ⇒ la UI oculta el botón.
-      url_exec_cliente: cli.url_exec_cliente || ''
+      url_exec_cliente: cli.url_exec_cliente || '',
+      // Moneda del cliente (24-ago): fallback de fmtMoneda en la Ficha 360. Vacía = legítimo.
+      moneda: cli.moneda || ''
     },
     proyectos: proyectos,
     proximos_pasos: proximos,
@@ -1122,7 +1124,7 @@ function fichaCliente(idCliente) {
   });
 
   var kpiRaw = leer_('KPIs');
-  var kpis = (kpiRaw || []).slice(-8).map(function (k) {
+  var kpis = (kpiRaw || []).slice(-16).map(function (k) {   // tope 8→16 (24-ago, backlog #10)
     return {
       kpi: limpiarHostilTexto_(String(k.kpi || ''), 60),
       valor: (k.valor === '' || k.valor == null) ? null : Number(k.valor),
@@ -1133,7 +1135,7 @@ function fichaCliente(idCliente) {
   });
 
   var opRaw = leer_('Datos_operativos');
-  var operacion = (opRaw || []).slice(-6).reverse().map(function (o) {
+  var operacion = (opRaw || []).slice(-10).reverse().map(function (o) {   // tope 6→10 (24-ago, backlog #10)
     return {
       fecha: aFechaISO(o.fecha) || '',
       concepto: limpiarHostilTexto_(String(o.concepto || ''), 100),

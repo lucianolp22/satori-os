@@ -27,7 +27,9 @@ var MAESTRO_SHEETS = {
   // sistema PROPIO del cliente (su web app), NO la hoja: `url_sheet_cliente` sigue siendo el
   // Sheet y no se toca. Celda vacía = estado LEGÍTIMO (cliente sin sistema propio) ⇒ los
   // consumidores ocultan el acceso en vez de mostrar un botón muerto.
-  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente'],
+  // Moneda robusta (24-ago): +moneda AL FINAL (EUR|ARS). Fallback de fmtMoneda en la Ficha 360
+  // cuando el concepto/kpi no nombra la divisa. Celda vacía = legítimo (sin símbolo forzado).
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente', 'moneda'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.

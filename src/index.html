@@ -1992,7 +1992,7 @@ function thc(h){var t=el('th',null,h);t.setAttribute('scope','col');return t;}
 function montoEl(v){return el('span','mono','€'+v);}
 function clear(node){while(node.firstChild)node.removeChild(node.firstChild);}
 function fmtNum(n){n=Number(n)||0;return n.toLocaleString('es-ES');}
-function fmtMoneda(valor,hint){ if(valor==null||valor===''||isNaN(Number(valor)))return null; var t=String(hint||'').toLowerCase(); var sym=/ars|ar\$|pesos|\$/.test(t)?'$ ':(/eur|euro|\u20ac/.test(t)?'\u20ac ':''); return sym+fmtNum(valor); }
+function fmtMoneda(valor,hint){ if(valor==null||valor===''||isNaN(Number(valor)))return null; var t=String(hint||'').toLowerCase(); var sym=/ars|ar\$|pesos|\$/.test(t)?'$ ':(/eur|euro|\u20ac/.test(t)?'\u20ac ':''); if(!sym&&typeof F360!=='undefined'&&F360.moneda){var m=String(F360.moneda).toLowerCase(); sym=/ars|peso/.test(m)?'$ ':(/eur/.test(m)?'\u20ac ':'');} return sym+fmtNum(valor); }
 /* Formato ÚNICO de fecha+hora de todo el sistema: dd/mm/aaaa hh:mm (decisión Luciano 20-jul).
    Antes omitía el año; se agregó para que TODA superficie muestre lo mismo y ninguna quede
    ambigua entre años. Nunca devolver el crudo de Sheets con GMT. */
@@ -3992,7 +3992,7 @@ function fichaCargar_(id){
       var c=document.getElementById(i); if(c)f360Vacio_(c,'Sin backend (vista local).'); });
     return;
   }
-  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null; F360.sheetUrl=''; F360.execUrl='';
+  var DC=null,FC=null; F360.fc=null; F360.evs=null; F360.dc=null; F360.h=null; F360.chk=null; F360.brief=null; F360.grafo=null; F360.sheetUrl=''; F360.execUrl=''; F360.moneda='';
   f360Tiles_(); f360Orbe_();   // v2/v3: stats y orbe arrancan en "cargando" y se completan fuente a fuente
   google.script.run.withSuccessHandler(function(d){ if(gen!==F360.gen)return; DC=d; F360.dc=d; f360Cabecera_(d); f360Prox_(d,null); f360Tiles_(); f360Sug_(); f360Nov_(); f360Bit_(); if(FC){f360Plan_(DC,FC);f360Num_(FC);} })
     .withFailureHandler(function(e){ if(gen!==F360.gen)return; DC='err'; F360.dc='err';
@@ -4804,7 +4804,7 @@ function f360Bit_(){
   });
 }
 function f360Cabecera_(d){
-  var c=(d&&d.cliente)||{}; F360.sheetUrl=(c.url_sheet_cliente||''); F360.execUrl=safeExecUrl(c.url_exec_cliente);
+  var c=(d&&d.cliente)||{}; F360.sheetUrl=(c.url_sheet_cliente||''); F360.execUrl=safeExecUrl(c.url_exec_cliente); F360.moneda=(c.moneda||'');
   var nom=document.getElementById('f360Nombre'), sub=document.getElementById('f360Sub'), est=document.getElementById('f360Estado');
   if(nom)nom.textContent=c.nombre||F360.id;
   if(sub)sub.textContent=(c.id_cliente||'')+' · '+(c.rubro||'—')+(c.responsable?' · '+c.responsable:'');
