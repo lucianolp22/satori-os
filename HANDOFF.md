@@ -41,9 +41,18 @@
 > con flujo S5 obligatorio en docstring + bloque F1 en el prompt. Frontera de confianza 16-jul
 > intacta (nada escribe campos que un agente lea después como instrucción).
 > **Verificado offline:** `node --check` + `py_compile` + **`_f1_voz_checks.js` 24/24** (nuevo, en
-> el repo) + harness general **658/0**. **RUNBOOK F1 PENDIENTE (Luciano):** capabilities regen →
-> commit → clasp push → `_promote_exec.sh --go` (@48) → `kickstart -k` del agente → prueba de voz
-> (pedir aprobaciones · crear una tarea · disparar el analista, confirmando cada una).
+> el repo) + harness general **658/0**. **RUNBOOK F1 CERRADO el mismo día (~19:01→21:5x):** commit
+> `6790ff4` → promote **/exec @48** (rollback @47) → kickstart → **prueba de voz REAL OK las 3**:
+> `disparar_agente` encoló al Analista para Vehemence y el Analista CORRIÓ de verdad (3 corridas,
+> análisis de agosto en su ficha) · `crear_tarea` con flujo S5 impecable (repitió, Luciano corrigió
+> "Paul Trading"→"Paul Train", re-confirmó, creó y ecó el id real **TAR-0027**) · `aprobaciones`
+> operativa (sin pendientes que decidir ese momento — `decidir` queda para el primer uso real).
+> **Purga F1 — 1 hallazgo Medio:** el pedido directo "corré el analista para Vehemence" se encoló
+> **SIN** la confirmación S5 (gpt-4o-mini salteó el flujo del docstring; el gate de riesgo real de
+> la cola siguió en pie). **Parche aplicado en `agent.py`** (S5 reforzada en prompt + docstring:
+> un pedido directo NO reemplaza el 'sí'; frase cortada ⇒ repreguntar antes de tocar tools) —
+> **pendiente `kickstart -k` + commit** para que rija. Menor: una frase cortada al inicio disparó
+> una tool de Oficina no pedida (mismo parche la cubre).
 
 ## Qué incluye exactamente este estado (a)
 

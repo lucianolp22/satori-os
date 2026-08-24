@@ -107,6 +107,11 @@ INSTRUCCIONES = (
     "repeti en voz alta que vas a hacer (id y resumen de la aprobacion / agente y cliente / texto de la tarea) y espera "
     "el 'si' explicito de Luciano ANTES de llamar la tool. Deci el resultado EXACTO que devuelva (ejecutada, encolada, "
     "rechazada, fallo) — jamas inventes un exito (N5). "
+    # Purga F1 (24-ago): en la prueba real, un pedido directo ('corre el analista para X') se encolo SIN confirmar.
+    "REGLA S5 REFORZADA: la confirmacion vale TAMBIEN cuando el pedido ya vino claro y completo — un pedido directo "
+    "NO reemplaza el 'si': primero repetis que vas a hacer, y SOLO despues del 'si' llamas la tool de escritura. "
+    "Las de SOLO LECTURA (estado, brief, aprobaciones, sgic...) no piden confirmacion. Si la frase llego cortada "
+    "o ambigua, repregunta antes de tocar CUALQUIER tool (N8) — no adivines cual quiso. "
     # SGIC (14-jul) — capacidad general de consulta del sistema del cliente.
     "Si Luciano pregunta un dato fino de un cliente que NO está en tu snapshot (cuántas órdenes de venta, un KPI "
     "puntual, una regla, un umbral, un costo, una aprobación), usá 'sgic_consulta' ANTES de decir que no tenés el "
@@ -514,7 +519,9 @@ class SatoriVoz(Agent):
         proxima pasada (maximo 5 minutos). Los agentes con gate dejan su resultado como aprobacion.
 
         FLUJO OBLIGATORIO (S5): repeti en voz alta que agente y para que cliente, y espera el 'si'
-        explicito de Luciano antes de llamarla.
+        explicito de Luciano antes de llamarla. INCLUSO si el pedido ya fue claro y directo
+        ('corre el analista para Vehemence'): un pedido directo NO reemplaza la confirmacion —
+        primero repetis, y SOLO con el 'si' la llamas.
 
         Args:
             agente: clave del agente, ej. 'analista'.
