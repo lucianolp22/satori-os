@@ -1,3 +1,66 @@
+# HANDOFF — Satori OS — 2026-08-25 (espejo vivo · sesión Cowork tandas 1-4)
+
+DEPLOY-PENDIENTE: sí — código en `origin/main` `25b149d` + `clasp push` a /dev; FALTA re-certificar selfTest en el editor y promover a `/exec` (secuencia abajo). Prod hoy ≈ **@50** (confirmar con `clasp deployments`; rollback @49 en `_promote_rollback.txt`).
+
+PRÓXIMO PASO: **promover a `/exec`** — en el editor GAS correr en orden `selfTest` → `selfTestTramo2` → `selfTestTramo3` → `selfTestTramo4` → `selfTestTramo5` → `selfTestVeredicto` (debe dar **CERTIFICADO** con el D44a2 nuevo: cola = `encaje_kairos_4b`) → `limpiarTodoTest`; después `bash _promote_exec.sh` (dry) y `bash _promote_exec.sh --go`.
+
+> **Sesión del 25-ago (Cowork) — 4 tandas, todo en `origin/main` (`25b149d`), `clasp push` a /dev hecho, git sincronizado.** Prod `/exec` NO tocada en la sesión (sigue ≈@50). Verificación offline de cada tanda: `node _harness.js` **676/0** · `python3 _verificar_index.py` OK (449/449) · render headless con shim GAS (desktop + iPhone 15 Pro Max) 0 errores JS.
+
+## Lo que entró en la sesión (4 tandas)
+
+**T1 · Propósito + Fichas 360 + Cerebro** (commits `4f0711e` y antes, ya en prod-code): propósito primario anclado ×4 (`SOUL_IDENTIDAD` 24_soul.js · system Sato 26_sato.js · `voz/agent/agent.py` · docs/SOUL.md) · moneda robusta (`fmtMoneda` fallback + col `moneda`) + topes fichaCliente KPIs 8→16, ops 6→10 · 18 wikilinks del Cerebro saneados · trigger Galgo re-habilitado · parche M1 (moneda por fila de Datos_operativos).
+
+**T2 · Orbe Persistente v2** (`4f0711e`/`38b9b9b`): `#orbeP` a nivel body, **fiel al Núcleo** (partículas crema/jade/terra + anillo fino) — el orbe NATIVO del CM quedó intacto (lección +51: la maqueta aprueba comportamiento, NO reemplazo de identidad visual). Aparece solo en Ficha 360: nace sobre el orbe del CM, vuela a la cabecera (FLIP 640ms), vuelve y desaparece. Fail-safe IIFE+try/catch (`body.orbep-on` solo si init OK).
+
+**T3 · Akasha + Director Sato unificado + CRM** (`38b9b9b`): Akasha sin cartel del Núcleo auto-abierto, sin `?`/`◈ Eco` (calidad Full fija), +botón `◉ Cartera`. **CRM completo** (backend `33_cartera.js`: `carteraProxAccion` · `propuestaRegistrar` · `propuestaFirmar` con ciclo medido · `_carteraFoco_` pura; `carteraPipeline` +campos aditivos `foco`/`recurrentes`/`props`/`pide_prox`; los 3 endpoints con `_soloOwner_`+`ENDPOINTS_UI` mismo commit; +col `encaje_kairos_4b`). UI: tiles + foco semanal + badges + regla «siguiente paso siempre existe» + card→Ficha 360 + solapa **Comercial** en la Ficha (oportunidad/encaje/propuesta editables).
+
+**T4 · Sato sin ventanas + mobile** (`25b149d`): tocar el orbe (CM/Ficha/Núcleo) abre el **panel de Sato DENTRO del OS** (cero `window.open` por defecto). Voz full-duplex = botón `📞` opcional (ventanita — el iframe de GAS prohíbe el micrófono embebido, T1.4c; fix definitivo = PWA-C). Botones "Sato" ocultos con `display:none` (NO removidos — el DOM los necesita, lección +52). Mobile iPhone 15 Pro Max: tiles en carrusel, formularios apilados, targets ≥44px.
+
+## Verificado [25-ago]
+- Offline: `node _harness.js` **676/0** (incluye 17 asserts nuevos del CRM: foco puro ×7, endpoints declarados/gateados ×9, schema) · `python3 _verificar_index.py` OK · render headless desktop+móvil 0 errores JS — evidencia: corridas en la sesión Cowork.
+- `setup()` corrido por Luciano 03:02 → col `encaje_kairos_4b` materializada en el MAESTRO.
+- Eyeball de Luciano en /dev (tanda 3): "todo muy bien"; obs de la voz → resuelta en T4.
+
+## No verificado (⚠ gate del promote)
+- **selfTest 5 tramos EN VIVO con los asserts nuevos** — el D44a2 cambió (cola `encaje_kairos_4b`); NO está re-certificado. Es el PRÓXIMO PASO.
+- **Asserts D45 EN VIVO del CRM** — los endpoints nuevos tocan Sheets y NO tienen assert en vivo (lección +46). DEUDA con dueño (Cowork), a construir al **profundizar el CRM** (próxima sesión). Riesgo residual bajo: escrituras aditivas, gateadas, con lock, reversibles.
+- El ciclo real registrar→firmar de una propuesta en /exec (recomendado probarlo una vez con un CLI dummy tras el promote).
+
+## Pendiente
+**Must:**
+- Promover a /exec (secuencia arriba).
+- Cargar `moneda` en el MAESTRO: CLI-002 ARS · CLI-003 ARS · CLI-004 EUR (por Chrome con Cowork, o a mano col N de Clientes).
+
+**Should:**
+- **Profundizar el CRM (decisión de Luciano 25-ago — próxima conversación):** asserts D45 live + vista móvil dedicada (lista-por-etapa v2) + lo que Luciano defina (candidatos: dossier de reunión desde la card · Sato comercial con foco · métricas de conversión · cadencia F3 operativa).
+- Tildar `encaje_kairos_4b` de los tibios maduros (SIP, Pipol, Nook, Crocante), col O.
+- URLs `url_exec_cliente` DAM/LC/Vehemence (botón SGIC).
+
+**Nice:**
+- PWA-C (voz full-duplex embebida sin ventana) — sube en relevancia por la unificación de Sato.
+- Ajustes de diseño HQ · logos orbe 3D Akasha · perf (datosHoy 8.6s/salud 16.6s) · poda deployments viejos.
+
+## Artefactos
+| Tipo | Nombre | Ruta / ID / URL |
+|---|---|---|
+| repo | satori-os | `github.com/lucianolp22/satori-os` · HEAD `25b149d` |
+| MAESTRO (Sheet) | Satori OS — MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` |
+| scriptId GAS | — | `1M-LYF0GO_Zgh2quGNlCzl4Okcx-DFqQxUhA_jqFqtbJNXYqnIu-2GVnO` |
+| deployment /exec (prod) | — | `AKfycbxZJL4E…phLm` (≈@50; rollback @49 en `_promote_rollback.txt`) |
+| deployment /dev | — | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
+| backend CRM | 33_cartera.js | `carteraProxAccion` · `propuestaRegistrar` · `propuestaFirmar` · `_carteraFoco_` · `carteraPipeline` |
+| UI CRM/orbe | src/index.html | anclas: `CRM 25-ago` · `ORBE PERSISTENTE v2` · `unificación Director Sato` · `f360Comercial_` |
+| script promote | _promote_exec.sh | dry / `--go`; guardia GAS HEAD == src/ |
+| handoffs de tanda | claude/ (Project) + raíz | `HANDOFF-2026-08-25-…-madrugada-port-orbe-M1.md` · `…-orbe-v2-sato-unificado-CRM.md` · `ADENDA-…-tanda4-…` |
+| voz | ElevenLabs voice | `xcAUMhbpNX2WRGsuhjFy` (EN USO ×2: agent.py + satoVoz — NO dar de baja) |
+
+## Desvíos del plan original
+- CRM: se levantó la regla §2.5 del PLAN-F3 (no módulo hasta ≥3 corridas manuales) — decisión de Luciano 24-ago. El módulo nace como VISTA sobre dato existente, bajo gate anti-rollup.
+- Orbe: la maqueta v1 (esfera lisa animada) fue RECHAZADA por Luciano; el orbe definitivo es fiel al Núcleo Akasha existente (lección +51).
+- Director Sato: la voz por defecto NO abre ventana (obs de Luciano); la ventana quedó como opción `📞` por la restricción del iframe de GAS.
+
+<!-- ══════════════ CABECERA ANTERIOR (24-ago) — ARCHIVO ══════════════ -->
+
 # HANDOFF — Satori OS — 2026-08-24 (espejo vivo · PROD @46 · CERTIFICADO 935/0)
 
 > Estado vigente arriba; todo lo que sigue de la cabecera del 04-ago es archivo.
