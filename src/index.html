@@ -1094,6 +1094,18 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-com-edit input{flex:1;min-width:140px;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:8px;color:var(--color-text);padding:7px 10px;font-size:12.5px;min-height:38px;font-family:inherit}
 .f360-com-rec{display:flex;align-items:center;gap:4px;padding:7px 0;border-bottom:1px solid var(--color-border);font-size:12.5px;flex-wrap:wrap}
 .f360-com-rec:last-child{border-bottom:none}
+/* CRM · mobile (iPhone 15 Pro Max 430pt): tiles en carrusel, formularios apilados, targets ≥44px */
+@media (max-width:760px){
+  .cartera-mrow{padding:8px 12px 0;gap:8px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .cartera-mrow::-webkit-scrollbar{display:none}
+  .cartera-mtile{min-width:118px;flex:none}
+  .cartera-foco{margin:8px 12px 0}
+  .f360-com-edit{flex-direction:column}
+  .f360-com-edit input{min-width:0;width:100%;max-width:none!important;flex:none}
+  .f360-com-edit .btn{width:100%;min-height:44px}
+  .f360-com-rec .btn{min-height:44px}
+  .cartera-card .top{min-height:44px}
+}
 .cartera-vacia{color:var(--color-text-subtle);font-size:12px;padding:6px 2px}
 @media (max-width:900px){ .cartera{inset:0;border-radius:0} .cartera-col{flex-basis:80vw} }
 #centro .kboard.fichaboard.open.con-sato{transform:translateX(calc(-50% - 195px))}
@@ -1424,7 +1436,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <div class="t"><span>API del mes</span><span class="mono" id="cmBudgetTxt">—</span></div>
         <div class="bar"><i id="cmBudgetBar"></i></div>
       </div>
-      <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_blank" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a>
+      <a class="cm-btn voz" id="cmVoz" href="http://127.0.0.1:8787/" target="_blank" style="display:none" title="Hablar con Sato (orbe de voz)">🎙 Hablar con Sato</a><!-- 25-ago: oculto — el Orbe ES el acceso a Sato; el DOM queda porque satoVozVentana_ lee su href -->
       <a class="cm-btn oficina" id="cmOficina" href="#" target="_blank" rel="noopener" title="Abrir la Oficina Virtual (solo en el Mac · loopback)" style="display:none">🏢 Oficina Virtual</a>
       <a class="cm-btn cerebro" id="cmGrafo" href="#" target="_blank" rel="noopener"
          title="Cerebro — el mapa de tus notas (cerebro_url de Config)" style="display:none">🧠 Cerebro</a>
@@ -1693,7 +1705,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
       </div>
       <span class="chip c-idle" id="f360Estado">—</span>
       <span class="f360-sem" id="f360Sem" role="img" aria-label="Semáforo del Hilo"></span>
-      <button class="btn btn-ghost btn-sm" id="f360SatoBtn" title="Trabajar este cliente con Sato">🜂 Sato</button>
+      <button class="btn btn-ghost btn-sm" id="f360SatoBtn" style="display:none" title="Trabajar este cliente con Sato">🜂 Sato</button><!-- 25-ago: oculto — el orbe de la cabecera ES el acceso; el DOM queda: f360SatoInit_ lo cablea -->
       <select id="f360Sel" class="cm-sel" aria-label="Cambiar de cliente"></select>
       <button class="icon-btn" id="f360Close" aria-label="Cerrar"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
@@ -1830,7 +1842,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
         <button class="pill" id="btn-atril" aria-pressed="false" title="El Atril del Director — tus tableros (tecla D)">▤ Atril</button>
         <select id="sel-cliente" class="cm-sel" aria-label="Cliente objetivo"></select>
         <span class="budget" title="Consumo API del mes vs tope"><span class="t"><span>API del mes</span><span class="mono" id="budget-txt">—</span></span><span class="bar"><i id="budget-bar" style="width:0%"></i></span></span>
-        <button class="pill jade" id="btn-voz" title="Hablar con Sato (voz_url de Config)">🎙 Hablar con Sato</button>
+        <button class="pill jade" id="btn-voz" style="display:none" title="Hablar con Sato (voz_url de Config)">🎙 Hablar con Sato</button><!-- 25-ago: oculto — el Núcleo ES el acceso (doble toque) -->
         <button class="pill" id="btn-ov" title="Abrir la Oficina Virtual (oficina_url de Config)">▦ Oficina Virtual</button>
         <button class="pill" id="btn-capturar" title="Capturar a la Bandeja">＋ Capturar</button>
         <button class="pill" id="btn-hq" title="SATORI HQ — tu Ficha 360 propia (v0)">◉ HQ</button>
@@ -3540,14 +3552,24 @@ document.getElementById('palette').addEventListener('click',function(ev){if(ev.t
     return SATORI_WRAPPER_URL + (SATORI_WRAPPER_URL.indexOf('?')<0?'?':'&') + 'v=' + vista;
   }
   function irAVoz(){
-    /* 25-ago (unificación Director Sato): la voz ya no navega la pestaña — se abre en una
-       VENTANITA flotante (patrón satomic: top-level, el micrófono funciona) y el panel de charla
-       del GAS queda abierto como registro. window.close() de voz.html funciona por ser popup. */
-    if(!voz)return;
-    var w=window.open(voz.href,'satoVozWin','width=430,height=720,left='+Math.max(20,((window.screen&&screen.width)||1200)-470)+',top=80');
-    if(w&&w.focus)w.focus();
+    /* 25-ago v2 (obs Luciano: NADA de ventanas al tocar el orbe): se abre el panel de Sato
+       DENTRO del OS (charla + 🎙 dictado + 🔊 voz). La voz full-duplex del agente queda como
+       opción explícita (📞 en el panel): el iframe de Google prohíbe el micrófono embebido
+       (T1.4c) — esa es la ÚNICA razón por la que existe una ventana, y ahora solo si la pedís.
+       La solución definitiva sin ventana es PWA-C (el OS fuera del iframe de Google). */
     if(typeof satoPanel_==='function') satoPanel_(true);
   }
+  /* 📞 voz completa (full-duplex del agente) — bajo demanda, nunca por defecto */
+  window.satoVozVentana_=function(){
+    var a=document.getElementById('cmVoz'), url=(a&&a.href)||'';
+    if(!url){ if(typeof cmToast==='function')cmToast('Sin URL de voz configurada'); return; }
+    var w=window.open(url,'satoVozWin','width=430,height=720,left='+Math.max(20,((window.screen&&screen.width)||1200)-470)+',top=80');
+    if(w&&w.focus)w.focus();
+  };
+  document.addEventListener('click',function(e){
+    var t=e.target&&e.target.closest?e.target.closest('#f360SatoFull'):null;
+    if(t) window.satoVozVentana_();
+  });
   if(voz){ voz.addEventListener('click',function(e){ if(e.metaKey||e.ctrlKey||e.shiftKey||e.button)return; e.preventDefault(); irAVoz(); }); }
   if(orbe&&voz){ orbe.addEventListener('click',irAVoz);
     orbe.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();irAVoz();}}); }
@@ -7159,11 +7181,11 @@ window.AKASHA = (function () {
       window.open(CFG.oficina_url, '_blank', 'noopener');
     },
     abrirVoz: function () {
-      if (!CFG.voz_url) { toast('No hay URL de voz configurada (voz_url de Config)'); return; }
-      /* 25-ago unificación: ventanita flotante (mic OK top-level) + panel de charla como registro */
-      var w = window.open(CFG.voz_url, 'satoVozWin', 'width=430,height=720,left=' + Math.max(20, ((window.screen && screen.width) || 1200) - 470) + ',top=80');
-      if (w && w.focus) w.focus();
+      /* 25-ago v2 (obs Luciano): el Núcleo abre el panel de Sato DENTRO del OS. La voz
+         full-duplex vive en el 📞 del panel (la ventana existe solo porque Google prohíbe
+         el micrófono embebido en el iframe — T1.4c). */
       if (typeof satoPanel_ === 'function') satoPanel_(true);
+      else toast('El panel de Sato no está disponible en esta vista');
     },
     /* E3 v0 — SATORI HQ desde el Akasha. Navega window.top a ?v=hq con la wrapper que inyecta
        doGet (mismo contrato que la voz, FIX 3). Sin wrapper (fuera de /exec) avisa, no navega. */
@@ -8163,6 +8185,7 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
       <div class="f360-sato-h"><b><span class="sato-orbe" id="f360SatoOrbe" data-estado="idle" aria-hidden="true">🜂</span> Sato</b>
         <button class="vbtn" id="f360SatoMic" title="Hablarle a Sato (micrófono)">🎙</button>
         <button class="vbtn" id="f360SatoVoz" title="Que Sato responda con voz">🔊 voz</button>
+        <button class="vbtn" id="f360SatoFull" title="Voz completa con el agente — se abre en una ventanita (Google no permite el micrófono embebido en el iframe)">📞</button>
         <span class="st" id="f360SatoSt">memoria persistente</span>
         <button class="icon-btn" id="f360SatoX" aria-label="Cerrar Sato"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
       <div class="f360-sato-log" id="f360SatoLog"></div>

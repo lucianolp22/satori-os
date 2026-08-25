@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-24 23:57 · commit: d0c7807
+> Generado: 2026-08-25 03:00 · commit: 38b9b9b
 
 ## Módulos
 
@@ -40,7 +40,7 @@
 | `30_correo.js` | T7 · CORREO → TRIAJE A BANDEJA (04-ago-2026) | 5 |
 | `31_admin.js` | TC-7 · F4a · MOTOR DE ADMINISTRACIÓN PROPIA (04-ago-2026) | 14 |
 | `32_flota.js` | EDIFICIO SATORI · lectores de la FLOTA PROPIA (10-ago-2026) | 11 |
-| `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 10 |
+| `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 14 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -193,5 +193,5 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **32_flota.js:** _flotaConsumoRO_ _flotaTelemetria_ _flotaSemaforo_ flotaEstado agenteDetalle moduloEdificio _avataresLabClaves_ _avatarUrlDrive_ seedAvataresLab seedAvataresLabPisar _seedAvataresLab_ 
 
-**33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ moverEtapaComercial 
+**33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ moverEtapaComercial _carteraFoco_ carteraProxAccion propuestaRegistrar propuestaFirmar 
 
