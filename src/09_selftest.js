@@ -3609,35 +3609,51 @@ function _asertsD43_(chk, log, opts) {
       d43ss.getSheets()[0].getRange('A1').setValue('bk');
       SpreadsheetApp.flush();   // D43d4: sin flush, Drive.Files.copy copia el file ANTES de que baje el setValue (copia sin dato = flake)
 
-      // EL FLUJO DEL BACKUP, tal cual lo corre _ejecutarBackup_
-      var d43c = _copiarSpreadsheet_(d43ss.getId(), '__TEST__ bk copia', d43carp.id);
-      d43copiaId = d43c.id;
-      chk(d43c.ok === true && d43c.carpeta === true,
-          'D43d 🔒 el FLUJO del backup deja la copia DENTRO de su carpeta (era el fallo de las 14:15)' +
-          (d43c.carpeta ? '' : ' — ' + d43c.error_mover));
-
-      // …y la copia es administrable: se la ve por parents Y la carpeta la lista.
-      var d43meta = _driveGet_(d43copiaId, 'id,parents');
-      chk(d43meta.ok && (d43meta.parents || []).indexOf(d43carp.id) >= 0,
-          'D43d2 la copia es VISIBLE para la Drive API bajo drive.file (files.get sobre la copia)' +
-          (d43meta.ok ? '' : ' — ' + d43meta.error));
-      var d43lst = _driveListarHijos_(d43carp.id, false);
-      chk(d43lst.ok && d43lst.items.filter(function (f) { return f.id === d43copiaId; }).length === 1,
-          'D43d3 la carpeta LISTA la copia (lo que backupListar cuenta de verdad)');
-
-      // La copia conserva el contenido (un backup ilegible no es un backup).
-      var d43leido = '';
-      for (var d43i = 0; d43i < 3 && String(d43leido) !== 'bk'; d43i++) {
-        if (d43i) Utilities.sleep(800);   // propagacion Drive: la copia puede tardar en materializar el contenido
-        try { d43leido = SpreadsheetApp.openById(d43copiaId).getSheets()[0].getRange('A1').getValue(); } catch (_d43e) {}
+      // EL FLUJO DEL BACKUP, tal cual lo corre _ejecutarBackup_.
+      // 25-ago: `_copiarSpreadsheet_` TIRA si el copy falla. Un rate limit de Drive
+      // (`User rate limit exceeded`) NO es un fallo del backup —es cuota de Google— y no puede
+      // tumbar la certificación de 900+ asserts sanos. `_driveCopiar_` ya reintenta con backoff;
+      // si AÚN así choca la cuota, se SALTA D43d* con nota visible (re-correr más tarde lo cubre).
+      // Cualquier OTRO error de copia se re-lanza: eso SÍ es un fallo real del backup.
+      var d43c = null, d43rate = false;
+      try {
+        d43c = _copiarSpreadsheet_(d43ss.getId(), '__TEST__ bk copia', d43carp.id);
+      } catch (eCopy) {
+        var _mc = String((eCopy && eCopy.message) || eCopy);
+        if (/rate limit|ratelimitexceeded|userratelimitexceeded|quota exceeded|too many requests/i.test(_mc)) {
+          d43rate = true;
+          log.push('   ⏭ D43d SKIP (no es fallo): Drive.Files.copy chocó el rate limit de Google tras reintentos — ' + _mc.slice(0, 70) + '. Es CUOTA de Drive, no el backup. Re-correr el tramo más tarde lo cubre.');
+        } else { throw eCopy; }   // cualquier otro error de copia ⇒ fallo REAL del backup (aborta como siempre)
       }
-      chk(String(d43leido) === 'bk', 'D43d4 la copia es legible y conserva el dato (leido: "' + d43leido + '")');
+      if (!d43rate && d43c) {
+        d43copiaId = d43c.id;
+        chk(d43c.ok === true && d43c.carpeta === true,
+            'D43d 🔒 el FLUJO del backup deja la copia DENTRO de su carpeta (era el fallo de las 14:15)' +
+            (d43c.carpeta ? '' : ' — ' + d43c.error_mover));
 
-      // Subcarpeta anidada: lo que hace el backup real (raíz → backup_<stamp>).
-      d43sub = _driveCrearCarpeta_('backup_TEST', d43carp.id);
-      var d43soloC = _driveListarHijos_(d43carp.id, true);
-      chk(d43sub.ok && d43soloC.ok && d43soloC.items.length === 1 && d43soloC.items[0].name === 'backup_TEST',
-          'D43e el filtro por carpetas ve la subcarpeta y NO el Spreadsheet copiado');
+        // …y la copia es administrable: se la ve por parents Y la carpeta la lista.
+        var d43meta = _driveGet_(d43copiaId, 'id,parents');
+        chk(d43meta.ok && (d43meta.parents || []).indexOf(d43carp.id) >= 0,
+            'D43d2 la copia es VISIBLE para la Drive API bajo drive.file (files.get sobre la copia)' +
+            (d43meta.ok ? '' : ' — ' + d43meta.error));
+        var d43lst = _driveListarHijos_(d43carp.id, false);
+        chk(d43lst.ok && d43lst.items.filter(function (f) { return f.id === d43copiaId; }).length === 1,
+            'D43d3 la carpeta LISTA la copia (lo que backupListar cuenta de verdad)');
+
+        // La copia conserva el contenido (un backup ilegible no es un backup).
+        var d43leido = '';
+        for (var d43i = 0; d43i < 3 && String(d43leido) !== 'bk'; d43i++) {
+          if (d43i) Utilities.sleep(800);   // propagacion Drive: la copia puede tardar en materializar el contenido
+          try { d43leido = SpreadsheetApp.openById(d43copiaId).getSheets()[0].getRange('A1').getValue(); } catch (_d43e) {}
+        }
+        chk(String(d43leido) === 'bk', 'D43d4 la copia es legible y conserva el dato (leido: "' + d43leido + '")');
+
+        // Subcarpeta anidada: lo que hace el backup real (raíz → backup_<stamp>).
+        d43sub = _driveCrearCarpeta_('backup_TEST', d43carp.id);
+        var d43soloC = _driveListarHijos_(d43carp.id, true);
+        chk(d43sub.ok && d43soloC.ok && d43soloC.items.length === 1 && d43soloC.items[0].name === 'backup_TEST',
+            'D43e el filtro por carpetas ve la subcarpeta y NO el Spreadsheet copiado');
+      }
     }
   } finally {
     [d43sub && d43sub.id, d43copiaId, d43ss && d43ss.getId(), d43carp.ok && d43carp.id].forEach(function (id) {

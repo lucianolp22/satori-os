@@ -286,12 +286,26 @@ function _driveUrlSheet_(id) { return 'https://docs.google.com/spreadsheets/d/' 
  */
 function _driveCopiar_(srcId, nombre, carpetaId) {
   if (!String(srcId || '').trim()) return { ok: false, error: 'sin id de origen' };
-  try {
-    var rec = { name: String(nombre || 'copia') };
-    if (carpetaId) rec.parents = [String(carpetaId)];
-    var f = Drive.Files.copy(rec, String(srcId), { fields: 'id,parents,name' });
-    return { ok: true, id: f.id, parents: f.parents || [], name: f.name };
-  } catch (e) { return { ok: false, error: String((e && e.message) || e).slice(0, 140) }; }
+  var rec = { name: String(nombre || 'copia') };
+  if (carpetaId) rec.parents = [String(carpetaId)];
+  // 25-ago: reintento con backoff ante rate limit de Drive (`userRateLimitExceeded` /
+  // `rateLimitExceeded` / `User rate limit exceeded`). Es un límite de CUOTA de Google —no un
+  // fallo de copia— y el patrón oficial es exponential backoff. Beneficia al backup semanal real
+  // (copia ~22 Sheets: si Google limita a mitad de camino, antes abortaba la hoja; ahora reintenta)
+  // Y al selfTest D43. Cualquier OTRO error corta de una (no es transitorio). Máx 3 intentos.
+  var _esRate_ = function (m) { return /rate limit|ratelimitexceeded|userratelimitexceeded|quota exceeded|too many requests/i.test(String(m || '')); };
+  var esperas = [0, 1500, 4000], ultimo = '';
+  for (var i = 0; i < esperas.length; i++) {
+    if (esperas[i]) { try { Utilities.sleep(esperas[i]); } catch (_s) {} }
+    try {
+      var f = Drive.Files.copy(rec, String(srcId), { fields: 'id,parents,name' });
+      return { ok: true, id: f.id, parents: f.parents || [], name: f.name };
+    } catch (e) {
+      ultimo = String((e && e.message) || e);
+      if (!_esRate_(ultimo)) break;   // no es rate limit ⇒ no tiene sentido reintentar
+    }
+  }
+  return { ok: false, error: ultimo.slice(0, 140), rate_limit: _esRate_(ultimo) };
 }
 
 /** Metadata mínima de un archivo/carpeta. @return {{ok:boolean, id?, name?, trashed?, parents?, error?}} */
