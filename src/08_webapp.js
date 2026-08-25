@@ -1141,7 +1141,9 @@ function fichaCliente(idCliente) {
       concepto: limpiarHostilTexto_(String(o.concepto || ''), 100),
       valor: (o.valor === '' || o.valor == null) ? null : Number(o.valor),
       notas: limpiarHostilTexto_(String(o.notas || ''), 200),
-      fuente: limpiarHostilTexto_(String(o.fuente || ''), 80)
+      fuente: limpiarHostilTexto_(String(o.fuente || ''), 80),
+      // M1 purga 24-ago: la moneda POR FILA de Datos_operativos viaja al hint de fmtMoneda
+      moneda: limpiarHostilTexto_(String(o.moneda || ''), 10)
     };
   });
 

@@ -1666,6 +1666,7 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div class="kscrim" id="fichascrim"></div>
   <div class="kboard fichaboard" id="fichaboard" role="dialog" aria-modal="true" aria-label="Ficha de cliente 360">
     <div class="khead">
+      <span id="f360OrbeSlot" title="Hablar con Sato"></span>
       <span class="f360-avatar" id="f360Avatar" aria-hidden="true">—</span>
       <div class="f360-tit">
         <h3 id="f360Nombre">Cliente</h3>
@@ -1782,6 +1783,8 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
   <div id="akasha" aria-hidden="true">
     <!-- starfield propio: el #cmSpace del CM está display:none. Corre solo con Akasha abierto. -->
     <canvas id="stars" aria-hidden="true"></canvas>
+    <!-- Orbe persistente (F1 24-ago): slot de Akasha — tocarlo abre la charla con Sato (f360Sato, body z-300 > akasha 200) -->
+    <div id="akOrbeSlot" role="button" tabindex="0" aria-label="Hablar con Sato" title="Hablar con Sato" hidden></div>
 <div id="cosmos" hidden>
   <canvas id="gl" aria-label="Oficina Universo Akasha — escena tridimensional. Usá Tab para recorrer estaciones, clientes y núcleo."></canvas>
 
@@ -4939,7 +4942,7 @@ function f360Num_(fc){
   fc.operacion.forEach(function(o){ var r=el('div','f360-row');
     r.appendChild(el('span','k mono',o.fecha||'—'));
     var v=el('span','v',o.concepto||'—'); if(o.notas)v.title=o.notas; r.appendChild(v);
-    r.appendChild(el('span','mono num',o.valor!=null?(fmtMoneda(o.valor,(o.concepto||'')+' '+(o.fuente||''))||String(o.valor)):'—'));
+    r.appendChild(el('span','mono num',o.valor!=null?(fmtMoneda(o.valor,(o.concepto||'')+' '+(o.fuente||'')+' '+(o.moneda||''))||String(o.valor)):'—'));
     cont.appendChild(r); });
 }
 /* FILA 3 — Próximos pasos: tareas activas (vencidas marcadas) + aprobaciones pendientes +
@@ -7894,8 +7897,128 @@ window.AKASHA = (function () {
 })();
 
 
+/* ══ ORBE PERSISTENTE (F1 · 24-ago) — módulo aislado: IIFE + try/catch. Si falla, el boot
+   del CM no se entera y el orbe viejo sigue (body.orbep-on solo se pone si init salió bien). */
+(function(){
+  'use strict';
+  var P=null,CV=null,CTX=null,T0=0,volando=false,slotActual=null;
+  function $id(i){return document.getElementById(i);}
+  function objetivo(){
+    var c=$id('centro');
+    if(!c||getComputedStyle(c).display==='none') return null;
+    if(c.classList.contains('ak-on')) return $id('akOrbeSlot');
+    var fb=$id('fichaboard');
+    if(fb&&fb.classList.contains('open')) return $id('f360OrbeSlot');
+    return $id('orbe');
+  }
+  function meter(slot){
+    if(!slot){ P.hidden=true; slotActual=null; if(P.parentNode!==document.body)document.body.appendChild(P); return; }
+    if(slot.id==='akOrbeSlot') slot.hidden=false;
+    if(slot.id==='orbe') slot.insertBefore(P,slot.firstChild);   // el texto .orbe-center queda ARRIBA (DOM posterior)
+    else slot.appendChild(P);
+    P.style.cssText='position:absolute;inset:0;pointer-events:none';
+    P.hidden=false;
+  }
+  function redock(instant){
+    try{
+      var slot=objetivo();
+      if(!slot){ meter(null); return; }
+      if(slot===slotActual&&!instant) return;
+      var prev=slotActual; slotActual=slot;
+      if(instant||window.REDUCED||P.hidden||!prev||volando){ meter(slot); return; }
+      var r0=P.getBoundingClientRect(), r1=slot.getBoundingClientRect();
+      if(slot.id==='akOrbeSlot') slot.hidden=false;
+      if(!r1.width) r1=slot.getBoundingClientRect();
+      if(!r0.width||!r1.width){ meter(slot); return; }
+      volando=true;
+      document.body.appendChild(P); P.hidden=false;
+      P.style.cssText='position:fixed;z-index:90000;pointer-events:none;left:'+r0.left+'px;top:'+r0.top+'px;width:'+r0.width+'px;height:'+r0.height+'px';
+      void P.offsetWidth;
+      P.style.transition='left .64s cubic-bezier(.16,1,.3,1),top .64s cubic-bezier(.16,1,.3,1),width .64s cubic-bezier(.16,1,.3,1),height .64s cubic-bezier(.16,1,.3,1)';
+      P.style.left=r1.left+'px'; P.style.top=r1.top+'px'; P.style.width=r1.width+'px'; P.style.height=r1.height+'px';
+      var hecho=false;
+      var fin=function(){ if(hecho)return; hecho=true; volando=false; P.style.transition='none'; var s2=objetivo(); slotActual=s2; meter(s2); };
+      var to=setTimeout(fin,760);
+      P.addEventListener('transitionend',function h(){ P.removeEventListener('transitionend',h); clearTimeout(to); fin(); });
+    }catch(e){ volando=false; if(window.console)console.warn('orbeP redock',e); }
+  }
+  function draw(now){
+    try{
+      if(!P.hidden&&CTX){
+        var t=(now-T0)/1000, est=P.dataset.estado||'idle';
+        var vel=est==='listen'?1.25:0.55, br=1+Math.sin(t*vel)*(est==='listen'?0.028:0.012);
+        CTX.clearRect(0,0,512,512); CTX.save(); CTX.scale(512/300,512/300); CTX.translate(150,150); CTX.scale(br,br);
+        var g=CTX.createRadialGradient(-30,-40,10,0,0,150);
+        g.addColorStop(0,'rgba(230,168,126,.95)'); g.addColorStop(.38,'rgba(213,130,79,.82)');
+        g.addColorStop(.72,'rgba(121,57,29,.9)'); g.addColorStop(1,'rgba(20,17,13,.98)');
+        CTX.beginPath(); CTX.arc(0,0,148,0,7); CTX.fillStyle=g; CTX.fill();
+        var B=[[62,52,.21,.30,'62,155,130'],[44,74,-.15,.22,'111,194,168'],[76,38,.11,.26,'230,168,126']];
+        CTX.globalCompositeOperation='lighter';
+        for(var i=0;i<3;i++){ var b=B[i],a=t*b[2]*vel*2+i*2.1,bx=Math.cos(a)*b[1],by=Math.sin(a*.8)*b[1]*.7;
+          var bg=CTX.createRadialGradient(bx,by,2,bx,by,b[0]);
+          bg.addColorStop(0,'rgba('+b[4]+','+b[3]+')'); bg.addColorStop(1,'rgba('+b[4]+',0)');
+          CTX.beginPath(); CTX.arc(bx,by,b[0],0,7); CTX.fillStyle=bg; CTX.fill(); }
+        CTX.globalCompositeOperation='source-over';
+        var hl=CTX.createRadialGradient(-36,-64,4,-36,-64,110);
+        hl.addColorStop(0,'rgba(244,238,226,.20)'); hl.addColorStop(1,'rgba(244,238,226,0)');
+        CTX.beginPath(); CTX.arc(0,0,148,0,7); CTX.fillStyle=hl; CTX.fill(); CTX.restore();
+      }
+    }catch(e){}
+    if(!window.REDUCED) requestAnimationFrame(draw);
+  }
+  function initOrbeP(){
+    try{
+      P=$id('orbeP'); CV=$id('orbePcv');
+      if(!P||!CV||!$id('orbe')) return;                 // sin piezas, sin orbe nuevo — CM intacto
+      CTX=CV.getContext('2d'); T0=performance.now();
+      var root=$id('cmRoot');
+      if(root&&window.MutationObserver) new MutationObserver(function(){ P.dataset.estado=root.getAttribute('data-orb')||'idle'; })
+        .observe(root,{attributes:true,attributeFilter:['data-orb']});
+      var c=$id('centro'), fb=$id('fichaboard'), mo=new MutationObserver(function(){ redock(false); });
+      if(c) mo.observe(c,{attributes:true,attributeFilter:['class','style']});
+      if(fb) mo.observe(fb,{attributes:true,attributeFilter:['class']});
+      addEventListener('resize',function(){ redock(true); });
+      var ak=$id('akOrbeSlot');
+      if(ak){ var abrir=function(){ if(typeof satoPanel_==='function') satoPanel_(true); };
+        ak.addEventListener('click',abrir);
+        ak.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); abrir(); } }); }
+      var fs=$id('f360OrbeSlot');
+      if(fs) fs.addEventListener('click',function(){ if(typeof satoPanel_==='function') satoPanel_(); });
+      document.body.classList.add('orbep-on');          // recién acá cede el orbe viejo
+      redock(true);
+      if(window.REDUCED) draw(performance.now()); else requestAnimationFrame(draw);
+    }catch(e){ if(window.console)console.warn('orbeP off (fail-safe):',e); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initOrbeP);
+  else initOrbeP();
+})();
+
 if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4c: mic-only no bootea el CM
 </script>
+    <!-- ══ ORBE PERSISTENTE (F1 · port maqueta 24-ago) ══
+       Un solo orbe (Sato) que fluye entre CM home (#orbe) · Ficha 360 (cabecera) · Akasha.
+       Arquitectura por RE-PARENTING: docked vive DENTRO del slot (cero z-index wars — lección
+       04-ago); solo se eleva a fixed durante el vuelo (ese ES el efecto). Tokens literales
+       porque cruza scopes de tema. body.orbep-on activa el cede del orbe viejo (fail-safe:
+       sin la clase, el CM queda como estaba). -->
+    <style>
+    #orbeP{position:absolute;inset:0;pointer-events:none}
+    #orbeP .op-halo{position:absolute;inset:-14%;border-radius:50%;background:radial-gradient(circle at 50% 46%, rgba(213,130,79,.32), rgba(213,130,79,.09) 42%, transparent 60%)}
+    #orbeP canvas{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:50%}
+    #orbeP .op-anillo{position:absolute;inset:-4%;border-radius:50%;border:1.5px solid transparent;transition:border-color .24s cubic-bezier(.25,1,.5,1),box-shadow .24s cubic-bezier(.25,1,.5,1)}
+    #orbeP[data-estado="listen"] .op-anillo{border-color:rgba(242,200,147,.75);box-shadow:0 0 34px -4px rgba(242,200,147,.8),0 0 90px -18px rgba(213,130,79,.55)}
+    body.orbep-on #centro .orbe > canvas{display:none!important}
+    body.orbep-on #centro .orbe::before{background:none!important}
+    #f360OrbeSlot{position:relative;flex:none;width:46px;height:46px;cursor:pointer}
+    #akasha #akOrbeSlot{position:fixed;right:20px;bottom:calc(24px + env(safe-area-inset-bottom));width:88px;height:88px;z-index:26;cursor:pointer;border-radius:50%}
+    @media (prefers-reduced-motion: reduce){ #orbeP .op-anillo{transition:none} }
+    @media (max-width:760px){ #akasha #akOrbeSlot{width:64px;height:64px;right:14px} #f360OrbeSlot{width:38px;height:38px} }
+    </style>
+    <div id="orbeP" data-estado="idle" hidden aria-hidden="true">
+      <div class="op-halo"></div>
+      <canvas id="orbePcv" width="512" height="512"></canvas>
+      <div class="op-anillo"></div>
+    </div>
     <!-- T1.4/T1.7: SATO ÚNICO — colgado de <body>, HERMANO de #centro y #akasha (no adentro de #centro).
        #akasha es fixed z-index:200 y #centro z-index:50: si Sato vive dentro de #centro su z queda
        encapsulado bajo 50 y Akasha (200) lo tapa. A nivel body con z-index:300 nada del OS lo tapa.
