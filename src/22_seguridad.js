@@ -219,6 +219,7 @@ var ENDPOINTS_UI = [
   'purgaAuditoria',                                                             // auditoría read-only de la purga (11-ago)
   'carteraPipeline', 'moverEtapaComercial',                                     // 33_cartera.js (E1)
   'seedCartera2026_08_11', 'seedCartera2026_08_11Aplicar',                      // seed one-shot (dry-run / aplicar)
+  'carteraProxAccion', 'propuestaRegistrar', 'propuestaFirmar',                 // CRM 25-ago: próx. acción + lazo propuesta→firma
   'seedAvataresLab', 'seedAvataresLabPisar',                                    // 32_flota.js (E2, avatares del lab)
   'selfTestTramo', 'selfTestVeredicto',                                         // tramos (04-ago)
   'selfTestTramo2', 'selfTestTramo3', 'selfTestTramo4', 'selfTestTramo5',       // wrappers sin args (desplegable del editor)

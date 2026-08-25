@@ -2110,8 +2110,10 @@ seccion('P3 tramos del selfTest');
   // Botón SGIC (17-ago): `url_exec_cliente` = /exec del sistema propio del cliente. Distinta de
   // `url_sheet_cliente` (la hoja) y última del schema. Y el front no puede abrirla a ciegas: el
   // guard `safeExecUrl` es lo que impide que una celda del MAESTRO mande a cualquier dominio.
-  chk(cols[cols.length - 1] === 'moneda',
-      'E-c moneda es la última columna de Clientes (aditiva, 24-ago) — cola: ' + cols[cols.length - 1]);
+  chk(cols[cols.length - 1] === 'encaje_kairos_4b',
+      'E-c encaje_kairos_4b es la última columna de Clientes (aditiva, 25-ago) — cola: ' + cols[cols.length - 1]);
+  chk(cols.indexOf('moneda') >= 0,
+      'E-c moneda sigue declarada en Clientes (aditiva del 24-ago)');
   chk(cols.indexOf('url_exec_cliente') >= 0,
       'E-c url_exec_cliente sigue declarada en Clientes (aditiva del 17-ago)');
   chk(cols.indexOf('url_sheet_cliente') >= 0 && cols.indexOf('url_sheet_cliente') !== cols.indexOf('url_exec_cliente'),
@@ -2164,6 +2166,33 @@ seccion('P3 tramos del selfTest');
   chk(ctx._carteraLineasBrief_([{ id_cliente: 'CLI-001', prox_accion_fecha: '2026-12-01' }], HOYC).length === 0,
       'E-c sin vencidas el brief NO gana una línea que diga «todo bien»');
   chk(ctx._carteraLineasBrief_(null, HOYC).length === 0, 'E-c roster nulo ⇒ [] (no revienta el brief)');
+
+  // ── CRM 25-ago · foco semanal: PURA, máx 2, excluye CLI-000 y activos, vencida más vieja primero ──
+  const rosterF = [
+    { id_cliente: 'CLI-000', nombre: 'OV', etapa_comercial: 'tibio', prox_accion_fecha: '2026-01-01' },
+    { id_cliente: 'CLI-101', nombre: 'A', etapa_comercial: 'activo', prox_accion_fecha: '2026-01-02' },
+    { id_cliente: 'CLI-102', nombre: 'B', etapa_comercial: 'tibio', prox_accion_fecha: '2026-08-01' },
+    { id_cliente: 'CLI-103', nombre: 'C', etapa_comercial: 'tibio', prox_accion_fecha: '2026-07-01' },
+    { id_cliente: 'CLI-104', nombre: 'D', etapa_comercial: 'caliente' },
+    { id_cliente: 'CLI-105', nombre: 'E', etapa_comercial: 'tibio' },
+  ];
+  const focoC = ctx._carteraFoco_(rosterF, '2026-08-20');
+  chk(Array.isArray(focoC) && focoC.length === 2, 'E-c foco: propone exactamente 2 contactos (cadencia F3)');
+  chk(focoC[0] && focoC[0].id_cliente === 'CLI-103', 'E-c foco: la próx. acción vencida más VIEJA va primera');
+  chk(focoC[1] && focoC[1].id_cliente === 'CLI-102', 'E-c foco: la segunda vencida sigue');
+  chk(focoC.every(f => f.id_cliente !== 'CLI-000' && f.id_cliente !== 'CLI-101'), 'E-c foco: excluye CLI-000 y a los ya activos');
+  chk(focoC.every(f => f.motivo && f.motivo.length > 0), 'E-c foco: cada contacto trae su MOTIVO (el OS propone con porqué)');
+  chk(ctx._carteraFoco_(null, '2026-08-20').length === 0, 'E-c foco: roster nulo ⇒ [] (no revienta)');
+  chk(ctx._carteraFoco_([{ id_cliente: 'CLI-104', nombre: 'D', etapa_comercial: 'caliente' }, { id_cliente: 'CLI-105', nombre: 'E', etapa_comercial: 'tibio', etapa_desde: '2026-08-01' }], '2026-08-20')[0].id_cliente === 'CLI-104',
+      'E-c foco: sin vencidas, caliente le gana a tibio');
+
+  // ── CRM 25-ago · endpoints nuevos: existen en 33_cartera y dados de alta en ENDPOINTS_UI (mismo commit) ──
+  const segSrc = fs.readFileSync(path.join(SRC, '22_seguridad.js'), 'utf8');
+  ['carteraProxAccion', 'propuestaRegistrar', 'propuestaFirmar'].forEach(fn => {
+    chk(new RegExp("'" + fn + "'").test(segSrc), 'E-c ' + fn + ' dado de alta en ENDPOINTS_UI (22_seguridad.js)');
+    chk(new RegExp('function ' + fn + '\\(').test(cartera), 'E-c ' + fn + ' existe en 33_cartera.js');
+    chk(new RegExp('function ' + fn + '\\([^)]*\\)\\s*\\{\\s*\\n?\\s*_soloOwner_').test(cartera), 'E-c ' + fn + ' arranca con _soloOwner_ (gate X2)');
+  });
   // Recorte declarado: un «top 3» mudo se lee como lista completa.
   const muchasC = ['a', 'b', 'c', 'd', 'e'].map((n, i) => ({ id_cliente: 'CLI-10' + i, nombre: n, prox_accion: 'x', prox_accion_fecha: '2026-08-0' + (i + 1) }));
   chk(ctx._carteraLineasBrief_(muchasC, HOYC)[0].indexOf('+2 más') >= 0, 'E-c el recorte a 3 se DECLARA (+N más)');

@@ -29,7 +29,9 @@ var MAESTRO_SHEETS = {
   // consumidores ocultan el acceso en vez de mostrar un botón muerto.
   // Moneda robusta (24-ago): +moneda AL FINAL (EUR|ARS). Fallback de fmtMoneda en la Ficha 360
   // cuando el concepto/kpi no nombra la divisa. Celda vacía = legítimo (sin símbolo forzado).
-  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente', 'moneda'],
+  // CRM (25-ago): +encaje_kairos_4b AL FINAL — 4 chars s/n/- (≥2 años · ventas estables · punto
+  // de equilibrio · intención), tildado A MANO en la Etapa 2 KAIROS. No es ML y el código no lo escribe.
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente', 'moneda', 'encaje_kairos_4b'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.

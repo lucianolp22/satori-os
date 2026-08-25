@@ -1045,6 +1045,18 @@ function datosCliente(idCliente) {
   var gobernanza = leerTabla(ss.getSheetByName('Gobernanza'))
     .filter(function (g) { return g.id_cliente === idCliente; })[0] || null;
 
+  // CRM (25-ago): filas de recurrentes_propios de ESTE cliente. Ausencia de schema/hoja => []
+  // (la solapa Comercial lo dice; la ficha no se cae por el HQ).
+  var recPropias = [];
+  try {
+    var shRec = _hqHoja_('recurrentes_propios');
+    if (shRec) recPropias = leerTabla(shRec)
+      .filter(function (f) { return String(f.id_cliente) === idCliente; })
+      .slice(0, 10)
+      .map(function (f) { return { id_rec: String(f.id_rec || ''), servicio: limpiarHostilTexto_(String(f.servicio || ''), 80),
+        importe: (f.importe === '' || f.importe == null) ? null : Number(f.importe),
+        moneda: String(f.moneda || '').toUpperCase(), estado: String(f.estado || '').toLowerCase() }; });
+  } catch (eRec) { recPropias = []; }
   return {
     cliente: {
       id_cliente: cli.id_cliente, nombre: cli.nombre, rubro: cli.rubro, estado: cli.estado,
@@ -1053,13 +1065,21 @@ function datosCliente(idCliente) {
       // /exec del sistema propio del cliente (17-ago). Vacío = no tiene ⇒ la UI oculta el botón.
       url_exec_cliente: cli.url_exec_cliente || '',
       // Moneda del cliente (24-ago): fallback de fmtMoneda en la Ficha 360. Vacía = legítimo.
-      moneda: cli.moneda || ''
+      moneda: cli.moneda || '',
+      // CRM (25-ago): la solapa Comercial de la Ficha lee esto (aditivo).
+      etapa_comercial: String(cli.etapa_comercial || ''),
+      prox_accion: String(cli.prox_accion || ''),
+      prox_accion_fecha: aFechaISO(cli.prox_accion_fecha) || '',
+      etapa_desde: aFechaISO(cli.etapa_desde) || '',
+      encaje_kairos_4b: String(cli.encaje_kairos_4b || '')
     },
     proyectos: proyectos,
     proximos_pasos: proximos,
     observaciones: observaciones,
     consumo_api: consumoApiCliente(cli.url_sheet_cliente),
-    gobernanza: gobernanza
+    gobernanza: gobernanza,
+    // CRM (25-ago): propuestas/retenciones de ESTE cliente (recurrentes_propios, solo lectura).
+    recurrentes: recPropias
   };
 }
 

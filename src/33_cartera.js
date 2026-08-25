@@ -215,11 +215,36 @@ function carteraPipeline() {
                  etapa_desde: desde, dias_etapa: desde ? _diasEntreISO_(desde, hoy) : null,
                  // Alta liviana: la card lo DICE. Un prospecto sin Sheet es un estado legítimo,
                  // pero uno en `caliente`/`activo` sin Sheet es un alta a medio hacer.
-                 sin_sheet: !String(c.url_sheet_cliente || '').trim() };
+                 sin_sheet: !String(c.url_sheet_cliente || '').trim(),
+                 // CRM 25-ago — regla «el siguiente paso siempre existe»: el JUICIO se computa acá
+                 // (el enum vive en el backend; el front solo pinta — regla anti-enum-clavado E-c).
+                 pide_prox: ['tibio', 'caliente', 'activo'].indexOf(String(c.etapa_comercial || '')) >= 0 &&
+                            !String(c.prox_accion || '').trim() };
     if (cols[card.etapa]) cols[card.etapa].push(card); else sinEtapa.push(card);
   });
+  // CRM (25-ago) — campos ADITIVOS (el payload viejo queda intacto): foco semanal (pura — el OS
+  // propone, Luciano decide) + resumen/props de `recurrentes_propios` (la propuesta viva en la
+  // card). La lectura del HQ degrada a null: la cartera jamás se cae por esa hoja.
+  var rec = null, props = {};
+  try {
+    var shRec = _hqHoja_('recurrentes_propios');
+    if (shRec) {
+      rec = { activos: 0, propuestas: 0, por_moneda: {} };
+      leerTabla(shRec).forEach(function (f) {
+        var est = String(f.estado || '').toLowerCase(), mon = String(f.moneda || '').trim().toUpperCase();
+        var imp = Number(f.importe) || 0, idc = String(f.id_cliente || '');
+        if (est === 'activo') { rec.activos++; if (mon) rec.por_moneda[mon] = (rec.por_moneda[mon] || 0) + imp; }
+        else if (est === 'propuesta') rec.propuestas++;
+        // `firmada` viaja como booleano: el front no compara contra el literal del estado
+        // (regla anti-enum-clavado E-c — el juicio es del backend).
+        if (idc && est === 'activo') props[idc] = { servicio: limpiarHostilTexto_(String(f.servicio || ''), 60), importe: imp, moneda: mon, firmada: true };
+        else if (idc && est === 'propuesta' && !props[idc]) props[idc] = { servicio: limpiarHostilTexto_(String(f.servicio || ''), 60), importe: imp, moneda: mon, firmada: false };
+      });
+    }
+  } catch (eR) { rec = null; }
   return { etapas: ETAPAS_COMERCIALES, columnas: cols, sin_etapa: sinEtapa, hoy: hoy,
-           total: filas.length, migrada: filas.length === 0 || filas[0].hasOwnProperty('etapa_comercial') };
+           total: filas.length, migrada: filas.length === 0 || filas[0].hasOwnProperty('etapa_comercial'),
+           foco: _carteraFoco_(filas, hoy), recurrentes: rec, props: props };
 }
 
 /** PURA — días calendario entre dos ISO (yyyy-MM-dd). Negativo si `b` es anterior a `a`. */
@@ -297,5 +322,120 @@ function moverEtapaComercial(idCliente, etapa) {
       aviso = 'Falta el alta real: ' + id + ' no tiene Sheet de cliente. Corré crearCliente para que el OS pueda leerle datos.';
     }
     return { ok: true, id_cliente: id, de: viejo, a: e, desde: hoy, aviso: aviso };
+  });
+}
+
+/* ══════════════ CRM (25-ago-2026) — próx. acción editable + lazo propuesta→firma + foco ══════════════
+ * Handoff CRM 24-ago §4. Gate anti-rollup: cada campo responde «¿qué haría distinto según este
+ * número?». Nivel 0 intacto: el OS propone y muestra; mover, registrar y firmar son SIEMPRE
+ * decisiones de Luciano. Cero hojas nuevas: `recurrentes_propios` ya existía (E3 HQ). */
+
+/**
+ * PURA — foco semanal (cadencia F3: 2 contactos). Prioridad: próx. acción VENCIDA más vieja →
+ * caliente sobre tibio → más días quieto en etapa. Excluye CLI-000 y a los que ya son
+ * activo/en_pausa/perdido (el foco es para EMPUJAR el embudo, no para los que ya entraron).
+ * No escribe nada: el OS propone, Luciano decide (doctrina E1).
+ */
+function _carteraFoco_(filas, hoy) {
+  var cand = (filas || []).filter(function (c) {
+    if (String(c.id_cliente) === 'CLI-000') return false;
+    return ['tibio', 'caliente'].indexOf(String(c.etapa_comercial || '')) >= 0;
+  }).map(function (c) {
+    var f = aFechaISO(c.prox_accion_fecha);
+    var desde = aFechaISO(c.etapa_desde);
+    return { id_cliente: String(c.id_cliente), nombre: String(c.nombre || ''),
+             vencida: (f && f < String(hoy)) ? f : '',
+             caliente: String(c.etapa_comercial) === 'caliente' ? 1 : 0,
+             dias: desde ? (_diasEntreISO_(desde, hoy) || 0) : 0 };
+  });
+  cand.sort(function (a, b) {
+    if (!!a.vencida !== !!b.vencida) return a.vencida ? -1 : 1;
+    if (a.vencida && b.vencida && a.vencida !== b.vencida) return a.vencida < b.vencida ? -1 : 1;
+    if (a.caliente !== b.caliente) return b.caliente - a.caliente;
+    return (b.dias || 0) - (a.dias || 0);
+  });
+  return cand.slice(0, 2).map(function (c) {
+    var motivo = c.vencida ? ('próx. acción vencida el ' + c.vencida)
+               : (c.caliente ? 'caliente — el más cerca de la propuesta'
+                             : (c.dias || 0) + ' día(s) quieto en tibio');
+    return { id_cliente: c.id_cliente, nombre: c.nombre, motivo: motivo };
+  });
+}
+
+/**
+ * Edita la próxima acción (+fecha) de UN cliente del roster. Mismas guardas que
+ * `moverEtapaComercial`: id contra el roster REAL, fecha validada, lock, log a Actividad.
+ */
+function carteraProxAccion(idCliente, texto, fecha) {
+  _soloOwner_('carteraProxAccion');
+  var id = String(idCliente == null ? '' : idCliente).trim();
+  if (!id) return { ok: false, error: 'falta id_cliente' };
+  var tx = String(texto == null ? '' : texto).trim().slice(0, 140);
+  var fRaw = String(fecha == null ? '' : fecha).trim();
+  var f = fRaw ? aFechaISO(fRaw) : '';
+  if (fRaw && !f) return { ok: false, error: 'fecha inválida: ' + JSON.stringify(fRaw) + ' (formato yyyy-MM-dd)' };
+  return conLock(function () {
+    var sh = getMaestro().getSheetByName('Clientes');
+    var fila = leerTabla(sh).filter(function (c) { return String(c.id_cliente) === id; })[0];
+    if (!fila) return { ok: false, error: 'id_cliente fuera del roster: ' + id };
+    _setColumnasCliente_(sh, fila, { prox_accion: tx, prox_accion_fecha: f });
+    try { feed_('Cartera', 'cartera', id, 'Próx. acción: ' + (tx || '(vacía)') + (f ? ' · para el ' + f : '')); } catch (_f) {}
+    return { ok: true, id_cliente: id, prox_accion: tx, prox_accion_fecha: f };
+  });
+}
+
+/**
+ * Registra una propuesta en `recurrentes_propios` con estado=propuesta — el HQ la muestra
+ * ATENUADA y NO la suma (regla E3: una propuesta no es un ingreso). Importe y moneda los pone
+ * Luciano; nada se infiere. La nota sella la fecha de registro (de ahí sale el ciclo medido).
+ */
+function propuestaRegistrar(idCliente, servicio, importe, moneda) {
+  _soloOwner_('propuestaRegistrar');
+  var id = String(idCliente == null ? '' : idCliente).trim();
+  if (!id) return { ok: false, error: 'falta id_cliente' };
+  var svc = String(servicio == null ? '' : servicio).trim().slice(0, 80);
+  if (!svc) return { ok: false, error: 'falta el servicio' };
+  var imp = Number(importe);
+  if (!(imp > 0)) return { ok: false, error: 'importe inválido: ' + JSON.stringify(importe) };
+  var mon = String(moneda == null ? '' : moneda).trim().toUpperCase();
+  if (!/^[A-Z]{2,6}$/.test(mon)) return { ok: false, error: 'moneda inválida (ej: EUR, USD, ARS)' };
+  return conLock(function () {
+    var fila = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === id; })[0];
+    if (!fila) return { ok: false, error: 'id_cliente fuera del roster: ' + id };
+    var sh = _hqHoja_('recurrentes_propios');
+    if (!sh) return { ok: false, error: 'schema recurrentes_propios ausente: corré setup()' };
+    var max = 0;
+    leerTabla(sh).forEach(function (r) { var m = /^REC-(\d+)$/.exec(String(r.id_rec || '')); if (m) max = Math.max(max, +m[1]); });
+    var idRec = 'REC-' + ('0000' + (max + 1)).slice(-4);
+    var hoy = hoyISO();
+    appendFila(sh, { id_rec: idRec, id_cliente: id, cliente: String(fila.nombre || ''), servicio: svc,
+                     importe: imp, moneda: mon, estado: 'propuesta', notas: 'registrada ' + hoy });
+    try { feed_('Cartera', 'cartera', id, 'Propuesta ' + idRec + ': ' + svc + ' · ' + mon + ' ' + imp + '/mes (estado=propuesta)'); } catch (_f) {}
+    return { ok: true, id_rec: idRec, id_cliente: id };
+  });
+}
+
+/**
+ * Firma: la fila pasa a estado=activo → el HQ la suma al subtotal por moneda y
+ * `retenciones_formalizadas` se mueve. IDEMPOTENTE: firmar dos veces no re-escribe nada.
+ * Ciclo medido: días desde la nota `registrada yyyy-MM-dd` (si está); queda en Actividad.
+ * (`_setColumnasCliente_` es genérica: headers + fila._fila — sirve para cualquier hoja.)
+ */
+function propuestaFirmar(idRec) {
+  _soloOwner_('propuestaFirmar');
+  var idr = String(idRec == null ? '' : idRec).trim();
+  if (!idr) return { ok: false, error: 'falta id_rec' };
+  return conLock(function () {
+    var sh = _hqHoja_('recurrentes_propios');
+    if (!sh) return { ok: false, error: 'schema recurrentes_propios ausente: corré setup()' };
+    var fila = leerTabla(sh).filter(function (r) { return String(r.id_rec) === idr; })[0];
+    if (!fila) return { ok: false, error: 'id_rec inexistente: ' + idr };
+    if (String(fila.estado || '').toLowerCase() === 'activo') return { ok: true, id_rec: idr, ya_activa: true };
+    var hoy = hoyISO(), dias = null;
+    var m = /registrada (\d{4}-\d{2}-\d{2})/.exec(String(fila.notas || ''));
+    if (m) dias = _diasEntreISO_(m[1], hoy);
+    _setColumnasCliente_(sh, fila, { estado: 'activo', notas: (String(fila.notas || '') + ' · firmada ' + hoy).slice(0, 200) });
+    try { feed_('Cartera', 'cartera', String(fila.id_cliente || ''), 'Retención FIRMADA ' + idr + (dias != null ? ' · ciclo ' + dias + ' día(s) desde el registro' : '')); } catch (_f) {}
+    return { ok: true, id_rec: idr, id_cliente: String(fila.id_cliente || ''), dias_ciclo: dias };
   });
 }
