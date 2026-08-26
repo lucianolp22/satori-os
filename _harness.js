@@ -75,7 +75,12 @@ const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js',
                  // T1.e (11-ago): entra al arnés porque ahora tiene funciones PURAS que se pueden
                  // aserir offline (`_carteraLineasBrief_`, `_diasEntreISO_`). Lo que toca el roster
                  // real sigue siendo D44 en el editor.
-                 '33_cartera.js', '09_selftest.js'];
+                 '33_cartera.js',
+                 // CAPACIDADES SATO · Ola 1.0 (26-ago): entra al arnés para que el canal de push
+                 // tenga cobertura. No tiene lógica pura que ejercitar (todo es UrlFetch +
+                 // Properties), así que sus asserts son ESTÁTICOS sobre el código — que es
+                 // exactamente lo que el arnés puede probar sin mentir.
+                 '34_push.js', '09_selftest.js'];
 for (const f of MODULOS) {
   const code = fs.readFileSync(path.join(SRC, f), 'utf8');
   try { vm.runInContext(code, ctx, { filename: f }); }
@@ -2753,6 +2758,58 @@ seccion('Tramo 6 · registro de D46/D47 y coherencia con los clavados del selfTe
   const d46code = sinCom6(d46);
   chk(d46code.indexOf('borrarFilasBatch_') >= 0 && d46code.indexOf('deleteRow') < 0,
       'T6 🔒 la limpieza de correo_cliente usa borrarFilasBatch_ (regla P0: Sheets rechaza borrar el 100% de las filas)');
+}
+
+
+// ═══ PUSH · canal proactivo al teléfono (34_push.js, CAPACIDADES-SATO Ola 1.0) ═══
+// Sin lógica pura que ejercitar: todo el módulo es UrlFetch + Script Properties. Los asserts son
+// ESTÁTICOS sobre el código, que es lo único que el arnés puede probar honestamente acá (la
+// prueba de envío real la corre Luciano con `probarPushTelefono` desde el desplegable).
+seccion('PUSH · 34_push.js (credenciales, silencio del token, no tumba la corrida)');
+{
+  const push = fs.readFileSync(path.join(SRC, '34_push.js'), 'utf8');
+  const sinComP = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const code = sinComP(push);
+
+  // (1) 🔒 CERO credenciales en el repo: todo sale de Script Properties. Un token pegado acá se
+  //     va a GitHub y ya no hay forma de despegarlo — se rota, no se borra.
+  chk(/getProperty\('PUSH_PROVIDER'\)/.test(code) &&
+      /getProperty\('PUSHOVER_TOKEN'\)/.test(code) && /getProperty\('PUSHOVER_USER'\)/.test(code) &&
+      /getProperty\('NTFY_TOPIC'\)/.test(code),
+      'PUSH 🔒 provider y credenciales salen de Script Properties, ninguna hardcodeada');
+  chk(!/['"][A-Za-z0-9]{25,}['"]/.test(code),
+      'PUSH 🔒 no hay ninguna cadena con pinta de token/clave literal en el módulo');
+  chk(/muteHttpExceptions: true/.test(code),
+      'PUSH la llamada no lanza por código HTTP: se lee el status y se reporta');
+
+  // (2) 🔒 EL TOKEN NO SE LOGUEA. El único Logger del módulo emite `e.message`, jamás el payload
+  //     ni la credencial — el Registro de ejecuciones es legible por cualquiera con el editor.
+  const logs = code.match(/Logger\.log\([^)]*\)/g) || [];
+  chk(logs.length > 0 && logs.every((l) => !/token|tok|user|payload|TOPIC/i.test(l)),
+      'PUSH 🔒 ningún Logger.log toca token, user, topic ni el payload — logs: ' + logs.join(' | '));
+  chk(!/Logger\.log\([^)]*props/.test(code),
+      'PUSH 🔒 no se loguea el objeto de propiedades entero (arrastraría todas las credenciales)');
+
+  // (3) 🔒 NO PUEDE TUMBAR LA CORRIDA DIARIA. El encargo lo pide explícito: el push es un
+  //     agregado, y un agregado que hace fallar `corridaDiaria` deja al OS sin su trabajo real.
+  //     El cuerpo entero va en try/catch y TODA salida es un objeto {enviado, motivo}.
+  chk(/function _pushTelefono_\([^)]*\)\s*\{\s*try\s*\{/.test(code),
+      'PUSH 🔒 el cuerpo entero de _pushTelefono_ está envuelto en try (no propaga excepciones)');
+  chk(/catch \(e\) \{[\s\S]{0,220}return \{ enviado: false/.test(code),
+      'PUSH 🔒 el catch DEVUELVE {enviado:false, motivo}, no re-lanza');
+  chk((code.match(/return \{ enviado:/g) || []).length >= 5 && !/throw /.test(code),
+      'PUSH toda salida es {enviado, motivo} y el módulo no tira nunca');
+  chk(/enviado: false, motivo: 'PUSH_PROVIDER no seteado \(no-op\)'/.test(code),
+      'PUSH sin provider configurado es un NO-OP declarado, no un error (no rompe nada)');
+
+  // El wrapper del desplegable: la razón por la que esto es corrible a mano.
+  chk(/function probarPushTelefono\(\)/.test(code) && typeof ctx.probarPushTelefono === 'function' &&
+      ctx.probarPushTelefono.length === 0,
+      'PUSH 🔒 `probarPushTelefono` existe, sin argumentos (el desplegable no pasa nada)');
+  chk(/_soloOwner_\('probarPushTelefono'\)/.test(code) && ctx.ENDPOINTS_UI.indexOf('probarPushTelefono') >= 0,
+      'PUSH 🔒 el wrapper está gateado y declarado en ENDPOINTS_UI');
+  chk(/PUSHOVER_TOKEN: !!props\.getProperty/.test(code),
+      'PUSH 🔒 el diagnóstico reporta la PRESENCIA de cada credencial (!!), nunca su valor');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────
