@@ -2363,12 +2363,12 @@ seccion('P3 tramos del selfTest');
 }
 
 
-// ═══ D45 · CRM PRO (26-ago-2026) — lo que SÍ se puede certificar offline ══════
-// Las piezas que tocan Sheets/Gmail/Drive NO están acá: viven en D46 (editor). Esta sección
+// ═══ D46 · CRM PRO (26-ago-2026) — lo que SÍ se puede certificar offline ══════
+// Las piezas que tocan Sheets/Gmail/Drive NO están acá: viven en `_asertsD46_` (editor, tramo 6). Esta sección
 // asegura los JUICIOS PUROS y los CONTRATOS estáticos — que es exactamente lo que el arnés puede
 // probar sin mentir (lección STUB DIVERGENTE = VERDE FALSO: nada de stubear GmailApp y cantar
 // victoria; se aseran las funciones puras reales y el texto del código).
-seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
+seccion('D46 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
 {
   const cartera = fs.readFileSync(path.join(SRC, '33_cartera.js'), 'utf8');
   const correoSrc = fs.readFileSync(path.join(SRC, '30_correo.js'), 'utf8');
@@ -2378,15 +2378,15 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
 
   // ── M1 · días sin contacto: SERVER-SIDE y con la distinción «no sé» ≠ «hoy» ──
   chk(/dias_sin_contacto: uc \? _diasEntreISO_\(uc, hoy\) : null/.test(cartera),
-      'D45 M1 `dias_sin_contacto` se computa server-side y es null (no 0) sin sello');
-  chk(/ultimo_contacto: uc/.test(cartera), 'D45 M1 la card lleva `ultimo_contacto`');
+      'D46 M1 `dias_sin_contacto` se computa server-side y es null (no 0) sin sello');
+  chk(/ultimo_contacto: uc/.test(cartera), 'D46 M1 la card lleva `ultimo_contacto`');
 
   // ── M1 · sello idempotente por día (se prueba sobre el TEXTO de la función real, no un stub) ──
   const sello = String(ctx._sellarContacto_);
   chk(/aFechaISO\(fila\.ultimo_contacto\) === hoy/.test(sello) && /sellado: false/.test(sello),
-      'D45 M1 🔒 el sello es IDEMPOTENTE por día (ya sellado hoy ⇒ no re-escribe ni re-alimenta Actividad)');
+      'D46 M1 🔒 el sello es IDEMPOTENTE por día (ya sellado hoy ⇒ no re-escribe ni re-alimenta Actividad)');
   chk(/ctx && ctx\.sh && ctx\.fila/.test(sello) && /return conLock\(/.test(sello),
-      'D45 M1 el sello respeta que conLock NO es reentrante (usa el ctx del llamador si lo hay)');
+      'D46 M1 el sello respeta que conLock NO es reentrante (usa el ctx del llamador si lo hay)');
 
   // ── M1 · línea de brief de fríos: PURA, con los dos recortes deliberados ──
   const rosterFrio = [
@@ -2397,40 +2397,40 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
     { id_cliente: 'CLI-204', nombre: 'Ayer', etapa_comercial: 'tibio',  ultimo_contacto: '2026-08-25' }
   ];
   const lf = ctx._carteraLineasFrio_(rosterFrio, HOY);
-  chk(lf.length === 1 && lf[0].indexOf('CLI-201') >= 0, 'D45 M1 el brief levanta al candidato +30d sin contacto');
-  chk(lf[0].indexOf('CLI-000') < 0, 'D45 M1 🔒 CLI-000 (tenant de sistema) queda fuera del brief de cartera');
-  chk(lf[0].indexOf('CLI-202') < 0, 'D45 M1 un ACTIVO no es «candidato» (su vínculo lo mira el semáforo M3)');
-  chk(lf[0].indexOf('CLI-203') < 0, 'D45 M1 🔒 «nunca contactado» NO es «30 días frío» (sin sello ⇒ no se acusa)');
-  chk(lf[0].indexOf('CLI-204') < 0, 'D45 M1 un contacto de ayer no es frío');
+  chk(lf.length === 1 && lf[0].indexOf('CLI-201') >= 0, 'D46 M1 el brief levanta al candidato +30d sin contacto');
+  chk(lf[0].indexOf('CLI-000') < 0, 'D46 M1 🔒 CLI-000 (tenant de sistema) queda fuera del brief de cartera');
+  chk(lf[0].indexOf('CLI-202') < 0, 'D46 M1 un ACTIVO no es «candidato» (su vínculo lo mira el semáforo M3)');
+  chk(lf[0].indexOf('CLI-203') < 0, 'D46 M1 🔒 «nunca contactado» NO es «30 días frío» (sin sello ⇒ no se acusa)');
+  chk(lf[0].indexOf('CLI-204') < 0, 'D46 M1 un contacto de ayer no es frío');
   chk(ctx._carteraLineasFrio_([], HOY).length === 0 && ctx._carteraLineasFrio_(null, HOY).length === 0,
-      'D45 M1 sin fríos ⇒ [] (el brief no gana una línea que diga «todo bien»)');
+      'D46 M1 sin fríos ⇒ [] (el brief no gana una línea que diga «todo bien»)');
 
   // ── S5 · perdido sin motivo se RECHAZA con error maquinable ──
   const mover = String(ctx.moverEtapaComercial);
   chk(/function moverEtapaComercial\(idCliente, etapa, motivo\)/.test(cartera),
-      'D45 S5 `moverEtapaComercial` recibe el 3er parámetro `motivo` (aditivo/opcional)');
+      'D46 S5 `moverEtapaComercial` recibe el 3er parámetro `motivo` (aditivo/opcional)');
   chk(/e === 'perdido' && !mot/.test(mover) && /'motivo_requerido'/.test(mover),
-      'D45 S5 🔒 mover a `perdido` SIN motivo devuelve error `motivo_requerido` (el front abre el modal)');
+      'D46 S5 🔒 mover a `perdido` SIN motivo devuelve error `motivo_requerido` (el front abre el modal)');
   chk(mover.indexOf("if (e === 'perdido' && !mot)") < mover.indexOf('conLock'),
-      'D45 S5 el rechazo ocurre ANTES de tomar el lock (no se paga un lock para fallar)');
+      'D46 S5 el rechazo ocurre ANTES de tomar el lock (no se paga un lock para fallar)');
 
   // ── S6 · recontacto: fecha + acción, y acotado ──
-  chk(ctx._sumarDiasISO_('2026-08-26', 90) === '2026-11-24', 'D45 S6 _sumarDiasISO_ suma 90 días correctamente');
-  chk(ctx._sumarDiasISO_('2026-12-31', 1) === '2027-01-01', 'D45 S6 _sumarDiasISO_ cruza el año sin romperse');
-  chk(ctx._sumarDiasISO_('2026-02-28', 1) === '2026-03-01', 'D45 S6 _sumarDiasISO_ respeta febrero (año no bisiesto)');
+  chk(ctx._sumarDiasISO_('2026-08-26', 90) === '2026-11-24', 'D46 S6 _sumarDiasISO_ suma 90 días correctamente');
+  chk(ctx._sumarDiasISO_('2026-12-31', 1) === '2027-01-01', 'D46 S6 _sumarDiasISO_ cruza el año sin romperse');
+  chk(ctx._sumarDiasISO_('2026-02-28', 1) === '2026-03-01', 'D46 S6 _sumarDiasISO_ respeta febrero (año no bisiesto)');
   const recon = String(ctx.carteraRecontacto);
   chk(/prox_accion: texto, prox_accion_fecha: fecha/.test(recon),
-      'D45 S6 el recontacto escribe prox_accion Y prox_accion_fecha (el brief existente lo revive solo)');
+      'D46 S6 el recontacto escribe prox_accion Y prox_accion_fecha (el brief existente lo revive solo)');
   chk(/Math\.min\(3650, Math\.max\(1, d\)\)/.test(recon),
-      'D45 S6 los días se acotan a [1,3650] (una fecha a 200 años no es un recontacto, es basura)');
-  chk(/if \(!isFinite\(d\) \|\| d <= 0\) d = 90/.test(recon), 'D45 S6 el default es 90 días');
+      'D46 S6 los días se acotan a [1,3650] (una fecha a 200 años no es un recontacto, es basura)');
+  chk(/if \(!isFinite\(d\) \|\| d <= 0\) d = 90/.test(recon), 'D46 S6 el default es 90 días');
 
   // ── M3 · semáforo: fuente ausente ⇒ null y GRIS, jamás rojo ni verde falso ──
   const vacio = ctx._senalRetencion_('CLI-002', { vig: null, agenda: null, tareasPorCliente: null, hoy: HOY });
   chk(vacio.datos === null && vacio.reunion === null && vacio.comp === null,
-      'D45 M3 🔒 sin ninguna fuente los tres campos son null (no false)');
-  chk(vacio.nivel === 'gris', 'D45 M3 🔒 D26c: 0 evaluables ⇒ GRIS, jamás verde (el enum del encargo daba verde falso)');
-  chk(vacio.nivel !== 'rojo', 'D45 M3 🔒 una fuente caída NUNCA pinta rojo (no se acusa por no saber)');
+      'D46 M3 🔒 sin ninguna fuente los tres campos son null (no false)');
+  chk(vacio.nivel === 'gris', 'D46 M3 🔒 D26c: 0 evaluables ⇒ GRIS, jamás verde (el enum del encargo daba verde falso)');
+  chk(vacio.nivel !== 'rojo', 'D46 M3 🔒 una fuente caída NUNCA pinta rojo (no se acusa por no saber)');
   const ctxOk = {
     vig: { clientes: [{ id: 'CLI-002', s: [{ sup: 'ventas', color: 'verde', dato: 'x', nota: '' }] }] },
     agenda: [{ id_cliente: 'CLI-002', fecha: '2026-08-20', estado: '' }],
@@ -2438,26 +2438,26 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
   };
   const verde = ctx._senalRetencion_('CLI-002', ctxOk);
   chk(verde.datos === true && verde.reunion === true && verde.comp === true && verde.nivel === 'verde',
-      'D45 M3 tres fuentes al día ⇒ verde');
+      'D46 M3 tres fuentes al día ⇒ verde');
   const unaMal = ctx._senalRetencion_('CLI-002', Object.assign({}, ctxOk, { tareasPorCliente: { 'CLI-002': [{ f: '2026-08-01' }] } }));
-  chk(unaMal.comp === false && unaMal.nivel === 'ambar', 'D45 M3 1 pendiente ⇒ ámbar');
+  chk(unaMal.comp === false && unaMal.nivel === 'ambar', 'D46 M3 1 pendiente ⇒ ámbar');
   const dosMal = ctx._senalRetencion_('CLI-002', {
     vig: { clientes: [{ id: 'CLI-002', s: [{ sup: 'ventas', color: 'gris', dato: 'sin datos', nota: 'no llegó' }] }] },
     agenda: [], tareasPorCliente: { 'CLI-002': [{ f: '2026-08-01' }] }, hoy: HOY
   });
-  chk(dosMal.nivel === 'rojo', 'D45 M3 2+ pendientes ⇒ rojo');
+  chk(dosMal.nivel === 'rojo', 'D46 M3 2+ pendientes ⇒ rojo');
   const sinConector = ctx._senalRetencion_('CLI-002', {
     vig: { clientes: [{ id: 'CLI-002', s: [{ sup: 'ventas', color: 'gris', dato: 'sin datos', nota: ctx.VIG_NOTA_SIN_FUENTE }] }] },
     agenda: null, tareasPorCliente: null, hoy: HOY
   });
   chk(sinConector.datos === null && sinConector.nivel === 'gris',
-      'D45 M3 🔒 gris POR FALTA DE CONECTOR es no-evaluable (null), no un pendiente');
-  chk(ctx._senalRetencion_('', ctxOk).nivel === 'gris', 'D45 M3 sin id ⇒ gris (no adivina cliente)');
+      'D46 M3 🔒 gris POR FALTA DE CONECTOR es no-evaluable (null), no un pendiente');
+  chk(ctx._senalRetencion_('', ctxOk).nivel === 'gris', 'D46 M3 sin id ⇒ gris (no adivina cliente)');
   // §4: el semáforo NO puede abrir Sheets de cliente por card.
   chk(String(ctx._senalRetencion_).indexOf('abrirCliente') < 0 && String(ctx._senalRetencion_).indexOf('getSheetByName') < 0,
-      'D45 M3 🔒 el juicio es PURO: no abre Sheets por card (§4 — el I/O vive en _senalRetencionCtx_)');
+      'D46 M3 🔒 el juicio es PURO: no abre Sheets por card (§4 — el I/O vive en _senalRetencionCtx_)');
   chk(/_senalRetencionCtx_\(\)/.test(cartera) && (cartera.match(/_senalRetencion_\(/g) || []).length >= 1,
-      'D45 M3 carteraPipeline arma el ctx UNA vez y juzga por card');
+      'D46 M3 carteraPipeline arma el ctx UNA vez y juzga por card');
 
   // ── M2 · índice de remitentes: PURO, y ambiguo ⇒ no propone ──
   const idx = ctx._correoIndiceRoster_(
@@ -2466,57 +2466,57 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
      { id_cliente: 'CLI-000', responsable_lado_cliente: 'yo@satori.com' }],
     { 'CLI-002': 'vehemence.com', 'CLI-003': 'mesaquince.com · otro.com' });
   chk(idx['vehemence.com'] === 'CLI-002' && idx['mesaquince.com'] === 'CLI-003',
-      'D45 M2 los dominios declarados en Config indexan al cliente');
-  chk(idx['ana@vehemence.com'] === 'CLI-002', 'D45 M2 el email de `responsable_lado_cliente` también indexa');
-  chk(!idx['yo@satori.com'], 'D45 M2 🔒 CLI-000 (sistema) no participa del match de correo');
+      'D46 M2 los dominios declarados en Config indexan al cliente');
+  chk(idx['ana@vehemence.com'] === 'CLI-002', 'D46 M2 el email de `responsable_lado_cliente` también indexa');
+  chk(!idx['yo@satori.com'], 'D46 M2 🔒 CLI-000 (sistema) no participa del match de correo');
   const choque = ctx._correoIndiceRoster_(
     [{ id_cliente: 'CLI-002' }, { id_cliente: 'CLI-003' }],
     { 'CLI-002': 'compartido.com', 'CLI-003': 'compartido.com' });
   chk(!choque['compartido.com'],
-      'D45 M2 🔒 un dominio reclamado por DOS clientes se descarta (antes de mezclar tenants, no se propone)');
+      'D46 M2 🔒 un dominio reclamado por DOS clientes se descarta (antes de mezclar tenants, no se propone)');
   chk(ctx._correoClienteDeRemitente_('Ana <ana@vehemence.com>', idx) === 'CLI-002',
-      'D45 M2 el remitente con nombre se resuelve por email exacto');
+      'D46 M2 el remitente con nombre se resuelve por email exacto');
   chk(ctx._correoClienteDeRemitente_('otro@vehemence.com', idx) === 'CLI-002',
-      'D45 M2 un remitente desconocido del dominio conocido cae al cliente del dominio');
+      'D46 M2 un remitente desconocido del dominio conocido cae al cliente del dominio');
   chk(ctx._correoClienteDeRemitente_('nadie@desconocido.com', idx) === '',
-      'D45 M2 🔒 sin match NO se propone cliente (jamás se adivina por parecido)');
+      'D46 M2 🔒 sin match NO se propone cliente (jamás se adivina por parecido)');
   chk(ctx._correoEmail_('  Ana Pérez <ANA@Vehemence.com> ') === 'ana@vehemence.com',
-      'D45 M2 el remitente se normaliza (minúsculas, sin display name)');
+      'D46 M2 el remitente se normaliza (minúsculas, sin display name)');
 
   // ── M2 · topes y cero-escritura ──
-  chk(ctx.CORREO_CRM_MAX_STAGING === 10, 'D45 M2 el tope de staging sin resolver es 10 (cláusula del encargo)');
+  chk(ctx.CORREO_CRM_MAX_STAGING === 10, 'D46 M2 el tope de staging sin resolver es 10 (cláusula del encargo)');
   chk(/if \(pendientes >= CORREO_CRM_MAX_STAGING\)[\s\S]{0,400}return \{ capturados: 0/.test(correoSrc),
-      'D45 M2 alcanzado el tope NO se captura más y se devuelve el aviso');
+      'D46 M2 alcanzado el tope NO se captura más y se devuelve el aviso');
   chk(/for \(var i = 0[\s\S]{0,200}if \(pendientes >= CORREO_CRM_MAX_STAGING\) break;/.test(correoSrc),
-      'D45 M2 el tope también corta DENTRO del barrido (no solo al entrar)');
+      'D46 M2 el tope también corta DENTRO del barrido (no solo al entrar)');
   // Acotado a la SECCIÓN M2: el T7 preexistente sí lee el cuerpo (`_extractoCorreo_`, cláusula 7
   // — lo anonimiza antes de la API). Lo que M2 promete es que el TIMELINE del CRM no lo toca:
   // en `correo_cliente` no hay columna de cuerpo y no debe haber llamada que lo lea.
   const m2src = correoSrc.slice(correoSrc.indexOf('CORREO_CRM_MAX_STAGING'));
   chk(m2src.length > 0 && m2src.indexOf('getPlainBody') < 0 && m2src.indexOf('getBody') < 0,
-      'D45 M2 🔒 el timeline del CRM JAMÁS lee el CUERPO del mail (solo id, asunto, remitente, fecha)');
+      'D46 M2 🔒 el timeline del CRM JAMÁS lee el CUERPO del mail (solo id, asunto, remitente, fecha)');
   chk(ctx.MAESTRO_SHEETS.correo_cliente.indexOf('cuerpo') < 0 && ctx.MAESTRO_SHEETS.correo_cliente.length === 7,
-      'D45 M2 🔒 el schema de correo_cliente no tiene columna de cuerpo (7 columnas exactas)');
+      'D46 M2 🔒 el schema de correo_cliente no tiene columna de cuerpo (7 columnas exactas)');
   chk(/estado: 'staging'/.test(correoSrc) && /sello_tenant: idc/.test(correoSrc),
-      'D45 M2 toda fila nace en `staging` y con `sello_tenant`');
+      'D46 M2 toda fila nace en `staging` y con `sello_tenant`');
 
   // ── M2 · AISLAMIENTO 🔒: un hilo de A no puede salir en la ficha de B ──
   const hilos = String(ctx.correoHilosDeCliente_);
   chk(/String\(f\.id_cliente\) === idc && String\(f\.sello_tenant\) === idc/.test(hilos),
-      'D45 M2 🔒 los hilos se filtran por id_cliente Y por sello_tenant (doble condición, §AISLAMIENTO.4)');
+      'D46 M2 🔒 los hilos se filtran por id_cliente Y por sello_tenant (doble condición, §AISLAMIENTO.4)');
   chk(/String\(f\.estado\) === 'confirmado'/.test(hilos),
-      'D45 M2 🔒 un `staging` sin confirmar NUNCA aparece en la ficha (la confirmación es humana)');
+      'D46 M2 🔒 un `staging` sin confirmar NUNCA aparece en la ficha (la confirmación es humana)');
   const confirmar = String(ctx.correoConfirmarThread);
   chk(/id_cliente fuera del roster/.test(confirmar),
-      'D45 M2 🔒 el id_cliente de la confirmación se valida contra el roster REAL (§AISLAMIENTO.3)');
+      'D46 M2 🔒 el id_cliente de la confirmación se valida contra el roster REAL (§AISLAMIENTO.3)');
   chk(/_sellarContacto_\(idc, 'correo'\)/.test(confirmar),
-      'D45 M2→M1 confirmar un hilo SELLA el contacto (es la pata que une correo con días-sin-contacto)');
+      'D46 M2→M1 confirmar un hilo SELLA el contacto (es la pata que une correo con días-sin-contacto)');
 
   // ── S4 · todas las oportunidades ──
   chk(/opsPorCliente\[idc\] = opsPorCliente\[idc\] \|\| \[\]/.test(cartera),
-      'D45 S4 se acumulan TODAS las oportunidades por cliente (no solo la más relevante)');
+      'D46 S4 se acumulan TODAS las oportunidades por cliente (no solo la más relevante)');
   chk(/card\.ops = opsPorCliente\[card\.id_cliente\] \|\| \[\]/.test(cartera),
-      'D45 S4 la card siempre lleva `ops` (array vacío, nunca undefined)');
+      'D46 S4 la card siempre lleva `ops` (array vacío, nunca undefined)');
 
   // ── C8 · snapshot: PURO y con subtotal por moneda ──
   const pipeFake = {
@@ -2529,39 +2529,39 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
     sin_etapa: [], recurrentes: { activos: 1, por_moneda: { ARS: 1000, EUR: 500 } }
   };
   const md = ctx._carteraSnapshotTexto_(pipeFake, HOY);
-  chk(md.indexOf('# Cartera Satori — snapshot ' + HOY) === 0, 'D45 C8 el .md abre con el título y la fecha');
-  chk(md.indexOf('ARS 1000 · EUR 500') >= 0, 'D45 C8 🔒 subtotal POR MONEDA (jamás un total global — lección HQ/B5)');
-  chk(md.indexOf('sin registro') >= 0, 'D45 C8 sin sello de contacto el .md lo DICE (no inventa un 0)');
-  chk(md.indexOf('CLI-002') >= 0 && md.indexOf('SGIC') >= 0, 'D45 C8 las oportunidades bajan al .md');
+  chk(md.indexOf('# Cartera Satori — snapshot ' + HOY) === 0, 'D46 C8 el .md abre con el título y la fecha');
+  chk(md.indexOf('ARS 1000 · EUR 500') >= 0, 'D46 C8 🔒 subtotal POR MONEDA (jamás un total global — lección HQ/B5)');
+  chk(md.indexOf('sin registro') >= 0, 'D46 C8 sin sello de contacto el .md lo DICE (no inventa un 0)');
+  chk(md.indexOf('CLI-002') >= 0 && md.indexOf('SGIC') >= 0, 'D46 C8 las oportunidades bajan al .md');
   chk(String(ctx._carteraSnapshotTexto_).indexOf('getSheetByName') < 0,
-      'D45 C8 el render del .md es PURO (el I/O vive en carteraSnapshotMd)');
+      'D46 C8 el render del .md es PURO (el I/O vive en carteraSnapshotMd)');
   chk(/var pipe = carteraPipeline\(\)/.test(cartera),
-      'D45 C8 el snapshot se arma DESDE carteraPipeline (una fuente, dos renders — no puede divergir de la pantalla)');
+      'D46 C8 el snapshot se arma DESDE carteraPipeline (una fuente, dos renders — no puede divergir de la pantalla)');
   chk(/function carteraSnapshotMd\(\)/.test(cartera),
-      'D45 C8 `carteraSnapshotMd` es SIN ARGUMENTOS (regla del desplegable del editor)');
+      'D46 C8 `carteraSnapshotMd` es SIN ARGUMENTOS (regla del desplegable del editor)');
 
   // ── C7 · dossier ──
   chk(/contactos: contactos, correo: correo, ops: ops/.test(webSrc),
-      'D45 C7 la ficha propaga contactos + correo + oportunidades (dossier de reunión)');
+      'D46 C7 la ficha propaga contactos + correo + oportunidades (dossier de reunión)');
   chk(/String\(a\.ts \|\| ''\)\.slice\(0, 10\)/.test(webSrc),
-      'D45 C7 la fecha del contacto sale de `ts` (Actividad NO tiene columna `fecha`)');
+      'D46 C7 la fecha del contacto sale de `ts` (Actividad NO tiene columna `fecha`)');
 
   // ── §2c · Bastión: gate + alta en ENDPOINTS_UI, en el MISMO commit ──
   ['carteraRegistrarContacto', 'carteraRecontacto', 'carteraSnapshotMd',
    'correoCandidatosStaging', 'correoConfirmarThread', 'correoDescartarThread'].forEach((fn) => {
     const src = /^cartera/.test(fn) ? cartera : correoSrc;
     chk(new RegExp('function ' + fn + '\\([^)]*\\)\\s*\\{\\s*\\n?\\s*_soloOwner_').test(src),
-        'D45 🔒 ' + fn + ' arranca con _soloOwner_');
-    chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, 'D45 🔒 ' + fn + ' está declarada en ENDPOINTS_UI (regla anti-drift)');
+        'D46 🔒 ' + fn + ' arranca con _soloOwner_');
+    chk(ctx.ENDPOINTS_UI.indexOf(fn) >= 0, 'D46 🔒 ' + fn + ' está declarada en ENDPOINTS_UI (regla anti-drift)');
   });
   // Las privadas NO deben estar declaradas (terminan en _ ⇒ no son RPC-invocables).
   ['_sellarContacto_', '_senalRetencion_', 'correoHilosDeCliente_'].forEach((fn) => {
-    chk(ctx.ENDPOINTS_UI.indexOf(fn) < 0, 'D45 ' + fn + ' NO va en ENDPOINTS_UI (privada, no invocable por RPC)');
+    chk(ctx.ENDPOINTS_UI.indexOf(fn) < 0, 'D46 ' + fn + ' NO va en ENDPOINTS_UI (privada, no invocable por RPC)');
   });
 
   // ── Retro-compatibilidad de carteraPipeline: los campos VIEJOS siguen ahí ──
   ['etapas:', 'columnas:', 'sin_etapa:', 'hoy:', 'total:', 'migrada:', 'foco:', 'recurrentes:', 'props:'].forEach((k) => {
-    chk(cartera.indexOf(k) >= 0, 'D45 carteraPipeline conserva `' + k.replace(':', '') + '` (aditivo, no rompe a Sato ni al móvil)');
+    chk(cartera.indexOf(k) >= 0, 'D46 carteraPipeline conserva `' + k.replace(':', '') + '` (aditivo, no rompe a Sato ni al móvil)');
   });
 
   // ── §2d · UI: lo que se puede aserir sin navegador (el render lo ve Luciano) ──
@@ -2570,62 +2570,189 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
   // Presupuesto de señal: MÁX 2 chips por card (1 captación + 1 retención).
   const cardFn = ui.slice(ui.indexOf('function carteraCard_'), ui.indexOf('function carteraMover_'));
   chk((cardFn.match(/sen\.appendChild/g) || []).length === 4,
-      'D45 UI la franja de señal tiene 4 ramas (3 de captación MUTUAMENTE excluyentes + 1 de retención)');
+      'D46 UI la franja de señal tiene 4 ramas (3 de captación MUTUAMENTE excluyentes + 1 de retención)');
   chk(/if\(vencida\)\{[\s\S]{0,300}\} else if\(card\.frio_sin_contacto===true\)\{[\s\S]{0,260}\} else if\(card\.ultimo_contacto\)\{/.test(cardFn),
-      'D45 UI 🔒 la prioridad de captación es EXACTA: vencida > fría > último contacto (else-if, no 3 chips)');
+      'D46 UI 🔒 la prioridad de captación es EXACTA: vencida > fría > último contacto (else-if, no 3 chips)');
   chk(/card\.senal_retencion/.test(cardFn) && /pill\.title=tip/.test(cardFn),
-      'D45 UI el semáforo de retención se pinta con el detalle en tooltip (no gasta espacio en la card)');
+      'D46 UI el semáforo de retención se pinta con el detalle en tooltip (no gasta espacio en la card)');
   chk(/pill\.setAttribute\('aria-label',tip\)/.test(cardFn),
-      'D45 UI el semáforo es accesible (el tooltip solo con el mouse dejaría afuera al teclado)');
+      'D46 UI el semáforo es accesible (el tooltip solo con el mouse dejaría afuera al teclado)');
 
   // El front NO replica el enum ni el umbral: recibe juicios del backend.
   const zonaCartera = ui.slice(ui.indexOf('function carteraPanel_'), ui.indexOf('function carteraMover_'));
   chk(zonaCartera.indexOf('CARTERA_FRIO_DIAS=30') < 0 && /c\.frio_sin_contacto===true/.test(zonaCartera),
-      'D45 UI 🔒 el umbral de frío NO se duplica en el front (llega juzgado como `frio_sin_contacto`)');
+      'D46 UI 🔒 el umbral de frío NO se duplica en el front (llega juzgado como `frio_sin_contacto`)');
   chk(ctx.CARTERA_FRIO_DIAS === 30 && ctx.CARTERA_ETAPAS_CAPTACION.join(',') === 'frio,tibio,caliente',
-      'D45 el umbral y las etapas de captación viven en el BACKEND, en una sola constante');
+      'D46 el umbral y las etapas de captación viven en el BACKEND, en una sola constante');
 
   // S5 · el modal: existe, tiene las TRES salidas, y cancelar revierte.
   ['carteraPerdidoModal', 'carteraPerdidoTxt', 'carteraPerdidoNo', 'carteraPerdidoGo', 'carteraPerdidoGo90']
-    .forEach((id) => chk(new RegExp('id="' + id + '"').test(ui), 'D45 S5 el modal tiene #' + id));
+    .forEach((id) => chk(new RegExp('id="' + id + '"').test(ui), 'D46 S5 el modal tiene #' + id));
   chk(/r\.error==='motivo_requerido'/.test(ui) && /carteraPerdidoAbrir_\(id, sel, etapaPrevia/.test(ui),
-      'D45 S5 🔒 `motivo_requerido` ABRE el modal (no es un toast que no lleva a ninguna parte)');
+      'D46 S5 🔒 `motivo_requerido` ABRE el modal (no es un toast que no lleva a ninguna parte)');
   chk(/if\(revertir&&CARTERA_PERDIDO&&CARTERA_PERDIDO\.sel\) CARTERA_PERDIDO\.sel\.value=CARTERA_PERDIDO\.previa/.test(ui),
-      'D45 S5 🔒 cancelar DEVUELVE el selector (si no, la UI miente sobre lo que dice la hoja)');
-  chk(/ev\.key==='Escape'&&CARTERA_PERDIDO/.test(ui), 'D45 S5 Escape cierra el modal (no es una trampa sin salida)');
+      'D46 S5 🔒 cancelar DEVUELVE el selector (si no, la UI miente sobre lo que dice la hoja)');
+  chk(/ev\.key==='Escape'&&CARTERA_PERDIDO/.test(ui), 'D46 S5 Escape cierra el modal (no es una trampa sin salida)');
   chk(/if\(!motivo\)\{ cmToast\('El motivo es obligatorio'\)/.test(ui),
-      'D45 S5 el front tampoco deja mandar un motivo vacío (el server lo rechazaría igual)');
+      'D46 S5 el front tampoco deja mandar un motivo vacío (el server lo rechazaría igual)');
   chk(/carteraMover_\(st\.id,st\.destino,/.test(ui),
-      'D45 S5 🔒 el reintento usa la etapa DESTINO guardada, no un literal clavado en el front');
+      'D46 S5 🔒 el reintento usa la etapa DESTINO guardada, no un literal clavado en el front');
   chk(/\.moverEtapaComercial\(id, etapa, motivo\|\|''\)/.test(ui),
-      'D45 S5 el front manda el 3er parámetro (motivo) al endpoint');
+      'D46 S5 el front manda el 3er parámetro (motivo) al endpoint');
 
   // S6 · perder + recontactar: dos escrituras encadenadas, y si la 2ª falla se DICE.
-  chk(/\.carteraRecontacto\(id, 90\)/.test(ui), 'D45 S6 el botón de 90 días llama a carteraRecontacto');
+  chk(/\.carteraRecontacto\(id, 90\)/.test(ui), 'D46 S6 el botón de 90 días llama a carteraRecontacto');
   chk(/Perdido, pero NO pude agendar el recontacto/.test(ui),
-      'D45 S6 🔒 si el recontacto falla se dice que la pérdida SÍ ocurrió (nada queda mudo)');
+      'D46 S6 🔒 si el recontacto falla se dice que la pérdida SÍ ocurrió (nada queda mudo)');
 
   // M2 · panel Correo → CRM: los tres endpoints, y confirmar es humano.
   ['carteraCorreoBtn', 'carteraSnapBtn', 'carteraMail'].forEach((id) =>
-    chk(new RegExp('id="' + id + '"').test(ui), 'D45 M2/C8 la UI tiene #' + id));
+    chk(new RegExp('id="' + id + '"').test(ui), 'D46 M2/C8 la UI tiene #' + id));
   ['correoCandidatosStaging', 'correoConfirmarThread', 'correoDescartarThread', 'carteraSnapshotMd', 'carteraRegistrarContacto']
-    .forEach((fn) => chk(new RegExp('\\.' + fn + '\\(').test(ui), 'D45 la UI invoca ' + fn + '()'));
+    .forEach((fn) => chk(new RegExp('\\.' + fn + '\\(').test(ui), 'D46 la UI invoca ' + fn + '()'));
   chk(/p\.correo_staging/.test(ui) && /correo_staging: correoStaging/.test(cartera),
-      'D45 M2 el staging viaja DENTRO del payload de la cartera (una llamada, una fuente)');
+      'D46 M2 el staging viaja DENTRO del payload de la cartera (una llamada, una fuente)');
   chk(/if\(!st\.length\)\{ box\.hidden=true; return; \}/.test(ui),
-      'D45 M2 sin candidatos el panel se OCULTA (un panel vacío permanente es ruido)');
+      'D46 M2 sin candidatos el panel se OCULTA (un panel vacío permanente es ruido)');
   chk(/rel='noopener noreferrer'|rel="noopener noreferrer"/.test(ui) || /a\.rel='noopener noreferrer'/.test(ui),
-      'D45 M2 🔒 el link a Gmail lleva noopener/noreferrer (no se le entrega window.opener a otro origen)');
+      'D46 M2 🔒 el link a Gmail lleva noopener/noreferrer (no se le entrega window.opener a otro origen)');
 
   // M1 · registrar contacto: el toast distingue «sellado» de «ya estaba sellado».
   chk(/r\.sellado \? 'Contacto registrado ✓' : 'Ya había un contacto registrado hoy'/.test(ui),
-      'D45 M1 el toast NO miente: distingue sellado de ya-sellado (la función es idempotente)');
+      'D46 M1 el toast NO miente: distingue sellado de ya-sellado (la función es idempotente)');
   chk(/'Último contacto: sin registro todavía'/.test(ui),
-      'D45 M1 🔒 sin sello la ficha lo DICE (no muestra «hace 0 días»)');
+      'D46 M1 🔒 sin sello la ficha lo DICE (no muestra «hace 0 días»)');
 
   // Tokens del tema: el modal vive fuera de #centro ⇒ necesita su bloque (lección UI 04-ago).
   chk(/\.f360-sato, \.f360-cierre, \.cartera, \.cartera-modal\{/.test(ui),
-      'D45 UI 🔒 `.cartera-modal` hereda los tokens del tema (fuera de #centro no llegan — quedaría ilegible)');
+      'D46 UI 🔒 `.cartera-modal` hereda los tokens del tema (fuera de #centro no llegan — quedaría ilegible)');
+}
+
+
+// ═══ D47 · SGIC integridad — parte OFFLINE con fixture (adenda 26-ago §2a) ════
+// El path real (UrlFetch + Script Properties + Cache) NO se toca acá: eso es D47-live, bajo
+// `opts.completo` en el editor. Patrón D28/D30. Lo que SÍ se certifica offline es la LÓGICA PURA,
+// con un payload KPI FALSO — nunca llamando al endpoint de Vehemence (lección STUB DIVERGENTE:
+// un test que depende de un tercero no prueba nuestro código, prueba su uptime).
+seccion('D47 · SGIC integridad (offline, fixture)');
+{
+  const satoSrc = fs.readFileSync(path.join(SRC, '26_sato.js'), 'utf8');
+  const webSrc47 = fs.readFileSync(path.join(SRC, '08_webapp.js'), 'utf8');
+
+  // ── §2a.1 · GUARDIA DE AÑO: el período se deriva de `hoy`, jamás de un hardcode ──
+  chk(ctx._sgicMesValido_('2023-08', '2026-08-25') === '',
+      'D47 🔒 un año de entrenamiento del LLM (2023) se DESCARTA cuando hoy es 2026');
+  chk(ctx._sgicMesValido_('2026-08', '2026-08-25') === '2026-08', 'D47 el mes vigente se respeta');
+  chk(ctx._sgicMesValido_('2025-08', '2026-08-25') === '2025-08', 'D47 el año pasado (vigente −1) es legítimo, no se descarta');
+  chk(ctx._sgicMesValido_('2030-01', '2026-08-25') === '', 'D47 un año futuro implausible también se descarta');
+  // LA prueba de que deriva de `hoy` y no de un 2026 clavado: con otro `hoy`, el veredicto cambia.
+  chk(ctx._sgicMesValido_('2023-08', '2023-08-25') === '2023-08',
+      'D47 🔒 el período se deriva de HOY, no de un año hardcodeado (mismo mes, otro hoy ⇒ otro veredicto)');
+  chk(ctx._sgicMesValido_('2026-08', '2029-01-01') === '',
+      'D47 🔒 y al revés: el mes «vigente» de ayer deja de serlo si el reloj avanza');
+  chk(/mes = _sgicMesValido_\(mes, hoyISO\(\)\)/.test(webSrc47),
+      'D47 `sgicVentas_` usa la guardia pura con hoyISO() (reloj del Sheet, no del navegador)');
+
+  // ── Fixture de la adenda §2a.3: SGIC online 18.748.107 · conector 19.988.643 · Δ 1.240.536 ──
+  const FIX = {
+    mes: '2026-08', total: 22000000, ordenes: 187,
+    sgic_oficial: { total: 22000000, online: 18748107, local: 3251893, ordenes_online: 187, ticket_online: 100257 },
+    por_canal: [{ canal: 'online', total: 19988643 }, { canal: 'local', total: 3251893 }]
+  };
+  const RES = ctx._sgicVozResumen_(FIX);
+
+  // ── §2a.2 · FUENTE NOMBRADA: la oficial es la primaria y se la nombra ──
+  chk(RES.indexOf('Según el SGIC de Vehemence') === 0,
+      'D47 🔒 el resumen ABRE nombrando la fuente oficial (no «las ventas fueron…» a secas)');
+  chk(RES.indexOf('18 millones 748 mil 107') >= 0,
+      'D47 la cifra que se dice primero es la OFICIAL del SGIC, no la del conector');
+  chk(RES.indexOf('19 millones 988') < 0,
+      'D47 🔒 la cifra CRUDA del conector NO se dicta como si fuera el SGIC (solo aparece como delta)');
+  chk(RES.indexOf('DB_VENTAS') >= 0,
+      'D47 el conector se nombra por su nombre real (DB_VENTAS) cuando se lo compara');
+
+  // ── §2a.3 · MATH del delta: magnitud, dirección y canal ──
+  chk(RES.indexOf('1 millón 240 mil 536') >= 0,
+      'D47 🔒 el delta computado es 1.240.536 (19.988.643 − 18.748.107)');
+  chk(RES.indexOf('en online el conector marca') >= 0 && RES.indexOf('más') >= 0,
+      'D47 🔒 el aviso dice el CANAL y la DIRECCIÓN («en online … marca N más»)');
+  // El canal que coincide no debe generar aviso: un aviso por ruido apaga los avisos reales.
+  chk(RES.indexOf('en local') < 0, 'D47 el canal que COINCIDE no genera aviso (solo se marca el desfase real)');
+  const SIN_DELTA = ctx._sgicVozResumen_(Object.assign({}, FIX, { por_canal: [{ canal: 'online', total: 18748107 }, { canal: 'local', total: 3251893 }] }));
+  chk(SIN_DELTA.indexOf('Aviso:') < 0, 'D47 sin diferencia NO hay línea de aviso (nada de «todo coincide»)');
+
+  // ── §2a.4 · FRAMING DE DISCREPANCIA: la línea hablada dice DÓNDE, no POR QUÉ ──
+  ['se debe a', 'porque', 'corresponde a', 'sincronización pendiente', 'sincronizar'].forEach((frase) => {
+    chk(RES.toLowerCase().indexOf(frase) < 0,
+        'D47 🔒 la línea server-side NO explica la causa («' + frase + '» ausente) — marco NEUTRO');
+  });
+  // La CAUSA existe, pero como CONTEXTO aparte: así el modelo la tiene si le preguntan, sin que
+  // se cuele en la frase que se dice en voz alta.
+  chk(/resumen\.causa_diferencia\s*=/.test(webSrc47),
+      'D47 la causa real (bruto vs neto) viaja como campo `causa_diferencia`, separado del resumen');
+  chk(/BRUTO/.test(webSrc47) && /NETO/.test(webSrc47) && /envío y recargos/.test(webSrc47),
+      'D47 🔒 la causa nombrada es la REAL: conector BRUTO (envío + recargos) vs SGIC NETO');
+  chk(webSrc47.indexOf('causa_diferencia') < webSrc47.indexOf('resumen.resumen = _sgicVozResumen_'),
+      'D47 `causa_diferencia` se computa ANTES del resumen (viaja en el mismo payload)');
+
+  // La regla del §1.2 tiene que EXISTIR en el system de Sato: el resto es eyeball, no test mecánico.
+  chk(/JAMÁS inventes otra causa/.test(satoSrc),
+      'D47 🔒 la regla dura contra inventar la causa está en el system de Sato (26_sato.js)');
+  chk(/sincronización pendiente/.test(satoSrc),
+      'D47 la regla nombra la causa FALSA que Sato ya inventó el 26-ago (para que no la repita)');
+  chk(/no tengo la causa exacta/.test(satoSrc),
+      'D47 🔒 la regla ofrece la salida honesta («no tengo la causa exacta, hay que reconciliar»)');
+
+  // ── Config gate: la parte que NO se puede probar offline se declara, no se simula ──
+  chk(/sin_config/.test(webSrc47) && /VEHEMENCE_SGIC_URL/.test(webSrc47) && /VEHEMENCE_SGIC_TOKEN/.test(webSrc47),
+      'D47 el gate de config existe y devuelve motivo nombrado (`sin_config`), no un fallo mudo');
+  chk(/if \(ofi && ofi\.error\) \{ resumen\.sgic_oficial = null; resumen\.sgic_oficial_error = ofi\.error; \}/.test(webSrc47),
+      'D47 🔒 sin config NO se cae al conector crudo en silencio: se anula la oficial y se nombra el error');
+  chk(webSrc47.indexOf('Logger.log(tok') < 0 && webSrc47.indexOf('el token NUNCA se loguea') >= 0,
+      'D47 🔒 el token del SGIC no se loguea nunca');
+}
+
+
+// ═══ Tramo 6 · registro y coherencia de los asserts LIVE (26-ago) ════════════
+// Este bloque existe por un fallo REAL de esta misma tanda: se actualizó la cola de `Clientes` y
+// el assert del arnés, pero NO el gemelo clavado en `09_selftest.js` (D44a2). Habría cortado en el
+// editor y en ningún otro lado — el arnés no corre los asserts del selfTest. Ahora los vigila.
+seccion('Tramo 6 · registro de D46/D47 y coherencia con los clavados del selfTest');
+{
+  const st = fs.readFileSync(path.join(SRC, '09_selftest.js'), 'utf8');
+
+  // El bundle está registrado y en SU tramo (adenda: una sola pasada, no dos viajes al editor).
+  chk(/\{ n: 6, nombre: '[^']*', runner: 'selfTestTramo6' \}/.test(st),
+      'T6 el tramo 6 está declarado en SELFTEST_TRAMOS con su runner');
+  chk(/f: _asertsD46_, tramo: 6/.test(st) && /f: _asertsD47_, tramo: 6/.test(st),
+      'T6 D46 (CRM Pro) y D47 (SGIC) están en el MISMO tramo — una sola pasada de certificación');
+  chk(/function selfTestTramo6\(\) \{ _soloOwner_\('selfTestTramo6'\); return selfTestTramo\(6\); \}/.test(st),
+      'T6 🔒 el wrapper del tramo 6 es sin argumentos y gateado (regla del desplegable)');
+  chk(ctx.ENDPOINTS_UI.indexOf('selfTestTramo6') >= 0, 'T6 🔒 selfTestTramo6 declarado en ENDPOINTS_UI');
+
+  // COHERENCIA: el clavado del selfTest tiene que decir lo MISMO que el schema. Este es el assert
+  // que faltaba — deriva de la fuente en vez de confiar en que alguien se acuerde de los dos lados.
+  const colas = ctx.MAESTRO_SHEETS.Clientes.slice(-2).join(',');
+  chk(st.indexOf("d44c.slice(-2).join(',') === '" + colas + "'") >= 0,
+      'T6 🔒 el assert de cola del selfTest (D44a2) coincide con la cola REAL del schema (' + colas + ')');
+  chk(!/d44c\[d44c\.length - 1\] === 'encaje_kairos_4b'/.test(st),
+      'T6 el clavado viejo de D44a2 (cola = encaje_kairos_4b) ya no está — se actualizó, no se duplicó');
+
+  // Los dos bloques live respetan el split: nada de red fuera de opts.completo.
+  const d46 = st.slice(st.indexOf('function _asertsD46_'), st.indexOf('function _asertsD47_'));
+  const d47 = st.slice(st.indexOf('function _asertsD47_'), st.indexOf('var SELFTEST_TANDAS'));
+  chk(/if \(!\(opts && opts\.completo\)\) \{/.test(d46) && /if \(!\(opts && opts\.completo\)\) \{/.test(d47),
+      'T6 los dos bloques live parten en liviano/completo (patrón D28/D30)');
+  chk(d47.indexOf('DEPENDENCIA EXTERNA CAÍDA') >= 0,
+      'T6 🔒 D47 reporta el endpoint de Vehemence caído como SKIP con motivo, no como rojo de Satori');
+  chk(d47.indexOf('30000') >= 0, 'T6 D47 mide latencia contra el umbral de 30 s (la voz corta a los 35)');
+  // Se audita el CÓDIGO, no los comentarios: el propio comentario de la limpieza nombra
+  // `deleteRow` para explicar por qué NO se usa, y buscarlo en el texto crudo daba rojo por la
+  // explicación misma (mismo tropiezo que ya tuvo el bloque E con 32_flota.js).
+  const sinCom6 = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const d46code = sinCom6(d46);
+  chk(d46code.indexOf('borrarFilasBatch_') >= 0 && d46code.indexOf('deleteRow') < 0,
+      'T6 🔒 la limpieza de correo_cliente usa borrarFilasBatch_ (regla P0: Sheets rechaza borrar el 100% de las filas)');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

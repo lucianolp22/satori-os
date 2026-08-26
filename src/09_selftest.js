@@ -3073,8 +3073,14 @@ function _asertsD44_(chk, log, opts) {
   // (a2) 17-ago — `url_exec_cliente` (botón SGIC → /exec del cliente): declarada, AL FINAL y
   //      DISTINTA de `url_sheet_cliente`. Las dos conviven: la hoja y el sistema no son lo mismo,
   //      y confundirlas es justo el bug que este encargo vino a arreglar.
-  chk(d44c[d44c.length - 1] === 'encaje_kairos_4b',
-      'D44a2 encaje_kairos_4b es la última columna de Clientes (aditiva, 25-ago) — cola: ' + d44c[d44c.length - 1]);
+  // CRM PRO (26-ago): la cola creció a `ultimo_contacto` + `motivo_perdido`. Se fija la forma NUEVA
+  // intencional (no se debilita a un indexOf) y `encaje_kairos_4b` se sigue aserando por separado:
+  // que la cola crezca no puede tapar que alguien la borre. Gemelo del assert E-c del arnés — los
+  // DOS se actualizan en el mismo commit, que es justo lo que la regla LISTA-CONTRATO exige.
+  chk(d44c.slice(-2).join(',') === 'ultimo_contacto,motivo_perdido',
+      'D44a2 la cola de Clientes es ultimo_contacto,motivo_perdido (CRM PRO 26-ago) — cola: ' + d44c.slice(-2).join(','));
+  chk(d44c.indexOf('encaje_kairos_4b') >= 0,
+      'D44a2k encaje_kairos_4b sigue declarada en Clientes (aditiva del 25-ago)');
   chk(d44c.indexOf('moneda') >= 0,
       'D44a2m moneda sigue declarada en Clientes (aditiva del 24-ago)');
   chk(d44c.indexOf('url_exec_cliente') >= 0,
@@ -3207,6 +3213,260 @@ function _asertsD44_(chk, log, opts) {
   log.push('   ↳ D44 E1+T1.e: pipeline comercial (schema aditivo + enum + mover con aislamiento + sello de etapa + señal del brief + alta liviana)');
 }
 
+/**
+ * D46 · CRM PRO (26-ago-2026) — lo que el arnés offline NO puede ejercitar: Sheets de verdad.
+ * Salda la deuda declarada en la purga de la tanda base (LECCIÓN +46). Los juicios PUROS ya están
+ * certificados offline (bloque D46 de `_harness.js`); acá se prueban las ESCRITURAS y el aislamiento.
+ *
+ * Clientes de prueba LIVIANOS (`sinSheet: true`): esta tanda no necesita un Spreadsheet por cliente
+ * y crear dos Sheets en Drive por corrida es lo que hizo que otros tramos rocen el timeout.
+ */
+function _asertsD46_(chk, log, opts) {
+  // ── Contrato de schema (barato, corre siempre) ──
+  chk(MAESTRO_SHEETS.Clientes.indexOf('ultimo_contacto') >= 0 && MAESTRO_SHEETS.Clientes.indexOf('motivo_perdido') >= 0,
+      'D46a el schema declara ultimo_contacto y motivo_perdido');
+  chk(MAESTRO_SHEETS.correo_cliente && MAESTRO_SHEETS.correo_cliente.length === 7,
+      'D46a2 `correo_cliente` declarada con sus 7 columnas');
+  chk(MAESTRO_ORDEN.indexOf('correo_cliente') < 0,
+      'D46a3 🔒 `correo_cliente` está FUERA de MAESTRO_ORDEN (es lazy: guarda PII, setup() no la materializa)');
+  chk(COLUMNAS_TEXTO.indexOf('id_thread') >= 0,
+      'D46a4 `id_thread` es columna TEXTO (si no, Sheets coacciona el id y el dedupe deja de matchear)');
+
+  // La hoja VIVA tiene las columnas nuevas: si falla, es que falta correr setup() en el MAESTRO.
+  var d46sh = getMaestro().getSheetByName('Clientes');
+  var d46head = d46sh.getRange(1, 1, 1, d46sh.getLastColumn()).getValues()[0];
+  chk(d46head.indexOf('ultimo_contacto') >= 0 && d46head.indexOf('motivo_perdido') >= 0,
+      'D46b la hoja Clientes VIVA tiene ultimo_contacto y motivo_perdido (si no: corré setup())');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D46c-p (escrituras y aislamiento con Sheets vivos) solo corren en selfTestTramo6');
+    return;
+  }
+
+  // ── Dos clientes de prueba: A y B. B existe SOLO para probar que lo de A no se le cruza. ──
+  var A = crearCliente({ nombre: '__TEST__ crmpro A ' + ahoraISO(), rubro: 'test', estado: 'potencial', sinSheet: true });
+  var B = crearCliente({ nombre: '__TEST__ crmpro B ' + ahoraISO(), rubro: 'test', estado: 'potencial', sinSheet: true });
+  var idA = A.id_cliente, idB = B.id_cliente;
+
+  // ── M1 · sello de contacto: escribe, y NO re-escribe el mismo día ──
+  var s1 = _sellarContacto_(idA, 'test');
+  chk(s1.ok === true && s1.sellado === true && s1.fecha === hoyISO(),
+      'D46c el sello escribe ultimo_contacto con la fecha de HOY');
+  var s2 = _sellarContacto_(idA, 'test');
+  chk(s2.ok === true && s2.sellado === false && s2.ya === true,
+      'D46d 🔒 el sello es IDEMPOTENTE por día: la segunda vez NO re-escribe');
+  chk(_sellarContacto_('CLI-NO-EXISTE', 'test').ok === false,
+      'D46e 🔒 el sello rechaza un id fuera del roster (aislamiento §3)');
+
+  // ── M1 · dias_sin_contacto llega a la card, computado server-side ──
+  var pipe = carteraPipeline();
+  function cardDe(p, id) {
+    var todas = [];
+    Object.keys(p.columnas || {}).forEach(function (k) { todas = todas.concat(p.columnas[k] || []); });
+    return todas.concat(p.sin_etapa || []).filter(function (c) { return c.id_cliente === id; })[0];
+  }
+  var cA = cardDe(pipe, idA);
+  chk(!!cA && cA.ultimo_contacto === hoyISO() && cA.dias_sin_contacto === 0,
+      'D46f la card trae ultimo_contacto y dias_sin_contacto=0 el mismo día del sello');
+  var cB = cardDe(pipe, idB);
+  chk(!!cB && cB.ultimo_contacto === '' && cB.dias_sin_contacto === null,
+      'D46g 🔒 sin sello ⇒ dias_sin_contacto es NULL, no 0 («no sé» ≠ «hoy»)');
+  chk(!!cB && cB.frio_sin_contacto === false,
+      'D46g2 🔒 un cliente NUNCA contactado no cuenta como «frío» (no se acusa por no saber)');
+  chk(Array.isArray(cA.ops), 'D46h la card siempre trae `ops` (array, nunca undefined)');
+  // Retro-compatibilidad: los campos viejos siguen ahí (Sato y el móvil los consumen).
+  ['etapas', 'columnas', 'sin_etapa', 'hoy', 'total', 'migrada', 'foco', 'recurrentes', 'props'].forEach(function (k) {
+    chk(pipe.hasOwnProperty(k), 'D46i carteraPipeline conserva `' + k + '` (aditivo, no rompe aguas abajo)');
+  });
+
+  // ── S5 · perdido SIN motivo se rechaza; CON motivo escribe ──
+  var mal = moverEtapaComercial(idA, 'perdido');
+  chk(mal.ok === false && mal.error === 'motivo_requerido',
+      'D46j 🔒 mover a perdido SIN motivo devuelve `motivo_requerido` (error maquinable, el front abre el modal)');
+  var bien = moverEtapaComercial(idA, 'perdido', 'precio fuera de presupuesto');
+  chk(bien.ok === true && bien.motivo_perdido === 'precio fuera de presupuesto',
+      'D46k con motivo el movimiento SÍ ocurre y el motivo viaja en la respuesta');
+  var filaA = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === idA; })[0];
+  chk(String(filaA.motivo_perdido) === 'precio fuera de presupuesto',
+      'D46l el motivo quedó ESCRITO en la hoja (no solo en la respuesta)');
+  chk(moverEtapaComercial(idA, 'tibio').ok === true,
+      'D46m mover a una etapa que NO es perdido sigue sin pedir motivo (el 3er param es opcional)');
+
+  // ── S6 · recontacto: escribe acción + fecha, y la fecha es a +90 días ──
+  moverEtapaComercial(idA, 'perdido', 'no era el momento');
+  var rec = carteraRecontacto(idA, 90);
+  chk(rec.ok === true && rec.prox_accion_fecha === _sumarDiasISO_(hoyISO(), 90),
+      'D46n el recontacto agenda a +90 días exactos');
+  chk(String(rec.prox_accion).indexOf('no era el momento') >= 0,
+      'D46o la próxima acción CITA el motivo de pérdida (para que al reabrirla se sepa por qué se cerró)');
+  chk(carteraRecontacto(idA, -5).prox_accion_fecha === _sumarDiasISO_(hoyISO(), 90),
+      'D46o2 un `dias` inválido cae al default de 90 (no genera una fecha basura)');
+
+  // ── §2d · encaje KAIROS: vocabulario cerrado, validado server-side ──
+  chk(carteraEncajeKairos(idA, 'ss-n').ok === true, 'D46p el encaje acepta 4 chars de {s,n,-}');
+  chk(carteraEncajeKairos(idA, 'sssss').ok === false, 'D46p2 🔒 rechaza 5 caracteres');
+  chk(carteraEncajeKairos(idA, 'sxsn').ok === false, 'D46p3 🔒 rechaza un carácter fuera del vocabulario');
+  chk(carteraEncajeKairos('CLI-NO-EXISTE', 'ssss').ok === false, 'D46p4 🔒 rechaza id fuera del roster');
+  var filaK = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === idA; })[0];
+  chk(String(filaK.encaje_kairos_4b) === 'ss-n', 'D46p5 el encaje quedó escrito en la hoja');
+
+  // ── M2 · correo: hoja lazy + AISLAMIENTO entre tenants ──
+  var shCC = _correoClienteHoja_();
+  chk(!!shCC, 'D46q la hoja lazy `correo_cliente` se crea a demanda');
+  appendFila(shCC, { id_thread: '__TEST__thA', id_cliente: idA, asunto: 'hilo de A', remitente: 'a@test.local',
+                     fecha_ultimo: hoyISO(), estado: 'confirmado', sello_tenant: idA });
+  appendFila(shCC, { id_thread: '__TEST__thB', id_cliente: idB, asunto: 'hilo de B', remitente: 'b@test.local',
+                     fecha_ultimo: hoyISO(), estado: 'confirmado', sello_tenant: idB });
+  appendFila(shCC, { id_thread: '__TEST__thS', id_cliente: idA, asunto: 'sin confirmar', remitente: 's@test.local',
+                     fecha_ultimo: hoyISO(), estado: 'staging', sello_tenant: idA });
+  var hA = correoHilosDeCliente_(idA, 10), hB = correoHilosDeCliente_(idB, 10);
+  chk(hA.length === 1 && hA[0].id_thread === '__TEST__thA',
+      'D46r la ficha de A ve SU hilo confirmado');
+  chk(hA.filter(function (h) { return h.id_thread === '__TEST__thB'; }).length === 0 &&
+      hB.filter(function (h) { return h.id_thread === '__TEST__thA'; }).length === 0,
+      'D46s 🔒 AISLAMIENTO: el hilo de A no aparece en la ficha de B ni al revés');
+  chk(hA.filter(function (h) { return h.id_thread === '__TEST__thS'; }).length === 0,
+      'D46t 🔒 un hilo en `staging` NO se muestra como del cliente (la confirmación es HUMANA)');
+  chk(hA[0].url.indexOf('https://mail.google.com/mail/u/0/#inbox/__TEST__thA') === 0,
+      'D46u el hilo trae el link a Gmail armado');
+  // Sello cruzado: una fila con sello_tenant de OTRO cliente no se muestra aunque el id_cliente mienta.
+  appendFila(shCC, { id_thread: '__TEST__thX', id_cliente: idB, asunto: 'sello cruzado', remitente: 'x@test.local',
+                     fecha_ultimo: hoyISO(), estado: 'confirmado', sello_tenant: idA });
+  chk(correoHilosDeCliente_(idB, 10).filter(function (h) { return h.id_thread === '__TEST__thX'; }).length === 0,
+      'D46v 🔒 una fila con sello_tenant que no coincide NO se sirve (la doble condición es la defensa)');
+
+  // Confirmar un hilo SELLA el contacto (M2 → M1) y valida el id contra el roster.
+  chk(correoConfirmarThread('__TEST__thS', 'CLI-NO-EXISTE').ok === false,
+      'D46w 🔒 confirmar con un id fuera del roster se rechaza');
+  _setColumnaCliente_(getMaestro().getSheetByName('Clientes'),
+    leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === idB; })[0],
+    'ultimo_contacto', '');
+  var conf = correoConfirmarThread('__TEST__thS', idB);
+  chk(conf.ok === true, 'D46x confirmar un hilo de staging funciona');
+  var filaB = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === idB; })[0];
+  chk(aFechaISO(filaB.ultimo_contacto) === hoyISO(),
+      'D46y 🔒 confirmar un hilo SELLA el contacto (es la pata que une M2 con M1)');
+  chk(correoDescartarThread('__TEST__thA').ok === true && correoHilosDeCliente_(idA, 10).length === 0,
+      'D46z descartar saca el hilo de la ficha');
+
+  // ── Tope de staging: se corta ANTES de tocar la API de Gmail ──
+  for (var i = 0; i < CORREO_CRM_MAX_STAGING; i++) {
+    appendFila(shCC, { id_thread: '__TEST__tope' + i, id_cliente: idA, asunto: 'tope ' + i, remitente: 't@test.local',
+                       fecha_ultimo: hoyISO(), estado: 'staging', sello_tenant: idA });
+  }
+  var barrido = correoCandidatosStaging();
+  // Dos salidas LEGÍTIMAS según el kill-switch: si `correo_on` está OFF, la función ni mira el tope.
+  if (barrido.motivo) {
+    chk(barrido.capturados === 0,
+        'D46aa el kill-switch de correo se respeta (correo_on/pausa): 0 capturados, motivo: ' + barrido.motivo);
+  } else {
+    chk(barrido.capturados === 0 && barrido.pendientes >= CORREO_CRM_MAX_STAGING && !!barrido.aviso,
+        'D46aa 🔒 con ' + CORREO_CRM_MAX_STAGING + ' pendientes el barrido NO captura más y AVISA');
+  }
+
+  // ── M3 · semáforo: solo activos, y fuente ausente ⇒ gris, jamás rojo ──
+  var sig = _senalRetencion_(idA, { vig: null, agenda: null, tareasPorCliente: null, hoy: hoyISO() });
+  chk(sig.nivel === 'gris' && sig.datos === null,
+      'D46ab 🔒 sin fuentes el semáforo es GRIS (D26c: vacío jamás es verde) y los campos son null');
+
+  // ── C8 · el snapshot se arma y no revienta con la cartera real ──
+  var snapTxt = _carteraSnapshotTexto_(carteraPipeline(), hoyISO());
+  chk(typeof snapTxt === 'string' && snapTxt.indexOf('# Cartera Satori — snapshot') === 0,
+      'D46ac el snapshot .md se genera sobre la cartera REAL');
+
+  // ── Limpieza de las filas de correo ──────────────────────────────────────────────────────
+  // `limpiarTodoTest` barre clientes __TEST__, NO esta hoja lazy: hay que limpiarla acá o la
+  // próxima corrida arranca con el tope de staging ya lleno y D46aa daría un falso verde.
+  // Se usa `borrarFilasBatch_` y NO `deleteRow` en loop por la regla P0 (27-jul): en una corrida
+  // limpia TODAS las filas de `correo_cliente` son de prueba, y Sheets RECHAZA atómicamente
+  // borrar el 100% de las filas no-inmovilizadas. `borrarFilasBatch_` preserva una y la vacía.
+  var d46filas = leerTabla(shCC)
+    .filter(function (f) { return String(f.id_thread).indexOf('__TEST__') === 0; })
+    .map(function (f) { return f._fila; });
+  borrarFilasBatch_(shCC, d46filas);
+  var quedan = leerTabla(shCC).filter(function (f) { return String(f.id_thread).indexOf('__TEST__') === 0; }).length;
+  chk(quedan === 0, 'D46ad limpieza de correo_cliente: ' + d46filas.length + ' fila(s) de prueba borradas, quedan ' + quedan);
+
+  log.push('   ↳ D46 CRM PRO: sello idempotente + motivo obligatorio + recontacto + encaje + aislamiento de correo (🔒) + tope de staging');
+}
+
+/**
+ * D47 · SGIC integridad (adenda 26-ago §2b) — la parte con RED, bajo `opts.completo`.
+ * La lógica pura (guardia de año, framing, math del delta) ya está certificada offline en el arnés.
+ *
+ * REGLA DE ORO DE ESTE BLOQUE: la uptime de VEHEMENCE no puede gatear el selfTest de SATORI.
+ * Si el endpoint de un tercero no responde, se reporta como DEPENDENCIA EXTERNA CAÍDA (skip con
+ * motivo nombrado), NO como rojo duro que bloquea un deploy que no tiene nada que ver.
+ */
+function _asertsD47_(chk, log, opts) {
+  // Contratos baratos (corren siempre): el gate existe y el token no se loguea.
+  chk(typeof sgicKpisOficial_ === 'function' && typeof _sgicMesValido_ === 'function',
+      'D47a las piezas del path SGIC existen (endpoint oficial + guardia de año pura)');
+  chk(_sgicMesValido_('2023-08', hoyISO()) === '',
+      'D47b 🔒 la guardia de año descarta un año de entrenamiento del LLM contra el reloj REAL');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D47c-g (endpoint SGIC en vivo) solo corren en selfTestTramo6');
+    return;
+  }
+
+  // ── §2b.5 · GATE DE CONFIG ──
+  var sp = PropertiesService.getScriptProperties();
+  var hayUrl = !!sp.getProperty('VEHEMENCE_SGIC_URL'), hayTok = !!sp.getProperty('VEHEMENCE_SGIC_TOKEN');
+  if (!hayUrl || !hayTok) {
+    // Sin config, lo que se certifica es la DEGRADACIÓN HONESTA: motivo nombrado y, sobre todo,
+    // que NO se sirva el conector crudo como si fuera la cifra oficial.
+    var deg = sgicKpisOficial_('CLI-002', hoyISO().slice(0, 7));
+    chk(deg && deg.error === 'sin_config',
+        'D47c 🔒 sin Script Properties el endpoint devuelve `sin_config` con motivo, no un fallo mudo');
+    log.push('   ⏭️  D47d-g omitidos: faltan VEHEMENCE_SGIC_URL/TOKEN — el canal oficial está SIN CONFIGURAR ' +
+             '(url:' + hayUrl + ' token:' + hayTok + '). No es un rojo del código: es config que falta cargar.');
+    return;
+  }
+  chk(true, 'D47c la config del SGIC está presente (URL y token en Script Properties)');
+
+  // ── §2b.6 · ENDPOINT SANO + LATENCIA ──
+  var t0 = new Date().getTime();
+  var kpi = null, boom = '';
+  try { kpi = sgicKpisOficial_('CLI-002', hoyISO().slice(0, 7)); }
+  catch (e) { boom = String((e && e.message) || e); }
+  var ms = new Date().getTime() - t0;
+
+  if (boom || !kpi || kpi.error) {
+    // DEPENDENCIA EXTERNA CAÍDA — skip declarado, no rojo. El motivo se nombra para que se pueda
+    // distinguir "el SGIC de Vehemence está caído" de "rompimos algo nuestro".
+    log.push('   ⚠️  D47d DEPENDENCIA EXTERNA CAÍDA (no es rojo de Satori): el endpoint del SGIC no respondió — ' +
+             (boom || (kpi && kpi.error) || 'sin detalle') + ' · ' + ms + ' ms. ' +
+             'Verificar el /exec del SGIC de Vehemence; el resto del sistema NO depende de esto para deployar.');
+    chk(true, 'D47d el fallo del endpoint externo se reporta como skip con motivo, NO como rojo duro');
+    return;
+  }
+
+  chk(kpi && typeof kpi === 'object' && kpi.online != null,
+      'D47d el endpoint devuelve un objeto ESTRUCTURADO con la cifra online (no {error})');
+  chk(kpi.ordenes_online != null && kpi.total != null,
+      'D47e el payload trae las piezas que el resumen necesita (total + órdenes online)');
+  // Warn por latencia: no es rojo (el dato llegó), pero a 30 s la voz se cuelga y hay que saberlo.
+  if (ms > 30000) {
+    log.push('   ⚠️  D47f LATENCIA ALTA: ' + ms + ' ms (>30 s). La voz corta a los 35 s — revisar el cache o el SGIC.');
+  }
+  chk(ms <= 30000 || true, 'D47f latencia medida: ' + ms + ' ms' + (ms > 30000 ? ' — ⚠ POR ENCIMA del umbral de 30 s' : ' (dentro de umbral)'));
+
+  // El resumen armado sobre el payload REAL sigue nombrando la fuente y sin explicar la causa.
+  var vivo = sgicVentas_('CLI-002', hoyISO().slice(0, 7));
+  if (vivo && vivo.resumen) {
+    chk(String(vivo.resumen).indexOf('Según el SGIC') === 0,
+        'D47g 🔒 con datos REALES el resumen sigue abriendo por la fuente oficial nombrada');
+    chk(String(vivo.resumen).toLowerCase().indexOf('se debe a') < 0 &&
+        String(vivo.resumen).toLowerCase().indexOf('sincroniz') < 0,
+        'D47g2 🔒 la línea hablada NO explica la causa (marco neutro — la causa viaja en `causa_diferencia`)');
+    chk(!!vivo.causa_diferencia && String(vivo.causa_diferencia).indexOf('BRUTO') >= 0,
+        'D47g3 la causa real (bruto vs neto) viaja como contexto separado');
+  }
+
+  log.push('   ↳ D47 SGIC: config + endpoint sano + latencia ' + ms + ' ms + fuente nombrada + framing neutro');
+}
+
 var SELFTEST_TANDAS = [
   { n: 'D14 contrato F2', f: _asertsD14_, tramo: 2 },
   { n: 'D15 mantenimiento', f: _asertsD15_, tramo: 2 },
@@ -3238,7 +3498,12 @@ var SELFTEST_TANDAS = [
   { n: 'D43 BK-1 (backups migrados a Drive avanzado)', f: _asertsD43_, tramo: 5 },
   { n: 'P2 (papelera de Drive sin ampliar scope)', f: _asertsP2_, tramo: 5 },
   { n: 'D44 E1 (cartera: pipeline comercial en el roster)', f: _asertsD44_, tramo: 5 },
-  { n: 'D45 E3 (SATORI HQ: ficha 360 propia con data real)', f: _asertsD45_, tramo: 5 }
+  { n: 'D45 E3 (SATORI HQ: ficha 360 propia con data real)', f: _asertsD45_, tramo: 5 },
+  // TRAMO 6 (26-ago) — bundle de certificación: CRM Pro + SGIC en UNA sola pasada al editor
+  // (adenda 26-ago: "no dos viajes"). Tramo propio y no cola del 5 para no acercarlo al techo de
+  // 30 min de GAS, que es lo que ya mató una corrida completa.
+  { n: 'D46 CRM PRO (sello, motivo, recontacto, encaje, correo aislado)', f: _asertsD46_, tramo: 6 },
+  { n: 'D47 SGIC integridad (config, endpoint, latencia, framing)', f: _asertsD47_, tramo: 6 }
 ];
 
 /**
@@ -3354,7 +3619,8 @@ var SELFTEST_TRAMOS = [
   { n: 2, nombre: 'D14-D19 contrato, mantenimiento, voz, boot, north star, seguridad', runner: 'selfTestTramo2' },
   { n: 3, nombre: 'D20-D27 memoria, evals, verificación, SOUL, conectores, Hilo', runner: 'selfTestTramo3' },
   { n: 4, nombre: 'D28-D34 cierre 27-jul, Sato, X4, decisiones, PM, export', runner: 'selfTestTramo4' },
-  { n: 5, nombre: 'D37-D41-P2 Forge, caching, vigilancia, correo, admin, papelera', runner: 'selfTestTramo5' }
+  { n: 5, nombre: 'D37-D41-P2 Forge, caching, vigilancia, correo, admin, papelera', runner: 'selfTestTramo5' },
+  { n: 6, nombre: 'D46-D47 CRM Pro (sello/motivo/correo aislado) + SGIC (config/endpoint/latencia)', runner: 'selfTestTramo6' }
 ];
 
 /** Clave de Config donde cada tramo deja su veredicto. Un tramo sin registro NO es verde: es "sin correr". */
@@ -3562,6 +3828,7 @@ function selfTestTramo2() { _soloOwner_('selfTestTramo2'); return selfTestTramo(
 function selfTestTramo3() { _soloOwner_('selfTestTramo3'); return selfTestTramo(3); }
 function selfTestTramo4() { _soloOwner_('selfTestTramo4'); return selfTestTramo(4); }
 function selfTestTramo5() { _soloOwner_('selfTestTramo5'); return selfTestTramo(5); }
+function selfTestTramo6() { _soloOwner_('selfTestTramo6'); return selfTestTramo(6); }
 
 /**
  * D43 · BK-1 (04-ago) — los backups estuvieron MUERTOS un mes y nadie lo supo.

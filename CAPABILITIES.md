@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 00:35 · commit: 4bc9609
+> Generado: 2026-08-27 01:05 · commit: 7008fca
 
 ## Módulos
 
@@ -15,8 +15,8 @@
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 10 |
 | `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 32 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 99 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 50 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 100 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 53 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
@@ -40,8 +40,8 @@
 | `30_correo.js` | T7 · CORREO → TRIAJE A BANDEJA (04-ago-2026) | 13 |
 | `31_admin.js` | TC-7 · F4a · MOTOR DE ADMINISTRACIÓN PROPIA (04-ago-2026) | 14 |
 | `32_flota.js` | EDIFICIO SATORI · lectores de la FLOTA PROPIA (10-ago-2026) | 11 |
-| `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 22 |
-| `34_push.js` | Canal de push al teléfono de Luciano (proactividad, decisión 26-ago) | 1 |
+| `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 23 |
+| `34_push.js` | Canal de push al teléfono de Luciano (proactividad, decisión 26-ago) | 2 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -151,9 +151,9 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO esVerdadero_ fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente _trashArchivo_ _driveUrlCarpeta_ _driveUrlSheet_ _driveCopiar_ _driveGet_ _driveCrearCarpeta_ _driveMover_ _driveListarHijos_ _driveBuscarPorNombre_ getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
-**08_webapp.js:** doGet doPost vozAprobacionesPendientes_ vozDecidirAprobacion_ vozDispararAgente_ vozCrearTarea_ _encHoja_ _encSet_ vozEncargar_ _encargoAprobar_ encargosPoll_ encargosReportar_ vozOut_ vozAuth_ charlaExportAuth_ encargosAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ sgicVentas_ sgicKpisOficial_ diagSatoVentasVivo _sgicResumenVentas_ _sgicPanelSnapshot_ _arVoz_ _mesVoz_ _sgicVozResumen_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes listaProyectos crearProyecto datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea guardarTarea detalleTarea _setArchivada_ archivarTarea desarchivarTarea tareasArchivadas guardarNotaProyecto aHoraLegible_ _hqHoja_ _hqCheckVigente_ hqHoy hqChecklist hqChecklistToggle hqObjetivos hqNumeros sembrarHQ 
+**08_webapp.js:** doGet doPost vozAprobacionesPendientes_ vozDecidirAprobacion_ vozDispararAgente_ vozCrearTarea_ _encHoja_ _encSet_ vozEncargar_ _encargoAprobar_ encargosPoll_ encargosReportar_ vozOut_ vozAuth_ charlaExportAuth_ encargosAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ _sgicMesValido_ sgicVentas_ sgicKpisOficial_ diagSatoVentasVivo _sgicResumenVentas_ _sgicPanelSnapshot_ _arVoz_ _mesVoz_ _sgicVozResumen_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes listaProyectos crearProyecto datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea guardarTarea detalleTarea _setArchivada_ archivarTarea desarchivarTarea tareasArchivadas guardarNotaProyecto aHoraLegible_ _hqHoja_ _hqCheckVigente_ hqHoy hqChecklist hqChecklistToggle hqObjetivos hqNumeros sembrarHQ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ _asertsD40_ _asertsP2_ _asertsD44_ _asertsD45_ _d45Unicos_ _selfTestRegistrar_ selfTestTramo selfTestVeredicto _asertsD41_ selfTestTramo2 selfTestTramo3 selfTestTramo4 selfTestTramo5 _asertsD43_ purgaAuditoria 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ _asertsD40_ _asertsP2_ _asertsD44_ _asertsD46_ _asertsD47_ _asertsD45_ _d45Unicos_ _selfTestRegistrar_ selfTestTramo selfTestVeredicto _asertsD41_ selfTestTramo2 selfTestTramo3 selfTestTramo4 selfTestTramo5 selfTestTramo6 _asertsD43_ purgaAuditoria 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -201,7 +201,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **32_flota.js:** _flotaConsumoRO_ _flotaTelemetria_ _flotaSemaforo_ flotaEstado agenteDetalle moduloEdificio _avataresLabClaves_ _avatarUrlDrive_ seedAvataresLab seedAvataresLabPisar _seedAvataresLab_ 
 
-**33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ _carteraLineasFrio_ moverEtapaComercial _carteraFoco_ carteraProxAccion propuestaRegistrar propuestaFirmar _sellarContacto_ carteraRegistrarContacto carteraRecontacto _sumarDiasISO_ _carteraSnapshotTexto_ _carteraFolder_ carteraSnapshotMd 
+**33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ _carteraLineasFrio_ moverEtapaComercial _carteraFoco_ carteraProxAccion propuestaRegistrar propuestaFirmar _sellarContacto_ carteraRegistrarContacto carteraRecontacto _sumarDiasISO_ _carteraSnapshotTexto_ _carteraFolder_ carteraSnapshotMd carteraEncajeKairos 
 
-**34_push.js:** _pushTelefono_ 
+**34_push.js:** _pushTelefono_ probarPushTelefono 
 

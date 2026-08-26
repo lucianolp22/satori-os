@@ -448,13 +448,32 @@ function sgicConsulta_(idCliente, hoja, mes, limite) {
 
 // Mapa de conectores de ventas HARDCODEADO (Bastión: jamás un id del LLM). Se resuelve en tiempo de
 // request (VEHEMENCE_DB_ID vive en 19_conectores.js). Cliente sin conector → cae a Datos_operativos.
+/**
+ * PURA — guardia de año del período pedido. Si quien pide manda un año implausible (típico de un
+ * LLM que cree estar en su año de entrenamiento: 2023) se DESCARTA el período y se devuelve '',
+ * lo que hace caer al último mes con datos. El reloj REAL manda, no el modelo.
+ *
+ * Se acepta el año vigente ±1 (permite pedir el año pasado legítimamente). El período NUNCA sale
+ * de un hardcode: se deriva de `hoy`, que viene de `hoyISO()` (zona horaria del Sheet).
+ * Un `mes` con formato inválido se devuelve tal cual: de ese caso se encarga `_sgicResumenVentas_`.
+ *
+ * @param {string} mes  'yyyy-MM' o vacío
+ * @param {string} hoy  ISO yyyy-MM-dd
+ * @return {string} el mes aceptado, o '' si el año es implausible
+ */
+function _sgicMesValido_(mes, hoy) {
+  var aH = Number(String(hoy || '').slice(0, 4));
+  if (!aH) return String(mes || '');
+  var m = String(mes || '');
+  if (!/^(\d{4})-\d{2}$/.test(m)) return m;
+  var aP = Number(m.slice(0, 4));
+  return (aP < aH - 1 || aP > aH + 1) ? '' : m;
+}
+
 function sgicVentas_(idCliente, mes) {
-  // Guardia de año (defensivo): si quien pide manda un año implausible —típico de un LLM que cree
-  // estar en su año de entrenamiento (2023)— lo ignoramos y caemos al último mes con datos. El reloj
-  // real manda, no el modelo. Un año vigente ±1 se respeta (permite pedir el año pasado).
-  var _aH = Number(String(hoyISO()).slice(0, 4));
-  var _aP = /^(\d{4})-\d{2}$/.test(String(mes || '')) ? Number(String(mes).slice(0, 4)) : null;
-  if (_aP && (_aP < _aH - 1 || _aP > _aH + 1)) mes = '';
+  // Guardia de año (defensivo): ver `_sgicMesValido_`. Extraída a función PURA (26-ago) para que
+  // el assert D47 §2a.1 la pueda ejercitar offline — acá adentro no era testeable sin red.
+  mes = _sgicMesValido_(mes, hoyISO());
   var CONECTORES = { 'CLI-002': { id: VEHEMENCE_DB_ID, hoja: 'DB_VENTAS' } };
   var conf = CONECTORES[idCliente];
   if (!conf) return { hoja: 'ventas', con_conector: false, nota: 'este cliente no tiene conector de ventas; probá la hoja Datos_operativos' };
@@ -492,6 +511,17 @@ function sgicVentas_(idCliente, mes) {
   var ofi = sgicKpisOficial_(idCliente, resumen.mes);
   if (ofi && !ofi.error) resumen.sgic_oficial = ofi;
   else if (ofi && ofi.error) { resumen.sgic_oficial = null; resumen.sgic_oficial_error = ofi.error; }
+  // ADENDA 26-ago §1.1 — LA CAUSA REAL DEL DESFASE, como CONTEXTO (campo aparte), no dentro de la
+  // línea hablada. El eyeball del 26-ago pescó a Sato inventando una causa ("sincronización
+  // pendiente") ante una pregunta de SEGUIMIENTO libre, fuera del template. La causa está
+  // documentada en el propio sistema: el conector es BRUTO (incluye envío + recargos) y el SGIC es
+  // NETO (subtotal − discount) — es la diferencia Calc_KPIs vs EERR_Compute.
+  // Va acá y NO en `resumen.resumen` a propósito: la línea que se dice en voz alta debe seguir en
+  // MARCO NEUTRO (dice DÓNDE está el desfase, no por qué) — eso lo fija el assert D47 §2a.4.
+  // Este campo es para que, PREGUNTADO, el modelo tenga la respuesta correcta en vez de adivinar.
+  resumen.causa_diferencia = 'El conector crudo DB_VENTAS es BRUTO: incluye envío y recargos. El SGIC ' +
+    'oficial es NETO (subtotal menos descuentos, EERR_Compute). Esa es la causa conocida de la ' +
+    'diferencia entre ambas cifras. Si el desfase no encaja con eso, hay que reconciliar — no hay otra causa asumible.';
   resumen.resumen = _sgicVozResumen_(resumen);   // síntesis lista para voz (oficial primero + aviso)
   return resumen;
 }
@@ -1168,8 +1198,16 @@ function listaClientes() {
   return leerTabla(getMaestro().getSheetByName('Clientes')).map(function (c) {
     // E2b (13-ago): +logo_url — campo ADITIVO (ningún consumidor fija la forma; selfTest solo usa
     // id_cliente). Con él, la barra lateral y el semáforo del CM pintan el logo del roster.
+    // CRM PRO §2d (26-ago): +señal de contacto — campo ADITIVO. Es lo que permite que la MISMA
+    // señal aparezca en las DOS superficies (Command Center Y Akasha, lección +44) sin que cada
+    // una la calcule por su cuenta: el juicio `frio_sin_contacto` lo emite el backend, una vez.
+    var _uc = aFechaISO(c.ultimo_contacto);
+    var _d = _uc ? _diasEntreISO_(_uc, hoyISO()) : null;
     return { id_cliente: c.id_cliente, nombre: c.nombre, estado: c.estado, rubro: c.rubro,
-             logo_url: String(c.logo_url || '') };
+             logo_url: String(c.logo_url || ''),
+             ultimo_contacto: _uc || '', dias_sin_contacto: _d,
+             frio_sin_contacto: !!_uc && CARTERA_ETAPAS_CAPTACION.indexOf(String(c.etapa_comercial || '')) >= 0 &&
+                                _d > CARTERA_FRIO_DIAS };
   });
 }
 

@@ -1148,6 +1148,13 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .f360-com-edit input{flex:1;min-width:140px;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:8px;color:var(--color-text);padding:7px 10px;font-size:12.5px;min-height:38px;font-family:inherit}
 .f360-com-rec{display:flex;align-items:center;gap:4px;padding:7px 0;border-bottom:1px solid var(--color-border);font-size:12.5px;flex-wrap:wrap}
 .f360-com-rec:last-child{border-bottom:none}
+/* §2d — filas tildables del encaje KAIROS: botones reales (teclado + foco visible). */
+.f360-enc-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;
+  border:none;padding:6px 0;color:var(--color-text);font:inherit;font-size:12.5px;cursor:pointer;min-height:32px}
+.f360-enc-row:hover{color:var(--color-primary)}
+.f360-enc-row:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px;border-radius:6px}
+.f360-enc-row[disabled]{opacity:.55;cursor:progress}
+@media (max-width:640px){ .f360-enc-row{min-height:44px} }
 /* CRM PRO · M1/M2 — bloque de contacto y timeline de correo en la solapa Comercial. */
 .f360-com-ct{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;
   border-top:1px solid var(--color-border);font-size:12.5px}
@@ -2654,13 +2661,35 @@ function carteraPintar_(p){
   if(st) st.textContent = (p.migrada===false)
     ? 'la hoja Clientes aún no tiene etapa_comercial — corré setup()'
     : (p.total||0)+' cliente(s) en el roster';
+  /* §2d · MÓVIL — orden por URGENCIA dentro de cada columna: vencida > fría > resto. En una
+     pantalla angosta se ve una card por vez y hay que hacer scroll: lo urgente tiene que estar
+     arriba o no se ve. En desktop se respeta el orden del backend (las columnas se leen enteras
+     de un vistazo y reordenar rompería la referencia visual entre repintados).
+     El criterio NO clava etapas: usa la comparación de fechas y el booleano `frio_sin_contacto`
+     que ya juzgó el backend (regla anti-enum-clavado E-c). */
+  var ANGOSTO = (function(){ try{ return window.matchMedia('(max-width:640px)').matches; }catch(_m){ return false; } })();
+  function _urgencia_(card){
+    if(card.prox_accion_fecha && CARTERA_HOY && card.prox_accion_fecha < CARTERA_HOY) return 0;   // vencida
+    if(card.frio_sin_contacto===true) return 1;                                                   // fría
+    return 2;
+  }
   function columna(clave, titulo, cards){
     var c=el('div','cartera-col');
     var h=el('h6',null,titulo);
     var n=el('span','n',String(cards.length)); h.appendChild(n);
     c.appendChild(h);
     if(!cards.length) c.appendChild(el('div','cartera-vacia','—'));
-    cards.forEach(function(card){ c.appendChild(carteraCard_(card,etapas)); });
+    // `slice()` para NO mutar el payload: `carteraTiles_` y el roster del staging leen los mismos
+    // arrays, y ordenarlos en el lugar les cambiaría el orden por debajo.
+    var lista = ANGOSTO ? cards.slice().sort(function(a,b){
+      var ua=_urgencia_(a), ub=_urgencia_(b);
+      if(ua!==ub) return ua-ub;
+      // Dentro del mismo nivel: la vencida más vieja primero; después, más días sin contacto.
+      var fa=a.prox_accion_fecha||'', fb=b.prox_accion_fecha||'';
+      if(ua===0 && fa!==fb) return fa<fb?-1:1;
+      return (b.dias_sin_contacto||0)-(a.dias_sin_contacto||0);
+    }) : cards;
+    lista.forEach(function(card){ c.appendChild(carteraCard_(card,etapas)); });
     cols.appendChild(c);
   }
   etapas.forEach(function(e){ columna(e, String(e).replace(/_/g,' '), (p.columnas&&p.columnas[e])||[]); });
@@ -3912,6 +3941,14 @@ function ccCartera(){
     var left=el('div'); left.appendChild(el('div','n',c.nombre)); left.appendChild(el('div','ns',c.estado||'')); row.appendChild(left);
     var rt=el('span','rt');
     var sem=semaforoCliente(c.estado, venc[c.id_cliente]||0, avi[c.id_cliente]||0);  // FIX 5: fuente única
+    /* CRM PRO §2d — MISMA señal que la vista Cartera, acá y en Akasha (lección +44: una señal que
+       vive en una sola superficie es una señal que la mitad de las veces no se ve). El juicio
+       `frio_sin_contacto` lo emite el backend en `listaClientes`: el front no recalcula nada. */
+    if(c.frio_sin_contacto===true){
+      var fr=ccChip('❄ '+c.dias_sin_contacto+'d','warn');
+      fr.title='Sin contacto registrado hace '+c.dias_sin_contacto+' días';
+      rt.appendChild(fr);
+    }
     rt.appendChild(ccChip(sem.chip,sem.kind)); row.appendChild(rt);
     row.addEventListener('click',function(){ centroCerrar(); loadCliente(c.id_cliente); });
     card.appendChild(row);
@@ -7308,6 +7345,8 @@ window.AKASHA = (function () {
         id: c.id_cliente, nombre: c.nombre, ns: c.id_cliente,
         estado: sem.estado, chip: sem.chip, servicio: c.rubro || '—',
         ini: iniciales(c.nombre), logo: String(c.logo_url || ''), flujo: flujo,
+        // CRM PRO §2d — la señal de contacto viaja al Atril: misma fuente que el CM (listaClientes).
+        frio: c.frio_sin_contacto === true, diasSin: c.dias_sin_contacto,
         kpis: [],                 // se llenan on-demand con datosCliente()
         aprob: aprobaciones.filter(function (a) { return a.cli === c.id_cliente; }).map(function (a) { return a.id; }),
         reg: [],                  // índices de sus nodos en el Núcleo (los pone mergeCerebro)
@@ -7705,8 +7744,11 @@ window.AKASHA = (function () {
       var dot = c.logo
         ? '<span class="ag-dot" style="--ac:' + aro + ';background-image:url(' + esc(c.logo) + ');background-size:cover;background-position:center;color:transparent"></span>'
         : '<span class="ag-dot" style="--ac:' + aro + ';font-style:italic">' + esc(c.ini) + '</span>';
+      /* CRM PRO §2d — réplica de la señal de frío en Akasha (lección +44). Va en la línea `ac`,
+         que es la de contexto: no compite con el chip de estado, que es la señal principal. */
+      var frioTxt = c.frio ? ' · ❄ ' + c.diasSin + 'd sin contacto' : '';
       it.innerHTML = dot +
-        '<span class="bd"><span class="nm">' + esc(c.nombre) + '</span><br><span class="ac mono">' + esc(c.ns) + ' · ' + esc(c.flujo[0][0]) + '</span></span>' +
+        '<span class="bd"><span class="nm">' + esc(c.nombre) + '</span><br><span class="ac mono">' + esc(c.ns) + ' · ' + esc(c.flujo[0][0]) + esc(frioTxt) + '</span></span>' +
         '<span class="chip sm ' + CLI_CHIP[c.estado].split(' ')[1] + '">' + esc(c.chip) + '</span>';
       /* T1 (28-jul, encargo tanda UI): click en el cliente de la cartera → FICHA 360 (antes volaba
          al Espacio 3D; el viaje queda como botón "◈ Espacio 3D" dentro de la ficha). */
@@ -8336,14 +8378,33 @@ function f360Comercial_(){
   op.appendChild(cbox);
   // ── Encaje KAIROS (4 criterios del Manual, tildados A MANO — no es ML) ──
   var CRIT=['≥2 años de antigüedad','Ventas estabilizadas','Punto de equilibrio sostenido','Intención real de mejora'];
+  /* §2d — TILDABLE. Cada criterio cicla `-` → `s` → `n` → `-` y persiste los 4 chars por
+     `carteraEncajeKairos` (gateado). Sigue sin ser ML: el sistema no deduce nada, solo guarda lo
+     que Luciano marcó. Botones reales (no divs con onclick) para que funcione con teclado. */
   var raw=String(c.encaje_kairos_4b||'').toLowerCase();
+  if(!/^[sn-]{4}$/.test(raw)) raw='----';   // vacío o corrupto ⇒ 4 «sin dato», nunca 4 «sí»
+  function _kairosCiclo_(ch){ return ch==='-'?'s':(ch==='s'?'n':'-'); }
   CRIT.forEach(function(cr,i){
     var ch=raw.charAt(i), col=ch==='s'?'#3E9B82':(ch==='n'?'#E0795F':'#6E6450');
-    var li=el('div'); var led=el('span','f360-enc-led'); led.style.background=col; li.appendChild(led);
-    li.appendChild(document.createTextNode(cr+(ch==='s'?' — ✓ relevado':(ch==='n'?' — ✗':' — sin dato'))));
+    var etq=ch==='s'?' — ✓ relevado':(ch==='n'?' — ✗':' — sin dato');
+    var li=el('button','f360-enc-row');
+    li.type='button';
+    var led=el('span','f360-enc-led'); led.style.background=col; li.appendChild(led);
+    li.appendChild(document.createTextNode(cr+etq));
+    li.title='Clic para cambiar: sin dato → sí → no';
+    li.setAttribute('aria-label',cr+etq+'. Activar para cambiar.');
+    li.addEventListener('click',function(){
+      var nuevo=raw.substring(0,i)+_kairosCiclo_(ch)+raw.substring(i+1);
+      li.disabled=true;
+      google.script.run.withSuccessHandler(function(r){ li.disabled=false;
+        if(!r||r.ok!==true){ cmToast('No se guardó el encaje: '+((r&&r.error)||'motivo desconocido')); return; }
+        c.encaje_kairos_4b=r.encaje_kairos_4b; cmToast('Encaje KAIROS guardado ✓'); f360Comercial_();
+      }).withFailureHandler(function(e){ li.disabled=false; cmToast('No se guardó el encaje: '+((e&&e.message)||e)); })
+      .carteraEncajeKairos(F360.id, nuevo);
+    });
     en.appendChild(li);
   });
-  en.appendChild(el('div','served','Se tilda a mano en la Etapa 2 (columna encaje_kairos_4b del roster: s/n/-). Rojo o 2+ sin dato = todavía no es propuesta.'));
+  en.appendChild(el('div','served','Lo tildás vos (Etapa 2 KAIROS) — el sistema no lo deduce. Rojo o 2+ sin dato = todavía no es propuesta.'));
   // ── Propuesta · retención (recurrentes_propios — una propuesta NO es un ingreso) ──
   var recs=(d.recurrentes||[]);
   if(!recs.length) pr.appendChild(el('div','served','Sin propuesta registrada para este cliente.'));

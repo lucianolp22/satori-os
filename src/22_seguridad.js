@@ -223,6 +223,7 @@ var ENDPOINTS_UI = [
   'seedAvataresLab', 'seedAvataresLabPisar',                                    // 32_flota.js (E2, avatares del lab)
   'selfTestTramo', 'selfTestVeredicto',                                         // tramos (04-ago)
   'selfTestTramo2', 'selfTestTramo3', 'selfTestTramo4', 'selfTestTramo5',       // wrappers sin args (desplegable del editor)
+  'selfTestTramo6',                                                             // tramo 6 (26-ago): bundle D46 CRM Pro + D47 SGIC
   'bootstrap',                                                                  // 10_bootstrap.js
   'expirarPendientes',                                                          // 11_aprobaciones.js
   'encolar', 'drenarCola', 'verifArchivoCola', 'archivarColaViejaREAL',         // 12_cola.js
@@ -292,7 +293,13 @@ var ENDPOINTS_UI = [
   // `_sellarContacto_`, `_senalRetencion_`, `_senalRetencionCtx_` y `correoHilosDeCliente_` NO
   // van acá A PROPÓSITO: terminan en guión bajo ⇒ no son top-level invocables por RPC.
   'carteraRegistrarContacto', 'carteraRecontacto', 'carteraSnapshotMd',         // 33_cartera.js
-  'correoCandidatosStaging', 'correoConfirmarThread', 'correoDescartarThread'   // 30_correo.js
+  'carteraEncajeKairos',                                                        // 33_cartera.js (§2d, tildable)
+  'correoCandidatosStaging', 'correoConfirmarThread', 'correoDescartarThread',  // 30_correo.js
+
+  // ── CAPACIDADES SATO · Ola 1.0 (26-ago) · canal de push al teléfono. `_pushTelefono_` NO va
+  // acá (guión bajo ⇒ no es RPC-invocable); el wrapper de prueba SÍ, porque es top-level y
+  // consume UrlFetch + lee Script Properties.
+  'probarPushTelefono'                                                          // 34_push.js
 ];
 
 /**

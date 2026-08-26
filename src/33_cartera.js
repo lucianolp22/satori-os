@@ -742,3 +742,40 @@ function carteraSnapshotMd() {
   }
   return res;
 }
+
+
+/**
+ * §2d · ENCAJE KAIROS tildable — write path del `encaje_kairos_4b`. Cuatro criterios del Manual
+ * (≥2 años · ventas estables · punto de equilibrio · intención real), cada uno `s` | `n` | `-`.
+ *
+ * NO ES ML Y EL CÓDIGO NO LO DEDUCE: lo tilda Luciano en la Etapa 2 KAIROS. Este endpoint solo
+ * persiste lo que él marcó — por eso valida FORMA (4 chars del vocabulario cerrado) y nada más:
+ * no hay «criterio derivado», no hay score, no hay valor por defecto que rellene un `-`.
+ *
+ * Vocabulario CERRADO validado server-side: un valor fuera de {s,n,-} no entra a la hoja, porque
+ * después la ficha no sabría qué LED pintar (misma disciplina que `_etapaValida_`).
+ *
+ * @return {{ok:boolean, id_cliente?:string, encaje_kairos_4b?:string, error?:string}}
+ */
+function carteraEncajeKairos(idCliente, valor) {
+  _soloOwner_('carteraEncajeKairos');
+  var id = String(idCliente == null ? '' : idCliente).trim();
+  if (!id) return { ok: false, error: 'falta id_cliente' };
+  var v = String(valor == null ? '' : valor).trim().toLowerCase();
+  if (!/^[sn-]{4}$/.test(v)) {
+    return { ok: false, error: 'encaje_kairos_4b inválido: se esperan 4 caracteres de {s,n,-} — recibido ' + JSON.stringify(v) };
+  }
+  return conLock(function () {
+    var sh = getMaestro().getSheetByName('Clientes');
+    var fila = leerTabla(sh).filter(function (c) { return String(c.id_cliente) === id; })[0];
+    // AISLAMIENTO §3: el id viene del front ⇒ se valida contra el roster REAL antes de escribir.
+    if (!fila) return { ok: false, error: 'id_cliente fuera del roster: ' + id };
+    var viejo = String(fila.encaje_kairos_4b || '');
+    if (viejo === v) return { ok: true, id_cliente: id, encaje_kairos_4b: v, sin_cambio: true };
+    _setColumnaCliente_(sh, fila, 'encaje_kairos_4b', v);
+    // Queda en Actividad: el encaje decide si un tibio pasa a propuesta. Un criterio que cambió
+    // sin rastro de cuándo ni desde qué valor no se puede revisar después.
+    try { feed_('Cartera', 'cartera', id, 'Encaje KAIROS: ' + (viejo || '(vacío)') + ' → ' + v); } catch (_f) {}
+    return { ok: true, id_cliente: id, encaje_kairos_4b: v, de: viejo };
+  });
+}
