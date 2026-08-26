@@ -1,8 +1,8 @@
 # HANDOFF — Satori OS — 2026-08-25 (espejo vivo · sesión Cowork tandas 1-4)
 
-DEPLOY-PENDIENTE: sí — código en `origin/main` `25b149d` + `clasp push` a /dev; FALTA re-certificar selfTest en el editor y promover a `/exec` (secuencia abajo). Prod hoy ≈ **@50** (confirmar con `clasp deployments`; rollback @49 en `_promote_rollback.txt`).
+DEPLOY-PENDIENTE: parcial — **prod `/exec` = @54** (verificado con `clasp deployments` el 26-ago; el promote del 25-ago encadenó @51→@54, selfTest CERTIFICADO 938/0, rollback @50 en `_promote_rollback.txt`). **`/dev` (HEAD de GAS) va ADELANTE de `/exec`**: contiene la tanda de integridad de datos SGIC/Sato del 25-26 ago, aún SIN certificar en el editor.
 
-PRÓXIMO PASO: **promover a `/exec`** — en el editor GAS correr en orden `selfTest` → `selfTestTramo2` → `selfTestTramo3` → `selfTestTramo4` → `selfTestTramo5` → `selfTestVeredicto` (debe dar **CERTIFICADO** con el D44a2 nuevo: cola = `encaje_kairos_4b`) → `limpiarTodoTest`; después `bash _promote_exec.sh` (dry) y `bash _promote_exec.sh --go`.
+PRÓXIMO PASO: **certificar la tanda SGIC/Sato en el editor + eyeball en `/dev`** (guion en la sesión Code del 26-ago); después, eyeball de verificación en `/exec` @54 (2 min que pide el promote): abrir la app como luciano@, probar la voz 30s ("hola Sato, dame el brief") y mirar el CRM/orbe/Sato en prod. Rollback @50 en `_promote_rollback.txt` si algo se ve mal. Luego: cargar `moneda` en el MAESTRO (CLI-002 ARS · CLI-003 ARS · CLI-004 EUR).
 
 > **Sesión del 25-ago (Cowork) — 4 tandas, todo en `origin/main` (`25b149d`), `clasp push` a /dev hecho, git sincronizado.** Prod `/exec` NO tocada en la sesión (sigue ≈@50). Verificación offline de cada tanda: `node _harness.js` **676/0** · `python3 _verificar_index.py` OK (449/449) · render headless con shim GAS (desktop + iPhone 15 Pro Max) 0 errores JS.
 
@@ -17,6 +17,7 @@ PRÓXIMO PASO: **promover a `/exec`** — en el editor GAS correr en orden `self
 **T4 · Sato sin ventanas + mobile** (`25b149d`): tocar el orbe (CM/Ficha/Núcleo) abre el **panel de Sato DENTRO del OS** (cero `window.open` por defecto). Voz full-duplex = botón `📞` opcional (ventanita — el iframe de GAS prohíbe el micrófono embebido, T1.4c; fix definitivo = PWA-C). Botones "Sato" ocultos con `display:none` (NO removidos — el DOM los necesita, lección +52). Mobile iPhone 15 Pro Max: tiles en carrusel, formularios apilados, targets ≥44px.
 
 ## Verificado [25-ago]
+- [25-ago 10:10] **PROMOVIDO a /exec** — selfTest en el editor CERTIFICADO **938/0** (5 tramos, con el D44a2 nuevo y el fix de rate limit del D43). El promote encadenó @51→@54; **prod quedó en @54** (verificado con `clasp deployments` el 26-ago — el @51 que decía este handoff estaba stale).
 - Offline: `node _harness.js` **676/0** (incluye 17 asserts nuevos del CRM: foco puro ×7, endpoints declarados/gateados ×9, schema) · `python3 _verificar_index.py` OK · render headless desktop+móvil 0 errores JS — evidencia: corridas en la sesión Cowork.
 - `setup()` corrido por Luciano 03:02 → col `encaje_kairos_4b` materializada en el MAESTRO.
 - Eyeball de Luciano en /dev (tanda 3): "todo muy bien"; obs de la voz → resuelta en T4.

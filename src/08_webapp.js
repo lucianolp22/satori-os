@@ -449,6 +449,12 @@ function sgicConsulta_(idCliente, hoja, mes, limite) {
 // Mapa de conectores de ventas HARDCODEADO (Bastión: jamás un id del LLM). Se resuelve en tiempo de
 // request (VEHEMENCE_DB_ID vive en 19_conectores.js). Cliente sin conector → cae a Datos_operativos.
 function sgicVentas_(idCliente, mes) {
+  // Guardia de año (defensivo): si quien pide manda un año implausible —típico de un LLM que cree
+  // estar en su año de entrenamiento (2023)— lo ignoramos y caemos al último mes con datos. El reloj
+  // real manda, no el modelo. Un año vigente ±1 se respeta (permite pedir el año pasado).
+  var _aH = Number(String(hoyISO()).slice(0, 4));
+  var _aP = /^(\d{4})-\d{2}$/.test(String(mes || '')) ? Number(String(mes).slice(0, 4)) : null;
+  if (_aP && (_aP < _aH - 1 || _aP > _aH + 1)) mes = '';
   var CONECTORES = { 'CLI-002': { id: VEHEMENCE_DB_ID, hoja: 'DB_VENTAS' } };
   var conf = CONECTORES[idCliente];
   if (!conf) return { hoja: 'ventas', con_conector: false, nota: 'este cliente no tiene conector de ventas; probá la hoja Datos_operativos' };
@@ -457,7 +463,98 @@ function sgicVentas_(idCliente, mes) {
   catch (e) { return { hoja: 'ventas', con_conector: true, error: 'no pude abrir la fuente de ventas' }; }
   if (!shV) return { hoja: 'ventas', con_conector: true, error: 'la fuente no tiene ' + conf.hoja };
   var res = agregarVentasPorMes_(leerTabla(shV));                    // agregador canónico (misma verdad que el sync)
-  return _sgicResumenVentas_(res.filas, res.canales, mes, idCliente);
+  var resumen = _sgicResumenVentas_(res.filas, res.canales, mes, idCliente);
+  resumen.fuente = 'conector EN VIVO · ' + conf.hoja + ' (' + idCliente + ')';   // fuente concreta, jamás "el SGIC"
+  // "Ambas, mostrando la diferencia" (decisión Luciano · 25-ago): además del conector en vivo, leo el
+  // ÚLTIMO SYNC materializado en Datos_operativos (lo que muestra el panel SGIC) y expongo el delta.
+  // Misma fuente (DB_VENTAS), distinto momento ⇒ el delta = ventas aún no sincronizadas, no un error.
+  try {
+    var snap = _sgicPanelSnapshot_(idCliente, resumen.mes);
+    if (snap) {
+      resumen.panel_sgic = snap;
+      resumen.diferencia_vs_panel = {
+        total: (Number(resumen.total) || 0) - (Number(snap.total) || 0),
+        ordenes: (snap.ordenes == null) ? null : ((Number(resumen.ordenes) || 0) - snap.ordenes)
+      };
+      resumen.nota_fuente = 'Dos lecturas de la MISMA fuente (DB_VENTAS) en distinto momento: "en vivo" es el conector ahora; ' +
+        '"panel_sgic" es el último sync volcado a Datos_operativos (lo que ve tu SGIC). Si difieren, son ventas cargadas en ' +
+        'DB_VENTAS que todavía no se sincronizaron — no es un error de dato. Si el dashboard del cliente muestra una cifra ' +
+        'distinta a AMBAS, puede filtrar estados/pestañas distintos: hay que reconciliar, no asumir que coinciden.';
+    } else {
+      resumen.panel_sgic = null;
+      resumen.nota_fuente = 'Solo pude leer el conector EN VIVO (DB_VENTAS); no hallé el sync materializado en Datos_operativos ' +
+        'para ' + resumen.mes + ', así que NO puedo corroborar contra el panel: decilo, no des las cifras por iguales.';
+    }
+  } catch (eSnap) { resumen.panel_sgic = null; resumen.nota_fuente = 'no pude leer el panel para corroborar: ' + (eSnap.message || eSnap); }
+  // OFICIAL (25-ago, decisión Luciano): la cifra del SGIC (lo que ve en el dashboard) es la PRIMARIA.
+  // Se lee del endpoint read-only del propio SGIC (Calc_KPIs) — fuente única, sin recalcular. El
+  // conector crudo queda como comparación para AVISAR diferencias. Defensivo: si falla, Sato lo dice.
+  var ofi = sgicKpisOficial_(idCliente, resumen.mes);
+  if (ofi && !ofi.error) resumen.sgic_oficial = ofi;
+  else if (ofi && ofi.error) { resumen.sgic_oficial = null; resumen.sgic_oficial_error = ofi.error; }
+  resumen.resumen = _sgicVozResumen_(resumen);   // síntesis lista para voz (oficial primero + aviso)
+  return resumen;
+}
+
+/** Cifra OFICIAL del SGIC de Vehemence (lo que muestra su dashboard): llama al endpoint read-only
+ *  `satori_kpis` del propio SGIC (envuelve Calc_KPIs) con un token DEDICADO. Fuente única — Sato
+ *  reporta la MISMA cifra que Luciano ve, sin recalcular ni adivinar la re-derivación de IVA/netos.
+ *  Config en Script Properties (NUNCA en código — Bastión): VEHEMENCE_SGIC_URL + VEHEMENCE_SGIC_TOKEN.
+ *  Defensivo: cualquier problema ⇒ {error} y Sato cae al conector diciéndolo. Solo CLI-002 por ahora. */
+function sgicKpisOficial_(idCliente, mes) {
+  if (String(idCliente) !== 'CLI-002') return null;
+  var sp = PropertiesService.getScriptProperties();
+  var url = sp.getProperty('VEHEMENCE_SGIC_URL'), tok = sp.getProperty('VEHEMENCE_SGIC_TOKEN');
+  if (!url || !tok) return { error: 'sin_config' };
+  var per = /^\d{4}-\d{2}$/.test(String(mes || '')) ? String(mes) : '';
+  // Cache TTL 300s (5 min): el diagnóstico midió el endpoint en ~8,4s por Calc_KPIs sobre 3.353 filas
+  // + cold-start GAS→GAS. Sin cache, cada turno de voz paga los 8s y la voz se cuelga (razón real por la
+  // que "no funcionaba"). Los KPIs no cambian segundo a segundo — cache corto es correcto y honesto.
+  var cache = CacheService.getScriptCache();
+  var ckey = 'sgic_kpis_v2_' + idCliente + '_' + (per || 'now');   // v2 (26-ago): tras cambiar el SGIC a EERR_Compute, invalido cache viejo (Calc_KPIs devolvía otro número)
+  var hit = cache.get(ckey);
+  if (hit) { try { return JSON.parse(hit); } catch (e0) { /* cache corrupto: caigo al fetch */ } }
+  try {
+    var resp = UrlFetchApp.fetch(url, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ tipo: 'satori_kpis', k: tok, periodo: per }),   // el token NUNCA se loguea
+      muteHttpExceptions: true, followRedirects: true
+    });
+    if (resp.getResponseCode() !== 200) return { error: 'http_' + resp.getResponseCode() };
+    var j = JSON.parse(resp.getContentText());
+    if (!j || !j.ok || !j.data) return { error: (j && j.error) || 'respuesta_invalida' };
+    var d = j.data;
+    // Redondeo defensivo: Calc_KPIs sobre re-derivaciones IVA/netos deja floats sucios (24.830.243,299…).
+    // Los redondeo acá para que los _arVoz_ posteriores no arrastren decimales inútiles.
+    var out = {
+      mes: d.periodo || per || null,
+      total: Math.round(Number(d.total_facturado) || 0),
+      online: Math.round(Number(d.ventas_online) || 0),
+      local: Math.round(Number(d.ventas_local) || 0),
+      ordenes_online: Number(d.ordenes_online) || 0,
+      ticket_online: Math.round(Number(d.ticket_online) || 0),
+      mix_online_pct: Number(d.mix_online_pct) || 0
+    };
+    try { cache.put(ckey, JSON.stringify(out), 300); } catch (eC) { /* cache lleno: no crítico */ }
+    return out;
+  } catch (e) { return { error: 'no_disponible' }; }
+}
+
+/** DIAGNÓSTICO (editor-only, read-only) · 26-ago — ¿por qué Sato no da la cifra del SGIC? En UNA corrida:
+ *  ¿están las Script Properties? ¿qué devuelve el endpoint (dato/error) y en cuántos ms? ¿qué recibe Sato?
+ *  NO loguea el token. Corré `diagSatoVentasVivo` en el editor de Satori y pegá el Logger. Se remueve al cerrar. */
+function diagSatoVentasVivo() {
+  _soloOwner_('diagSatoVentasVivo');
+  var sp = PropertiesService.getScriptProperties();
+  var out = { config: { url_seteada: !!sp.getProperty('VEHEMENCE_SGIC_URL'), token_seteado: !!sp.getProperty('VEHEMENCE_SGIC_TOKEN') } };
+  var t0 = Date.now();
+  out.endpoint_directo = sgicKpisOficial_('CLI-002', '2026-08');   // dato o {error}
+  out.endpoint_ms = Date.now() - t0;                                // ¿tarda? (timeout de voz = 35s)
+  var r = sgicVentas_('CLI-002', '2026-08');
+  out.sato = { sgic_oficial: r.sgic_oficial || null, sgic_oficial_error: r.sgic_oficial_error || null,
+               conector_total: r.total, resumen: r.resumen };
+  Logger.log(JSON.stringify(out, null, 2));
+  return out;
 }
 
 /** PURA (testeable): agregados por mes×canal (filas de agregarVentasPorMes_) → resumen del mes pedido.
@@ -466,19 +563,141 @@ function _sgicResumenVentas_(filasAgg, canales, mes, idCliente) {
   var meses = filasAgg.map(function (f) { return String(f.fecha).slice(0, 7); });
   var mesUsar = mes || (meses.length ? meses.sort().slice(-1)[0] : '');
   var delMes = filasAgg.filter(function (f) { return String(f.fecha).slice(0, 7) === mesUsar; });
-  if (!delMes.length) return { hoja: 'ventas', con_conector: true, cliente: idCliente, mes: mesUsar || (mes || null), ordenes: 0, nota: 'sin ventas válidas' + (mes ? ' en ' + mes : '') };
+  if (!delMes.length) {
+    // Mes pedido SIN datos: honesto, pero NO "0 a secas" — devuelvo el último mes que SÍ tiene datos,
+    // para que Sato corrija un mes/año equivocado (el modelo tendía a pedir un año de su entrenamiento).
+    var _uniq = {}; meses.forEach(function (m) { _uniq[m] = 1; });
+    var _mesesOrd = Object.keys(_uniq).sort();
+    var _ult = _mesesOrd.length ? _mesesOrd[_mesesOrd.length - 1] : '';
+    var _ultInfo = null;
+    if (_ult) {
+      var _tU = 0, _oU = 0;
+      filasAgg.filter(function (f) { return String(f.fecha).slice(0, 7) === _ult; })
+              .forEach(function (f) { _tU += Number(f.valor) || 0; _oU += Number(f.ordenes) || 0; });
+      _ultInfo = { mes: _ult, total: _tU, ordenes: _oU, aov: _oU ? Math.round(_tU / _oU) : 0 };
+    }
+    return { hoja: 'ventas', con_conector: true, cliente: idCliente, mes: mesUsar || (mes || null), ordenes: 0,
+             fuente: 'conector de ventas en vivo', nota: 'sin ventas válidas' + (mes ? ' en ' + mes : ''),
+             meses_disponibles: _mesesOrd, ultimo_con_datos: _ultInfo };
+  }
   var ordenes = 0, total = 0, por_canal = [];
   delMes.forEach(function (f) {
     ordenes += Number(f.ordenes) || 0;
     total += Number(f.valor) || 0;
     por_canal.push({ canal: String(f.canal || '?'), ordenes: Number(f.ordenes) || 0, total: Number(f.valor) || 0, aov: Number(f.aov) || 0 });
   });
+  var _online = por_canal.filter(function (c) { return c.canal === 'online'; })[0];
   return {
     hoja: 'ventas', con_conector: true, cliente: idCliente, mes: mesUsar,
     ordenes: ordenes, total: total, aov: ordenes ? Math.round(total / ordenes) : 0,
+    // Provenance + honestidad de fuentes (S3): que el dato diga QUÉ es y CÓMO se calculó, para que
+    // Sato no lo confunda con el panel ni presente un AOV mezclado como si fuera el online.
+    fuente: 'conector de ventas en vivo',
+    metodo: 'agregado mes×canal; excluye canceladas/anuladas/devoluciones/negativos; AOV = total/órdenes',
+    aov_es_mezcla: por_canal.length > 1,
+    aov_online: _online ? _online.aov : null,
     por_canal: por_canal,
     cobertura: (canales && canales.length === 1) ? ('parcial: solo canal ' + canales[0]) : 'multicanal'
   };
+}
+
+/** Snapshot del último sync = lo que muestra el panel SGIC: suma las filas de ventas que el conector
+ *  dejó materializadas en Datos_operativos para `mesUsar`. Keys off del `concepto` que escribe
+ *  agregarVentasPorMes_ ('Ventas <canal> (mes, ARS)') — NO del rótulo de fuente (evita drift) y NO
+ *  toca filas cargadas a mano. Defensivo: cualquier problema ⇒ null (nunca rompe la lectura en vivo). */
+function _sgicPanelSnapshot_(idCliente, mesUsar) {
+  if (!mesUsar) return null;
+  try {
+    var ss = abrirCliente(idCliente).ss;
+    var sh = ss && ss.getSheetByName('Datos_operativos');
+    if (!sh) return null;
+    var rows = leerTabla(sh).filter(function (o) {
+      var c = String(o.concepto || '');
+      return /^Ventas\b/.test(c) && c.indexOf('(mes, ARS)') >= 0 &&
+             String(aFechaISO(o.fecha)).slice(0, 7) === mesUsar;
+    });
+    if (!rows.length) return null;
+    var total = 0, ordenes = 0, ordConocidas = true, por_canal = [];
+    rows.forEach(function (o) {
+      var v = Number(o.valor) || 0; total += v;
+      var mOrd = String(o.notas || '').match(/(\d+)\s+órdenes/);
+      var ord = mOrd ? Number(mOrd[1]) : null;
+      if (ord === null) ordConocidas = false; else ordenes += ord;
+      var mCanal = String(o.concepto || '').match(/^Ventas\s+(\S+)/);
+      por_canal.push({ canal: mCanal ? mCanal[1] : '?', total: v, ordenes: ord });
+    });
+    return {
+      total: total,
+      ordenes: ordConocidas ? ordenes : null,
+      aov: (ordConocidas && ordenes) ? Math.round(total / ordenes) : null,
+      por_canal: por_canal, filas: rows.length,
+      nota: 'último sync materializado en Datos_operativos (no un dato en vivo)'
+    };
+  } catch (e) { return null; }
+}
+
+/** Número ARS → texto EXACTO agrupado para voz ("24 millones 240 mil 90"), formato A1 del agente de
+ *  voz. Exacto (no redondea — respeta N4/S2) y ya en palabras, así el modelo lo lee sin masticar los
+ *  puntos de miles (caso 4.662.364 → "4 millones 662 mil 364", no "3.664"). */
+function _arVoz_(n) {
+  n = Math.round(Number(n) || 0); var sg = n < 0 ? 'menos ' : ''; n = Math.abs(n);
+  if (n === 0) return sg + '0';
+  var _mill = Math.floor(n / 1e6), _mil = Math.floor((n % 1e6) / 1e3), _res = n % 1e3, _p = [];
+  if (_mill) _p.push(_mill + (_mill === 1 ? ' millón' : ' millones'));
+  if (_mil) _p.push(_mil + ' mil');
+  if (_res) _p.push(String(_res));
+  return sg + _p.join(' ');
+}
+
+var _MES_NOM_ = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** 'YYYY-MM' → "agosto de 2026" (para voz). */
+function _mesVoz_(mesStr) {
+  var mm = /^\d{4}-(\d{2})$/.exec(String(mesStr || ''));
+  return mm ? (_MES_NOM_[Number(mm[1])] + ' de ' + String(mesStr).slice(0, 4)) : String(mesStr || 'ese mes');
+}
+
+/** Síntesis LISTA PARA VOZ. El modelo la lee TAL CUAL. PRIMARIO = la cifra OFICIAL del SGIC (lo que
+ *  Luciano ve en el dashboard, vía `sgic_oficial`); DESPUÉS avisa si el conector crudo difiere. Si no
+ *  se pudo leer el SGIC, cae al conector y LO DICE. Si el mes no tiene datos, ofrece el último con datos. */
+function _sgicVozResumen_(r) {
+  if (!r) return null;
+  var mesTxt = _mesVoz_(r.mes);
+  var o = r.sgic_oficial;   // cifra oficial del SGIC — la primaria
+
+  if (o && o.ordenes_online != null) {
+    var _ordTot = (r.ordenes != null && r.ordenes) ? r.ordenes : o.ordenes_online;   // total (conector) o, si no, online
+    var partes = ['Según el SGIC de Vehemence, en ' + mesTxt + ': ' + _arVoz_(o.total) + ' pesos facturados en ' + _ordTot + ' órdenes. ' +
+      'Online ' + _arVoz_(o.online) + ' en ' + o.ordenes_online + ' órdenes, ticket ' + _arVoz_(o.ticket_online) + '. ' +
+      'Local ' + _arVoz_(o.local) + '.'];
+    // Aviso POR CANAL contra el conector crudo, SIN asumir la causa (antes afirmaba "IVA/netos" aunque
+    // la diferencia fuera solo local): dice DÓNDE está el desfase para que Luciano lo pueda buscar.
+    var _con = {}; (r.por_canal || []).forEach(function (c) { _con[c.canal] = Number(c.total) || 0; });
+    var _avisos = [];
+    [['online', o.online], ['local', o.local]].forEach(function (par) {
+      if (_con[par[0]] == null) return;
+      var d = _con[par[0]] - (Number(par[1]) || 0);   // conector - oficial
+      if (Math.abs(d) >= 1000) _avisos.push('en ' + par[0] + ' el conector marca ' + _arVoz_(Math.abs(d)) + (d > 0 ? ' más' : ' menos'));
+    });
+    if (_avisos.length) partes.push('Aviso: contra el conector crudo DB_VENTAS, ' + _avisos.join(' y ') + ' — te lo marco para que lo revises.');
+    return partes.join(' ');
+  }
+
+  if (r.ordenes == null || (r.ordenes === 0 && !r.total)) {
+    if (r.ultimo_con_datos && r.ultimo_con_datos.ordenes)
+      return 'En ' + mesTxt + ' no hay ventas registradas en el conector DB_VENTAS. El último mes con datos es ' +
+             _mesVoz_(r.ultimo_con_datos.mes) + ': ' + _arVoz_(r.ultimo_con_datos.total) + ' pesos en ' + r.ultimo_con_datos.ordenes + ' órdenes.';
+    return 'En ' + mesTxt + ' no hay ventas registradas en el conector DB_VENTAS.';
+  }
+
+  var on = (r.por_canal || []).filter(function (c) { return c.canal === 'online'; })[0];
+  var lo = (r.por_canal || []).filter(function (c) { return c.canal === 'local'; })[0];
+  var pc = ['Ojo: no pude leer la cifra oficial del SGIC' + (r.sgic_oficial_error ? ' (' + r.sgic_oficial_error + ')' : '') +
+    ', así que te doy el conector crudo DB_VENTAS, que puede diferir del dashboard. En ' + mesTxt + ': ' +
+    _arVoz_(r.total) + ' pesos en ' + r.ordenes + ' órdenes.'];
+  if (on) pc.push('Online: ' + _arVoz_(on.total) + ' en ' + on.ordenes + ' órdenes, AOV ' + _arVoz_(on.aov) + '.');
+  if (lo) pc.push('Local: ' + _arVoz_(lo.total) + ' en ' + lo.ordenes + ' órdenes.');
+  return pc.join(' ');
 }
 
 /** Mes 'YYYY-MM' de una fila, robusto a la columna de fecha que exista (fecha/ts/fecha_creacion/mes). */
