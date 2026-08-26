@@ -2563,6 +2563,69 @@ seccion('D45 · CRM PRO (M1/M2/M3/S4/S5/S6/C7/C8) — puro + contratos');
   ['etapas:', 'columnas:', 'sin_etapa:', 'hoy:', 'total:', 'migrada:', 'foco:', 'recurrentes:', 'props:'].forEach((k) => {
     chk(cartera.indexOf(k) >= 0, 'D45 carteraPipeline conserva `' + k.replace(':', '') + '` (aditivo, no rompe a Sato ni al móvil)');
   });
+
+  // ── §2d · UI: lo que se puede aserir sin navegador (el render lo ve Luciano) ──
+  const ui = fs.readFileSync(path.join(SRC, 'index.html'), 'utf8');
+
+  // Presupuesto de señal: MÁX 2 chips por card (1 captación + 1 retención).
+  const cardFn = ui.slice(ui.indexOf('function carteraCard_'), ui.indexOf('function carteraMover_'));
+  chk((cardFn.match(/sen\.appendChild/g) || []).length === 4,
+      'D45 UI la franja de señal tiene 4 ramas (3 de captación MUTUAMENTE excluyentes + 1 de retención)');
+  chk(/if\(vencida\)\{[\s\S]{0,300}\} else if\(card\.frio_sin_contacto===true\)\{[\s\S]{0,260}\} else if\(card\.ultimo_contacto\)\{/.test(cardFn),
+      'D45 UI 🔒 la prioridad de captación es EXACTA: vencida > fría > último contacto (else-if, no 3 chips)');
+  chk(/card\.senal_retencion/.test(cardFn) && /pill\.title=tip/.test(cardFn),
+      'D45 UI el semáforo de retención se pinta con el detalle en tooltip (no gasta espacio en la card)');
+  chk(/pill\.setAttribute\('aria-label',tip\)/.test(cardFn),
+      'D45 UI el semáforo es accesible (el tooltip solo con el mouse dejaría afuera al teclado)');
+
+  // El front NO replica el enum ni el umbral: recibe juicios del backend.
+  const zonaCartera = ui.slice(ui.indexOf('function carteraPanel_'), ui.indexOf('function carteraMover_'));
+  chk(zonaCartera.indexOf('CARTERA_FRIO_DIAS=30') < 0 && /c\.frio_sin_contacto===true/.test(zonaCartera),
+      'D45 UI 🔒 el umbral de frío NO se duplica en el front (llega juzgado como `frio_sin_contacto`)');
+  chk(ctx.CARTERA_FRIO_DIAS === 30 && ctx.CARTERA_ETAPAS_CAPTACION.join(',') === 'frio,tibio,caliente',
+      'D45 el umbral y las etapas de captación viven en el BACKEND, en una sola constante');
+
+  // S5 · el modal: existe, tiene las TRES salidas, y cancelar revierte.
+  ['carteraPerdidoModal', 'carteraPerdidoTxt', 'carteraPerdidoNo', 'carteraPerdidoGo', 'carteraPerdidoGo90']
+    .forEach((id) => chk(new RegExp('id="' + id + '"').test(ui), 'D45 S5 el modal tiene #' + id));
+  chk(/r\.error==='motivo_requerido'/.test(ui) && /carteraPerdidoAbrir_\(id, sel, etapaPrevia/.test(ui),
+      'D45 S5 🔒 `motivo_requerido` ABRE el modal (no es un toast que no lleva a ninguna parte)');
+  chk(/if\(revertir&&CARTERA_PERDIDO&&CARTERA_PERDIDO\.sel\) CARTERA_PERDIDO\.sel\.value=CARTERA_PERDIDO\.previa/.test(ui),
+      'D45 S5 🔒 cancelar DEVUELVE el selector (si no, la UI miente sobre lo que dice la hoja)');
+  chk(/ev\.key==='Escape'&&CARTERA_PERDIDO/.test(ui), 'D45 S5 Escape cierra el modal (no es una trampa sin salida)');
+  chk(/if\(!motivo\)\{ cmToast\('El motivo es obligatorio'\)/.test(ui),
+      'D45 S5 el front tampoco deja mandar un motivo vacío (el server lo rechazaría igual)');
+  chk(/carteraMover_\(st\.id,st\.destino,/.test(ui),
+      'D45 S5 🔒 el reintento usa la etapa DESTINO guardada, no un literal clavado en el front');
+  chk(/\.moverEtapaComercial\(id, etapa, motivo\|\|''\)/.test(ui),
+      'D45 S5 el front manda el 3er parámetro (motivo) al endpoint');
+
+  // S6 · perder + recontactar: dos escrituras encadenadas, y si la 2ª falla se DICE.
+  chk(/\.carteraRecontacto\(id, 90\)/.test(ui), 'D45 S6 el botón de 90 días llama a carteraRecontacto');
+  chk(/Perdido, pero NO pude agendar el recontacto/.test(ui),
+      'D45 S6 🔒 si el recontacto falla se dice que la pérdida SÍ ocurrió (nada queda mudo)');
+
+  // M2 · panel Correo → CRM: los tres endpoints, y confirmar es humano.
+  ['carteraCorreoBtn', 'carteraSnapBtn', 'carteraMail'].forEach((id) =>
+    chk(new RegExp('id="' + id + '"').test(ui), 'D45 M2/C8 la UI tiene #' + id));
+  ['correoCandidatosStaging', 'correoConfirmarThread', 'correoDescartarThread', 'carteraSnapshotMd', 'carteraRegistrarContacto']
+    .forEach((fn) => chk(new RegExp('\\.' + fn + '\\(').test(ui), 'D45 la UI invoca ' + fn + '()'));
+  chk(/p\.correo_staging/.test(ui) && /correo_staging: correoStaging/.test(cartera),
+      'D45 M2 el staging viaja DENTRO del payload de la cartera (una llamada, una fuente)');
+  chk(/if\(!st\.length\)\{ box\.hidden=true; return; \}/.test(ui),
+      'D45 M2 sin candidatos el panel se OCULTA (un panel vacío permanente es ruido)');
+  chk(/rel='noopener noreferrer'|rel="noopener noreferrer"/.test(ui) || /a\.rel='noopener noreferrer'/.test(ui),
+      'D45 M2 🔒 el link a Gmail lleva noopener/noreferrer (no se le entrega window.opener a otro origen)');
+
+  // M1 · registrar contacto: el toast distingue «sellado» de «ya estaba sellado».
+  chk(/r\.sellado \? 'Contacto registrado ✓' : 'Ya había un contacto registrado hoy'/.test(ui),
+      'D45 M1 el toast NO miente: distingue sellado de ya-sellado (la función es idempotente)');
+  chk(/'Último contacto: sin registro todavía'/.test(ui),
+      'D45 M1 🔒 sin sello la ficha lo DICE (no muestra «hace 0 días»)');
+
+  // Tokens del tema: el modal vive fuera de #centro ⇒ necesita su bloque (lección UI 04-ago).
+  chk(/\.f360-sato, \.f360-cierre, \.cartera, \.cartera-modal\{/.test(ui),
+      'D45 UI 🔒 `.cartera-modal` hereda los tokens del tema (fuera de #centro no llegan — quedaría ilegible)');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

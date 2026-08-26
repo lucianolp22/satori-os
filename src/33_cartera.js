@@ -195,6 +195,11 @@ function seedCartera2026_08_11Aplicar() {
  * Las columnas salen de `ETAPAS_COMERCIALES` — si mañana se agrega una etapa, la vista la pinta
  * sola. Los clientes sin clasificar viajan en `sin_etapa`: son visibles, no invisibles.
  */
+/* CRM PRO — umbral y etapas de la señal de frío, en UN solo lugar del backend. El front NO los
+   replica: recibe el booleano `frio_sin_contacto` ya juzgado (regla anti-enum-clavado E-c). */
+var CARTERA_FRIO_DIAS = 30;
+var CARTERA_ETAPAS_CAPTACION = ['frio', 'tibio', 'caliente'];
+
 function carteraPipeline() {
   _soloOwner_('carteraPipeline');
   var filas = leerTabla(getMaestro().getSheetByName('Clientes'));
@@ -227,6 +232,12 @@ function carteraPipeline() {
                  // CRM PRO · M1 (aditivos — el payload viejo queda intacto). Los días se computan
                  // SERVER-SIDE por la misma razón de siempre: el reloj del navegador no es el del Sheet.
                  ultimo_contacto: uc, dias_sin_contacto: uc ? _diasEntreISO_(uc, hoy) : null,
+                 // El JUICIO «es un candidato frío» lo emite el BACKEND, no el front (regla
+                 // anti-enum-clavado E-c: si el front filtrara por etapa tendría una segunda copia
+                 // del enum, y el día que se agregue una etapa la vista la pierde). Mismo criterio
+                 // que `_carteraLineasFrio_`: solo captación y solo con sello REAL.
+                 frio_sin_contacto: !!uc && CARTERA_ETAPAS_CAPTACION.indexOf(String(c.etapa_comercial || '')) >= 0 &&
+                                    _diasEntreISO_(uc, hoy) > CARTERA_FRIO_DIAS,
                  // CRM PRO · S4: TODAS las oportunidades del cliente (se llenan abajo, tras leer
                  // `recurrentes_propios`). Array vacío = sin oportunidades, nunca `undefined`.
                  ops: [],
@@ -282,7 +293,23 @@ function carteraPipeline() {
       if (card.etapa === 'activo' && _retCtx) card.senal_retencion = _senalRetencion_(card.id_cliente, _retCtx);
     });
   });
+  // CRM PRO · M2 — candidatos de correo SIN resolver, para el panel «Correo → CRM». Viajan con
+  // la cartera (una sola llamada, una sola fuente) en vez de un endpoint aparte que se
+  // desincronice. Hoja LAZY: si no existe todavía ⇒ [] y el panel queda oculto, no roto.
+  var correoStaging = [];
+  try {
+    var shCC = getMaestro().getSheetByName('correo_cliente');
+    if (shCC) {
+      correoStaging = leerTabla(shCC).filter(function (f) { return String(f.estado) === 'staging'; })
+        .map(function (f) {
+          return { id_thread: String(f.id_thread), id_cliente: String(f.id_cliente || ''),
+                   asunto: String(f.asunto || ''), remitente: String(f.remitente || ''),
+                   fecha: aFechaISO(f.fecha_ultimo) || '' };
+        });
+    }
+  } catch (eCC) { correoStaging = []; }
   return { etapas: ETAPAS_COMERCIALES, columnas: cols, sin_etapa: sinEtapa, hoy: hoy,
+           correo_staging: correoStaging,
            total: filas.length, migrada: filas.length === 0 || filas[0].hasOwnProperty('etapa_comercial'),
            foco: _carteraFoco_(filas, hoy), recurrentes: rec, props: props };
 }
@@ -338,8 +365,8 @@ function _carteraLineasBrief_(filas, hoy) {
  *      cartera entera el día que esto se estrena, que es la forma más rápida de que se ignore.
  */
 function _carteraLineasFrio_(filas, hoy, dias) {
-  var UMBRAL = Number(dias) > 0 ? Number(dias) : 30;
-  var ETAPAS = ['frio', 'tibio', 'caliente'];
+  var UMBRAL = Number(dias) > 0 ? Number(dias) : CARTERA_FRIO_DIAS;
+  var ETAPAS = CARTERA_ETAPAS_CAPTACION;
   var frios = (filas || []).filter(function (c) {
     if (String(c.id_cliente) === 'CLI-000') return false;
     if (ETAPAS.indexOf(String(c.etapa_comercial || '')) < 0) return false;

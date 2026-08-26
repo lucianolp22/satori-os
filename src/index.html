@@ -1021,7 +1021,11 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
    acá los var(--color-*) caían al tema CLARO del :root → texto oscuro sobre panel oscuro
    (ilegible) y burbujas del usuario en verde (primary claro) en vez del terra de Sato. El panel
    SIEMPRE es oscuro (fondo rgba(18,14,11,.985)), así que fija su propio tema oscuro y es autónomo. */
-.f360-sato, .f360-cierre, .cartera{
+.f360-sato, .f360-cierre, .cartera, .cartera-modal{
+  /* CRM PRO: `.cartera-modal` se suma a esta lista por la MISMA razón que las otras tres —
+     vive a nivel <body> (fuera de #centro, que es fixed z-50 y crea stacking context), y ahí
+     no llegan los tokens del tema oscuro: sin este bloque el modal queda ilegible.
+     Es el precedente documentado en CLAUDE.md §UI, no un bloque nuevo. */
   color:#F4EEE2;
   --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
   --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
@@ -1088,12 +1092,78 @@ td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric
 .cartera-card .bg.firm{color:#6FC2A8;border-color:#3E9B82;background:rgba(62,155,130,.14);font-weight:600}
 .cartera-card .bg.foco{color:#E6A87E;border-color:#D5824F;background:rgba(213,130,79,.14);font-weight:600}
 .cartera-card .px.sin{color:var(--color-danger);font-style:italic}
+/* CRM PRO — franja de SEÑAL: máx 2 chips (1 captación + 1 retención). Tokens del OS, sin
+   colores sueltos. El semáforo usa `gris` como estado legítimo (D26c: vacío no es verde). */
+.cartera-card .sen{display:flex;flex-wrap:wrap;gap:4px}
+.cartera-card .sg{font-size:10.5px;border-radius:6px;padding:1px 7px;border:1px solid var(--color-border);
+  color:var(--color-text-muted);font-variant-numeric:tabular-nums}
+.cartera-card .sg.venc{color:var(--color-danger);border-color:var(--color-danger);
+  background:rgba(200,80,70,.14);font-weight:600}
+.cartera-card .sg.frio{color:#7FB4D8;border-color:rgba(127,180,216,.45);background:rgba(127,180,216,.13);font-weight:600}
+.cartera-card .sg.ok{color:var(--color-text-subtle)}
+.cartera-card .sg.ret{cursor:help;font-weight:600}
+.cartera-card .sg.ret.verde{color:#6FC2A8;border-color:#3E9B82;background:rgba(62,155,130,.14)}
+.cartera-card .sg.ret.ambar{color:#DCA75E;border-color:rgba(220,167,94,.45);background:rgba(220,167,94,.14)}
+.cartera-card .sg.ret.rojo{color:#E08B7F;border-color:rgba(224,139,127,.5);background:rgba(224,139,127,.14)}
+.cartera-card .sg.ret.gris{color:var(--color-text-subtle);border-color:var(--color-border);background:rgba(255,255,255,.04)}
+/* CRM PRO · M2 — panel «Correo → CRM» (staging). Denso y operativo: es una bandeja de trabajo. */
+.cartera-mail{border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px;
+  background:rgba(0,0,0,.18);display:flex;flex-direction:column;gap:6px}
+.cartera-mail-h{font-size:12px;font-weight:600;color:var(--color-text)}
+.cartera-mail-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;
+  padding:6px 0;border-bottom:1px solid var(--color-border)}
+.cartera-mail-row:last-child{border-bottom:none}
+.cartera-mail-row .as{flex:1;min-width:160px;color:var(--color-text)}
+.cartera-mail-row select{background:rgba(0,0,0,.28);color:var(--color-text);border:1px solid var(--color-border);
+  border-radius:var(--radius-sm);padding:4px 6px;font-size:12px;max-width:210px}
+.cartera-mail-row .btn{min-height:34px}
+@media (max-width:640px){
+  .cartera-mail-row{flex-direction:column;align-items:stretch}
+  .cartera-mail-row select,.cartera-mail-row .btn{width:100%;min-height:44px}
+}
+
+/* CRM PRO · S5 — MODAL DE MOTIVO DE PÉRDIDA. z-index por encima del panel Cartera (que ya vive
+   a nivel body). Tres salidas: Cancelar · Perder · Perder + recontacto 90d. */
+.cartera-modal{position:fixed;inset:0;z-index:420;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.62);padding:16px}
+.cartera-modal.open{display:flex}
+.cartera-modal .box{background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-lg);padding:18px;max-width:460px;width:100%;display:flex;flex-direction:column;gap:12px}
+.cartera-modal h4{margin:0;font-size:15px;font-weight:600;color:var(--color-text)}
+.cartera-modal .sub{font-size:12.5px;color:var(--color-text-muted);line-height:1.45}
+.cartera-modal textarea{width:100%;min-height:74px;resize:vertical;background:rgba(0,0,0,.28);
+  color:var(--color-text);border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  padding:8px;font-size:13px;font-family:inherit}
+.cartera-modal textarea:focus-visible{outline:2px solid var(--color-primary);outline-offset:1px}
+.cartera-modal .acc{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.cartera-modal .acc button{min-height:38px}
+@media (max-width:640px){
+  .cartera-modal .acc{flex-direction:column-reverse}
+  .cartera-modal .acc button{width:100%;min-height:44px}
+}
+
 .cartera-card .top{cursor:pointer}
 .f360-enc-led{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:middle}
 .f360-com-edit{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
 .f360-com-edit input{flex:1;min-width:140px;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:8px;color:var(--color-text);padding:7px 10px;font-size:12.5px;min-height:38px;font-family:inherit}
 .f360-com-rec{display:flex;align-items:center;gap:4px;padding:7px 0;border-bottom:1px solid var(--color-border);font-size:12.5px;flex-wrap:wrap}
 .f360-com-rec:last-child{border-bottom:none}
+/* CRM PRO · M1/M2 — bloque de contacto y timeline de correo en la solapa Comercial. */
+.f360-com-ct{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--color-border);font-size:12.5px}
+.f360-com-ct .btn{min-height:38px}
+.f360-com-mail{margin-top:12px;padding-top:10px;border-top:1px solid var(--color-border)}
+.f360-com-h{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle);margin-bottom:6px}
+.f360-com-mrow{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:5px 0;font-size:12.5px;
+  border-bottom:1px solid var(--color-border)}
+.f360-com-mrow:last-child{border-bottom:none}
+.f360-com-mrow a{color:var(--color-primary);text-decoration:none}
+.f360-com-mrow a:hover,.f360-com-mrow a:focus-visible{text-decoration:underline}
+@media (max-width:640px){
+  .f360-com-ct{flex-direction:column;align-items:stretch}
+  .f360-com-ct .btn{width:100%;min-height:44px}
+  .f360-com-mrow a{min-height:44px;display:flex;align-items:center}
+}
 /* CRM · mobile (iPhone 15 Pro Max 430pt): tiles en carrusel, formularios apilados, targets ≥44px */
 @media (max-width:760px){
   .cartera-mrow{padding:8px 12px 0;gap:8px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
@@ -2529,6 +2599,9 @@ function carteraRefrescar_(){
 /* El HOY con el que se decide si una fecha está vencida lo manda el BACKEND (zona horaria del
    Sheet). El reloj del navegador puede estar un día corrido y pintar de rojo lo que no lo está. */
 var CARTERA_HOY='', CARTERA_FOCO={}, CARTERA_PROPS={};
+/* CRM PRO: el umbral de «frío» y las etapas de captación viven SOLO en el backend
+   (`CARTERA_FRIO_DIAS` / `CARTERA_ETAPAS_CAPTACION` en 33_cartera.js). El front recibe el
+   booleano `frio_sin_contacto` ya juzgado — cero enum, cero umbral duplicado acá. */
 /* CRM 25-ago — tiles del embudo. Datos del payload (backend): jamás se inventa un número. */
 function carteraTiles_(p){
   var box=document.getElementById('carteraTiles'); if(!box) return;
@@ -2537,6 +2610,10 @@ function carteraTiles_(p){
   cards=cards.concat(p.sin_etapa||[]);
   var venc=cards.filter(function(c){ return c.prox_accion_fecha && CARTERA_HOY && c.prox_accion_fecha<CARTERA_HOY; }).length;
   var sinPx=cards.filter(function(c){ return c.pide_prox===true; }).length;   // el juicio lo manda el backend
+  /* CRM PRO · M1 — 5º tile: candidatos fríos por falta de contacto. El JUICIO viene del backend
+     (`frio_sin_contacto`), igual que `pide_prox`: el front no replica ni el enum de etapas ni el
+     umbral de días (regla anti-enum-clavado E-c — una segunda copia es la que se desincroniza). */
+  var frios=cards.filter(function(c){ return c.frio_sin_contacto===true; }).length;
   var rec=p.recurrentes||null;
   function tile(k,v,rojo){ var t=el('div','cartera-mtile'+(rojo?' rojo':'')); t.appendChild(el('div','k',k)); t.appendChild(el('div','v',v)); box.appendChild(t); }
   tile('Retenciones activas', rec?String(rec.activos):'—');
@@ -2544,6 +2621,7 @@ function carteraTiles_(p){
   tile('Recurrente / mes', pm||'—');
   tile('Próx. acciones vencidas', String(venc), venc>0);
   tile('Sin próximo paso', String(sinPx), sinPx>0);
+  tile('Sin contacto hace tiempo', String(frios), frios>0);
   box.hidden=false;
 }
 /* Foco semanal: el OS PROPONE (server-side, con motivo) — vos decidís. Sin escritura. */
@@ -2564,7 +2642,12 @@ function carteraPintar_(p){
   CARTERA_HOY=String(p.hoy||'');
   CARTERA_FOCO={}; (p.foco||[]).forEach(function(f){ CARTERA_FOCO[f.id_cliente]=f; });
   CARTERA_PROPS=p.props||{};
-  try{ carteraTiles_(p); carteraFocoBar_(p); }catch(_t){}
+  // Roster para el selector del staging: se arma del MISMO payload (una fuente).
+  CARTERA_ROSTER=[];
+  Object.keys(p.columnas||{}).forEach(function(k){ CARTERA_ROSTER=CARTERA_ROSTER.concat(p.columnas[k]||[]); });
+  CARTERA_ROSTER=CARTERA_ROSTER.concat(p.sin_etapa||[]).map(function(c){ return {id_cliente:c.id_cliente,nombre:c.nombre}; })
+    .sort(function(a,b){ return a.id_cliente<b.id_cliente?-1:1; });
+  try{ carteraTiles_(p); carteraFocoBar_(p); carteraMailPintar_(p); }catch(_t){}
   var etapas=p.etapas||[];
   // `migrada:false` ⇒ la hoja todavía no tiene la columna: lo decimos en vez de mostrar todo
   // en «sin clasificar», que se leería como "perdí los datos".
@@ -2618,11 +2701,42 @@ function carteraCard_(card, etapas){
   if(card.prox_accion) d.appendChild(el('div','px',card.prox_accion));
   // Regla «el siguiente paso siempre existe»: el JUICIO viene del backend (pide_prox) — sin enum en el front.
   else if(card.pide_prox===true) d.appendChild(el('div','px sin','sin próxima acción — la regla pide una'));
+  /* ── CRM PRO · PRESUPUESTO DE SEÑAL (regla de diseño de la maqueta v2) ──────────────────
+     MÁXIMO 2 señales de alerta por card: 1 de CAPTACIÓN + 1 de RETENCIÓN. Una card con 6
+     alertas no tiene ninguna — el resto del detalle vive en la Ficha 360.
+       · captación (prioridad EXACTA del encargo): vencida > fría-30d > último contacto
+       · retención (SOLO activos): el semáforo M3, que el backend ya juzgó
+     Lo NEUTRO (fecha futura, días en etapa, «sin Sheet») no ocupa slot: no es una alerta,
+     es contexto, y sacarlo sería perder información que ya estaba. */
+  var sen=el('div','sen'), haySen=false;
+  var vencida = !!(card.prox_accion_fecha && CARTERA_HOY && card.prox_accion_fecha < CARTERA_HOY);
+  if(vencida){
+    sen.appendChild(el('span','sg venc','⚠ vencía '+card.prox_accion_fecha)); haySen=true;
+  } else if(card.frio_sin_contacto===true){
+    sen.appendChild(el('span','sg frio','❄ '+card.dias_sin_contacto+' días sin contacto')); haySen=true;
+  } else if(card.ultimo_contacto){
+    sen.appendChild(el('span','sg ok','último contacto '+card.ultimo_contacto)); haySen=true;
+  }
+  /* Semáforo de retención. `senal_retencion` SOLO viene en activos (el backend decide, el front
+     no filtra por etapa). `gris` es un estado LEGÍTIMO y se pinta: significa «no tengo con qué
+     juzgar», que es distinto de verde. El detalle va al tooltip — no gasta espacio en la card. */
+  var sr=card.senal_retencion;
+  if(sr && sr.nivel){
+    function _txt(v,si,no){ return v===null?'sin dato':(v?si:no); }
+    var tip='Retención · datos del mes: '+_txt(sr.datos,'al día','no llegaron')+
+            ' · reunión: '+_txt(sr.reunion,'hecha o agendada','sin agendar')+
+            ' · compromisos: '+_txt(sr.comp,'al día','con vencidos');
+    var pill=el('span','sg ret '+sr.nivel,'● retención');
+    pill.title=tip;
+    pill.setAttribute('aria-label',tip);
+    sen.appendChild(pill); haySen=true;
+  }
+  if(haySen) d.appendChild(sen);
+
   var meta=el('div','meta'), hayMeta=false;
-  if(card.prox_accion_fecha){
-    var vencida = !!(CARTERA_HOY && card.prox_accion_fecha < CARTERA_HOY);
-    meta.appendChild(el('span',vencida?'venc':null,(vencida?'⚠ vencía ':'para el ')+card.prox_accion_fecha));
-    hayMeta=true;
+  /* La fecha FUTURA no es alerta: es contexto. Por eso baja a `meta` y no consume el slot. */
+  if(card.prox_accion_fecha && !vencida){
+    meta.appendChild(el('span',null,'para el '+card.prox_accion_fecha)); hayMeta=true;
   }
   if(card.dias_etapa!=null){ meta.appendChild(el('span',null,card.dias_etapa+' día(s) en '+String(card.etapa||'sin clasificar').replace(/_/g,' '))); hayMeta=true; }
   // Alta liviana: un prospecto sin Sheet está bien; uno caliente/activo sin Sheet es alta a medias.
@@ -2640,14 +2754,164 @@ function carteraCard_(card, etapas){
   d.appendChild(sel);
   return d;
 }
-function carteraMover_(id, etapa, sel, etapaPrevia){
+/* ══ CRM PRO · M2 — «Correo → CRM»: barrido + staging + confirmación humana ══════════════
+   El barrido es READ-ONLY sobre Gmail y PROPONE; nada entra al CRM sin un clic de Luciano.
+   El roster del selector sale del propio payload de la cartera (no se pide una lista aparte ni
+   se clava nada acá): el id que se manda al server ya existe, y el server lo revalida igual. */
+var CARTERA_ROSTER=[];
+function carteraCorreoBarrer_(){
+  var b=document.getElementById('carteraCorreoBtn'); if(b) b.disabled=true;
+  cmToast('Barriendo la bandeja…');
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(b) b.disabled=false;
+      r=r||{};
+      // El backend puede devolver un AVISO sin ser un error (tope alcanzado, nada declarado).
+      if(r.aviso){ cmToast(r.aviso); }
+      else cmToast('Barrido: '+(r.capturados||0)+' candidato(s) nuevo(s) · '+(r.pendientes||0)+' sin resolver');
+      carteraMailRefrescar_();
+    })
+    .withFailureHandler(function(e){ if(b) b.disabled=false; cmToast('No pude barrer el correo: '+((e&&e.message)||e)); })
+    .correoCandidatosStaging();
+}
+function carteraMailRefrescar_(){
+  // El staging se lee del mismo payload de la cartera (el backend lo adjunta). Un refresco de
+  // cartera repinta las dos cosas: una sola fuente, sin un segundo endpoint que se desincronice.
+  carteraRefrescar_();
+}
+function carteraMailPintar_(p){
+  var box=document.getElementById('carteraMail'); if(!box) return;
+  clear(box);
+  var st=(p.correo_staging||[]);
+  if(!st.length){ box.hidden=true; return; }
+  var h=el('div','cartera-mail-h','✉ Correo → CRM · '+st.length+' candidato(s) por resolver');
+  box.appendChild(h);
+  box.appendChild(el('div','served','Cada fila es una PROPUESTA del barrido. Confirmá el cliente o descartá: nada entra al CRM solo. Confirmar registra además el contacto de hoy.'));
+  st.forEach(function(m){
+    var fila=el('div','cartera-mail-row');
+    fila.appendChild(el('span','mono',m.fecha||'—'));
+    fila.appendChild(el('span','as',m.asunto||'(sin asunto)'));
+    fila.appendChild(el('span','served',m.remitente||''));
+    var sel=el('select');
+    sel.setAttribute('aria-label','Cliente para el hilo '+(m.asunto||''));
+    CARTERA_ROSTER.forEach(function(c){
+      var o=el('option',null,c.id_cliente+' · '+(c.nombre||''));
+      o.value=c.id_cliente; if(c.id_cliente===m.id_cliente) o.selected=true;
+      sel.appendChild(o);
+    });
+    fila.appendChild(sel);
+    var ok=el('button','btn btn-sm','✓ Confirmar');
+    ok.addEventListener('click',function(){
+      ok.disabled=true;
+      google.script.run.withSuccessHandler(function(r){ ok.disabled=false;
+        if(!r||r.ok!==true){ cmToast('No se confirmó: '+((r&&r.error)||'motivo desconocido')); return; }
+        cmToast('Hilo vinculado a '+r.id_cliente+' ✓ · contacto registrado');
+        carteraMailRefrescar_();
+      }).withFailureHandler(function(e){ ok.disabled=false; cmToast('No se confirmó: '+((e&&e.message)||e)); })
+      .correoConfirmarThread(m.id_thread, sel.value);
+    });
+    var no=el('button','btn btn-ghost btn-sm','✗ Descartar');
+    no.addEventListener('click',function(){
+      no.disabled=true;
+      google.script.run.withSuccessHandler(function(r){ no.disabled=false;
+        if(!r||r.ok!==true){ cmToast('No se descartó: '+((r&&r.error)||'motivo desconocido')); return; }
+        cmToast('Hilo descartado — no vuelve a aparecer');
+        carteraMailRefrescar_();
+      }).withFailureHandler(function(e){ no.disabled=false; cmToast('No se descartó: '+((e&&e.message)||e)); })
+      .correoDescartarThread(m.id_thread);
+    });
+    fila.appendChild(ok); fila.appendChild(no);
+    box.appendChild(fila);
+  });
+  box.hidden=false;
+}
+function carteraSnapshot_(){
+  var b=document.getElementById('carteraSnapBtn'); if(b) b.disabled=true;
+  cmToast('Generando el snapshot…');
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(b) b.disabled=false;
+      if(!r||r.ok!==true){ cmToast('No se generó el snapshot'); return; }
+      // Si Drive falló el texto igual existe: se dice, no se canta un éxito a medias.
+      cmToast(r.drive ? 'Snapshot guardado: '+r.nombre : 'Snapshot generado ('+r.chars+' chars) pero NO se guardó en Drive'+(r.aviso?' — '+r.aviso:''));
+    })
+    .withFailureHandler(function(e){ if(b) b.disabled=false; cmToast('No pude generar el snapshot: '+((e&&e.message)||e)); })
+    .carteraSnapshotMd();
+}
+document.addEventListener('DOMContentLoaded',function(){
+  var cb=document.getElementById('carteraCorreoBtn'); if(cb) cb.addEventListener('click',carteraCorreoBarrer_);
+  var sb=document.getElementById('carteraSnapBtn'); if(sb) sb.addEventListener('click',carteraSnapshot_);
+});
+
+/* CRM PRO · S5 — el modal necesita recordar A QUÉ movimiento pertenece: si se cancela hay que
+   devolver el selector a su etapa previa, o la UI queda mostrando `perdido` sobre una hoja que
+   nunca se escribió. `recontactar` lo decide el botón que se apretó. */
+var CARTERA_PERDIDO=null;
+function carteraPerdidoAbrir_(id, sel, etapaPrevia, nombre){
+  var m=document.getElementById('carteraPerdidoModal'), tx=document.getElementById('carteraPerdidoTxt');
+  if(!m||!tx){ sel.value=etapaPrevia; cmToast('Falta el motivo para marcar como perdido'); return; }
+  /* La etapa DESTINO se guarda del propio movimiento — el front no la nombra (anti-enum-clavado):
+     el server ya dijo `motivo_requerido` para esta etapa, así que es la que hay que reintentar. */
+  CARTERA_PERDIDO={id:id, sel:sel, previa:etapaPrevia, destino:sel.value};
+  tx.value='';
+  var sub=document.getElementById('carteraPerdidoSub');
+  if(sub&&nombre) sub.textContent='«'+nombre+'» — un cliente que se pierde sin motivo escrito no se puede aprender. El motivo queda en la ficha y en el snapshot mensual.';
+  m.classList.add('open');
+  try{ tx.focus(); }catch(_f){}
+}
+function carteraPerdidoCerrar_(revertir){
+  var m=document.getElementById('carteraPerdidoModal');
+  if(m) m.classList.remove('open');
+  // Cancelar DEBE devolver el selector: dejarlo en `perdido` sería la UI mintiendo sobre la hoja.
+  if(revertir&&CARTERA_PERDIDO&&CARTERA_PERDIDO.sel) CARTERA_PERDIDO.sel.value=CARTERA_PERDIDO.previa;
+  CARTERA_PERDIDO=null;
+}
+function carteraPerdidoConfirmar_(conRecontacto){
+  if(!CARTERA_PERDIDO) return;
+  var tx=document.getElementById('carteraPerdidoTxt');
+  var motivo=(tx&&tx.value||'').trim();
+  if(!motivo){ cmToast('El motivo es obligatorio'); if(tx){try{tx.focus();}catch(_f){}} return; }
+  var st=CARTERA_PERDIDO;
+  document.getElementById('carteraPerdidoModal').classList.remove('open');
+  CARTERA_PERDIDO=null;
+  carteraMover_(st.id,st.destino,st.sel,st.previa,motivo,conRecontacto);
+}
+document.addEventListener('DOMContentLoaded',function(){
+  var no=document.getElementById('carteraPerdidoNo'), go=document.getElementById('carteraPerdidoGo'), g90=document.getElementById('carteraPerdidoGo90');
+  if(no) no.addEventListener('click',function(){ carteraPerdidoCerrar_(true); });
+  if(go) go.addEventListener('click',function(){ carteraPerdidoConfirmar_(false); });
+  if(g90) g90.addEventListener('click',function(){ carteraPerdidoConfirmar_(true); });
+  // Escape = cancelar (y revertir). Un modal sin salida por teclado es una trampa.
+  document.addEventListener('keydown',function(ev){
+    if(ev.key==='Escape'&&CARTERA_PERDIDO) carteraPerdidoCerrar_(true);
+  });
+});
+function carteraMover_(id, etapa, sel, etapaPrevia, motivo, conRecontacto){
   sel.disabled=true;
   google.script.run
     .withSuccessHandler(function(r){
       sel.disabled=false;
       // El server puede RECHAZAR (id fuera del roster, etapa fuera del enum). Un rechazo que el
       // front ignora deja la UI mintiendo: el selector mostraría una etapa que la hoja no tiene.
+      // CRM PRO · S5: `motivo_requerido` NO es un error a mostrar — es el server pidiendo el dato.
+      // El front abre el modal en vez de tirar un toast que no lleva a ninguna parte.
+      if(r&&r.ok!==true&&r.error==='motivo_requerido'){
+        var nm=''; try{ nm=sel.parentNode.querySelector('.nm').textContent; }catch(_n){}
+        carteraPerdidoAbrir_(id, sel, etapaPrevia, nm); return;
+      }
       if(!r||r.ok!==true){ sel.value=etapaPrevia; cmToast('No se movió: '+((r&&r.error)||'motivo desconocido')); return; }
+      // S6: «perder + recontactar» son DOS escrituras gateadas, encadenadas por decisión explícita
+      // de Luciano (apretó ese botón). Si la segunda falla, la primera YA ocurrió: se dice.
+      if(conRecontacto){
+        google.script.run
+          .withSuccessHandler(function(rr){
+            cmToast(rr&&rr.ok ? 'Perdido · recontacto agendado para '+rr.prox_accion_fecha : 'Perdido, pero NO pude agendar el recontacto');
+            carteraRefrescar_();
+          })
+          .withFailureHandler(function(e){ cmToast('Perdido, pero NO pude agendar el recontacto: '+((e&&e.message)||e)); carteraRefrescar_(); })
+          .carteraRecontacto(id, 90);
+        return;
+      }
       // Alta liviana: el movimiento SÍ ocurrió, pero si el cliente llegó a caliente/activo sin
       // Sheet hay un alta a medio hacer. Va en el MISMO toast: cmToast pisa el texto anterior,
       // así que dos llamadas seguidas serían una sola vista y el aviso se comería el resultado.
@@ -2658,7 +2922,7 @@ function carteraMover_(id, etapa, sel, etapaPrevia){
       sel.disabled=false; sel.value=etapaPrevia;
       cmToast('No pude mover la etapa: '+((e&&e.message)||e));
     })
-    .moverEtapaComercial(id, etapa);
+    .moverEtapaComercial(id, etapa, motivo||'');
 }
 /* 25-ago: chip "Sato" removido — unificado en "Hablar con Sato" (ventanita de voz + panel como registro). */
 document.getElementById('cmCartera').addEventListener('click',function(){ carteraPanel_(); });
@@ -8022,6 +8286,54 @@ function f360Comercial_(){
   });
   er.appendChild(i1); er.appendChild(i2); er.appendChild(go);
   box.appendChild(er); op.appendChild(box);
+
+  /* ── CRM PRO · M1: ÚLTIMO CONTACTO + registro manual ────────────────────────────────────
+     `dias_sin_contacto` viene del backend (zona horaria del Sheet). `null` = nunca se registró
+     un contacto: se DICE, no se muestra «hace 0 días» — «no sé» y «hoy» no son el mismo dato. */
+  var ct=el('div','f360-com-ct');
+  var ctTxt = c.ultimo_contacto
+    ? 'Último contacto: '+c.ultimo_contacto+' · hace '+c.dias_sin_contacto+' día(s)'
+    : 'Último contacto: sin registro todavía';
+  var ctL=el('div',null,ctTxt);
+  if(c.dias_sin_contacto!=null && c.dias_sin_contacto>30) ctL.style.color='#7FB4D8';
+  ct.appendChild(ctL);
+  var bc=el('button','btn btn-sm','✓ Registrar contacto (hoy)');
+  bc.title='Sella la fecha de hoy como último contacto. Es idempotente: dos clics el mismo día registran una sola vez.';
+  bc.addEventListener('click',function(){
+    bc.disabled=true;
+    google.script.run.withSuccessHandler(function(r){ bc.disabled=false;
+      if(!r||r.ok!==true){ cmToast('No se registró: '+((r&&r.error)||'motivo desconocido')); return; }
+      // El backend distingue «sellado hoy» de «ya estaba sellado hoy»: el toast no miente.
+      cmToast(r.sellado ? 'Contacto registrado ✓' : 'Ya había un contacto registrado hoy');
+      c.ultimo_contacto=r.fecha; c.dias_sin_contacto=0; f360Comercial_();
+    }).withFailureHandler(function(e){ bc.disabled=false; cmToast('No se registró: '+((e&&e.message)||e)); })
+    .carteraRegistrarContacto(F360.id,'ficha');
+  });
+  ct.appendChild(bc);
+  if(c.motivo_perdido) ct.appendChild(el('div','served','Motivo de pérdida registrado: '+c.motivo_perdido));
+  op.appendChild(ct);
+
+  /* ── CRM PRO · M2: timeline de correo (hilos CONFIRMADOS) ───────────────────────────────
+     Solo lo confirmado a mano llega acá — un `staging` sin resolver NO se muestra como si fuera
+     del cliente. El link abre el hilo en Gmail; el OS no guarda ni muestra el cuerpo del mail. */
+  var co=(d.correo||[]);
+  var cbox=el('div','f360-com-mail');
+  cbox.appendChild(el('div','f360-com-h','Correo del cliente'));
+  if(!co.length){
+    cbox.appendChild(el('div','served','Sin hilos confirmados. Corré «Correo → CRM» para proponer candidatos y confirmalos a mano.'));
+  } else {
+    co.forEach(function(h){
+      var fila=el('div','f360-com-mrow');
+      fila.appendChild(el('span','mono',h.fecha||'—'));
+      var a=el('a',null,h.asunto||'(sin asunto)');
+      a.href=h.url; a.target='_blank'; a.rel='noopener noreferrer';
+      a.title='Abrir el hilo en Gmail';
+      fila.appendChild(a);
+      fila.appendChild(el('span','served','· '+(h.remitente||'')));
+      cbox.appendChild(fila);
+    });
+  }
+  op.appendChild(cbox);
   // ── Encaje KAIROS (4 criterios del Manual, tildados A MANO — no es ML) ──
   var CRIT=['≥2 años de antigüedad','Ventas estabilizadas','Punto de equilibrio sostenido','Intención real de mejora'];
   var raw=String(c.encaje_kairos_4b||'').toLowerCase();
@@ -8205,11 +8517,32 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
         <b>▦ Cartera</b>
         <span class="st" id="carteraSt">—</span>
         <span class="sp"></span>
+        <!-- CRM PRO · M2/C8: dos acciones del panel. El barrido PROPONE (staging); confirmar es
+             siempre un acto humano. El snapshot deja la cartera en un .md exportable. -->
+        <button class="btn btn-ghost btn-sm" id="carteraCorreoBtn" title="Barrer la bandeja y proponer hilos de correo para vincular a clientes (solo lectura de Gmail)">✉ Correo → CRM</button>
+        <button class="btn btn-ghost btn-sm" id="carteraSnapBtn" title="Generar el snapshot .md de la cartera y guardarlo en Drive">⤓ Snapshot .md</button>
         <button class="icon-btn" id="carteraX" aria-label="Cerrar Cartera"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
       <div class="cartera-mrow" id="carteraTiles" hidden></div>
+      <!-- CRM PRO · M2 — staging de correo. Oculto hasta que haya candidatos: un panel vacío
+           permanente es ruido. Cada fila es una PROPUESTA que Luciano confirma o descarta. -->
+      <div class="cartera-mail" id="carteraMail" hidden></div>
       <div class="cartera-foco" id="carteraFocoBar" hidden></div>
       <div class="cartera-cols" id="carteraCols"></div>
+    </div>
+    <!-- CRM PRO · S5: motivo de pérdida OBLIGATORIO. A nivel <body> (hermano de #cartera) por la
+         regla de stacking: dentro del panel quedaría encapsulado bajo su z-index. -->
+    <div class="cartera-modal" id="carteraPerdidoModal" role="dialog" aria-modal="true" aria-labelledby="carteraPerdidoT">
+      <div class="box">
+        <h4 id="carteraPerdidoT">¿Por qué se perdió?</h4>
+        <p class="sub" id="carteraPerdidoSub">Un cliente que se pierde sin motivo escrito no se puede aprender. El motivo queda en la ficha y en el snapshot mensual.</p>
+        <textarea id="carteraPerdidoTxt" maxlength="200" placeholder="Ej: precio fuera de presupuesto · eligió a otro proveedor · no era el momento…" aria-label="Motivo de la pérdida"></textarea>
+        <div class="acc">
+          <button class="btn btn-ghost btn-sm" id="carteraPerdidoNo">Cancelar</button>
+          <button class="btn btn-sm" id="carteraPerdidoGo">Perder</button>
+          <button class="btn btn-sm" id="carteraPerdidoGo90">Perder + recontacto 90d</button>
+        </div>
+      </div>
     </div>
     <!-- T2.1: panel de cierre de sesión — Sato propone, Luciano tilda, el sistema registra -->
     <div class="f360-cierre" id="f360Cierre" role="dialog" aria-label="Cierre de sesión">

@@ -1290,7 +1290,12 @@ function datosCliente(idCliente) {
       prox_accion: String(cli.prox_accion || ''),
       prox_accion_fecha: aFechaISO(cli.prox_accion_fecha) || '',
       etapa_desde: aFechaISO(cli.etapa_desde) || '',
-      encaje_kairos_4b: String(cli.encaje_kairos_4b || '')
+      encaje_kairos_4b: String(cli.encaje_kairos_4b || ''),
+      // CRM PRO · M1 (26-ago): el sello de contacto y sus días. `null` (no 0) cuando nunca hubo
+      // contacto registrado — la solapa Comercial lo DICE en vez de mostrar «hace 0 días».
+      ultimo_contacto: aFechaISO(cli.ultimo_contacto) || '',
+      dias_sin_contacto: aFechaISO(cli.ultimo_contacto) ? _diasEntreISO_(aFechaISO(cli.ultimo_contacto), hoyISO()) : null,
+      motivo_perdido: limpiarHostilTexto_(String(cli.motivo_perdido || ''), 200)
     },
     proyectos: proyectos,
     proximos_pasos: proximos,
@@ -1298,7 +1303,11 @@ function datosCliente(idCliente) {
     consumo_api: consumoApiCliente(cli.url_sheet_cliente),
     gobernanza: gobernanza,
     // CRM (25-ago): propuestas/retenciones de ESTE cliente (recurrentes_propios, solo lectura).
-    recurrentes: recPropias
+    recurrentes: recPropias,
+    // CRM PRO · M2 (26-ago): hilos de correo CONFIRMADOS de este cliente, con link a Gmail.
+    // Degrada a [] si la hoja lazy no existe todavía: ausencia no es error, y la solapa
+    // Comercial no puede caerse porque nadie corrió el barrido aún.
+    correo: (function () { try { return correoHilosDeCliente_(String(cli.id_cliente), 5); } catch (_e) { return []; } })()
   };
 }
 
