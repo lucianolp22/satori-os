@@ -1406,9 +1406,50 @@ function fichaCliente(idCliente) {
   try { avatar = String(getConfig('avatar_cliente_' + id) || ''); } catch (e) { /* sin key = sin logo, fail-closed */ }
   try { docs = String(getConfig('docs_cliente_' + id) || ''); } catch (e) { /* sin key = sin botón Documentos */ }
 
+  // ── CRM PRO · C7 (26-ago): el DOSSIER de reunión. Tres bloques ADITIVOS (el payload viejo
+  // queda intacto; el front que no los conoce sigue andando). Cada uno degrada por separado:
+  // que falte `correo_cliente` (hoja lazy) no puede tumbar la ficha entera.
+  //   · contactos  — últimos 3 movimientos de Actividad de este cliente (de dónde viene el vínculo)
+  //   · correo     — hilos CONFIRMADOS, con link a Gmail (M2)
+  //   · ops        — oportunidades ABIERTAS del cliente (S4)
+  // AISLAMIENTO §1/§6: los tres filtran por ESTE `id` y nada más; `correoHilosDeCliente_` exige
+  // además que coincida el `sello_tenant`.
+  var contactos = [], correo = [], ops = [];
+  try {
+    var shAct = getMaestro().getSheetByName('Actividad');
+    if (shAct) {
+      contactos = leerTabla(shAct)
+        .filter(function (a) { return String(a.id_cliente || '') === id; })
+        .slice(-3).reverse()
+        .map(function (a) {
+          // Columnas REALES de Actividad: ts · agente · tipo · id_cliente · texto · tarea_id ·
+          // aprobacion_id. No hay `fecha` ni `detalle`: la fecha sale del prefijo ISO de `ts`.
+          return { fecha: String(a.ts || '').slice(0, 10),
+                   agente: limpiarHostilTexto_(String(a.agente || ''), 30),
+                   detalle: limpiarHostilTexto_(String(a.texto || ''), 140) };
+        });
+    }
+  } catch (eC) { contactos = []; }
+  try { correo = correoHilosDeCliente_(id, 5); } catch (eM) { correo = []; }
+  try {
+    var shRecF = _hqHoja_('recurrentes_propios');
+    if (shRecF) {
+      ops = leerTabla(shRecF).filter(function (r) {
+        var est = String(r.estado || '').toLowerCase();
+        return String(r.id_cliente || '') === id && (est === 'activo' || est === 'propuesta');
+      }).map(function (r) {
+        return { id_rec: String(r.id_rec || ''), servicio: limpiarHostilTexto_(String(r.servicio || ''), 60),
+                 importe: Number(r.importe) || 0, moneda: limpiarHostilTexto_(String(r.moneda || ''), 10),
+                 estado: String(r.estado || '').toLowerCase(),
+                 firmada: String(r.estado || '').toLowerCase() === 'activo' };
+      });
+    }
+  } catch (eO) { ops = []; }
+
   return {
     ok: true, id_cliente: id, avatar_url: avatar, docs_url: docs,
     objetivos: objetivos, kpis: kpis, operacion: operacion, aprobaciones: aprobaciones,
+    contactos: contactos, correo: correo, ops: ops,
     hoja_falta: { objetivos: objRaw === null, kpis: kpiRaw === null, operacion: opRaw === null }
   };
 }

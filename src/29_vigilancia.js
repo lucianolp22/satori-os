@@ -405,3 +405,107 @@ function _vigLineasBrief_(res, hoy) {
     (res.truncado ? ' (' + res.truncado + ' recortado[s] del resumen por tamaño)' : '') + ' — ver la Ficha 360 de cada uno.');
   return lineas;
 }
+
+
+/* ══════════ CRM PRO · M3 (26-ago-2026) — SEMÁFORO DE RETENCIÓN ══════════
+ * RENDER, no motor: reusa la señal que la vigilancia YA computó (§encargo M3 — "NO score, NO
+ * motor nuevo"). Tres preguntas sobre el vínculo con un cliente ACTIVO:
+ *   · ¿llegaron los datos del mes?      ← superficies de la vigilancia cacheada
+ *   · ¿hay reunión mensual hecha o agendada?  ← Agenda (MAESTRO)
+ *   · ¿los compromisos están al día?    ← Proyectos→Tareas (MAESTRO), vencidas = no
+ *
+ * DOS reglas duras heredadas:
+ *  (1) D26c — VACÍO JAMÁS ES VERDE. Una fuente ausente devuelve `null` y NO cuenta como
+ *      pendiente; si NINGUNA es evaluable el nivel es `gris`, no `verde`. El encargo enumeraba
+ *      solo {verde,ambar,rojo}: ese enum daba VERDE con las tres fuentes caídas (0 pendientes
+ *      sobre 0 evaluables) — exactamente el verde falso que D26c prohíbe. Por eso `gris` existe.
+ *  (2) §4 del encargo — NADA de abrir Sheets de cliente por card. Todo el I/O vive en
+ *      `_senalRetencionCtx_`, que lee UNA vez; el juicio de abajo es PURO y testeable offline.
+ */
+
+/** I/O — se llama UNA vez por corrida de `carteraPipeline`, nunca por card. Cada fuente degrada
+ *  por separado: que falle Agenda no puede apagar el resto (y menos pintarlo de verde). */
+function _senalRetencionCtx_() {
+  var ctx = { vig: null, agenda: null, tareasPorCliente: null, hoy: hoyISO() };
+  try { ctx.vig = _vigResumenCacheado_(); } catch (e1) { ctx.vig = null; }
+  var ss = null;
+  try { ss = getMaestro(); } catch (e0) { return ctx; }
+  try { ctx.agenda = leerTabla(ss.getSheetByName('Agenda')); } catch (e2) { ctx.agenda = null; }
+  try {
+    // La espina Cliente→Proyecto→Tarea (docs/NOTION-a-Satori-mapeo.md §5): Tareas NO tiene
+    // `id_cliente`, se llega por Proyectos. Se arma el índice una sola vez.
+    var proyDe = {};
+    leerTabla(ss.getSheetByName('Proyectos')).forEach(function (p) {
+      if (p.id_proyecto) proyDe[String(p.id_proyecto)] = String(p.id_cliente || '');
+    });
+    var idx = {};
+    leerTabla(ss.getSheetByName('Tareas')).forEach(function (ta) {
+      if (esVerdadero_(ta.archivada)) return;
+      if (['hecha', 'cancelada', 'completada'].indexOf(String(ta.estado).toLowerCase()) >= 0) return;
+      var idc = proyDe[String(ta.id_proyecto)];
+      if (!idc) return;
+      (idx[idc] = idx[idc] || []).push({ f: aFechaISO(ta.fecha_limite) });
+    });
+    ctx.tareasPorCliente = idx;
+  } catch (e3) { ctx.tareasPorCliente = null; }
+  return ctx;
+}
+
+/**
+ * PURA dado `ctx` — el juicio. Devuelve {datos, reunion, comp, nivel}:
+ *  · cada campo ∈ {true (al día), false (pendiente), null (fuente no evaluable)}
+ *  · nivel: gris (0 evaluables) · verde (0 pendientes) · ambar (1) · rojo (2+)
+ * Sin `ctx` construye el suyo (uso desde la Ficha 360, 1 cliente). En `carteraPipeline` SIEMPRE
+ * se le pasa el ctx compartido.
+ */
+function _senalRetencion_(idCliente, ctx) {
+  var id = String(idCliente == null ? '' : idCliente).trim();
+  if (!id) return { datos: null, reunion: null, comp: null, nivel: 'gris' };
+  var c = ctx || _senalRetencionCtx_();
+  var hoy = String(c.hoy || hoyISO());
+  var mes = hoy.slice(0, 7);
+  var r = { datos: null, reunion: null, comp: null, nivel: 'gris' };
+
+  // ── datos del mes ── de la vigilancia cacheada. Un cliente que NO está en el resumen (o que
+  // quedó como {id,error}) es no-evaluable: null, jamás pendiente — no sabemos, no acusamos.
+  if (c.vig && c.vig.clientes) {
+    var ent = c.vig.clientes.filter(function (x) { return String(x.id) === id; })[0];
+    if (ent && !ent.error && ent.s && ent.s.length) {
+      var sup = ent.s.filter(function (s) { return s.sup === 'ventas' || s.sup === 'operativos_caja'; })[0];
+      if (sup) {
+        // verde/ambar/rojo ⇒ el dato LLEGÓ (el color juzga el contenido, no la llegada).
+        // gris ⇒ o no hay conector declarado (no evaluable) o no llegó el dato (pendiente).
+        if (sup.color !== 'gris') r.datos = true;
+        else r.datos = (String(sup.nota || '').indexOf(VIG_NOTA_SIN_FUENTE) >= 0 ||
+                        String(sup.nota || '').indexOf('inaccesible') >= 0) ? null : false;
+      }
+    }
+  }
+
+  // ── reunión del mes ── hecha (fecha de este mes) o agendada (fecha futura). Agenda ilegible
+  // ⇒ null. Agenda legible sin nada para este cliente ⇒ pendiente REAL, no null.
+  if (c.agenda) {
+    r.reunion = c.agenda.some(function (a) {
+      if (String(a.id_cliente || '') !== id) return false;
+      if (String(a.estado || '').toLowerCase() === 'cancelada') return false;
+      var f = aFechaISO(a.fecha);
+      return !!f && (f.slice(0, 7) === mes || f >= hoy);
+    });
+  }
+
+  // ── compromisos ── vencida = fecha_límite pasada entre las tareas vivas del cliente. Sin
+  // tareas cargadas ⇒ null (ausencia de compromisos no es "al día": es que no sabemos).
+  if (c.tareasPorCliente) {
+    var ts = c.tareasPorCliente[id];
+    if (ts && ts.length) r.comp = !ts.some(function (x) { return !!x.f && x.f < hoy; });
+  }
+
+  var evaluables = 0, pendientes = 0;
+  ['datos', 'reunion', 'comp'].forEach(function (k) {
+    if (r[k] === null) return;
+    evaluables++;
+    if (r[k] === false) pendientes++;
+  });
+  r.nivel = (evaluables === 0) ? 'gris' : (pendientes === 0 ? 'verde' : (pendientes === 1 ? 'ambar' : 'rojo'));
+  return r;
+}

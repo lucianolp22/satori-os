@@ -31,7 +31,14 @@ var MAESTRO_SHEETS = {
   // cuando el concepto/kpi no nombra la divisa. Celda vacía = legítimo (sin símbolo forzado).
   // CRM (25-ago): +encaje_kairos_4b AL FINAL — 4 chars s/n/- (≥2 años · ventas estables · punto
   // de equilibrio · intención), tildado A MANO en la Etapa 2 KAIROS. No es ML y el código no lo escribe.
-  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente', 'moneda', 'encaje_kairos_4b'],
+  // CRM PRO (26-ago): +ultimo_contacto (ISO yyyy-mm-dd o vacío) y +motivo_perdido AL FINAL.
+  //  · `ultimo_contacto` lo SELLA el sistema (`_sellarContacto_`), nunca se tipea a mano: de ahí
+  //    sale `dias_sin_contacto` de la card. Vacío = nunca hubo contacto registrado (≠ hace 0 días).
+  //  · `motivo_perdido` es OBLIGATORIO al mover a `perdido` (S5) — un cliente que se pierde sin
+  //    motivo escrito no se puede aprender.
+  //  ⚠ CONTRATO: la COLA de esta lista está aserida en `_harness.js` (E-c, ex-D44a2). Agregar una
+  //    columna al final obliga a actualizar ese assert EN EL MISMO COMMIT.
+  Clientes: ['id_cliente', 'nombre', 'rubro', 'estado', 'url_sheet_cliente', 'responsable_lado_cliente', 'fecha_alta', 'etapa_comercial', 'logo_url', 'prox_accion', 'prox_accion_fecha', 'etapa_desde', 'url_exec_cliente', 'moneda', 'encaje_kairos_4b', 'ultimo_contacto', 'motivo_perdido'],
   Proyectos: ['id_proyecto', 'id_cliente', 'nombre', 'estado', '%_avance', 'fecha_objetivo', 'proximo_hito', 'fecha_ultimo_movimiento', 'notas'],
   // Tareas-v2 F1 (07-jul): +tipo (cliente|periodica|objetivo|personal|admin) +etiquetas (CSV)
   // +recurrencia (1d|1s|2s|1m) +orden (timeline F3). +notas (F3, 05-ago, fila-es-documento). ensureSheet reconcilia headers ADITIVO.
@@ -125,6 +132,14 @@ var MAESTRO_SHEETS = {
   recurrentes_propios: ['id_rec', 'id_cliente', 'cliente', 'servicio', 'importe', 'moneda', 'estado', 'notas'],
   // F2 Sato Ejecutor (24-ago): bandeja de encargos (voz -> gate -> runner Claude Code). LAZY, fuera de MAESTRO_ORDEN.
   Encargos: ['id_encargo', 'ts_creacion', 'origen', 'id_cliente', 'tipo', 'repo', 'texto', 'estado', 'id_aprobacion', 'ts_inicio', 'ts_fin', 'resultado_resumen', 'artefactos', 'log_ref', 'decidido_por'],
+  // CRM PRO · M2 (26-ago) — TIMELINE DE CORREO por cliente. LAZY (igual que Encargos/recurrentes_propios:
+  // vive en MAESTRO_SHEETS pero NO en MAESTRO_ORDEN — la crea `correoCandidatosStaging` a demanda).
+  // Fuera de MAESTRO_ORDEN A PROPÓSITO: guarda PII (remitente, asunto) y `setup()` no debe
+  // materializarla en tenants que no usan la función.
+  //  · `estado` ∈ {staging, confirmado, descartado} — vocabulario CERRADO.
+  //  · JAMÁS se guarda el CUERPO del mail: solo id_thread, asunto, remitente y fecha.
+  //  · `sello_tenant` = evidencia de aislamiento (§AISLAMIENTO.4): de qué cliente es esta fila.
+  correo_cliente: ['id_thread', 'id_cliente', 'asunto', 'remitente', 'fecha_ultimo', 'estado', 'sello_tenant'],
   Config: ['clave', 'valor']
 };
 
@@ -361,7 +376,7 @@ var COLUMNAS_TEXTO = ['id', 'id_cliente', 'id_proyecto', 'id_tarea', 'id_regla',
   // coercibles a fecha, pero el precedente `id_objetivo` dice que se declaran igual — el día
   // que un id cambie de prefijo, nadie se acuerda de venir a agregarlo.
   // F2 (24-ago): ids de la bandeja de encargos.
-  'id_item', 'id_obj', 'id_rec', 'id_encargo', 'id_aprobacion'];
+  'id_item', 'id_obj', 'id_rec', 'id_encargo', 'id_thread', 'id_aprobacion'];
 
 // Estados válidos (referencia; no se valida duro en Etapa 1).
 var ESTADOS_CLIENTE = ['activo', 'activo-piloto', 'potencial', 'pausado'];

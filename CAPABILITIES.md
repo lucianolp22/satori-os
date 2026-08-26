@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-26 23:25 · commit: a3cf8c9
+> Generado: 2026-08-27 00:27 · commit: 1db0ba2
 
 ## Módulos
 
@@ -36,11 +36,12 @@
 | `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 15 |
 | `27_decisiones.js` | DECISION LOG (TC-2 · F4b). Las decisiones de dirección, con su porqué | 6 |
 | `28_forge.js` | FORGE (TC-9 · adenda 03-ago). Promoción laboratorio → producción de agentes | 8 |
-| `29_vigilancia.js` | TC-11 · A5 · VIGILANCIA MULTI-SUPERFICIE (04-ago-2026) | 9 |
-| `30_correo.js` | T7 · CORREO → TRIAJE A BANDEJA (04-ago-2026) | 5 |
+| `29_vigilancia.js` | TC-11 · A5 · VIGILANCIA MULTI-SUPERFICIE (04-ago-2026) | 11 |
+| `30_correo.js` | T7 · CORREO → TRIAJE A BANDEJA (04-ago-2026) | 13 |
 | `31_admin.js` | TC-7 · F4a · MOTOR DE ADMINISTRACIÓN PROPIA (04-ago-2026) | 14 |
 | `32_flota.js` | EDIFICIO SATORI · lectores de la FLOTA PROPIA (10-ago-2026) | 11 |
-| `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 14 |
+| `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 22 |
+| `34_push.js` | Canal de push al teléfono de Luciano (proactividad, decisión 26-ago) | 1 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -118,8 +119,13 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 - CLAUDE_API_KEY
 - ELEVENLABS_API_KEY
 - ENCARGOS_SECRET
+- NTFY_TOPIC
+- NTFY_URL
 - OFICINA_SYNC_SECRET
 - OWNER_EMAIL
+- PUSHOVER_TOKEN
+- PUSHOVER_USER
+- PUSH_PROVIDER
 - SISTEMA_PAUSADO
 - VEHEMENCE_SGIC_TOKEN
 - VEHEMENCE_SGIC_URL
@@ -187,13 +193,15 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **28_forge.js:** _forgeSlop_ _forgeTestGateDet_ _forgeTestGate_ promoverAgente demoverAgente _forgeEstadoUpsert_ _forgeAplicarPromocion_ agentesEstado 
 
-**29_vigilancia.js:** _vigDias_ _vigUmbrales_ _vigJuzgar_ _vigObservar_ vigilarCliente_ vigilanciaCliente vigilanciaCorrida_ _vigResumenCacheado_ _vigLineasBrief_ 
+**29_vigilancia.js:** _vigDias_ _vigUmbrales_ _vigJuzgar_ _vigObservar_ vigilarCliente_ vigilanciaCliente vigilanciaCorrida_ _vigResumenCacheado_ _vigLineasBrief_ _senalRetencionCtx_ _senalRetencion_ 
 
-**30_correo.js:** _correoDebeCorrer_ _extractoCorreo_ _correoIgnorado_ _correoDecidirMensaje_ correoTriaje 
+**30_correo.js:** _correoDebeCorrer_ _extractoCorreo_ _correoIgnorado_ _correoDecidirMensaje_ correoTriaje _correoEmail_ _correoIndiceRoster_ _correoClienteDeRemitente_ _correoClienteHoja_ correoCandidatosStaging correoConfirmarThread correoDescartarThread correoHilosDeCliente_ 
 
 **31_admin.js:** _calendarioFiscalPlaceholders_ _adminNum_ _adminClave_ _adminResumir_ _adminLineasBrief_ _adminAbrir_ _adminHoja_ adminSetup altaFactura altaGasto altaCobro adminResumenMes adminRefrescarResumen_ _adminResumenCacheado_ 
 
 **32_flota.js:** _flotaConsumoRO_ _flotaTelemetria_ _flotaSemaforo_ flotaEstado agenteDetalle moduloEdificio _avataresLabClaves_ _avatarUrlDrive_ seedAvataresLab seedAvataresLabPisar _seedAvataresLab_ 
 
-**33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ moverEtapaComercial _carteraFoco_ carteraProxAccion propuestaRegistrar propuestaFirmar 
+**33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ _carteraLineasFrio_ moverEtapaComercial _carteraFoco_ carteraProxAccion propuestaRegistrar propuestaFirmar _sellarContacto_ carteraRegistrarContacto carteraRecontacto _sumarDiasISO_ _carteraSnapshotTexto_ _carteraFolder_ carteraSnapshotMd 
+
+**34_push.js:** _pushTelefono_ 
 

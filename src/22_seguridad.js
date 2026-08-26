@@ -279,7 +279,20 @@ var ENDPOINTS_UI = [
 
   // ── TC-3 (03-ago) · actividad inter-agentes: read-only, pero cruza TODOS los tenants (es la
   // vista de sistema del CM), así que la puerta importa más, no menos.
-  'datosActividadAgentes'                                                       // 08_webapp.js
+  'datosActividadAgentes',                                                      // 08_webapp.js
+
+  // ── CRM PRO (26-ago) · alta en el MISMO commit que la definición (regla anti-drift, purga #3
+  // del módulo S). Las 6 son client-callable desde la vista Cartera / Ficha 360:
+  //   · carteraRegistrarContacto — ESCRIBE `ultimo_contacto` (sello M1)
+  //   · carteraRecontacto        — ESCRIBE prox_accion + fecha (S6)
+  //   · carteraSnapshotMd        — lee toda la cartera y CREA un archivo en Drive (C8)
+  //   · correoCandidatosStaging  — consume cuota de Gmail y ESCRIBE en `correo_cliente` (M2)
+  //   · correoConfirmarThread    — ESCRIBE estado + sella contacto (M2 → M1)
+  //   · correoDescartarThread    — ESCRIBE estado (M2)
+  // `_sellarContacto_`, `_senalRetencion_`, `_senalRetencionCtx_` y `correoHilosDeCliente_` NO
+  // van acá A PROPÓSITO: terminan en guión bajo ⇒ no son top-level invocables por RPC.
+  'carteraRegistrarContacto', 'carteraRecontacto', 'carteraSnapshotMd',         // 33_cartera.js
+  'correoCandidatosStaging', 'correoConfirmarThread', 'correoDescartarThread'   // 30_correo.js
 ];
 
 /**

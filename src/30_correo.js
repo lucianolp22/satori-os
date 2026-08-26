@@ -195,3 +195,217 @@ function correoTriaje() {
   Logger.log('correoTriaje: ' + JSON.stringify({ procesados: procesados, saltados: saltados, ignorados: ignorados, errores: errores.length }));
   return { procesados: procesados, saltados: saltados, ignorados: ignorados, errores: errores.length };
 }
+
+
+/* ══════════ CRM PRO · M2 (26-ago-2026) — TIMELINE DE CORREO POR CLIENTE ══════════
+ * EXTIENDE este módulo, no lo reescribe: mismas 9 cláusulas Bastión, mismo `gmail.readonly`,
+ * misma casilla del owner, CERO escritura sobre Gmail (solo `search` + getters).
+ *
+ * FLUJO: barrido → `staging` → CONFIRMACIÓN HUMANA → `confirmado` (y recién ahí sella contacto).
+ * Nada entra al CRM por adivinanza del sistema: el match remitente→cliente es una PROPUESTA.
+ *
+ * DEDUPE — decisión pedida por §4 del encargo, resuelta y documentada: **por destino, NO común**.
+ *  · `Correo_visto` dedupea por `id_mensaje` para la captura a Bandeja (T7).
+ *  · `correo_cliente` dedupea por `id_thread` para el timeline del CRM.
+ *  Son claves distintas (mensaje vs. hilo) y propósitos distintos. Compartirlas haría que capturar
+ *  un mail a Bandeja SUPRIMA en silencio su candidato de CRM (y al revés) — un feature apagando al
+ *  otro sin que nadie lo note. Por eso M2 NO lee ni escribe `Correo_visto`.
+ *
+ * DE DÓNDE SALE EL MATCH (el encargo decía "roster por dominio/email conocido" sin fijar la fuente;
+ * `Clientes` no tiene columna de email ni de dominio). Dos orígenes, ambos declarativos:
+ *  · Config `correo_<id_cliente>_dominios` — lista separada por '·' o ',' (dominios o emails
+ *    completos). Misma convención que `vigilancia_<id>_*` y `conector_*`.
+ *  · `responsable_lado_cliente` del roster, SOLO si contiene '@' (es un email).
+ * Sin nada declarado no hay match: el barrido devuelve 0 candidatos y lo DICE. Jamás se adivina
+ * por parecido de nombre — un match falso metería el correo de un cliente en la ficha de otro,
+ * que es exactamente lo que prohíbe AISLAMIENTO §1.
+ */
+
+/** Tope DURO de filas en `staging` sin resolver. Alcanzado, el barrido NO captura más: una bandeja
+ *  de entrada con 300 pendientes no se revisa nunca, y el que decide es Luciano, no el barrido. */
+var CORREO_CRM_MAX_STAGING = 10;
+/** Ventana del barrido. `in:inbox` (cláusula 5: solo INBOX) y 30 días: más atrás es arqueología. */
+var CORREO_CRM_QUERY = 'in:inbox newer_than:30d';
+/** Tope de hilos LEÍDOS por corrida (distinto del tope de staging): acota el costo de la API. */
+var CORREO_CRM_MAX_SCAN = 50;
+
+/** PURA — normaliza un remitente ("Nombre <a@b.com>" | "a@b.com") a su email en minúsculas. */
+function _correoEmail_(remitente) {
+  var s = String(remitente || '').trim();
+  var m = s.match(/<([^>]+)>/);
+  return String(m ? m[1] : s).trim().toLowerCase();
+}
+
+/**
+ * PURA — índice email/dominio → id_cliente. `cfgPorCliente` es {id: 'dominios declarados'} y
+ * `roster` las filas de Clientes. Un mismo dominio declarado por DOS clientes se descarta de
+ * ambos (ambiguo): antes de arriesgar mezclar tenants, se prefiere no proponer nada (AISLAMIENTO §1).
+ */
+function _correoIndiceRoster_(roster, cfgPorCliente) {
+  var idx = {}, choque = {};
+  function poner(clave, id) {
+    var k = String(clave || '').trim().toLowerCase().replace(/^@/, '');
+    if (!k || k.indexOf('.') < 0) return;              // ni vacío ni basura sin punto
+    if (idx[k] && idx[k] !== id) { choque[k] = true; return; }
+    idx[k] = id;
+  }
+  (roster || []).forEach(function (c) {
+    var id = String(c.id_cliente || '');
+    if (!id || id === 'CLI-000') return;
+    String((cfgPorCliente || {})[id] || '').split(/[·,;]/).forEach(function (d) { poner(d, id); });
+    var resp = String(c.responsable_lado_cliente || '');
+    if (resp.indexOf('@') >= 0) poner(_correoEmail_(resp), id);
+  });
+  Object.keys(choque).forEach(function (k) { delete idx[k]; });
+  return idx;
+}
+
+/** PURA — resuelve un remitente contra el índice: primero el email exacto, después su dominio.
+ *  Sin match ⇒ '' (no se propone nada). */
+function _correoClienteDeRemitente_(remitente, idx) {
+  var mail = _correoEmail_(remitente);
+  if (!mail) return '';
+  if (idx[mail]) return idx[mail];
+  var dom = mail.split('@')[1] || '';
+  return idx[dom] || '';
+}
+
+/** La hoja lazy de M2. La crea a demanda (no está en MAESTRO_ORDEN: `setup()` no la materializa). */
+function _correoClienteHoja_() {
+  return ensureSheet(getMaestro(), 'correo_cliente', MAESTRO_SHEETS.correo_cliente);
+}
+
+/**
+ * M2 — barrido de candidatos a `staging`. Read-only sobre Gmail; escribe SOLO en `correo_cliente`.
+ * Kill-switch doble reusado (`_correoDebeCorrer_`): `np_pausado` Y `correo_on`.
+ * JAMÁS guarda el CUERPO: id_thread, asunto, remitente y fecha. Nada más.
+ */
+function correoCandidatosStaging() {
+  _soloOwner_('correoCandidatosStaging');
+  var decision = _correoDebeCorrer_(_sistemaPausado_(), getConfig('correo_on'));
+  if (!decision.correr) return { capturados: 0, motivo: decision.motivo };
+
+  var ss = getMaestro();
+  var sh = _correoClienteHoja_();
+  var filas = leerTabla(sh);
+  var yaHilo = {}, pendientes = 0;
+  filas.forEach(function (f) {
+    yaHilo[String(f.id_thread)] = true;
+    if (String(f.estado) === 'staging') pendientes++;
+  });
+  // Tope de staging: se corta ANTES de tocar la API (no se gasta cuota para tirar el resultado).
+  if (pendientes >= CORREO_CRM_MAX_STAGING) {
+    return { capturados: 0, pendientes: pendientes, tope: CORREO_CRM_MAX_STAGING,
+             aviso: 'Hay ' + pendientes + ' candidatos sin resolver (tope ' + CORREO_CRM_MAX_STAGING +
+                    '). Confirmá o descartá los pendientes antes de barrer de nuevo.' };
+  }
+
+  var roster = leerTabla(ss.getSheetByName('Clientes'));
+  var cfg = {};
+  roster.forEach(function (c) {
+    var id = String(c.id_cliente || '');
+    if (id) cfg[id] = getConfig('correo_' + id + '_dominios') || '';
+  });
+  var idx = _correoIndiceRoster_(roster, cfg);
+  if (!Object.keys(idx).length) {
+    return { capturados: 0, pendientes: pendientes,
+             aviso: 'Ningún cliente tiene dominios/emails declarados. Cargá `correo_<id_cliente>_dominios` ' +
+                    'en Config (o poné el email en `responsable_lado_cliente`) — sin eso no hay match posible.' };
+  }
+
+  var hilos = GmailApp.search(CORREO_CRM_QUERY, 0, CORREO_CRM_MAX_SCAN);   // solo lectura
+  var capturados = 0, sinMatch = 0;
+  for (var i = 0; i < hilos.length; i++) {
+    if (pendientes >= CORREO_CRM_MAX_STAGING) break;                       // el tope manda dentro del loop
+    var th = hilos[i];
+    var idTh = String(th.getId());
+    if (yaHilo[idTh]) continue;                                            // dedupe por hilo (ver cabecera)
+    var msgs = th.getMessages();
+    var primero = msgs[0];
+    var quien = primero ? primero.getFrom() : '';
+    var idc = _correoClienteDeRemitente_(quien, idx);
+    if (!idc) { sinMatch++; continue; }
+    appendFila(sh, {
+      id_thread: idTh,
+      id_cliente: idc,
+      asunto: limpiarHostilTexto_(String(th.getFirstMessageSubject() || ''), 150),
+      remitente: limpiarHostilTexto_(_correoEmail_(quien), 120),
+      fecha_ultimo: aFechaISO(th.getLastMessageDate()) || hoyISO(),
+      estado: 'staging',
+      sello_tenant: idc                                                     // evidencia de aislamiento
+    });
+    yaHilo[idTh] = true;
+    capturados++; pendientes++;
+  }
+  return { capturados: capturados, pendientes: pendientes, escaneados: hilos.length,
+           sin_match: sinMatch, tope: CORREO_CRM_MAX_STAGING };
+}
+
+/**
+ * M2 — CONFIRMACIÓN HUMANA. Pasa un hilo de `staging` a `confirmado` y sella el contacto (M1).
+ * `idFila` es el **id_thread** (clave natural y estable de la hoja): un número de fila no es una
+ * clave — se corre si alguien inserta arriba, y confirmaría el hilo equivocado.
+ * AISLAMIENTO §3: el `id_cliente` viene del front ⇒ se valida contra el roster REAL. Un id
+ * inventado no se escribe.
+ */
+function correoConfirmarThread(idFila, idCliente) {
+  _soloOwner_('correoConfirmarThread');
+  var idTh = String(idFila == null ? '' : idFila).trim();
+  var idc = String(idCliente == null ? '' : idCliente).trim();
+  if (!idTh) return { ok: false, error: 'falta id_thread' };
+  if (!idc) return { ok: false, error: 'falta id_cliente' };
+  var res = conLock(function () {
+    var sh = _correoClienteHoja_();
+    var fila = leerTabla(sh).filter(function (f) { return String(f.id_thread) === idTh; })[0];
+    if (!fila) return { ok: false, error: 'id_thread fuera de correo_cliente: ' + idTh };
+    var enRoster = leerTabla(getMaestro().getSheetByName('Clientes'))
+                     .filter(function (c) { return String(c.id_cliente) === idc; })[0];
+    if (!enRoster) return { ok: false, error: 'id_cliente fuera del roster: ' + idc };
+    _setColumnasCliente_(sh, fila, { estado: 'confirmado', id_cliente: idc, sello_tenant: idc });
+    try { feed_('Correo', 'cartera', idc, 'Hilo de correo confirmado: ' + String(fila.asunto || '').slice(0, 80)); } catch (_f) {}
+    return { ok: true, id_thread: idTh, id_cliente: idc };
+  });
+  // Sello FUERA del lock (`conLock` no es reentrante). Confirmar un hilo ES un contacto: es la
+  // pata que une M2 con M1 — el timeline de correo alimenta los días-sin-contacto de la card.
+  if (res && res.ok) { try { _sellarContacto_(idc, 'correo'); } catch (_s) {} }
+  return res;
+}
+
+/** M2 — descarte. El hilo queda `descartado` y NO vuelve a aparecer (el barrido dedupea por
+ *  `id_thread` sobre TODA la hoja, no solo sobre los `staging`). */
+function correoDescartarThread(idFila) {
+  _soloOwner_('correoDescartarThread');
+  var idTh = String(idFila == null ? '' : idFila).trim();
+  if (!idTh) return { ok: false, error: 'falta id_thread' };
+  return conLock(function () {
+    var sh = _correoClienteHoja_();
+    var fila = leerTabla(sh).filter(function (f) { return String(f.id_thread) === idTh; })[0];
+    if (!fila) return { ok: false, error: 'id_thread fuera de correo_cliente: ' + idTh };
+    _setColumnasCliente_(sh, fila, { estado: 'descartado' });
+    return { ok: true, id_thread: idTh };
+  });
+}
+
+/**
+ * M2 — hilos CONFIRMADOS de UN cliente, para la solapa Comercial y el dossier (C7).
+ * AISLAMIENTO: filtra por `id_cliente` Y por `sello_tenant` — la doble condición es la que hace
+ * que un hilo de A no pueda aparecer en la ficha de B ni por una fila mal escrita a mano.
+ * Devuelve `[]` si la hoja no existe todavía (lazy): ausencia no es error.
+ */
+function correoHilosDeCliente_(idCliente, limite) {
+  var idc = String(idCliente == null ? '' : idCliente).trim();
+  if (!idc) return [];
+  var sh = getMaestro().getSheetByName('correo_cliente');
+  if (!sh) return [];
+  var top = Number(limite) > 0 ? Number(limite) : 5;
+  return leerTabla(sh).filter(function (f) {
+    return String(f.estado) === 'confirmado' &&
+           String(f.id_cliente) === idc && String(f.sello_tenant) === idc;
+  }).sort(function (a, b) {
+    return String(aFechaISO(b.fecha_ultimo) || '') < String(aFechaISO(a.fecha_ultimo) || '') ? -1 : 1;
+  }).slice(0, top).map(function (f) {
+    return { id_thread: String(f.id_thread), asunto: String(f.asunto || ''),
+             remitente: String(f.remitente || ''), fecha: aFechaISO(f.fecha_ultimo) || '',
+             url: 'https://mail.google.com/mail/u/0/#inbox/' + String(f.id_thread) };
+  });
+}

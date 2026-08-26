@@ -516,6 +516,11 @@ function briefDiarioSistema_() {
   // doPost de voz. Nivel 0: esto avisa, no persigue.
   var rosterBrief = leerTabla(getMaestro().getSheetByName('Clientes'));
   _carteraLineasBrief_(rosterBrief, hoy).forEach(function (l) { metricas.push(l); });
+  // CRM PRO · M1 (26-ago): segunda señal condicional — candidatos +30 días sin contacto. Reusa la
+  // MISMA lectura del roster de arriba; NO abre la hoja otra vez (hay un assert que cuenta las
+  // aperturas del roster en esta función y exige exactamente una). Sin fríos devuelve [] ⇒ el
+  // brief no gana ruido.
+  _carteraLineasFrio_(rosterBrief, hoy).forEach(function (l) { metricas.push(l); });
   // TC-7 · F4a: administración propia. Mismo patrón que la vigilancia — solo el resumen que dejó
   // la corrida, sin abrir el Sheet ADMIN desde el brief. Sin facturas cargadas se DICE que faltan.
   _adminLineasBrief_(_adminResumenCacheado_()).forEach(function (l) { metricas.push(l); });

@@ -208,6 +208,10 @@ function carteraPipeline() {
     // horaria del navegador no es la del Sheet, y dos relojes distintos dan dos números distintos
     // para el mismo dato. Sin `etapa_desde` es `null`, no 0: «no sé» y «hoy» no son lo mismo.
     var desde = aFechaISO(c.etapa_desde);
+    // CRM PRO · M1: `ultimo_contacto` lo sella el sistema. Vacío ⇒ `dias_sin_contacto: null`
+    // («nunca se registró un contacto»), JAMÁS 0 — misma disciplina que `dias_etapa`: «no sé» y
+    // «hoy» no son el mismo dato, y un 0 falso apagaría la señal de frío que justamente buscamos.
+    var uc = aFechaISO(c.ultimo_contacto);
     var card = { id_cliente: String(c.id_cliente), nombre: String(c.nombre || ''),
                  rubro: String(c.rubro || ''), estado: String(c.estado || ''),
                  logo_url: String(c.logo_url || ''), etapa: String(c.etapa_comercial || ''),
@@ -219,13 +223,23 @@ function carteraPipeline() {
                  // CRM 25-ago — regla «el siguiente paso siempre existe»: el JUICIO se computa acá
                  // (el enum vive en el backend; el front solo pinta — regla anti-enum-clavado E-c).
                  pide_prox: ['tibio', 'caliente', 'activo'].indexOf(String(c.etapa_comercial || '')) >= 0 &&
-                            !String(c.prox_accion || '').trim() };
+                            !String(c.prox_accion || '').trim(),
+                 // CRM PRO · M1 (aditivos — el payload viejo queda intacto). Los días se computan
+                 // SERVER-SIDE por la misma razón de siempre: el reloj del navegador no es el del Sheet.
+                 ultimo_contacto: uc, dias_sin_contacto: uc ? _diasEntreISO_(uc, hoy) : null,
+                 // CRM PRO · S4: TODAS las oportunidades del cliente (se llenan abajo, tras leer
+                 // `recurrentes_propios`). Array vacío = sin oportunidades, nunca `undefined`.
+                 ops: [],
+                 // CRM PRO · M3: semáforo de retención (solo activos). Se llena abajo desde la
+                 // vigilancia YA CACHEADA — nunca re-consultando el Sheet del cliente por card.
+                 senal_retencion: null,
+                 motivo_perdido: limpiarHostilTexto_(String(c.motivo_perdido || ''), 200) };
     if (cols[card.etapa]) cols[card.etapa].push(card); else sinEtapa.push(card);
   });
   // CRM (25-ago) — campos ADITIVOS (el payload viejo queda intacto): foco semanal (pura — el OS
   // propone, Luciano decide) + resumen/props de `recurrentes_propios` (la propuesta viva en la
   // card). La lectura del HQ degrada a null: la cartera jamás se cae por esa hoja.
-  var rec = null, props = {};
+  var rec = null, props = {}, opsPorCliente = {};   // S4: opsPorCliente = TODAS las oportunidades por cliente
   try {
     var shRec = _hqHoja_('recurrentes_propios');
     if (shRec) {
@@ -239,9 +253,35 @@ function carteraPipeline() {
         // (regla anti-enum-clavado E-c — el juicio es del backend).
         if (idc && est === 'activo') props[idc] = { servicio: limpiarHostilTexto_(String(f.servicio || ''), 60), importe: imp, moneda: mon, firmada: true };
         else if (idc && est === 'propuesta' && !props[idc]) props[idc] = { servicio: limpiarHostilTexto_(String(f.servicio || ''), 60), importe: imp, moneda: mon, firmada: false };
+        // CRM PRO · S4 — la card vieja mostraba UNA oportunidad (`props[idc]`, la más relevante) y
+        // las demás quedaban invisibles: un cliente con 3 propuestas parecía tener 1. Acá se
+        // acumulan TODAS; la card sigue usando `props` para el badge (presupuesto de señal: máx 2
+        // por card) y la ficha lista `ops` completa. Estados fuera del vocabulario se ignoran.
+        if (idc && (est === 'activo' || est === 'propuesta')) {
+          (opsPorCliente[idc] = opsPorCliente[idc] || []).push({
+            id_rec: String(f.id_rec || ''), servicio: limpiarHostilTexto_(String(f.servicio || ''), 60),
+            importe: imp, moneda: mon, estado: est, firmada: est === 'activo'
+          });
+        }
       });
     }
   } catch (eR) { rec = null; }
+  // S4/M3 — segunda pasada: las cards se arman ANTES de leer `recurrentes_propios`/vigilancia, así
+  // que los campos que dependen de esas fuentes se enganchan acá. Recorre las mismas cards (no
+  // duplica el dato ni rearma el payload) y degrada a [] / null si la fuente no estaba.
+  // Ctx de retención: TODO el I/O de M3 en UNA lectura (vigilancia cacheada + Agenda +
+  // Proyectos/Tareas). Por card solo corre el juicio puro — §4: nada de abrir Sheets por card.
+  var _retCtx = null;
+  try { _retCtx = _senalRetencionCtx_(); } catch (_eV) { _retCtx = null; }
+  ETAPAS_COMERCIALES.concat(['__sin_etapa__']).forEach(function (e) {
+    var arr = (e === '__sin_etapa__') ? sinEtapa : (cols[e] || []);
+    arr.forEach(function (card) {
+      card.ops = opsPorCliente[card.id_cliente] || [];
+      // M3: el semáforo es SOLO para activos. En el resto del embudo no hay nada que retener, y
+      // pintar un semáforo gris en un prospecto es ruido que compite con la señal de captación.
+      if (card.etapa === 'activo' && _retCtx) card.senal_retencion = _senalRetencion_(card.id_cliente, _retCtx);
+    });
+  });
   return { etapas: ETAPAS_COMERCIALES, columnas: cols, sin_etapa: sinEtapa, hoy: hoy,
            total: filas.length, migrada: filas.length === 0 || filas[0].hasOwnProperty('etapa_comercial'),
            foco: _carteraFoco_(filas, hoy), recurrentes: rec, props: props };
@@ -286,6 +326,36 @@ function _carteraLineasBrief_(filas, hoy) {
 }
 
 /**
+ * CRM PRO · M1 — PURA. Segunda señal del brief: candidatos del embudo FRÍOS por falta de contacto.
+ * Se devuelve aparte (array propio) para no tocar la FORMA de `_carteraLineasBrief_`, cuya salida
+ * está aserida por largo e índice (lección FORMA-DE-RETORNO, precedente D14g).
+ *
+ * DOS recortes deliberados, los dos para que la señal no se vuelva ruido:
+ *  (1) Solo `frio|tibio|caliente` — un `activo` no es un candidato a empujar (su vínculo lo mira
+ *      el semáforo de retención M3), y `perdido`/`en_pausa` están fuera del embudo a propósito.
+ *  (2) Solo con `ultimo_contacto` REAL y viejo. Un cliente SIN sello no es "30 días frío": es
+ *      "nunca se registró un contacto" — desconocido, no vencido. Contarlo pintaría de rojo a la
+ *      cartera entera el día que esto se estrena, que es la forma más rápida de que se ignore.
+ */
+function _carteraLineasFrio_(filas, hoy, dias) {
+  var UMBRAL = Number(dias) > 0 ? Number(dias) : 30;
+  var ETAPAS = ['frio', 'tibio', 'caliente'];
+  var frios = (filas || []).filter(function (c) {
+    if (String(c.id_cliente) === 'CLI-000') return false;
+    if (ETAPAS.indexOf(String(c.etapa_comercial || '')) < 0) return false;
+    var uc = aFechaISO(c.ultimo_contacto);
+    return !!uc && _diasEntreISO_(uc, String(hoy)) > UMBRAL;
+  }).sort(function (a, b) { return aFechaISO(a.ultimo_contacto) < aFechaISO(b.ultimo_contacto) ? -1 : 1; });
+  if (!frios.length) return [];
+  var det = frios.slice(0, 3).map(function (c) {
+    return String(c.id_cliente) + ' "' + String(c.nombre || '') + '" — último contacto ' +
+           aFechaISO(c.ultimo_contacto) + ' (' + _diasEntreISO_(aFechaISO(c.ultimo_contacto), String(hoy)) + ' días)';
+  });
+  return ['- Cartera: ' + frios.length + ' candidato(s) +' + UMBRAL + ' días sin contacto → ' + det.join(' · ') +
+          (frios.length > 3 ? ' · +' + (frios.length - 3) + ' más — ver la vista Cartera.' : '')];
+}
+
+/**
  * Mueve UN cliente de etapa. Update de UNA celda del roster — no hay hoja de pipeline.
  *
  * AISLAMIENTO §3 ("el id lo pone el sistema, no el modelo"): el `id_cliente` llega del front y por
@@ -298,22 +368,34 @@ function _carteraLineasBrief_(filas, hoy) {
  *
  * @return {{ok:boolean, id_cliente?:string, de?:string, a?:string, desde?:string, aviso?:string, error?:string}}
  */
-function moverEtapaComercial(idCliente, etapa) {
+function moverEtapaComercial(idCliente, etapa, motivo) {
   _soloOwner_('moverEtapaComercial');
   var id = String(idCliente == null ? '' : idCliente).trim();
   var e = String(etapa == null ? '' : etapa).trim();
   if (!id) return { ok: false, error: 'falta id_cliente' };
   if (!_etapaValida_(e)) return { ok: false, error: 'etapa fuera del enum: ' + JSON.stringify(e) };
+  // CRM PRO · S5 — MOTIVO OBLIGATORIO al perder. El 3er parámetro es ADITIVO y opcional: los
+  // llamadores viejos (que mueven a etapas que no son `perdido`) siguen andando sin tocarse.
+  // Se rechaza ANTES del lock y con `error` MAQUINABLE ('motivo_requerido'): el front lo lee para
+  // abrir el modal. Un cliente que se pierde sin motivo escrito no se puede aprender después.
+  var mot = limpiarHostilTexto_(String(motivo == null ? '' : motivo).trim(), 200);
+  if (e === 'perdido' && !mot) return { ok: false, error: 'motivo_requerido' };
   return conLock(function () {
     var sh = getMaestro().getSheetByName('Clientes');
     var fila = leerTabla(sh).filter(function (c) { return String(c.id_cliente) === id; })[0];
     if (!fila) return { ok: false, error: 'id_cliente fuera del roster: ' + id };
     var hoy = hoyISO();
-    var viejos = _setColumnasCliente_(sh, fila, { etapa_comercial: e, etapa_desde: hoy });
+    var cambios = { etapa_comercial: e, etapa_desde: hoy };
+    if (e === 'perdido') cambios.motivo_perdido = mot;
+    var viejos = _setColumnasCliente_(sh, fila, cambios);
     var viejo = viejos.etapa_comercial;
+    // M1 — mover de etapa ES un contacto: se sella. Dentro del lock que ya tenemos y con la fila
+    // ya leída (conLock NO es reentrante — 07_util.js: "lockear en los callers, nunca anidado").
+    try { _sellarContacto_(id, 'etapa:' + e, { sh: sh, fila: fila }); } catch (_s) {}
     // El movimiento queda en Actividad: mover de etapa es una decisión comercial, y una decisión
     // sin rastro de cuándo se tomó no se puede revisar después.
-    try { feed_('Cartera', 'cartera', id, 'Etapa comercial: ' + (viejo || '(vacía)') + ' → ' + (e || '(vacía)')); } catch (_f) {}
+    try { feed_('Cartera', 'cartera', id, 'Etapa comercial: ' + (viejo || '(vacía)') + ' → ' + (e || '(vacía)') +
+                (e === 'perdido' ? ' — motivo: ' + mot : '')); } catch (_f) {}
     // ALTA LIVIANA — el recordatorio. Un tibio sin Sheet está bien; un caliente/activo sin Sheet
     // es un alta a medio hacer: no tiene dónde vivir ni un dato, y el sync/vigilancia lo van a
     // saltear en silencio para siempre. Se AVISA (el movimiento sí ocurre: el que decide es Luciano).
@@ -321,7 +403,8 @@ function moverEtapaComercial(idCliente, etapa) {
     if (['caliente', 'activo'].indexOf(e) >= 0 && !String(fila.url_sheet_cliente || '').trim()) {
       aviso = 'Falta el alta real: ' + id + ' no tiene Sheet de cliente. Corré crearCliente para que el OS pueda leerle datos.';
     }
-    return { ok: true, id_cliente: id, de: viejo, a: e, desde: hoy, aviso: aviso };
+    return { ok: true, id_cliente: id, de: viejo, a: e, desde: hoy, aviso: aviso,
+             motivo_perdido: (e === 'perdido' ? mot : undefined) };
   });
 }
 
@@ -399,7 +482,7 @@ function propuestaRegistrar(idCliente, servicio, importe, moneda) {
   if (!(imp > 0)) return { ok: false, error: 'importe inválido: ' + JSON.stringify(importe) };
   var mon = String(moneda == null ? '' : moneda).trim().toUpperCase();
   if (!/^[A-Z]{2,6}$/.test(mon)) return { ok: false, error: 'moneda inválida (ej: EUR, USD, ARS)' };
-  return conLock(function () {
+  var _res = conLock(function () {
     var fila = leerTabla(getMaestro().getSheetByName('Clientes')).filter(function (c) { return String(c.id_cliente) === id; })[0];
     if (!fila) return { ok: false, error: 'id_cliente fuera del roster: ' + id };
     var sh = _hqHoja_('recurrentes_propios');
@@ -413,6 +496,12 @@ function propuestaRegistrar(idCliente, servicio, importe, moneda) {
     try { feed_('Cartera', 'cartera', id, 'Propuesta ' + idRec + ': ' + svc + ' · ' + mon + ' ' + imp + '/mes (estado=propuesta)'); } catch (_f) {}
     return { ok: true, id_rec: idRec, id_cliente: id };
   });
+  // M1 — registrar una propuesta ES un contacto. FUERA del `conLock` de arriba a propósito:
+  // `conLock` NO es reentrante y esta función trabaja sobre `recurrentes_propios`, no sobre
+  // `Clientes`, así que no tiene la fila para pasar por ctx. El sello toma su propio lock.
+  // Envuelto en try: que falle el sello no puede tumbar una propuesta ya escrita.
+  if (_res && _res.ok) { try { _sellarContacto_(id, 'propuesta'); } catch (_s) {} }
+  return _res;
 }
 
 /**
@@ -425,7 +514,7 @@ function propuestaFirmar(idRec) {
   _soloOwner_('propuestaFirmar');
   var idr = String(idRec == null ? '' : idRec).trim();
   if (!idr) return { ok: false, error: 'falta id_rec' };
-  return conLock(function () {
+  var _resF = conLock(function () {
     var sh = _hqHoja_('recurrentes_propios');
     if (!sh) return { ok: false, error: 'schema recurrentes_propios ausente: corré setup()' };
     var fila = leerTabla(sh).filter(function (r) { return String(r.id_rec) === idr; })[0];
@@ -438,4 +527,191 @@ function propuestaFirmar(idRec) {
     try { feed_('Cartera', 'cartera', String(fila.id_cliente || ''), 'Retención FIRMADA ' + idr + (dias != null ? ' · ciclo ' + dias + ' día(s) desde el registro' : '')); } catch (_f) {}
     return { ok: true, id_rec: idr, id_cliente: String(fila.id_cliente || ''), dias_ciclo: dias };
   });
+  // M1 — firmar ES un contacto. Fuera del lock por la misma razón que en `propuestaRegistrar`.
+  // Solo si la firma efectivamente ocurrió (la función es idempotente: firmar dos veces no
+  // re-escribe, y tampoco debe re-sellar como si hubiera habido contacto nuevo).
+  if (_resF && _resF.ok && _resF.id_cliente) { try { _sellarContacto_(_resF.id_cliente, 'firma'); } catch (_s) {} }
+  return _resF;
+}
+
+
+/* ══════════ CRM PRO (26-ago-2026) — M1 sello de contacto · S6 recontacto · C8 snapshot ══════════ */
+
+/**
+ * M1 — sella `ultimo_contacto = hoy` para UN cliente. PRIVADA (la llaman los flujos que SON un
+ * contacto: mover de etapa, registrar/firmar propuesta, ingesta de tablero, confirmar thread).
+ *
+ * IDEMPOTENTE POR DÍA: si ya está sellada con hoy, no escribe ni vuelve a alimentar Actividad —
+ * registrar tres veces el mismo día es una sola verdad ("hoy hubo contacto"), y un feed_ por clic
+ * convertiría la Actividad en ruido.
+ *
+ * LOCK (07_util.js: `conLock` NO es reentrante — el `finally` interno le soltaría el lock al de
+ * afuera): si el llamador YA tiene el lock, pasa `ctx = {sh, fila}` y acá no se lockea. Sin ctx
+ * abre y lockea por su cuenta.
+ *
+ * @return {{ok:boolean, sellado:boolean, ya?:boolean, fecha?:string, error?:string}}
+ */
+function _sellarContacto_(idCliente, fuente, ctx) {
+  var id = String(idCliente == null ? '' : idCliente).trim();
+  if (!id) return { ok: false, sellado: false, error: 'falta id_cliente' };
+  var hoy = hoyISO();
+  var src = limpiarHostilTexto_(String(fuente || '').trim(), 40) || 'manual';
+
+  function _sellar(sh, fila) {
+    if (!fila) return { ok: false, sellado: false, error: 'id_cliente fuera del roster: ' + id };
+    if (aFechaISO(fila.ultimo_contacto) === hoy) return { ok: true, sellado: false, ya: true, fecha: hoy };
+    _setColumnaCliente_(sh, fila, 'ultimo_contacto', hoy);
+    try { feed_('Cartera', 'cartera', id, 'Contacto registrado (' + src + ')'); } catch (_f) {}
+    return { ok: true, sellado: true, fecha: hoy };
+  }
+
+  if (ctx && ctx.sh && ctx.fila) return _sellar(ctx.sh, ctx.fila);   // el llamador ya tiene el lock
+  return conLock(function () {
+    var sh = getMaestro().getSheetByName('Clientes');
+    var fila = leerTabla(sh).filter(function (c) { return String(c.id_cliente) === id; })[0];
+    return _sellar(sh, fila);
+  });
+}
+
+/**
+ * M1 — registrar un contacto A MANO desde la Ficha 360 ("Registrar contacto (hoy)"). Es el
+ * envoltorio client-callable del sello: gateado + alta en ENDPOINTS_UI en este mismo commit.
+ * AISLAMIENTO §3: el id se valida contra el roster REAL adentro de `_sellarContacto_`.
+ */
+function carteraRegistrarContacto(idCliente, fuente) {
+  _soloOwner_('carteraRegistrarContacto');
+  return _sellarContacto_(idCliente, fuente || 'manual');
+}
+
+/**
+ * S6 — "Perder + recontactar en 90 días". NO inventa un motor de seguimiento: escribe
+ * `prox_accion` + `prox_accion_fecha` y deja que el brief EXISTENTE (`_carteraLineasBrief_`, que
+ * ya nombra las vencidas) lo reviva solo el día que corresponde. Cero automatismo nuevo.
+ *
+ * `dias` por defecto 90. Se acota a [1, 3650]: una fecha a 200 años no es un recontacto, es un
+ * dato corrupto que después ensucia el brief para siempre.
+ */
+function carteraRecontacto(idCliente, dias) {
+  _soloOwner_('carteraRecontacto');
+  var id = String(idCliente == null ? '' : idCliente).trim();
+  if (!id) return { ok: false, error: 'falta id_cliente' };
+  var d = Math.round(Number(dias));
+  if (!isFinite(d) || d <= 0) d = 90;
+  d = Math.min(3650, Math.max(1, d));
+  return conLock(function () {
+    var sh = getMaestro().getSheetByName('Clientes');
+    var fila = leerTabla(sh).filter(function (c) { return String(c.id_cliente) === id; })[0];
+    if (!fila) return { ok: false, error: 'id_cliente fuera del roster: ' + id };
+    var mot = limpiarHostilTexto_(String(fila.motivo_perdido || '').trim(), 120);
+    var fecha = _sumarDiasISO_(hoyISO(), d);
+    var texto = 'Recontactar' + (mot ? ' — se perdió por: ' + mot : '');
+    _setColumnasCliente_(sh, fila, { prox_accion: texto, prox_accion_fecha: fecha });
+    try { feed_('Cartera', 'cartera', id, 'Recontacto programado para ' + fecha + (mot ? ' (motivo: ' + mot + ')' : '')); } catch (_f) {}
+    return { ok: true, id_cliente: id, prox_accion: texto, prox_accion_fecha: fecha, dias: d };
+  });
+}
+
+/** PURA — suma días calendario a un ISO (yyyy-MM-dd) y devuelve ISO. UTC a propósito: evita que
+ *  el corrimiento de huso mueva la fecha un día (el bug clásico del round-trip de Sheets). */
+function _sumarDiasISO_(iso, dias) {
+  var p = String(iso || '').slice(0, 10).split('-');
+  var d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+  d.setUTCDate(d.getUTCDate() + Number(dias || 0));
+  return d.toISOString().slice(0, 10);
+}
+
+
+/* ══════════ CRM PRO · C8 (26-ago-2026) — SNAPSHOT MENSUAL DE LA CARTERA A .md ══════════
+ * "La data siempre exportable": un .md legible fuera del OS, que sobrevive a que el OS no esté.
+ * Se arma DESDE `carteraPipeline()` a propósito — si el snapshot recalculara por su cuenta, un día
+ * diría algo distinto a la pantalla y no sabríamos cuál miente. Una sola fuente, dos renders.
+ */
+
+var PROP_CARTERA_FOLDER_ID = 'CARTERA_FOLDER_ID';
+var CARTERA_FOLDER_NOMBRE = 'Satori OS — Cartera';
+
+/**
+ * PURA — el .md a partir del payload de `carteraPipeline()`. Sin I/O ⇒ aserible offline.
+ * Orden: etapas del enum (no alfabético: el embudo tiene una dirección) y, dentro, por días en
+ * etapa descendente — arriba lo más quieto, que es lo que hay que mirar.
+ */
+function _carteraSnapshotTexto_(pipe, hoy) {
+  var p = pipe || {};
+  var fecha = String(hoy || p.hoy || '');
+  var L = ['# Cartera Satori — snapshot ' + fecha, ''];
+  var tot = 0;
+  (p.etapas || []).forEach(function (e) { tot += ((p.columnas || {})[e] || []).length; });
+  var sinE = (p.sin_etapa || []).length;
+  L.push('**' + tot + '** cliente(s) clasificados' + (sinE ? ' · **' + sinE + '** sin etapa' : '') + '.');
+  if (p.recurrentes && p.recurrentes.por_moneda) {
+    var mon = Object.keys(p.recurrentes.por_moneda).sort().map(function (m) {
+      return m + ' ' + p.recurrentes.por_moneda[m];
+    });
+    // Subtotal POR MONEDA, jamás un total global: sumar EUR con ARS es el bug que ya mordió en el HQ.
+    if (mon.length) L.push('Recurrente/mes: ' + mon.join(' · ') + ' (' + p.recurrentes.activos + ' activa/s).');
+  }
+  L.push('');
+
+  function bloque(titulo, cards) {
+    if (!cards || !cards.length) return;
+    L.push('## ' + titulo + ' (' + cards.length + ')', '');
+    cards.slice().sort(function (a, b) { return (b.dias_etapa || 0) - (a.dias_etapa || 0); }).forEach(function (c) {
+      var linea = '- **' + c.id_cliente + '** ' + (c.nombre || '');
+      if (c.dias_etapa != null) linea += ' · ' + c.dias_etapa + 'd en etapa';
+      // «no sé» ≠ «hoy»: sin sello se DICE, no se pone 0 (misma disciplina que la card).
+      linea += ' · último contacto: ' + (c.ultimo_contacto ? c.ultimo_contacto + ' (' + c.dias_sin_contacto + 'd)' : 'sin registro');
+      if (c.senal_retencion && c.senal_retencion.nivel) linea += ' · retención: ' + c.senal_retencion.nivel;
+      if (c.prox_accion) linea += ' · próx: ' + c.prox_accion + (c.prox_accion_fecha ? ' (' + c.prox_accion_fecha + ')' : '');
+      if (c.motivo_perdido) linea += ' · motivo: ' + c.motivo_perdido;
+      L.push(linea);
+      (c.ops || []).forEach(function (o) {
+        L.push('    - ' + (o.firmada ? 'firmada' : 'propuesta') + ': ' + o.servicio + ' — ' + o.moneda + ' ' + o.importe + '/mes');
+      });
+    });
+    L.push('');
+  }
+  (p.etapas || []).forEach(function (e) { bloque(e, (p.columnas || {})[e]); });
+  bloque('sin etapa', p.sin_etapa);
+  L.push('---', '_Generado por Satori OS · carteraSnapshotMd_');
+  return L.join('\n');
+}
+
+/** Carpeta del snapshot: la guardada en Script Properties, o se crea y se guarda (mismo patrón
+ *  que `_backupRootFolder_`). Falla blando: sin carpeta el texto igual se devuelve. */
+function _carteraFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty(PROP_CARTERA_FOLDER_ID);
+  if (id) {
+    var meta = _driveGet_(id, 'id,trashed');
+    if (meta.ok && !meta.trashed) return { ok: true, id: String(id) };
+  }
+  var nueva = _driveCrearCarpeta_(CARTERA_FOLDER_NOMBRE, null);
+  if (!nueva.ok) return { ok: false, error: nueva.error };
+  props.setProperty(PROP_CARTERA_FOLDER_ID, nueva.id);
+  return { ok: true, id: nueva.id, creada: true };
+}
+
+/**
+ * C8 — genera el .md y lo deja en Drive. SIN ARGUMENTOS (regla del desplegable del editor: las
+ * funciones que corre Luciano a mano no reciben nada) y apta para un trigger mensual.
+ * Devuelve TAMBIÉN el texto: si Drive falla, el dato no se pierde — se ve en el Registro.
+ */
+function carteraSnapshotMd() {
+  _soloOwner_('carteraSnapshotMd');
+  var pipe = carteraPipeline();
+  var hoy = hoyISO();
+  var texto = _carteraSnapshotTexto_(pipe, hoy);
+  var nombre = 'Cartera-Satori-' + hoy + '.md';
+  var res = { ok: true, nombre: nombre, chars: texto.length, texto: texto };
+  try {
+    var f = _carteraFolder_();
+    if (!f.ok) { res.drive = null; res.aviso = 'no pude preparar la carpeta: ' + f.error; return res; }
+    var file = DriveApp.createFile(nombre, texto, MimeType.PLAIN_TEXT);
+    _driveMover_(file.getId(), f.id);
+    res.drive = { id: file.getId(), carpeta: f.id, url: 'https://drive.google.com/file/d/' + file.getId() + '/view' };
+  } catch (e) {
+    res.drive = null;
+    res.aviso = 'el .md se generó pero no se pudo guardar en Drive: ' + ((e && e.message) || e);
+  }
+  return res;
 }
