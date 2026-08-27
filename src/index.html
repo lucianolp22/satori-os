@@ -8544,7 +8544,42 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
     #f360OrbeSlot{position:relative;flex:none;width:46px;height:46px;cursor:pointer}
     @media (prefers-reduced-motion: reduce){ #orbeP .op-anillo{transition:none} }
     @media (max-width:760px){ #f360OrbeSlot{width:38px;height:38px} }
-    </style>
+    
+/* ═══ F7b · SATO UBICUO — dock persistente del header ═════════════════════════
+   COEXISTE con el panel Sato in-page (T4, 25-ago): esto es acceso rápido (últimos turnos + input
+   + 3 botones), aquel es la superficie de trabajo. NO lo reemplaza.
+   Vive a nivel <body> — igual que #akasha y #orbeP — porque #centro es `position:fixed;z-index:50`
+   y CREA STACKING CONTEXT: cualquier z-index de adentro queda encapsulado bajo 50 y jamás le gana
+   a un hermano de #centro (regla dura de z-index, precedente Sato vs Akasha del 29-jul).
+   Y por eso mismo pierde los tokens del tema: se le dan colores propios acá.
+   Escalera declarada: chip 30 · expandido 40 · (tab bar móvil 35) · scrim 45 · sheet 46 · modal 48.
+   El orbe y Akasha viven muy por encima (220+) y no se tocan (regla +51). */
+#satoUbicuo{position:fixed;top:10px;right:14px;z-index:30;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#F1EDE4}
+#satoUbicuo.abierto{z-index:40}
+#satoUbicuo .chip{display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;cursor:pointer;
+  background:rgba(16,14,10,.86);border:1px solid rgba(212,168,87,.34);backdrop-filter:blur(9px);
+  min-height:34px;user-select:none}
+#satoUbicuo .chip:hover{border-color:rgba(212,168,87,.62)}
+#satoUbicuo .pt{width:7px;height:7px;border-radius:50%;background:#5FB97A;flex:0 0 auto}
+#satoUbicuo .pt.off{background:#8b8578}
+#satoUbicuo .cuerpo{display:none;margin-top:7px;width:330px;max-height:62vh;overflow:auto;padding:11px;
+  border-radius:13px;background:rgba(16,14,10,.95);border:1px solid rgba(212,168,87,.30);backdrop-filter:blur(13px)}
+#satoUbicuo.abierto .cuerpo{display:block}
+#satoUbicuo .t{margin:0 0 7px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.045);font-size:12.5px}
+#satoUbicuo .t.user{background:rgba(212,168,87,.13)}
+#satoUbicuo .t .q{opacity:.52;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase}
+#satoUbicuo .vacio{opacity:.55;font-size:12px;padding:7px 2px}
+#satoUbicuo .fila{display:flex;gap:6px;margin-top:8px}
+#satoUbicuo input[type=text]{flex:1;min-width:0;padding:8px 10px;border-radius:8px;font:inherit;color:#F1EDE4;
+  background:rgba(255,255,255,.06);border:1px solid rgba(212,168,87,.24)}
+#satoUbicuo button{padding:8px 11px;border-radius:8px;cursor:pointer;font:inherit;color:#F1EDE4;
+  background:rgba(212,168,87,.19);border:1px solid rgba(212,168,87,.34);min-height:34px}
+#satoUbicuo .rap{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+#satoUbicuo .rap button{font-size:11.5px;padding:5px 9px;min-height:0}
+/* En móvil se OCULTA: ahí Sato tiene su propia pestaña dedicada, y el dock competiría con la
+   tab bar inferior. Un dock flotante en 390px es un estorbo, no un atajo. */
+@media (max-width:640px){#satoUbicuo{display:none}}
+</style>
     <div id="orbeP" data-estado="idle" hidden aria-hidden="true">
       <div class="op-halo"></div>
       <canvas id="orbePcv" width="512" height="512"></canvas>
@@ -8636,6 +8671,113 @@ document.addEventListener("click",function(e){
   var b=e.target.closest?e.target.closest(".f360-tab"):null;
   if(b&&b.getAttribute("data-tab")){ e.preventDefault(); f360Tab_(b.getAttribute("data-tab")); }
 });
+</script>
+
+<!-- F7b · Sato Ubicuo. A nivel <body> (hermano de #akasha), NO dentro de #centro: ese es
+     position:fixed;z-index:50 y crea stacking context (precedente 29-jul). -->
+<div id="satoUbicuo" aria-label="Sato — acceso rápido">
+  <div class="chip" role="button" tabindex="0" aria-expanded="false">
+    <span class="pt"></span><span id="suLbl">Sato · Sistema</span>
+  </div>
+  <div class="cuerpo">
+    <div id="suTurnos" aria-live="polite"><div class="vacio">Sin turnos todavía.</div></div>
+    <div class="fila">
+      <input id="suInput" type="text" placeholder="escribile a Sato…" maxlength="1200" aria-label="Mensaje para Sato">
+      <button id="suEnviar" type="button">Enviar</button>
+    </div>
+    <div class="rap">
+      <button type="button" data-q="dame el brief de hoy">brief</button>
+      <button type="button" data-q="qué aprobaciones tengo pendientes">aprobaciones</button>
+      <button type="button" data-q="cerremos la sesión">cerrar sesión</button>
+      <button type="button" id="suPanel">abrir panel</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ═══ F7b · SATO UBICUO — espejo widget ↔ LiveKit (Opción A: vía la hoja `charla`) ═══════════
+   Todo el bloque es fail-safe: si el backend dice `sato_ubicuo_off` (el default), el dock se
+   apaga solo y no vuelve a pedir nada. Nunca rompe el CM. */
+(function(){
+  var raiz=document.getElementById('satoUbicuo'); if(!raiz) return;
+  var cont=raiz.querySelector('#suTurnos'), inp=raiz.querySelector('#suInput');
+  var pt=raiz.querySelector('.pt'), lbl=raiz.querySelector('#suLbl');
+  var ultimoTs='', timer=null, ms=2000, vivo=true;
+
+  /* Contexto por ubicación: dentro de una Ficha 360 el dock queda anclado a ESE cliente; en el CM
+     es sistema. Nunca adivina: si no hay ficha abierta, manda '' y el backend resuelve CLI-000. */
+  function tenante(){
+    try{
+      var f=document.querySelector('#fichaboard[data-cliente]');
+      if(f && f.getAttribute('data-cliente')) return f.getAttribute('data-cliente');
+      if(window.F360_CLIENTE) return String(window.F360_CLIENTE);
+    }catch(e){}
+    return '';
+  }
+  function rotulo(){ var t=tenante(); lbl.textContent = t ? ('Sato · '+t) : 'Sato · Sistema'; }
+
+  function pintar(turnos){
+    if(!turnos || !turnos.length){
+      if(!cont.children.length) cont.innerHTML='<div class="vacio">Sin turnos todavía.</div>';
+      return;
+    }
+    if(cont.querySelector('.vacio')) cont.innerHTML='';
+    turnos.forEach(function(t){
+      var d=document.createElement('div');
+      d.className='t'+(t.rol==='user'?' user':'');
+      var q=document.createElement('div'); q.className='q';
+      q.textContent=(t.rol==='user'?'Luciano':'Sato')+' · '+(t.origen==='voz'?'voz':'texto');
+      var p=document.createElement('div'); p.textContent=t.texto;   /* textContent: nunca innerHTML con dato */
+      d.appendChild(q); d.appendChild(p); cont.appendChild(d);
+      if(t.ts>ultimoTs) ultimoTs=t.ts;
+    });
+    while(cont.children.length>5) cont.removeChild(cont.firstChild);
+    cont.scrollTop=cont.scrollHeight;
+  }
+
+  function poll(){
+    if(!vivo) return;
+    if(document.hidden){ timer=setTimeout(poll, 5000); return; }   /* pestaña oculta: no molestar */
+    google.script.run
+      .withSuccessHandler(function(r){
+        if(r && r.ok===false && r.motivo==='sato_ubicuo_off'){ vivo=false; raiz.style.display='none'; return; }
+        if(r && r.ok){
+          pt.classList.remove('off');
+          if(r.turnos && r.turnos.length){ pintar(r.turnos); ms=2000; }
+          else { ms=Math.min(5000, ms+500); }                       /* backoff suave sin cambios */
+        }
+        timer=setTimeout(poll, ms);
+      })
+      .withFailureHandler(function(){ pt.classList.add('off'); timer=setTimeout(poll, 8000); })
+      .charlaCola(tenante(), ultimoTs);
+  }
+
+  function enviar(txt){
+    txt=String(txt||'').trim(); if(!txt) return;
+    inp.value=''; pintar([{ts:'',rol:'user',texto:txt,origen:'texto'}]);
+    google.script.run
+      .withSuccessHandler(function(r){ if(r && r.ok===false && r.motivo){ pintar([{rol:'assistant',texto:'(no se envió: '+r.motivo+')',origen:'texto'}]); } })
+      .withFailureHandler(function(){ pintar([{rol:'assistant',texto:'(no se pudo enviar)',origen:'texto'}]); })
+      .charlaEnviarTexto(tenante(), txt);
+  }
+
+  raiz.querySelector('.chip').addEventListener('click', function(){
+    raiz.classList.toggle('abierto');
+    try{ google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
+      .setConfigUsuario && 0; }catch(e){}
+    rotulo();
+  });
+  raiz.querySelector('#suEnviar').addEventListener('click', function(){ enviar(inp.value); });
+  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') enviar(inp.value); });
+  raiz.querySelectorAll('.rap button').forEach(function(b){
+    b.addEventListener('click', function(){ enviar(b.getAttribute('data-q')); });
+  });
+  var abrir=raiz.querySelector('#suPanel');
+  if(abrir) abrir.addEventListener('click', function(){
+    /* mismo mecanismo que tocar el orbe (T4): el dock NO reemplaza al panel */
+    try{ if(typeof abrirSatoPanel==='function') abrirSatoPanel(); else { var o=document.getElementById('orbeP')||document.getElementById('orbe'); if(o) o.click(); } }catch(e){}
+  });
+  rotulo(); poll();
+})();
 </script>
 </body>
 </html>

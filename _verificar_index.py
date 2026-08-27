@@ -56,7 +56,7 @@ for i, js in enumerate(bloques):
 # MISMO commit. Ese es el punto: obliga a declararlo.
 BREAKPOINTS = {
     '(prefers-reduced-motion:reduce)': 6,
-    '(max-width:640px)': 5,
+    '(max-width:640px)': 6,   # +1 (F7b, 27-ago): el dock Sato Ubicuo se OCULTA en móvil
     '(max-width:760px)': 5,
     '(max-width:560px)': 3,
     '(max-width:900px)': 3,

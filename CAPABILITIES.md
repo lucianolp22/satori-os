@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 14:32 · commit: 62929d5
+> Generado: 2026-08-27 14:43 · commit: c0b5ae8
 
 ## Módulos
 
@@ -43,6 +43,7 @@
 | `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 23 |
 | `34_push.js` | Canal de push al teléfono de Luciano (proactividad, decisión 26-ago) | 2 |
 | `35_identidad.js` | GENERADO. No editar a mano | 0 |
+| `36_sato_ubicuo.js` | F7 · Sato Ubicuo: el dock persistente del header | 7 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -209,12 +210,15 @@ Total:    11580 chars (~2895 tok estimados por el gate de `_systemBloques_`).
 
 ## Endpoints vivos (gateados con _soloOwner_)
 
-Total declarados en `ENDPOINTS_UI`: 213
+Total declarados en `ENDPOINTS_UI`: 217
 
 Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/_scan_endpoints.sh` y el bloque D31 del arnés.
 
 ## Actividad de los últimos 14 días
 
+- c0b5ae8 [F7a+F7c+F13+F10-a] Backend Sato Ubicuo, polling, checkpoint anti-drift y Cerebro vivo
+- e878e52 [F11+F12+F-Diseno-Patrones] Los tres documentos del encargo
+- c991cc3 [F5+F6] Consejo GO + motor Claude cableado (flag apagado por default)
 - 62929d5 [F4] CAPABILITIES con 6 bloques AUTO + drift-checker
 - b314ef0 [F3] Identidad de Sato editable en caliente, misma fuente para voz y GAS
 - 665cbbe PC-A/PC-D del encargo POST-OLAS: scan de endpoints corrible solo + nombre que espera PC-D
@@ -242,9 +246,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - 7008fca CRM PRO — frontend §2d: presupuesto de señal, semáforo, modal de pérdida, Correo → CRM
 - 4bc9609 CRM PRO — backend completo (M1·M2·M3·S4·S5·S6·C7·C8) + 83 asserts offline
 - 1db0ba2 integridad de datos SGIC/Sato: fuente oficial + procedencia nombrada + fecha viva
-- a3cf8c9 promote /exec: CAPABILITIES regen + HANDOFF al 25-08-2026
-- eede685 selfTest D43: resiliente al rate limit de Drive (backoff en _driveCopiar_ + SKIP) - fix cert
-- 0b547f1 HANDOFF.md: cabecera al 25-ago (sesion Cowork tandas 1-4)
 
 ## Funciones por módulo (apéndice)
 
@@ -315,4 +316,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 **33_cartera.js:** _setColumnaCliente_ _setColumnasCliente_ _etapaValida_ _seedCartera_ seedCartera2026_08_11 seedCartera2026_08_11Aplicar carteraPipeline _diasEntreISO_ _carteraLineasBrief_ _carteraLineasFrio_ moverEtapaComercial _carteraFoco_ carteraProxAccion propuestaRegistrar propuestaFirmar _sellarContacto_ carteraRegistrarContacto carteraRecontacto _sumarDiasISO_ _carteraSnapshotTexto_ _carteraFolder_ carteraSnapshotMd carteraEncajeKairos 
 
 **34_push.js:** _pushTelefono_ probarPushTelefono 
+
+**36_sato_ubicuo.js:** _ubicuoOn_ _ubicuoTenant_ _ubicuoCharla_ charlaCola charlaEnviarTexto charlaPendientes guardarTurnoCharla 
 
