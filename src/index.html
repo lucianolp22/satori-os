@@ -8552,10 +8552,17 @@ if (!SATO_MIC_MODE) window.addEventListener('DOMContentLoaded', init);   // T1.4
    y CREA STACKING CONTEXT: cualquier z-index de adentro queda encapsulado bajo 50 y jamás le gana
    a un hermano de #centro (regla dura de z-index, precedente Sato vs Akasha del 29-jul).
    Y por eso mismo pierde los tokens del tema: se le dan colores propios acá.
-   Escalera declarada: chip 30 · expandido 40 · (tab bar móvil 35) · scrim 45 · sheet 46 · modal 48.
-   El orbe y Akasha viven muy por encima (220+) y no se tocan (regla +51). */
-#satoUbicuo{position:fixed;top:10px;right:14px;z-index:30;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#F1EDE4}
-#satoUbicuo.abierto{z-index:40}
+   ⚠ CORRECCIÓN 27-ago (B1): la escalera original (chip 30 · expandido 40) estaba tomada de la
+   escala de ADENTRO de #centro y acá no aplica — a nivel <body> los vecinos del dock son #centro
+   (50) y #akasha (200), así que con 30 el dock quedaba PINTADO PERO TAPADO por la barra del CM:
+   `elementFromPoint` sobre el chip devolvía `#btn-despacho`. Por eso Luciano nunca lo pudo tocar.
+   Escalera REAL a nivel body: #centro 50 · #akasha 200 (+scrims 210-213) · visor 220 ·
+   **dock 230, expandido 240** · panel Sato 300 · cierre 301 · Cartera 310 · ⌘K 320.
+   El dock queda por encima de todo el OS y por DEBAJO de las superficies de trabajo que él
+   mismo abre (300+): un acceso rápido no puede flotar sobre el panel al que te manda.
+   El orbe y Akasha no se tocan (regla +51): el dock se mete en el hueco 230, no los mueve. */
+#satoUbicuo{position:fixed;top:10px;right:14px;z-index:230;font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#F1EDE4}
+#satoUbicuo.abierto{z-index:240}
 #satoUbicuo .chip{display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;cursor:pointer;
   background:rgba(16,14,10,.86);border:1px solid rgba(212,168,87,.34);backdrop-filter:blur(9px);
   min-height:34px;user-select:none}
@@ -8737,6 +8744,8 @@ document.addEventListener("click",function(e){
   function poll(){
     if(!vivo) return;
     if(document.hidden){ timer=setTimeout(poll, 5000); return; }   /* pestaña oculta: no molestar */
+    rotulo();   /* el tenant puede haber cambiado desde el tick anterior (Ficha 360 abierta después
+                   de cargar): el rótulo tiene que seguir al contexto, no quedarse en "Sistema" */
     google.script.run
       .withSuccessHandler(function(r){
         if(r && r.ok===false && r.motivo==='sato_ubicuo_off'){ vivo=false; raiz.style.display='none'; return; }
