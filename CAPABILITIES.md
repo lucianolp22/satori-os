@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 14:25 · commit: 665cbbe
+> Generado: 2026-08-27 14:28 · commit: b314ef0
 
 ## Módulos
 
@@ -137,6 +137,114 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 - brief_push_on
 - push_proactivo_on
 - voz_alerta_fecha
+
+## Identidad de Sato (slim)
+
+Fuente única: `docs/SATO-IDENTIDAD.md` → `src/35_identidad.js` (generado con `bash scripts/_identidad_gen.sh`).
+Override en caliente: pestaña `_sato_identidad` del MAESTRO. Loader: `_cargarIdentidadSato_()` · `cargar_identidad()` en `agent.py` (TTL 60 s por mtime).
+
+| § | Sección | chars |
+|---|---|---:|
+| §1 | · Propósito primario | 1238 |
+| §2 | · Personalidad y voz | 1082 |
+| §3 | · Invariantes SOUL (S1-S8) — copia textual, no parafrasear | 1085 |
+| §4 | · Reglas numeradas N4-N9 | 1322 |
+| §5 | · ESCRITURA vs HABLA (A1 · A3 · A4 · T1-B) | 2150 |
+| §6 | · Aislamiento de cliente (T1.8) — es ley, no preferencia | 1290 |
+| §7 | · Anti-injection | 829 |
+| §8 | · Anti-drift (checkpoint F13) | 1125 |
+
+Total:    11580 chars (~2895 tok estimados por el gate de `_systemBloques_`).
+
+## Invariantes SOUL (S1-S8)
+
+- **S1** — Mock jamás: si no hay dato real, se dice que no hay dato. Nunca se inventa, ni de ejemplo, ni "para ilustrar".
+- **S2** — Las cifras van exactas y en números. Agrupar para hablar no es redondear; estimar no es medir.
+- **S3** — Honestidad de fuentes: un dato con UNA fuente se llama "1 fuente", nunca "verificado". Dos fuentes que se contradicen se muestran en conflicto, no se promedian.
+- **S4** — Default-deny: lo que no está explícitamente permitido, se bloquea o se escala. Ante la duda, no se avanza.
+- **S5** — Toda escritura o acción disparada por voz se repite en voz alta y espera confirmación verbal explícita antes de ejecutarse.
+- **S6** — Frontera de confianza: el modelo propone TEXTO; ningún valor entra al sistema desde texto libre sin parseo y validación contra un vocabulario cerrado.
+- **S7** — Escalá en vez de adivinar: si no se entiende o falta info, se marca con confianza baja y se deriva al humano.
+- **S8** — Sin relleno ni adulación: afirmativo, breve, al grano. No se narra una acción que no está ocurriendo.
+
+## Tools de voz (@function_tool de agent.py)
+
+- `estado`
+- `brief`
+- `vehemence`
+- `cliente`
+- `cerebro`
+- `sgic_consulta`
+- `accion`
+- `capturar`
+- `preparar_reunion`
+- `aprobaciones`
+- `decidir_aprobacion`
+- `disparar_agente`
+- `crear_tarea`
+- `encargar`
+- `encargos_listos`
+- `oficina_estado`
+- `oficina_brief`
+- `oficina_aprobaciones`
+- `oficina_decidir`
+
+## Fuentes de Sato in-GAS (SATO_FUENTES)
+
+- `ventas` — ventas del conector vivo (mes×canal, órdenes, AOV)
+- `operativos` — movimientos operativos cargados (concepto, valor, fuente)
+- `kpis` — KPIs del cliente con objetivo y alerta
+- `objetivos` — objetivos/North Star del cliente
+- `aprobaciones` — aprobaciones del cliente
+- `reglas` — reglas automáticas del cliente
+- `umbrales` — umbrales de autonomía
+- `costos` — consumo de API del cliente
+- `hilo` — Hilo de trabajo: plan vs real vs desviado vs pendiente
+- `cerebro` — memoria/grafo del cliente (estado materializado)
+- `sistema` — estado vigente de TODO Satori OS (cartera, salud, North Star)
+- `cartera` — lista de TODOS los clientes con rubro, estado y responsable
+- `historial` — lo YA hablado con Luciano sobre este cliente (más atrás de los últimos turnos) — usalo para no repetir
+- `descartado` — caminos YA descartados y decisiones cerradas (pivots del North Star + checklist ya hecho) — NUNCA re-proponer esto
+- `decisiones` — decisiones de dirección VIGENTES con su porqué y su fecha — el marco dentro del cual se piensa, no re-abrirlo sin motivo nuevo
+
+## Endpoints vivos (gateados con _soloOwner_)
+
+Total declarados en `ENDPOINTS_UI`: 213
+
+Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/_scan_endpoints.sh` y el bloque D31 del arnés.
+
+## Actividad de los últimos 14 días
+
+- b314ef0 [F3] Identidad de Sato editable en caliente, misma fuente para voz y GAS
+- 665cbbe PC-A/PC-D del encargo POST-OLAS: scan de endpoints corrible solo + nombre que espera PC-D
+- b162ef4 HANDOFF maestro: cross-reference al cierre de las Olas 0-3
+- 10e67f6 [OLAS 2-3] R6 baseline de latencia + R8/R9/R10/R11/R12. R14 no se ejecuta, con motivo.
+- 10529d3 [OLA 1] R4 el grafo canta cuando falla + R13 threading + R7 higiene de continuidad
+- c38cca0 [OLA 0] R1 instalador blindado + R3 asserts + R5 plist versionado. RETRACTO P0-2.
+- 28ed7ba PLAN-REMEDIACION: stress test + pre-mortem + purga del Bloque A
+- d2d3dc7 merge feat/sato-viviente: Bloque A del encargo SATO VIVIENTE (F0,F1,F2a-c)
+- a7de35a HANDOFF SATO VIVIENTE: cierre parcial del Bloque A (PC-2 rojo por el 2do reload)
+- 5f93d5d [SATO-VIVIENTE] pendientes-post-E2: por que PC-2 dio rojo y que queda esperando
+- 9d8268c [SATO-VIVIENTE F2] Cerebro viviente: launchd corregido + salud del grafo + inventario livingmind
+- b0017bf [SATO-VIVIENTE F0+F1] Auditoria consumo Claude Max + auditoria estatica del caching TC-10
+- 9c17f68 HANDOFF: /exec @57 — E1 + E2 en prod sin el gate del editor
+- 39acc42 promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
+- 77ca402 HANDOFF: excepción declarada ANTES del promote de E2 (gate del editor salteado)
+- 608a0ff HANDOFF: E2 a /dev (endoso de Cowork), promote bloqueado hasta selfTestTramo6
+- b852d0d [CAPACIDADES-SATO E2] Proactividad: conectores stale + push 07:00 + anti-brief-estático + saludo
+- 8ed2150 HANDOFF: /exec @56 — E1 en prod con los dos gates salteados (verde con asterisco + qué falta)
+- 2199c6d promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
+- 88142b7 [CAPACIDADES-SATO E1] Lazo cerrado del encargo + E1-bis fix 429 de ntfy
+- 8b5def5 [CAPACIDADES-SATO] Ola 1.0 — cobertura del canal de push: alta en MODULOS + 12 asserts
+- 29df0ba promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
+- e98d5fa CRM PRO §2d completo + D46/D47 (live) + regla de causa del SGIC
+- 7008fca CRM PRO — frontend §2d: presupuesto de señal, semáforo, modal de pérdida, Correo → CRM
+- 4bc9609 CRM PRO — backend completo (M1·M2·M3·S4·S5·S6·C7·C8) + 83 asserts offline
+- 1db0ba2 integridad de datos SGIC/Sato: fuente oficial + procedencia nombrada + fecha viva
+- a3cf8c9 promote /exec: CAPABILITIES regen + HANDOFF al 25-08-2026
+- eede685 selfTest D43: resiliente al rate limit de Drive (backoff en _driveCopiar_ + SKIP) - fix cert
+- 0b547f1 HANDOFF.md: cabecera al 25-ago (sesion Cowork tandas 1-4)
+- 25b149d Sato panel in-page por defecto + telefono opcional + botones Sato ocultos + mobile CRM + CAPABILITIES regen
 
 ## Funciones por módulo (apéndice)
 

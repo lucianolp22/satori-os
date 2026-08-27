@@ -1,0 +1,9 @@
+# Referencias que el drift-checker NO debe marcar. Una por línea, `#` = comentario.
+# Poner acá SÓLO lo que es intencional (ejemplos, cosas de otro repo, nombres genéricos).
+# Si algo entra acá "para que pase", el checker deja de servir.
+_sato_identidad
+SatoPatrones
+grafo.py
+grafo_server.py
+dashboard.html
+consolidado.csv

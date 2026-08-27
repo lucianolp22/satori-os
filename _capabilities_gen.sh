@@ -86,6 +86,55 @@ echo ""
 grep -rhoE "(getProperty|setProperty|deleteProperty)\('[A-Za-z0-9_]+'" "$SRC"/*.js | grep -oE "'[A-Za-z0-9_]+'" | tr -d "'" | sort -u | sed 's/^/- /'
 echo ""
 
+# ═══ F4 · bloques AUTO (27-ago) ═════════════════════════════════════════════
+# Todo lo de acá se DERIVA del código. Si algo queda stale, es un bug de este script, no del .md.
+
+echo "## Identidad de Sato (slim)"
+echo ""
+echo "Fuente única: \`docs/SATO-IDENTIDAD.md\` → \`src/35_identidad.js\` (generado con \`bash scripts/_identidad_gen.sh\`)."
+echo "Override en caliente: pestaña \`_sato_identidad\` del MAESTRO. Loader: \`_cargarIdentidadSato_()\` · \`cargar_identidad()\` en \`agent.py\` (TTL 60 s por mtime)."
+echo ""
+if [ -f docs/SATO-IDENTIDAD.md ]; then
+  echo "| § | Sección | chars |"
+  echo "|---|---|---:|"
+  awk '/^## §/{if(t!=""){printf "| %s | %s | %d |\n",n,t,c} n=$2; $1="";$2=""; t=substr($0,3); c=0; next} {c+=length($0)+1} END{if(t!="")printf "| %s | %s | %d |\n",n,t,c}' docs/SATO-IDENTIDAD.md
+  echo ""
+  echo "Total: $(wc -c < docs/SATO-IDENTIDAD.md) chars (~$(( $(wc -c < docs/SATO-IDENTIDAD.md) / 4 )) tok estimados por el gate de \`_systemBloques_\`)."
+fi
+echo ""
+
+echo "## Invariantes SOUL (S1-S8)"
+echo ""
+grep -oE "id: 'S[0-9]', regla: '[^']*'" "$SRC/24_soul.js" 2>/dev/null | sed "s/id: '//; s/', regla: '/** — /; s/'$//" | sed 's/^/- **/' 
+echo ""
+
+echo "## Tools de voz (@function_tool de agent.py)"
+echo ""
+if [ -f voz/agent/agent.py ]; then
+  grep -A1 '@function_tool' voz/agent/agent.py | grep -oE 'async def [a-z_]+' | sed 's/async def /- `/; s/$/`/'
+fi
+echo ""
+
+echo "## Fuentes de Sato in-GAS (SATO_FUENTES)"
+echo ""
+awk '/^var SATO_FUENTES = \{/,/^\};/' "$SRC/26_sato.js" 2>/dev/null | awk -F"'" '/que:/ {
+  k=$0; sub(/^ +/,"",k); sub(/:.*/,"",k);
+  if (k != "" && $2 != "") printf "- `%s` — %s\n", k, $(NF-1)
+}'
+echo ""
+
+echo "## Endpoints vivos (gateados con _soloOwner_)"
+echo ""
+echo "Total declarados en \`ENDPOINTS_UI\`: $(grep -oE "'[A-Za-z0-9_]+'" "$SRC/22_seguridad.js" | sed -n "/ENDPOINTS/,\$p" >/dev/null; awk '/var ENDPOINTS_UI = \[/,/^\];/' "$SRC/22_seguridad.js" | grep -oE "'[A-Za-z0-9_]+'" | wc -l | tr -d ' ')"
+echo ""
+echo "Partición completa (gateadas / declaradas / exentas con motivo): \`bash scripts/_scan_endpoints.sh\` y el bloque D31 del arnés."
+echo ""
+
+echo "## Actividad de los últimos 14 días"
+echo ""
+git log --oneline --since='14 days ago' 2>/dev/null | head -30 | sed 's/^/- /'
+echo ""
+
 echo "## Funciones por módulo (apéndice)"
 echo ""
 for f in $(ls "$SRC"/*.js | sort); do

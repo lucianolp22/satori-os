@@ -41,3 +41,9 @@ echo "  git add CAPABILITIES.md"
 echo "  git commit -m 'CAPABILITIES: regen (drift-checker)'"
 echo "  git push"
 exit 1
+
+# F4 (27-ago) · drift-checker en modo SOFT: avisa de referencias muertas en la doc escrita a mano,
+# pero NO bloquea el push. Se endurece con --strict cuando la doc esté limpia y estable.
+if [ -x scripts/_drift_checker.sh ]; then
+  bash scripts/_drift_checker.sh || true
+fi

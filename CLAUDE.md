@@ -109,7 +109,7 @@
 - **`selfTestVeredicto()`** agrega: solo dice CERTIFICADO si los 5 tramos corrieron, los 5 en 0 fallos y ninguno con >7 días. Un tramo sin correr NO es verde: es «sin correr».
 - `node _harness.js` (offline, segundos) + `python3 _verificar_index.py` antes de cualquier push. El arnés NO puede certificar lo que toca Sheets/Drive/Gmail: eso son los tramos del editor.
 - Triggers en prod: `corridaDiaria` 07:00 + `drenarCola` 5min (instalados por `bootstrap`) + `backupSemanal` domingo 04:00.
-- Backup/restore: `RUNBOOK-recuperacion-total.md`. Voz PWA: `RUNBOOK-voz-PWA-movil.md` (consultoría).
+- Backup/restore: `RUNBOOK-recuperacion-total.md`. Voz PWA: `../SATORI · Asesoramiento y consultoría/RUNBOOK-voz-PWA-movil.md` (vive en el proyecto de consultoría, no en este repo — lo detectó el drift-checker de F4).
 
 ## Tareas / board — reglas de datos (BLOQUE 4, 05-ago)
 - **Gate anti-rollup / anti-campo-computado:** antes de agregar CUALQUIER métrica, rollup o relación nueva → "¿qué haría distinto según este número?". Sin respuesta concreta, no se agrega. La espina Cliente→Proyecto→Tarea (0-2 relaciones) es el límite (Notion tax, `docs/NOTION-a-Satori-mapeo.md` §5).
