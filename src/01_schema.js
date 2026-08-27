@@ -131,7 +131,11 @@ var MAESTRO_SHEETS = {
   // `estado` = activo | propuesta — una propuesta en curso NO es ingreso: se muestra atenuada.
   recurrentes_propios: ['id_rec', 'id_cliente', 'cliente', 'servicio', 'importe', 'moneda', 'estado', 'notas'],
   // F2 Sato Ejecutor (24-ago): bandeja de encargos (voz -> gate -> runner Claude Code). LAZY, fuera de MAESTRO_ORDEN.
-  Encargos: ['id_encargo', 'ts_creacion', 'origen', 'id_cliente', 'tipo', 'repo', 'texto', 'estado', 'id_aprobacion', 'ts_inicio', 'ts_fin', 'resultado_resumen', 'artefactos', 'log_ref', 'decidido_por'],
+  // CAPACIDADES-SATO E1 (27-ago): +avisado AL FINAL (aditivo — nadie lee Encargos por índice, y
+  // `ensureSheet` reconcilia headers de hojas existentes agregando los que faltan). Es el flag del
+  // LAZO CERRADO: `encargosReportar_` lo pone en false al terminar un encargo y `encargosListos`
+  // lo pasa a true al enunciarlo por voz — así Sato lo dice UNA vez y no repite en cada saludo.
+  Encargos: ['id_encargo', 'ts_creacion', 'origen', 'id_cliente', 'tipo', 'repo', 'texto', 'estado', 'id_aprobacion', 'ts_inicio', 'ts_fin', 'resultado_resumen', 'artefactos', 'log_ref', 'decidido_por', 'avisado'],
   // CRM PRO · M2 (26-ago) — TIMELINE DE CORREO por cliente. LAZY (igual que Encargos/recurrentes_propios:
   // vive en MAESTRO_SHEETS pero NO en MAESTRO_ORDEN — la crea `correoCandidatosStaging` a demanda).
   // Fuera de MAESTRO_ORDEN A PROPÓSITO: guarda PII (remitente, asunto) y `setup()` no debe

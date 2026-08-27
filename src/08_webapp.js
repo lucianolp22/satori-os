@@ -72,7 +72,8 @@ function doGet(e) {
  * + capturar — nada de aprobaciones / email / borrados por este canal. Responde JSON.
  */
 var VOZ_TOOLS = { estado: 1, brief: 1, vehemence: 1, cliente: 1, cerebro: 1, capturar: 1, sgic: 1, accion: 1,
-  aprobaciones: 1, decidir: 1, agente: 1, tarea: 1, encargar: 1 };  // F1+F2 Sato Ejecutor (24-ago): S5 en el cliente + validacion server-side default-deny aca
+  aprobaciones: 1, decidir: 1, agente: 1, tarea: 1, encargar: 1,   // F1+F2 Sato Ejecutor (24-ago): S5 en el cliente + validacion server-side default-deny aca
+  encargos_listos: 1 };   // E1 (27-ago) lazo cerrado: LECTURA (el unico write es el flag `avisado`) -> sin S5
 
 // ── Voz-acciones P2 (16-jul) — la voz ESCRIBE estructuras, con gate ──────────
 //
@@ -169,6 +170,7 @@ function doPost(e) {
       case 'agente':   if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' }); data = vozDispararAgente_(id, vozStr_(args.agente, 24)); break;  // F1: encola SIN drenar
       case 'tarea':    data = vozCrearTarea_(vozStr_(args.descripcion, 500), vozStr_(args.prioridad, 2), vozStr_(args.fecha_limite, 10), id); break;  // F1
       case 'encargar': data = vozEncargar_(vozStr_(args.texto, 1000), vozStr_(args.tipo, 20), vozStr_(args.repo, 40)); break;  // F2 Sato Ejecutor
+      case 'encargos_listos': data = encargosListos(); break;  // E1 (27-ago): que hay terminado y sin enunciar (marca `avisado`)
       case 'sgic': {    // SGIC 14-jul: consulta read-only de una hoja whitelisted del cliente (o ventas de la fuente viva)
         if (!id) return vozOut_({ ok: false, error: 'falta_idCliente' });
         var sres = sgicConsulta_(id, vozStr_(args.hoja, 40), vozStr_(args.mes, 7), args.limite);
@@ -353,7 +355,21 @@ function encargosPoll_() {
   });
 }
 
-/** Reporte del runner: estado final (hecho|fallido) + resumen + artefactos + log_ref + aviso. */
+/** Reporte del runner: estado final (hecho|fallido) + resumen + artefactos + log_ref + aviso.
+ *
+ * E1 · LAZO CERRADO (27-ago). Un encargo que termina y nadie te avisa es un encargo que no
+ * terminó: hasta acá el resultado quedaba en una fila del MAESTRO esperando que Luciano fuera a
+ * mirarla. Ahora `hecho` (a) marca `avisado:false` — la bandera que `encargosListos` levanta para
+ * que Sato lo enuncie UNA vez — y (b) empuja el nudge al teléfono.
+ *
+ * `fallido` NO dispara push de éxito (N5: jamás narrar un éxito que no ocurrió). Tampoco dispara
+ * push de fracaso: el canal es un nudge, y el detalle del error vive en el Aviso + el CM. Sí queda
+ * con `avisado:false`, así que Sato igual lo cuenta al abrir la voz — diciendo que falló.
+ *
+ * El push es FAIL-OPEN: `_pushTelefono_` ya devuelve {enviado,motivo} sin tirar, y encima va en
+ * try/catch — un canal de aviso caído no puede hacer fallar el reporte del runner (si el reporte
+ * falla, el runner reintenta y el encargo se duplicaría).
+ */
 function encargosReportar_(payload) {
   if (!payload || !payload.id_encargo) return { ok: false, error: 'falta_id_encargo' };
   var est = String(payload.estado || '').toLowerCase();
@@ -362,10 +378,71 @@ function encargosReportar_(payload) {
     resultado_resumen: limpiarHostilTexto_(String(payload.resumen || ''), 300),
     artefactos: limpiarHostilTexto_(String(payload.artefactos || ''), 300),
     log_ref: limpiarHostilTexto_(String(payload.log_ref || ''), 200) };
+  // El flag del lazo se setea para AMBOS estados terminales: lo que decide si hay push es `est`,
+  // no `avisado`. Un encargo fallido sin enunciar sigue siendo algo que Luciano tiene que saber.
+  campos.avisado = false;
   var ok = _encSet_(String(payload.id_encargo), campos);
-  if (ok) { try { crearAviso({ origen: 'sistema', tipo: 'encargo_' + est,
-    mensaje: 'Encargo ' + payload.id_encargo + ' ' + est + ': ' + campos.resultado_resumen }); } catch (e) {} }
-  return ok ? { ok: true } : { ok: false, error: 'encargo_no_encontrado' };
+  if (!ok) return { ok: false, error: 'encargo_no_encontrado' };
+  try { crearAviso({ origen: 'sistema', tipo: 'encargo_' + est,
+    mensaje: 'Encargo ' + payload.id_encargo + ' ' + est + ': ' + campos.resultado_resumen }); } catch (e) {}
+  var push = null;
+  if (est === 'hecho') {
+    // PII-free por construcción: el resumen lo escribe el runner sobre el texto del encargo de
+    // Luciano (nunca una hoja de tenant) y ya pasó por `limpiarHostilTexto_`. Igual se acorta: el
+    // push es un nudge de una línea — el detalle vive en el CM.
+    try { push = _pushTelefono_('Encargo listo · ' + payload.id_encargo,
+                                campos.resultado_resumen || 'Terminado. El detalle está en el Centro de Mando.'); }
+    catch (eP) { push = { enviado: false, motivo: 'excepción: ' + String((eP && eP.message) || eP) }; }
+  }
+  // `push` viaja en la respuesta (aditivo) para que el assert D48c pueda VER que un `fallido` no
+  // intentó push, sin tener que leerle el código a la función.
+  return { ok: true, push: push };
+}
+
+/**
+ * E1 · LAZO CERRADO — qué terminó y todavía no te lo dije. Tool de voz `encargos_listos`.
+ *
+ * Devuelve los encargos en estado terminal con `avisado` falsy y los marca `avisado:true` en la
+ * MISMA pasada, bajo `conLock`. Esa es toda la idempotencia: llamarla dos veces seguidas devuelve
+ * la lista y después vacío, así Sato lo enuncia una vez y no repite en cada saludo.
+ *
+ * READ-ONLY salvo el flag: no toca estado, resultado ni ninguna hoja de tenant. Por eso no lleva S5
+ * (confirmation-pattern) — no hay nada que confirmar.
+ *
+ * CAP DE VOZ: se marcan TODAS las filas pendientes pero se devuelven las N últimas. La columna
+ * `avisado` nace hoy: todos los encargos históricos arrancan con la celda vacía ⇒ falsy ⇒ la
+ * primera llamada los junta a todos. Sin el cap, el estreno de esta tool sería Sato leyendo en voz
+ * alta el historial entero. Marcar todo (y no solo lo devuelto) es lo que drena ese backlog de una,
+ * en vez de arrastrarlo llamada tras llamada.
+ *
+ * @return {{total:number, omitidos:number, items:Array<{id,estado,resumen}>}}
+ */
+var ENCARGOS_LISTOS_CAP = 5;
+function encargosListos() {
+  _soloOwner_('encargosListos');   // invariante X2: top-level ⇒ invocable por RPC ⇒ puerta.
+  var sh = _encHoja_(); if (!sh) return { total: 0, omitidos: 0, items: [] };
+  return conLock(function () {
+    var m = sh.getDataRange().getValues(); var H = m[0];
+    var iId = H.indexOf('id_encargo'), iEst = H.indexOf('estado'), iAv = H.indexOf('avisado'),
+        iRes = H.indexOf('resultado_resumen');
+    // Guard de columna lazy: si la hoja existe pero es de antes del schema nuevo, `avisado` no
+    // está y marcar sería un no-op silencioso que re-listaría lo mismo para siempre.
+    // `ensureSheet` (vía `_encHoja_`) ya la agrega, pero el guard no depende de esa suposición.
+    if (iId < 0 || iEst < 0 || iAv < 0) return { total: 0, omitidos: 0, items: [] };
+    var pend = [];
+    for (var r = 1; r < m.length; r++) {
+      var est = String(m[r][iEst]).toLowerCase();
+      if (est !== 'hecho' && est !== 'fallido') continue;
+      if (esVerdadero_(m[r][iAv])) continue;
+      m[r][iAv] = true;
+      pend.push({ id: String(m[r][iId]), estado: est,
+                  resumen: limpiarHostilTexto_(String(iRes >= 0 ? m[r][iRes] : ''), 200) });
+    }
+    if (!pend.length) return { total: 0, omitidos: 0, items: [] };
+    sh.getRange(1, 1, m.length, H.length).setValues(m);
+    var items = pend.slice(-ENCARGOS_LISTOS_CAP);   // los más recientes (la hoja es append-only)
+    return { total: pend.length, omitidos: pend.length - items.length, items: items };
+  });
 }
 
 /** Salida JSON estándar del tool-backend. */

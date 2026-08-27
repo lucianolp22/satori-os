@@ -1,10 +1,27 @@
-# HANDOFF — Satori OS — 2026-08-25 (espejo vivo · sesión Cowork tandas 1-4)
+# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1)
 
-DEPLOY-PENDIENTE: parcial — **prod `/exec` = @54** (verificado con `clasp deployments` el 26-ago; el promote del 25-ago encadenó @51→@54, selfTest CERTIFICADO 938/0, rollback @50 en `_promote_rollback.txt`). **`/dev` (HEAD de GAS) va ADELANTE de `/exec`**: contiene la tanda de integridad de datos SGIC/Sato del 25-26 ago, aún SIN certificar en el editor.
+DEPLOY-PENDIENTE: sí — **prod `/exec` = @55, CERTIFICADO 994/0** (los 5 tramos en el editor; rollback en `_promote_rollback.txt`). El repo va ADELANTE de `/exec` y de `/dev`: **`8b5def5`** (Ola 1.0 — cobertura del canal de push) **NO está pusheado a GAS**, y encima va este commit **[CAPACIDADES-SATO E1]** (lazo cerrado del encargo + fix 429 de ntfy), que todavía **no corrió en el editor ni se pushó**.
 
-PRÓXIMO PASO: **certificar la tanda SGIC/Sato en el editor + eyeball en `/dev`** (guion en la sesión Code del 26-ago); después, eyeball de verificación en `/exec` @54 (2 min que pide el promote): abrir la app como luciano@, probar la voz 30s ("hola Sato, dame el brief") y mirar el CRM/orbe/Sato en prod. Rollback @50 en `_promote_rollback.txt` si algo se ve mal. Luego: cargar `moneda` en el MAESTRO (CLI-002 ARS · CLI-003 ARS · CLI-004 EUR).
+PRÓXIMO PASO — cierre de E1, en este orden (regla de oro del RUNBOOK, una etapa por vez):
+1. **Luciano, editor GAS: `selfTestTramo6()`** — es el tramo donde entró la tanda **D48** (15 asserts del lazo). Un tramo sin correr NO es verde.
+2. `clasp push` a `/dev` (con el diff repo↔GAS antes) → **eyeball**: abrir la voz y comprobar que Sato enuncia los encargos terminados en el saludo.
+3. `_promote_exec.sh --go` a `/exec` cuando el eyeball pase.
+4. **Push 429 (dependencia humana, E0.2 del RUNBOOK):** cargar `NTFY_TOKEN` en Script Properties (cuenta ntfy) y correr `probarPushTelefono()`. Sin token el canal sigue funcionando anónimo — y sigue expuesto al 429 por IP compartida.
+Después de E1: **E2** (proactividad + health de conectores + saludo de voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E1 y libera E2.
 
-> **Sesión del 25-ago (Cowork) — 4 tandas, todo en `origin/main` (`25b149d`), `clasp push` a /dev hecho, git sincronizado.** Prod `/exec` NO tocada en la sesión (sigue ≈@50). Verificación offline de cada tanda: `node _harness.js` **676/0** · `python3 _verificar_index.py` OK (449/449) · render headless con shim GAS (desktop + iPhone 15 Pro Max) 0 errores JS.
+> **Sesión del 27-ago (Code) — E1 + E1-bis del RUNBOOK.** Verificación offline: `node _harness.js` **869/0** (845 → +24) · `python3 _verificar_index.py` OK (453/453). Lo que toca Sheets vivos NO está certificado: es el tramo 6 del paso 1.
+>
+> **Qué entró en E1** — el encargo que termina ahora AVISA. `encargosReportar_` con estado `hecho` marca `avisado:false` y dispara `_pushTelefono_` (un `fallido` NO dispara push de éxito: N5 llevada al canal nuevo); la tool de voz **`encargos_listos`** (`encargosListos`, gateada + en `ENDPOINTS_UI` + en `VOZ_TOOLS` + case en doPost) devuelve lo terminado-y-no-enunciado y lo marca en la misma pasada bajo `conLock` — se dice UNA vez; `agent.py` la llama **determinísticamente en el saludo** del entrypoint (timeout propio de 10 s, fail-open) y trae la REGLA E1 en el prompt. Schema: `Encargos` +`avisado` al final (aditiva; `ensureSheet` la materializa sola).
+> **Qué entró en E1-bis** — la rama ntfy manda `Authorization: Bearer <NTFY_TOKEN>` cuando la property existe: una request autenticada se cuotea contra la cuenta y no contra la IP saliente de Apps Script, que es de donde salía el 429. Sin token, idéntica a antes.
+>
+> **Desvío del RUNBOOK (declarado):** el runbook dice estados `listo`/`fallo`; los estados terminales REALES que escribe `encargos_runner.py` son **`hecho`/`fallido`**. El código y los asserts van contra el vocabulario que corre, no contra la prosa.
+> **Efecto declarado de D48 sobre datos reales:** la parte viva del assert llama `encargosListos()` de verdad, que marca `avisado` en TODO encargo terminal pendiente del MAESTRO. Un encargo real que estuviera esperando enunciado pierde la copia POR VOZ; conserva el push al teléfono (ya salió al reportar) y el Aviso en el CM.
+
+---
+
+### Historia — sesión del 25-ago (Cowork), 4 tandas
+
+> Todo en `origin/main` (`25b149d`), `clasp push` a /dev hecho, git sincronizado. Verificación offline de cada tanda: `node _harness.js` **676/0** · `python3 _verificar_index.py` OK (449/449) · render headless con shim GAS (desktop + iPhone 15 Pro Max) 0 errores JS.
 
 ## Lo que entró en la sesión (4 tandas)
 
@@ -16,20 +33,27 @@ PRÓXIMO PASO: **certificar la tanda SGIC/Sato en el editor + eyeball en `/dev`*
 
 **T4 · Sato sin ventanas + mobile** (`25b149d`): tocar el orbe (CM/Ficha/Núcleo) abre el **panel de Sato DENTRO del OS** (cero `window.open` por defecto). Voz full-duplex = botón `📞` opcional (ventanita — el iframe de GAS prohíbe el micrófono embebido, T1.4c; fix definitivo = PWA-C). Botones "Sato" ocultos con `display:none` (NO removidos — el DOM los necesita, lección +52). Mobile iPhone 15 Pro Max: tiles en carrusel, formularios apilados, targets ≥44px.
 
-## Verificado [25-ago]
-- [25-ago 10:10] **PROMOVIDO a /exec** — selfTest en el editor CERTIFICADO **938/0** (5 tramos, con el D44a2 nuevo y el fix de rate limit del D43). El promote encadenó @51→@54; **prod quedó en @54** (verificado con `clasp deployments` el 26-ago — el @51 que decía este handoff estaba stale).
+## Verificado
+- [26-ago] **PROMOVIDO a /exec @55 — selfTest CERTIFICADO 994/0** (los 5 tramos en el editor). Es el estado de prod HOY. Rollback en `_promote_rollback.txt`.
+- [26-ago] **Columnas del CRM MATERIALIZADAS** en el MAESTRO (`setup()` corrido por Luciano): `encaje_kairos_4b` · `ultimo_contacto` · `motivo_perdido` en `Clientes`. Ya no son "declaradas en el schema y ausentes en la hoja".
+- [27-ago] **E1 + E1-bis offline**: `node _harness.js` **869/0** · `python3 _verificar_index.py` OK (453/453) · `node --check` en los 5 módulos tocados + `ast.parse` de `agent.py`.
+- [25-ago 10:10] (histórico) el promote del 25-ago encadenó @51→@54 con selfTest 938/0.
 - Offline: `node _harness.js` **676/0** (incluye 17 asserts nuevos del CRM: foco puro ×7, endpoints declarados/gateados ×9, schema) · `python3 _verificar_index.py` OK · render headless desktop+móvil 0 errores JS — evidencia: corridas en la sesión Cowork.
 - `setup()` corrido por Luciano 03:02 → col `encaje_kairos_4b` materializada en el MAESTRO.
 - Eyeball de Luciano en /dev (tanda 3): "todo muy bien"; obs de la voz → resuelta en T4.
 
 ## No verificado (⚠ gate del promote)
-- **selfTest 5 tramos EN VIVO con los asserts nuevos** — el D44a2 cambió (cola `encaje_kairos_4b`); NO está re-certificado. Es el PRÓXIMO PASO.
+- **D48 EN VIVO (tramo 6)** — el lazo cerrado del encargo NO corrió contra Sheets. Es el PRÓXIMO PASO 1. Los 24 asserts offline del arnés cubren el contrato y la rama del push; lo que toca la hoja `Encargos` (materialización de `avisado`, idempotencia real) solo lo prueba el editor.
+- **El push REAL nunca se envió** — `PUSH_PROVIDER`/credenciales no están cargadas en Script Properties, así que `_pushTelefono_` es un no-op declarado y `probarPushTelefono()` devuelve `que_falta`. El canal está cableado y sin estrenar.
+- **El saludo de voz con el lazo** — `agent.py` cambió; no se levantó el agente LiveKit en esta sesión. Eyeball del paso 2.
 - **Asserts D45 EN VIVO del CRM** — los endpoints nuevos tocan Sheets y NO tienen assert en vivo (lección +46). DEUDA con dueño (Cowork), a construir al **profundizar el CRM** (próxima sesión). Riesgo residual bajo: escrituras aditivas, gateadas, con lock, reversibles.
 - El ciclo real registrar→firmar de una propuesta en /exec (recomendado probarlo una vez con un CLI dummy tras el promote).
 
 ## Pendiente
 **Must:**
-- Promover a /exec (secuencia arriba).
+- **Cerrar E1**: `selfTestTramo6()` en el editor → `clasp push` /dev → eyeball de la voz → promote. (Los 4 pasos del PRÓXIMO PASO.)
+- **Cargar `NTFY_TOKEN`** (o `PUSH_PROVIDER=pushover` + token) en Script Properties: sin eso el canal de push está cableado pero mudo.
+- **E2 del RUNBOOK** (proactividad + health de conectores + saludo), después de que Cowork verifique E1.
 - Cargar `moneda` en el MAESTRO: CLI-002 ARS · CLI-003 ARS · CLI-004 EUR (por Chrome con Cowork, o a mano col N de Clientes).
 
 **Should:**
@@ -44,14 +68,16 @@ PRÓXIMO PASO: **certificar la tanda SGIC/Sato en el editor + eyeball en `/dev`*
 ## Artefactos
 | Tipo | Nombre | Ruta / ID / URL |
 |---|---|---|
-| repo | satori-os | `github.com/lucianolp22/satori-os` · HEAD `25b149d` |
+| repo | satori-os | `github.com/lucianolp22/satori-os` · HEAD = este commit `[CAPACIDADES-SATO E1]`, sobre `8b5def5` |
 | MAESTRO (Sheet) | Satori OS — MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` |
 | scriptId GAS | — | `1M-LYF0GO_Zgh2quGNlCzl4Okcx-DFqQxUhA_jqFqtbJNXYqnIu-2GVnO` |
-| deployment /exec (prod) | — | `AKfycbxZJL4E…phLm` (≈@50; rollback @49 en `_promote_rollback.txt`) |
+| deployment /exec (prod) | — | `AKfycbxZJL4E…phLm` (**@55**, CERTIFICADO 994/0; rollback en `_promote_rollback.txt`) |
 | deployment /dev | — | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
 | backend CRM | 33_cartera.js | `carteraProxAccion` · `propuestaRegistrar` · `propuestaFirmar` · `_carteraFoco_` · `carteraPipeline` |
 | UI CRM/orbe | src/index.html | anclas: `CRM 25-ago` · `ORBE PERSISTENTE v2` · `unificación Director Sato` · `f360Comercial_` |
 | script promote | _promote_exec.sh | dry / `--go`; guardia GAS HEAD == src/ |
+| runbook de la ola | CAPACIDADES SATO | `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md` (E0…E7) · specs: `ENCARGO-CODE-CAPACIDADES-SATO-2026-08-26.md` |
+| lazo del encargo (E1) | 08_webapp.js · 34_push.js | `encargosReportar_` (rama `hecho` → push) · `encargosListos` (tool `encargos_listos`) · `_pushTelefono_` (ntfy + `NTFY_TOKEN`) |
 | handoffs de tanda | claude/ (Project) + raíz | `HANDOFF-2026-08-25-…-madrugada-port-orbe-M1.md` · `…-orbe-v2-sato-unificado-CRM.md` · `ADENDA-…-tanda4-…` |
 | voz | ElevenLabs voice | `xcAUMhbpNX2WRGsuhjFy` (EN USO ×2: agent.py + satoVoz — NO dar de baja) |
 

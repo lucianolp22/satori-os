@@ -6,7 +6,8 @@
  *
  * Bastión:
  *  - Credenciales SOLO en Script Properties (nunca en repo): PUSH_PROVIDER ('pushover'|'ntfy'),
- *    PUSHOVER_TOKEN, PUSHOVER_USER, NTFY_TOPIC (o NTFY_URL para server propio).
+ *    PUSHOVER_TOKEN, PUSHOVER_USER, NTFY_TOPIC (o NTFY_URL para server propio), NTFY_TOKEN
+ *    (opcional, E1-bis 27-ago: autentica la request y la saca de la cuota por IP → sin 429).
  *  - PII-FREE: el `cuerpo` es un nudge, jamás cifras/datos crudos de cliente (el detalle vive en CM/voz).
  *  - Fail-open silencioso: si falta credencial o el POST falla, NO tumba la corrida (try/catch + no-op).
  *
@@ -44,10 +45,18 @@ function _pushTelefono_(titulo, cuerpo) {
       var topic = props.getProperty('NTFY_TOPIC');
       var base = props.getProperty('NTFY_URL') || 'https://ntfy.sh';
       if (!topic) return { enviado: false, motivo: 'falta NTFY_TOPIC (no-op)' };
+      // E1-bis (27-ago) — FIX DEL 429. ntfy.sh cuotea por IP, y la IP saliente de Apps Script es
+      // compartida con medio mundo: el 429 no era nuestro volumen, era el del vecindario. Una
+      // request AUTENTICADA se cuotea contra la cuenta, no contra la IP. De paso cierra el caveat
+      // del topic público (un topic adivinable lo puede leer cualquiera; con token, no).
+      // El token es OPCIONAL: sin `NTFY_TOKEN` la rama funciona igual que antes (topic anónimo).
+      var hdrsN = { Title: t };
+      var tokN = props.getProperty('NTFY_TOKEN');
+      if (tokN) hdrsN.Authorization = 'Bearer ' + tokN;
       var rN = UrlFetchApp.fetch(base.replace(/\/+$/, '') + '/' + encodeURIComponent(topic), {
         method: 'post',
         contentType: 'text/plain; charset=utf-8',
-        headers: { Title: t },
+        headers: hdrsN,
         payload: msg,
         muteHttpExceptions: true
       });
@@ -86,7 +95,8 @@ function probarPushTelefono() {
       PUSH_PROVIDER: !!provider,
       PUSHOVER_TOKEN: !!props.getProperty('PUSHOVER_TOKEN'),
       PUSHOVER_USER: !!props.getProperty('PUSHOVER_USER'),
-      NTFY_TOPIC: !!props.getProperty('NTFY_TOPIC')
+      NTFY_TOPIC: !!props.getProperty('NTFY_TOPIC'),
+      NTFY_TOKEN: !!props.getProperty('NTFY_TOKEN')   // E1-bis: opcional, pero es lo que evita el 429 por IP compartida
     }
   };
   if (!provider) {

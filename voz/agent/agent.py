@@ -171,6 +171,16 @@ INSTRUCCIONES = (
     "Si Luciano pide investigar algo, NO digas sólo 'no puedo': decí que se lo encargás al equipo y que le llega el informe, y "
     "llamá 'capturar' con el texto prefijado exactamente con [RESEARCH]. Si preguntan '¿podés investigar la web?', la respuesta "
     "honesta es: 'yo no directamente; lo encargo al equipo y te llega el informe'. Prometer que lo investigás vos = mentira. "
+    # ── E1 (27-ago) LAZO CERRADO — el encargo que termina y te lo digo. Hasta acá "te llega el informe"
+    # era una promesa sin acuse: el resultado quedaba en una fila del MAESTRO esperando que Luciano
+    # fuera a mirarla. Ahora el aviso existe de verdad (push al teléfono) y vos lo enunciás por voz.
+    "REGLA E1 (encargos terminados): tenés la tool 'encargos_listos', que te dice qué encargos TERMINARON y todavía no "
+    "se enunciaron. Llamala (a) al abrir la conversación, como parte del saludo, y (b) cada vez que Luciano pregunte "
+    "algo del tipo '¿algo listo?', '¿terminó algo?', '¿hay novedades de lo que encargué?'. Enunciá cada encargo UNA "
+    "sola vez: la tool ya los marca como avisados, así que si devuelve vacío es porque no hay nada nuevo — decilo así "
+    "('nada nuevo terminado') y NO repitas de memoria lo que dijiste antes (N4/N5). Si un encargo viene con estado "
+    "'fallido', decí que FALLÓ; jamás lo cuentes como listo. Si devuelve 'omitidos', mencionalos como número "
+    "('y N más viejos'), sin inventarles contenido. "
     # ── N9 (16-jul noche) — una tool que falla NO se cubre inventando soporte. En el log de las 16:23,
     # al fallar `accion`, Sato terminó recomendando "comunicate con Cloud Pro" — un canal que NO existe
     # (eco de STT de "Claude Pro"). Primo del gap 4 al revés: en vez de "no puedo" seco, un camino falso.
@@ -602,6 +612,21 @@ class SatoriVoz(Agent):
         return res
 
     @function_tool()
+    async def encargos_listos(self, context: RunContext) -> str:
+        """Que ENCARGOS terminaron (bien o mal) y todavia no se enunciaron. Es el cierre del lazo
+        de 'encargar': el runner ejecuta en el Mac y esto te dice el resultado.
+
+        Usala al SALUDAR (parte del saludo de apertura) y ante 'algo listo?' / 'termino algo?' /
+        'hay novedades de lo que encargue?'.
+
+        Es de LECTURA: lo unico que escribe es la marca de 'ya lo dije', asi que no lleva
+        confirmacion verbal (S5). Cada encargo sale UNA sola vez: si devuelve vacio, no hay nada
+        nuevo — decilo tal cual, no repitas de memoria (N4/N5). Un encargo con estado 'fallido'
+        se cuenta como FALLIDO, nunca como listo.
+        """
+        return await _llamar_backend("encargos_listos")
+
+    @function_tool()
     async def oficina_estado(self, context: RunContext) -> str:
         """Estado de la Oficina Virtual, el negocio paralelo de Luciano de productos digitales y
         dropshipping físico. Trae: agentes y su actividad de hoy, aprobaciones pendientes del gate,
@@ -719,6 +744,53 @@ class SatoriVoz(Agent):
         return f"No pude decidir la aprobación {id_aprobacion}: {_limpiar_hostil(str(detalle), 100)}."
 
 
+# ── E1 (27-ago) · el saludo cierra el lazo del encargo ────────────────────────────────────────
+# El saludo llama `encargos_listos` DETERMINÍSTICAMENTE, no por decisión del LLM: el aviso de que
+# algo terminó no puede depender de que el modelo se acuerde de pedirlo. Lo que devuelve entra al
+# `generate_reply` como DATO ya obtenido — la regla N4 se cumple sola (el número lo trajo un tool
+# de este turno) y el LLM solo lo enuncia.
+#
+# Timeout PROPIO y corto: el saludo es lo primero que se oye y no puede quedar colgado 35 s
+# esperando a GAS. Si vence, se saluda igual (fail-open): el encargo ya avisó por push al teléfono
+# y quedó su Aviso en el CM — el enunciado por voz es la tercera copia, no la única.
+_TIMEOUT_SALUDO_S = 10
+_SALUDO_BASE = "Saludá breve a Luciano en español rioplatense y preguntale en qué lo ayudás."
+
+
+async def _instrucciones_saludo() -> str:
+    """Arma las instrucciones del saludo de apertura, con los encargos terminados si los hay."""
+    try:
+        crudo = await asyncio.wait_for(_llamar_backend("encargos_listos"), timeout=_TIMEOUT_SALUDO_S)
+    except asyncio.TimeoutError:
+        # Se anota FUERTE: el backend pudo haber marcado los encargos como avisados igual (la
+        # llamada sigue viva del otro lado), así que un vencimiento acá puede costar un enunciado.
+        logger.warning("saludo: `encargos_listos` no respondió en %ss — saludo sin novedades", _TIMEOUT_SALUDO_S)
+        return _SALUDO_BASE
+    except Exception as e:  # ToolError / transporte caído: el saludo NUNCA se cae por esto
+        logger.warning("saludo: `encargos_listos` falló (%s) — saludo sin novedades", e)
+        return _SALUDO_BASE
+    if crudo is _MSG_BACKEND_TIMEOUT:
+        return _SALUDO_BASE
+    try:
+        data = json.loads(crudo) if isinstance(crudo, str) else crudo
+    except (TypeError, ValueError):
+        logger.warning("saludo: respuesta de `encargos_listos` ilegible — saludo sin novedades")
+        return _SALUDO_BASE
+    items = (data or {}).get("items") or []
+    if not items:
+        return _SALUDO_BASE
+    # Se le pasa el JSON tal cual: el LLM enuncia, no interpreta ni completa (N4).
+    omitidos = (data or {}).get("omitidos") or 0
+    extra = (" Hay %d más viejos que no detallás." % omitidos) if omitidos else ""
+    return (
+        _SALUDO_BASE
+        + " ANTES de la pregunta, contale que terminaron estos encargos y decí de cada uno el id y una "
+        + "línea de resumen; los que tengan estado 'fallido' presentalos como FALLIDOS, no como listos. "
+        + "Enunciálos UNA vez, sin adornar ni completar lo que no dice el dato: "
+        + json.dumps(items, ensure_ascii=False) + extra
+    )
+
+
 server = AgentServer()
 
 
@@ -753,9 +825,7 @@ async def entrypoint(ctx: agents.JobContext):
         vad=silero.VAD.load(),
     )
     await session.start(room=ctx.room, agent=SatoriVoz())
-    await session.generate_reply(
-        instructions="Saludá breve a Luciano en español rioplatense y preguntale en qué lo ayudás."
-    )
+    await session.generate_reply(instructions=await _instrucciones_saludo())
 
 
 if __name__ == "__main__":

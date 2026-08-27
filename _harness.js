@@ -2812,6 +2812,112 @@ seccion('PUSH · 34_push.js (credenciales, silencio del token, no tumba la corri
       'PUSH 🔒 el diagnóstico reporta la PRESENCIA de cada credencial (!!), nunca su valor');
 }
 
+// ═══ E1 · LAZO CERRADO DEL ENCARGO (CAPACIDADES-SATO, 27-ago) ═══════════════════════════════════
+// El lazo con Sheets vivos lo certifica D48 en el tramo 6. Acá se fija lo que SÍ se puede probar
+// offline: el contrato de alta de la tool (las cuatro listas), la forma del schema, y —lo que más
+// importa— que el push cuelgue de la rama `hecho` y NO de la de `fallido`. Un push que dice
+// "listo" cuando el runner explotó es la regla N5 rota en el canal nuevo.
+seccion('E1 · lazo cerrado del encargo (encargos_listos + push solo en `hecho`)');
+{
+  const web = fs.readFileSync(path.join(SRC, '08_webapp.js'), 'utf8');
+  const sinComE = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const webc = sinComE(web);
+
+  // (1) LISTA-CONTRATO: alta en VOZ_TOOLS + case en el router + gate + ENDPOINTS_UI, mismo commit.
+  chk(ctx.VOZ_TOOLS.encargos_listos === 1,
+      'E1 `encargos_listos` está dada de alta en VOZ_TOOLS');
+  chk(/case 'encargos_listos':\s*data = encargosListos\(\)/.test(webc),
+      'E1 el router de doPost tiene el `case` que la sirve (sin él: unknown_tool)');
+  chk(typeof ctx.encargosListos === 'function' && ctx.encargosListos.length === 0,
+      'E1 `encargosListos` existe y no toma argumentos (corrible desde el desplegable del editor)');
+  chk(/_soloOwner_\('encargosListos'\)/.test(webc) && ctx.ENDPOINTS_UI.indexOf('encargosListos') >= 0,
+      'E1 🔒 `encargosListos` está gateada y declarada en ENDPOINTS_UI (regla anti-drift módulo S)');
+
+  // (2) El flag va AL FINAL del schema: aditivo, no corre columnas de nadie.
+  const encCols = ctx.MAESTRO_SHEETS.Encargos;
+  chk(encCols[encCols.length - 1] === 'avisado',
+      'E1 `avisado` es la ÚLTIMA columna de Encargos (aditiva — nadie lee por índice, pero igual)');
+
+  // (3) 🔒 EL PUSH CUELGA DE `hecho`. Se recorta el cuerpo de `encargosReportar_` y se verifica que
+  //     la ÚNICA llamada a `_pushTelefono_` del módulo viva dentro del `if (est === 'hecho')`.
+  const iRep = webc.indexOf('function encargosReportar_');
+  const cuerpoRep = webc.slice(iRep, webc.indexOf('function encargosListos'));
+  chk(iRep > 0 && /campos\.avisado = false;/.test(cuerpoRep),
+      'E1 un encargo terminado queda `avisado:false` — la marca que hace que Sato lo diga');
+  const pushes = (webc.match(/_pushTelefono_\(/g) || []).length;
+  const iRama = cuerpoRep.indexOf("if (est === 'hecho')");
+  chk(pushes === 1 && iRama > 0 && cuerpoRep.indexOf('_pushTelefono_(') > iRama,
+      'E1 🔒 el ÚNICO _pushTelefono_ del módulo está DENTRO de la rama `hecho` — un `fallido` no ' +
+      'dispara push de éxito (N5)');
+  chk(/try \{ push = _pushTelefono_/.test(cuerpoRep) && /catch \(eP\)/.test(cuerpoRep),
+      'E1 🔒 el push va en try/catch: un canal de aviso caído no puede voltear el reporte del runner');
+  chk(/return \{ ok: true, push: push \};/.test(cuerpoRep),
+      'E1 el resultado del push viaja en la respuesta (es lo que D48c mira para probar el `fallido`)');
+
+  // (4) Idempotencia: la tool marca el flag Y persiste. Sin el setValues, marcaría en memoria y
+  //     re-listaría lo mismo en cada saludo — el bug que este lazo existe para no tener.
+  const cuerpoList = webc.slice(webc.indexOf('function encargosListos'), webc.indexOf('function encargosListos') + 2000);
+  chk(/m\[r\]\[iAv\] = true;/.test(cuerpoList) && /setValues\(m\)/.test(cuerpoList),
+      'E1 🔒 `encargosListos` marca `avisado` y lo PERSISTE (idempotencia: se dice una vez)');
+  chk(/if \(iId < 0 \|\| iEst < 0 \|\| iAv < 0\)/.test(cuerpoList),
+      'E1 guard de columna lazy: sin `avisado` en la hoja devuelve vacío, no marca en el aire');
+  chk(/conLock\(/.test(cuerpoList),
+      'E1 lee-modifica-escribe bajo conLock (el runner reporta en paralelo al saludo de la voz)');
+
+  // (5) Anti-verde-falso por omisión: una tanda sin `tramo` queda fuera de TODOS los runners.
+  const st = fs.readFileSync(path.join(SRC, '09_selftest.js'), 'utf8');
+  chk(/\{ n: 'D48[^']*', f: _asertsD48_, tramo: 6 \}/.test(st),
+      'E1 la tanda D48 está registrada en SELFTEST_TANDAS CON tramo (si no, no la corre nadie)');
+  chk(typeof ctx._asertsD48_ === 'function', 'E1 `_asertsD48_` existe y carga');
+  chk(/id_encargo\)\.indexOf\('ENC-TEST'\) === 0/.test(st),
+      'E1 `limpiarTodoTest` barre los encargos de prueba de D48 (marcador duro ENC-TEST)');
+
+  // (6) La regla del lazo y la tool viven también del lado del agente de voz — si el prompt no la
+  //     nombra, la capacidad existe y nadie la usa.
+  const ag = fs.readFileSync(path.join(__dirname, 'voz', 'agent', 'agent.py'), 'utf8');
+  chk(/async def encargos_listos\(/.test(ag) && /_llamar_backend\("encargos_listos"\)/.test(ag),
+      'E1 agent.py expone la function_tool `encargos_listos` contra el tool-backend');
+  chk(/REGLA E1 \(encargos terminados\)/.test(ag),
+      'E1 el prompt de Sato trae la regla del lazo (cuándo llamarla, y `fallido` ≠ listo)');
+  chk(/instructions=await _instrucciones_saludo\(\)/.test(ag) && /_TIMEOUT_SALUDO_S/.test(ag),
+      'E1 el saludo del entrypoint la llama DETERMINÍSTICAMENTE, con timeout propio (fail-open)');
+}
+
+// ═══ E1-bis · fix del 429 de ntfy (34_push.js) ═════════════════════════════════════════════════
+// Assert FUNCIONAL, no estático: se intercepta el fetch y se mira el header que realmente sale.
+// Los stubs son I/O muerto (Properties + UrlFetch), no imitan lógica de negocio — la doctrina
+// «stub divergente = verde falso» se respeta porque lo aserido es lo que ESTE código construye.
+seccion('E1-bis · ntfy autenticado (Authorization solo cuando hay NTFY_TOKEN)');
+{
+  const propsReal = ctx.PropertiesService, fetchReal = ctx.UrlFetchApp;
+  function pushCon(props) {
+    let visto = null;
+    ctx.PropertiesService = { getScriptProperties: () => ({ getProperty: (k) => (k in props ? props[k] : null) }) };
+    ctx.UrlFetchApp = { fetch: (url, opts) => { visto = { url: url, opts: opts }; return { getResponseCode: () => 200 }; } };
+    try { return { res: ctx._pushTelefono_('T', 'cuerpo'), visto: visto }; }
+    finally { ctx.PropertiesService = propsReal; ctx.UrlFetchApp = fetchReal; }
+  }
+
+  const con = pushCon({ PUSH_PROVIDER: 'ntfy', NTFY_TOPIC: 'satori-x', NTFY_TOKEN: 'tk_de_prueba' });
+  chk(con.visto && con.visto.opts.headers.Authorization === 'Bearer tk_de_prueba',
+      'E1-bis 🔒 con NTFY_TOKEN la request sale AUTENTICADA (cuota por cuenta, no por IP → sin 429)');
+  chk(con.res.enviado === true, 'E1-bis con token el envío se reporta ok');
+
+  const sin = pushCon({ PUSH_PROVIDER: 'ntfy', NTFY_TOPIC: 'satori-x' });
+  chk(sin.visto && !('Authorization' in sin.visto.opts.headers) && sin.visto.opts.headers.Title === 'T',
+      'E1-bis sin token NO se manda Authorization (la rama anónima sigue funcionando igual)');
+  chk(sin.res.enviado === true, 'E1-bis sin token el envío anónimo se reporta ok (retro-compatible)');
+
+  // El token es del provider ntfy y de nadie más: pushover no lo toca.
+  const po = pushCon({ PUSH_PROVIDER: 'pushover', PUSHOVER_TOKEN: 'a', PUSHOVER_USER: 'b', NTFY_TOKEN: 'tk_de_prueba' });
+  chk(po.visto && String(po.visto.url).indexOf('pushover.net') >= 0 && !po.visto.opts.headers,
+      'E1-bis el NTFY_TOKEN no se filtra a la rama pushover');
+  // Y sigue sin poder colarse al log: el diagnóstico reporta presencia, jamás el valor.
+  const pushSrc = fs.readFileSync(path.join(SRC, '34_push.js'), 'utf8');
+  chk(/NTFY_TOKEN: !!props\.getProperty\('NTFY_TOKEN'\)/.test(pushSrc),
+      'E1-bis 🔒 el diagnóstico reporta la PRESENCIA del token nuevo (!!), nunca su valor');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

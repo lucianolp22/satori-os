@@ -2733,6 +2733,10 @@ function limpiarTodoTest() {
   // marcadas `__TEST__` en notas; una promoción REAL nunca se toca desde acá.
   var shAgE = ss.getSheetByName('Agentes_estado');
   if (shAgE) borrarFilasDonde(shAgE, function (f) { return String(f.notas).indexOf('__TEST__') >= 0; });
+  // CAPACIDADES-SATO E1 (27-ago): encargos de prueba de D48. Hoja LAZY (puede no existir todavía).
+  // Marcador DURO por prefijo de id: un encargo real es 'ENC-0001', jamás 'ENC-TEST-'.
+  var shEncL = ss.getSheetByName('Encargos');
+  if (shEncL) borrarFilasDonde(shEncL, function (f) { return String(f.id_encargo).indexOf('ENC-TEST') === 0; });
   var shDec = ss.getSheetByName('Decisiones');
   if (shDec) borrarFilasDonde(shDec, function (f) {
     return String(f.decision).indexOf('__TEST__') === 0 || idsTest[String(f.alcance)] === true;
@@ -3467,6 +3471,99 @@ function _asertsD47_(chk, log, opts) {
   log.push('   ↳ D47 SGIC: config + endpoint sano + latencia ' + ms + ' ms + fuente nombrada + framing neutro');
 }
 
+/**
+ * D48 · CAPACIDADES-SATO E1 (27-ago) — LAZO CERRADO DEL ENCARGO.
+ *
+ * Lo que se fija acá es el lazo, no la plomería: que terminar un encargo (a) deje la marca que
+ * hace que Sato lo diga, (b) que decirlo sea IDEMPOTENTE (una vez, no en cada saludo) y (c) que un
+ * encargo FALLIDO no dispare un push de éxito — la regla N5 llevada al canal de push: un nudge que
+ * dice "listo" cuando el runner explotó es exactamente la mentira que N5 prohíbe por voz.
+ *
+ * Los estados terminales REALES son `hecho`/`fallido` (los escribe `encargos_runner.py`), no
+ * `listo`/`fallo` como decía la prosa del runbook. El assert va contra el vocabulario que corre.
+ *
+ * EFECTO SOBRE DATOS REALES (declarado, no escondido): la parte `completo` llama a
+ * `encargosListos()`, que marca `avisado` en TODO encargo terminal pendiente del MAESTRO — o sea,
+ * corre el drenaje de verdad. Un encargo real que hubiera quedado sin enunciar se pierde el
+ * enunciado POR VOZ, pero conserva sus otras dos copias: el push al teléfono (ya salió al reportar)
+ * y el Aviso en el Centro de Mando. Se acepta a cambio de aserir el lazo contra Sheets reales.
+ */
+function _asertsD48_(chk, log, opts) {
+  // ── (d) LISTA-CONTRATO: la tool nueva está dada de alta en las CUATRO listas. Puro, sin I/O. ──
+  chk(VOZ_TOOLS.encargos_listos === 1,
+      'D48d `encargos_listos` está en VOZ_TOOLS (sin esto el router la rechaza con unknown_tool)');
+  chk(ENDPOINTS_UI.indexOf('encargosListos') >= 0,
+      'D48d2 🔒 `encargosListos` está declarada en ENDPOINTS_UI (regla anti-drift del módulo S)');
+  chk(typeof encargosListos === 'function' && encargosListos.length === 0,
+      'D48d3 `encargosListos` existe y no toma argumentos (corrible desde el desplegable)');
+  // El flag va AL FINAL del schema: agregarlo en el medio correría las columnas de cualquier
+  // consumidor que algún día lea por índice. El assert DERIVA la cola, no clava el número.
+  var d48cols = MAESTRO_SHEETS.Encargos;
+  chk(d48cols[d48cols.length - 1] === 'avisado',
+      'D48d4 `avisado` es la ÚLTIMA columna de Encargos (aditiva, no corre a nadie)');
+
+  if (!(opts && opts.completo)) {
+    log.push('   ↳ D48a-c (lazo con Sheets vivos) solo corren en selfTestTramo6');
+    return;
+  }
+
+  var sh = _encHoja_();
+  chk(!!sh, 'D48a0 la hoja Encargos existe (lazy: la materializa _hqHoja_/ensureSheet)');
+  if (!sh) return;
+  chk(sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String).indexOf('avisado') >= 0,
+      'D48a1 🔒 la columna `avisado` quedó MATERIALIZADA en la hoja viva (no solo en el schema)');
+
+  // Drenaje previo: deja el tablero limpio para poder MEDIR lo del test (ver el efecto declarado
+  // en el docstring). Lo que devuelve acá es backlog real ya avisado por push + Aviso.
+  var previo = encargosListos();
+  log.push('   ↳ D48 drenaje previo: ' + previo.total + ' encargo(s) terminal(es) sin enunciar');
+
+  function filaEnc(id) {
+    return leerTabla(sh).filter(function (f) { return String(f.id_encargo) === id; })[0];
+  }
+  var idOK = 'ENC-TEST-D48-ok', idNO = 'ENC-TEST-D48-fallo';
+  [idOK, idNO].forEach(function (id) {
+    appendFila(sh, { id_encargo: id, ts_creacion: ahoraISO(), origen: '__TEST__', id_cliente: '',
+      tipo: 'investigar', repo: 'SatoriOS', texto: '__TEST__ D48 lazo cerrado', estado: 'en_ejecucion',
+      id_aprobacion: '', ts_inicio: ahoraISO(), ts_fin: '', resultado_resumen: '', artefactos: '',
+      log_ref: '', decidido_por: '', avisado: '' });
+  });
+
+  // ── (a) `hecho` setea avisado=false e INTENTA el push ──
+  var rOK = encargosReportar_({ id_encargo: idOK, estado: 'hecho', resumen: '__TEST__ D48 resumen' });
+  chk(rOK.ok === true, 'D48a el reporte `hecho` del runner se registra');
+  var fOK = filaEnc(idOK);
+  chk(!!fOK && esVerdadero_(fOK.avisado) === false && String(fOK.estado) === 'hecho',
+      'D48a2 🔒 terminar un encargo lo deja `avisado:false` — la marca que hace que Sato lo diga');
+  chk(rOK.push !== null && typeof rOK.push === 'object' && rOK.push.hasOwnProperty('enviado'),
+      'D48a3 `hecho` INTENTA el push y reporta el resultado ({enviado,motivo}: ' +
+      String(rOK.push && rOK.push.motivo) + ')');
+
+  // ── (c) `fallido` NO dispara push de éxito (N5), pero SÍ queda pendiente de enunciar ──
+  var rNO = encargosReportar_({ id_encargo: idNO, estado: 'fallido', resumen: '__TEST__ D48 explotó' });
+  chk(rNO.ok === true && rNO.push === null,
+      'D48c 🔒 un encargo FALLIDO no dispara push de éxito (N5: no se narra un éxito que no ocurrió)');
+  var fNO = filaEnc(idNO);
+  chk(!!fNO && esVerdadero_(fNO.avisado) === false,
+      'D48c2 el fallido igual queda sin enunciar: Sato lo cuenta por voz, diciendo que falló');
+
+  // ── (b) idempotencia: lista una vez, marca, y al segundo llamado NO re-lista ──
+  var l1 = encargosListos();
+  var ids1 = (l1.items || []).map(function (i) { return String(i.id); });
+  chk(ids1.indexOf(idOK) >= 0 && ids1.indexOf(idNO) >= 0,
+      'D48b los dos encargos terminados aparecen en la primera llamada a encargos_listos');
+  chk(esVerdadero_(filaEnc(idOK).avisado) === true && esVerdadero_(filaEnc(idNO).avisado) === true,
+      'D48b2 enunciarlos ESCRIBE `avisado:true` en la hoja (no solo en la respuesta)');
+  var l2 = encargosListos();
+  var ids2 = (l2.items || []).map(function (i) { return String(i.id); });
+  chk(ids2.indexOf(idOK) < 0 && ids2.indexOf(idNO) < 0,
+      'D48b3 🔒 la segunda llamada NO los re-lista — Sato lo dice UNA vez, no en cada saludo');
+  chk(l1.items.length <= ENCARGOS_LISTOS_CAP && typeof l1.omitidos === 'number',
+      'D48b4 la respuesta respeta el cap de voz (' + ENCARGOS_LISTOS_CAP + ') y declara los omitidos');
+
+  log.push('   ↳ D48 lazo cerrado: hecho→avisado:false→push · fallido→sin push · enunciado idempotente');
+}
+
 var SELFTEST_TANDAS = [
   { n: 'D14 contrato F2', f: _asertsD14_, tramo: 2 },
   { n: 'D15 mantenimiento', f: _asertsD15_, tramo: 2 },
@@ -3503,7 +3600,10 @@ var SELFTEST_TANDAS = [
   // (adenda 26-ago: "no dos viajes"). Tramo propio y no cola del 5 para no acercarlo al techo de
   // 30 min de GAS, que es lo que ya mató una corrida completa.
   { n: 'D46 CRM PRO (sello, motivo, recontacto, encaje, correo aislado)', f: _asertsD46_, tramo: 6 },
-  { n: 'D47 SGIC integridad (config, endpoint, latencia, framing)', f: _asertsD47_, tramo: 6 }
+  { n: 'D47 SGIC integridad (config, endpoint, latencia, framing)', f: _asertsD47_, tramo: 6 },
+  // CAPACIDADES-SATO E1 (27-ago). Va al tramo 6 y no a uno propio: son 12 asserts baratos y el 6 es
+  // el tramo de certificación vigente — un tramo 7 para esto sumaría un viaje al editor por nada.
+  { n: 'D48 E1 lazo cerrado del encargo (avisado, push, idempotencia)', f: _asertsD48_, tramo: 6 }
 ];
 
 /**
