@@ -1,6 +1,6 @@
-# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1 en prod + E2 en /dev)
+# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1 + E2 en prod, SIN certificar)
 
-DEPLOY: **`/dev` (GAS HEAD) = E1 + E2 · prod `/exec` = @56 = E1 solo.** El `clasp push` de E2 salió con endoso de Cowork sobre los 3 desvíos, el fix del `Number('')` y el refactor de la lista-contrato. Guardia corrida antes y después: GAS HEAD == repo byte a byte, y antes del push GAS estaba exactamente en `8ed2150` (nada ajeno que pisar). **NO se promueve hasta que Luciano corra `selfTestTramo6()` + eyeball** — instrucción explícita de Cowork, y además la regla que quedó escrita tras el precedente #55. **Rollback de prod = @55 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 55`), CERTIFICADO 994/0.
+DEPLOY: **prod `/exec` = @57 — E1 + E2 EN PRODUCCIÓN, sin el gate del editor** (decisión de Luciano 27-ago; Cowork lo había bloqueado — ver EXCEPCIÓN DECLARADA abajo). Guardia GAS↔repo corrida antes del push y antes del promote: idénticos byte a byte. **Rollback = @56 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 56`) = E1 solo, también sin certificar; el último CERTIFICADO de verdad (994/0) es **@55**.
 
 ### EXCEPCIÓN DECLARADA — promote de E2 sin el gate del editor (27-ago)
 
@@ -20,9 +20,9 @@ Escrita **ANTES** de promover, como manda la regla que quedó del precedente #55
 E1 sigue en prod con sus dos gates salteados (decisión de Luciano, 27-ago). Con este promote, E2 se le suma en la misma condición.
 
 ⚠ **VERDE CON ASTERISCO — qué falta para que esto sea verde de verdad:**
-0. **E2 está en `/dev`, NO en prod.** El promote queda bloqueado a propósito hasta el punto 1.
+0. **E1 y E2 están en prod SIN un solo assert vivo corrido.** El tramo 6 es la única forma de cerrar eso.
 1. **`selfTestTramo6()` en el editor — UNA sola pasada cubre las dos deudas**: **D48 (E1, 15 asserts)** + **D49 (E2, 17 asserts)**. Ninguno de los dos corrió nunca contra Sheets. Un tramo sin correr no es verde: es «sin correr». Los triggers corren HEAD, así que E2 ya está delante de `corridaDiaria` — pero inerte (`push_proactivo_on=false`).
-2. **Eyeball en `/dev`** (E1+E2) y en `/exec` @56 (E1): abrir como luciano@ y probar la voz 30 s.
+2. **Eyeball en `/exec` @57**: abrir como luciano@, mirar el panel de Salud (tiene que listar **8** chequeos, con `Conectores trayendo datos`) y probar la voz 30 s.
 3. **El riesgo concreto a mirar primero:** `encargosReportar_` ahora escribe la columna `avisado`. Es el camino por el que el runner cierra los encargos — si ahí hay un fallo, el encargo queda colgado en `en_ejecucion`. Se ve corriendo un encargo de punta a punta, o mirando la hoja `Encargos` después de que el runner reporte.
 4. **`push_proactivo_on` sigue en `false`**, a propósito: E2 se despliega inerte y lo enciende un humano después de mirarlo, igual que `correo_on`. Hasta entonces `pushProactivoDiario_` devuelve `{enviado:false, motivo:'push_proactivo_on=false'}` en cada corrida.
 
