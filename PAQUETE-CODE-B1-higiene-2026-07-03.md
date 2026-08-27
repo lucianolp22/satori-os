@@ -32,7 +32,7 @@ cd "$HOME/Documents/Claude/Projects/SatoriOS"
 mkdir -p _design-archivo
 mv SatoriOS-CommandCenter-v2-zen-futurista.html SatoriOS-CommandCenter-v3-zen-futurista.html SatoriOS-CommandCenter-v4-zen-futurista.html SatoriOS-CommandCenter-v5-zen-futurista.html SatoriOS-CommandCenter-v6-zen-futurista.html SatoriOS-CommandCenter-v7-zen-futurista.html SatoriOS-CommandCenter-v8-zen-futurista.html SatoriOS-CommandCenter-v10-zen-futurista.html carina_3d_cinematic.png carina_3d_parallax.mp4 _design-archivo/
 printf "_design-archivo/\n" >> .gitignore
-git add .gitignore "SPACE UNIVERSE 2.jpeg" SatoriOS-CommandCenter-v9-zen-futurista.html SatoriOS-CommandCenter-v10img-zen-futurista.html SatoriOS-CommandCenter-NORTE-zen-futurista.html HANDOFF-SatoriOS-CommandCenter-v9-2026-06-30.md SatoriOS-MAPA-UPGRADES-abrir-la-cabeza-2026-06-30.md
+git add .gitignore "SPACE UNIVERSE 2.jpeg" SatoriOS-CommandCenter-v9-zen-futurista.html SatoriOS-CommandCenter-v10img-zen-futurista.html SatoriOS-CommandCenter-NORTE-zen-futurista.html _archivo/handoffs/HANDOFF-SatoriOS-CommandCenter-v9-2026-06-30.md SatoriOS-MAPA-UPGRADES-abrir-la-cabeza-2026-06-30.md
 git commit -m "Command Center: norte visual v9 y v10img zen-futurista + handoff + mapa de upgrades; iteraciones v2-v8 y media pesada archivadas fuera de git"
 ```
 

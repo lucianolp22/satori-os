@@ -55,12 +55,12 @@ Luciano dirige/aprueba, Cowork analiza/planifica/audita, Claude Code ejecuta có
 
 ## 8. Próximo paso al retomar
 
-Si la validación sigue en curso: apoyar el uso (carga de datos, fricciones) o avanzar el diagnóstico SIP. Si la validación cerró: **ejecutar `HANDOFF E2+ - Claude Code (integración Trillion).md`** (el handoff de E2 ya está escrito; no redactar otro).
+Si la validación sigue en curso: apoyar el uso (carga de datos, fricciones) o avanzar el diagnóstico SIP. Si la validación cerró: **ejecutar `_archivo/handoffs/HANDOFF E2+ - Claude Code (integración Trillion).md`** (el handoff de E2 ya está escrito; no redactar otro).
 
 ## 9. ADENDA 12-jun (tarde) — Capa Trillion incorporada al plan
 
 - Sesión Cowork analizó Trillion (Kevin Fremon) + 4 reels de recursos UI + prompt cloud-to-local. Decisiones nuevas: **roster de 13 sub-agentes** (5 activos: Vigía/Conciliador/Cobrador/Analista/Abastecedor + 8 laboratorio Trillion bloqueados: Flux/Relay/Scout/Prism/Atlas/Spark/Forge/Lift), estilo **B-orbe** aprobado → `DESIGN.md` ya está en **v2.0** (overlay A+ "Modo Juego" §8bis), tope API USD 25/mes editable, ping solo feed in-app, puente cloud→local a la Mac post-piloto.
-- E2 pasa a ser **E2+**: spec original + Lote B + capa Trillion (cola durable `12_cola.js`, agentes `13_agentes.js` con gates vía `crearAprobacion`, Centro de Mando B-orbe como vista adicional — la vista «Hoy» Registro A queda intacta). Plan módulo por módulo, casos de aceptación 7-13 y reglas: `HANDOFF E2+ - Claude Code (integración Trillion).md`.
+- E2 pasa a ser **E2+**: spec original + Lote B + capa Trillion (cola durable `12_cola.js`, agentes `13_agentes.js` con gates vía `crearAprobacion`, Centro de Mando B-orbe como vista adicional — la vista «Hoy» Registro A queda intacta). Plan módulo por módulo, casos de aceptación 7-13 y reglas: `_archivo/handoffs/HANDOFF E2+ - Claude Code (integración Trillion).md`.
 - Código donante congelado en `Videos analizados/satori-os/` (referencia; se adapta al repo, no se copia).
 - Obsoletos a borrar por Luciano en Drive: Sheet "Satori OS — Piloto" + "Proyecto sin título" (creados 12-jun por error de contexto; reemplazados por MAESTRO).
 - Catálogo de recursos/arquitectura Trillion: `satori-os-recursos-trillion.md` · decisiones del día: `PLAN-SATORI-OS.md` (superseded por el handoff E2+ donde choque).

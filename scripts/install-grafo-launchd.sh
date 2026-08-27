@@ -28,6 +28,8 @@ LABEL="com.satori.cerebro-grafo"
 SRC="${HOME}/Documents/Claude/_cerebro/_scripts/${LABEL}.plist"
 DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 REF="$(cd "$(dirname "$0")/.." && pwd)/voz/launchagents/${LABEL}.plist.ref"   # R5: copia versionada
+SRV="${HOME}/Documents/Claude/_cerebro/_scripts/grafo_server.py"
+SRV_REF="$(cd "$(dirname "$0")/.." && pwd)/voz/launchagents/grafo_server.py.ref"   # R4/R13: idem
 PORT=8788
 DOMAIN="gui/$(id -u)"
 FORCE=0; CHECK=0; DRY=0
@@ -82,6 +84,10 @@ if [ "$CHECK" = 1 ]; then
     else echo "ref     : ⚠ DIVERGE de $REF — actualizá la copia versionada"; fi
   else
     echo "ref     : ⚠ falta la copia versionada $REF"
+  fi
+  if [ -f "$SRV_REF" ] && [ -f "$SRV" ]; then
+    if cmp -s "$SRV" "$SRV_REF"; then echo "server  : grafo_server.py en sincro con su referencia"
+    else echo "server  : ⚠ grafo_server.py DIVERGE de $SRV_REF"; fi
   fi
   exit 0
 fi

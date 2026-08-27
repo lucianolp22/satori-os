@@ -31,7 +31,7 @@ Síntoma: desde el Despacho andan; desde Akasha se abren rotos (el cosmos 3D se 
 
 ## Tarea C — HANDOFF.md del repo (stale al 17-jul)
 
-Actualizarlo para que refleje: cierre 20-jul (fuente: `HANDOFF-2026-07-20-CIERRE-T1-NS-UI.md`), promote a /exec hecho 21-jul 08:18 (`5f8846e`), fila test borrada, y lo que hagas en A y B. El HANDOFF-2026-07-20 del repo queda como histórico; el HANDOFF.md vuelve a ser espejo vivo.
+Actualizarlo para que refleje: cierre 20-jul (fuente: `_archivo/handoffs/HANDOFF-2026-07-20-CIERRE-T1-NS-UI.md`), promote a /exec hecho 21-jul 08:18 (`5f8846e`), fila test borrada, y lo que hagas en A y B. El HANDOFF-2026-07-20 del repo queda como histórico; el HANDOFF.md vuelve a ser espejo vivo.
 
 ## Cierre de la ronda
 

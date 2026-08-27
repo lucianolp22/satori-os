@@ -104,7 +104,7 @@ Proximo Cowork lee este handoff + `PLAN-SATO-EJECUTOR-2026-08-24.md` + memoria
 - `voz/runner/.encargos_runner_enabled` — marcador (gitignored, creado por cebo)
 - `.gitignore` — cola pendientes agregada
 - `CAPABILITIES.md` — regen @50
-- `HANDOFF-2026-08-24-SATORI-OS-F2-cerrado-runner-en-vivo.md` — este handoff
+- `_archivo/handoffs/HANDOFF-2026-08-24-SATORI-OS-F2-cerrado-runner-en-vivo.md` — este handoff
 
 ## Cierre honesto
 

@@ -21,7 +21,7 @@
 7. **LECCIÓN +59 (27-ago tarde) — CADA CAMBIO EN `voz/agent/*.py` = UN RELOAD NUEVO SIN EXCEPCIÓN.** Consolidá todos tus cambios a `agent.py` en la MISMA tanda y hacé UN solo `launchctl kickstart -k gui/$UID/com.satori.voz.agent` al final del bloque. Nunca dejes cambios en `agent.py` sin reload posterior.
 8. **PUSH PROACTIVO — DEFAULT OFF NO SE TOCA.** `push_proactivo_on` sólo lo enciende Luciano tras eyeball. Este encargo NO lo enciende.
 9. **AGENTES INTERNOS A USAR:** `Explore` (localizar código), `Plan` (arquitectura de F3, F5, F7, F10), `code-reviewer` (adversarial post F6/F7), skills `bastion-satori`, `consejo-asesores`, `purga-de-errores`, `deploy-gas`, `handoff-proyecto`.
-10. **HANDOFF FINAL OBLIGATORIO** en `HANDOFF-2026-08-27-SATO-VIVIENTE-CIERRE.md` con `handoff-proyecto`.
+10. **HANDOFF FINAL OBLIGATORIO** en `~/Documents/Claude/Handoffs/2026-08/2026-08-27 - satori-os-sato-viviente-bloque-a.md` con `handoff-proyecto`.
 
 ---
 
@@ -496,7 +496,7 @@ En archivo nuevo `27_sato_ubicuo.js` (o subsección de `26_sato.js` si es más l
    - Semáforo Claude Max (rojo si Δ > +15%).
 4. Actualizar memorias de proyecto: `sato-integridad-datos`, `satori-os`, `sato-ejecutor`, `crm-pipeline`.
 5. Regenerar `CAPABILITIES.md` (via `_capabilities_gen.sh`).
-6. `HANDOFF-2026-08-27-SATO-VIVIENTE-CIERRE.md` cumpliendo skill `handoff-proyecto`:
+6. `~/Documents/Claude/Handoffs/2026-08/2026-08-27 - satori-os-sato-viviente-bloque-a.md` cumpliendo skill `handoff-proyecto`:
    ```
    CIERRE: incluye [lista real de F cerradas]
    QUEDA ABIERTO: [lista real de F pendientes/diferidas + cabos]
@@ -613,7 +613,7 @@ Un solo mensaje a Luciano con:
 4. **§ Nuevas capacidades** (bullets 1 línea).
 5. **§ Deuda técnica y diferidos** (SatoPatrones, F11 si no-op, cabos).
 6. **§ Cabos de otras sesiones respetados** (E2 promote, NTFY, 2do reload, `push_proactivo_on`).
-7. **Handoff:** link al `HANDOFF-2026-08-27-SATO-VIVIENTE-CIERRE.md`.
+7. **Handoff:** link al `~/Documents/Claude/Handoffs/2026-08/2026-08-27 - satori-os-sato-viviente-bloque-a.md`.
 8. **Confianza global final:** X/10.
 
 ---

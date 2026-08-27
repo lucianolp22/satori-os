@@ -1,7 +1,7 @@
 # PAQUETE B4 — Portar Command Center v10img (zen-futurista) a `08_webapp` · para Claude Code · 03-jul-2026
 
 > **Cómo usar:** Terminal → `cd "$HOME/Documents/Claude/Projects/SatoriOS"` → `claude` → «Ejecutá PAQUETE-CODE-B4-command-center-2026-07-03.md paso a paso».
-> **Fuentes de verdad (leer ANTES de escribir una línea):** `SatoriOS-CommandCenter-v10img-zen-futurista.html` (norte visual ELEGIDO — entero) · `HANDOFF-SatoriOS-CommandCenter-v9-2026-06-30.md` (spec de widgets/datos/interacciones §3) · `Projects/_satori-design/DESIGN-v2-zen-futurista.md` (tokens; si la ruta no existe, los tokens del v10img mandan) · `src/index.html` actual (lo que NO se puede romper).
+> **Fuentes de verdad (leer ANTES de escribir una línea):** `SatoriOS-CommandCenter-v10img-zen-futurista.html` (norte visual ELEGIDO — entero) · `_archivo/handoffs/HANDOFF-SatoriOS-CommandCenter-v9-2026-06-30.md` (spec de widgets/datos/interacciones §3) · `Projects/_satori-design/DESIGN-v2-zen-futurista.md` (tokens; si la ruta no existe, los tokens del v10img mandan) · `src/index.html` actual (lo que NO se puede romper).
 > **Reglas para Code:** commits chicos por widget · `node --check`/lint offline antes de cada push · guardia diff GAS↔repo antes de TODO `clasp push` (pull a /tmp + diff, abortar si GAS tiene algo que el repo no) · el render final lo valida Luciano por eyeball en `/dev` (el CM no es auto-screenshoteable).
 
 ## Decisiones CERRADAS por Luciano (03-jul — no reabrir, no re-preguntar)

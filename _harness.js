@@ -3076,6 +3076,29 @@ seccion('R3 · instalador del grafo del Cerebro (launchd)');
   chk(/127\.0\.0\.1/.test(fs.readFileSync(
         path.join(__dirname, 'scripts', 'install-grafo-launchd.sh'), 'utf8')),
       'R3l el instalador verifica contra loopback, no contra una IP de LAN');
+
+  // ── R4/R13 · grafo_server.py. Vive fuera del repo (~/Documents/Claude no es git), así que se
+  // aseria la copia de referencia versionada que `--check` mantiene en sincro con la canónica.
+  const srv = fs.readFileSync(
+    path.join(__dirname, 'voz', 'launchagents', 'grafo_server.py.ref'), 'utf8');
+  chk(!/except Exception:\s*\n\s*pass\s*#/.test(srv) && /_quejarse\(/.test(srv),
+      'R4a 🔒 el regen ya NO se traga los errores: hay _quejarse() en vez de `except: pass` ' +
+      '(un regen roto servía el grafo stale con 200 y el err.log en 0 bytes)');
+  chk(/r\.returncode != 0/.test(srv) && /stderr=subprocess\.PIPE/.test(srv),
+      'R4b se captura el stderr del subproceso y se reporta el código de salida');
+  chk(/file=sys\.stderr/.test(srv),
+      'R4c la queja va a stderr ⇒ al StandardErrorPath del LaunchAgent, no a un agujero');
+  chk(/_last\[0\] = now - 45/.test(srv),
+      'R4d backoff tras el fallo (~15 s): ni un subproceso por request ni esperar 60 s');
+  chk(/HOST\s*=\s*"127\.0\.0\.1"/.test(srv),
+      'R4e 🔒 Bastión: el server sigue atado a loopback (jamás 0.0.0.0)');
+  chk(/ThreadingHTTPServer/.test(srv) && /_regen_lock/.test(srv),
+      'R13a ThreadingHTTPServer + lock de regen: un regen lento ya no bloquea todos los requests, ' +
+      'y N requests concurrentes no lanzan N grafo.py');
+  chk(/acquire\(blocking=False\)/.test(srv),
+      'R13b el que no toma el lock NO espera: sirve la copia en disco (fail-safe declarado)');
+  chk(/timeout=10,/.test(srv) && !/timeout=30,/.test(srv),
+      'R13c timeout del regen bajado a 10 s');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

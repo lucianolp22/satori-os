@@ -1,6 +1,6 @@
 # PLAN DE ACCIÓN — Delta Trillion → Satori OS — 08/07/2026
 
-> **Fuente:** `HANDOFF-Trillion-integracion-2026-07-08.md` (13 ítems, 0 must) **cruzado contra el repo REAL post-v11/F1/F1.1** (el handoff se verificó contra el repo de la mañana del 08-jul y no vio las 3 tandas de anoche: commits `5838677`, `5e81d27` y F1.1).
+> **Fuente:** `_archivo/handoffs/HANDOFF-Trillion-integracion-2026-07-08.md` (13 ítems, 0 must) **cruzado contra el repo REAL post-v11/F1/F1.1** (el handoff se verificó contra el repo de la mañana del 08-jul y no vio las 3 tandas de anoche: commits `5838677`, `5e81d27` y F1.1).
 > **Regla de Luciano aplicada:** nada que ya implementamos de otra manera se reemplaza — se marca ⚠ CONFLICTO/SOLAPE y se decide antes.
 
 ## BLUF

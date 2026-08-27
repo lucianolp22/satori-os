@@ -1,6 +1,6 @@
 # ADENDA — Satori OS — 25-ago-2026 (tanda 4) · Sato sin ventanas por defecto · botones fuera · mobile
 
-> Complementa `HANDOFF-2026-08-25-SATORI-OS-orbe-v2-sato-unificado-CRM.md`. Working tree:
+> Complementa `_archivo/handoffs/HANDOFF-2026-08-25-SATORI-OS-orbe-v2-sato-unificado-CRM.md`. Working tree:
 > `CAPABILITIES.md` (regen del hook, del push abortado) + `src/index.html` — SIN commitear.
 
 ## CIERRE — incluye (obs del eyeball de Luciano ~03:00)
