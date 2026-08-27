@@ -7,3 +7,7 @@ aiohttp>=3.9,<4
 google-auth>=2,<3
 requests>=2.31,<3
 # get_refresh_token.py es helper de uso ÚNICO (consent ya hecho); su google-auth-oauthlib NO va al runtime.
+
+# F6 (27-ago) · motor Claude para Sato-VOZ. PINEADO a 1.6.4 = version exacta de livekit-agents:
+# un plugin mas nuevo arrastraria un upgrade de livekit-agents y el VAD/turn-detection NO se toca.
+livekit-plugins-anthropic==1.6.4

@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 14:28 · commit: b314ef0
+> Generado: 2026-08-27 14:32 · commit: 62929d5
 
 ## Módulos
 
@@ -215,6 +215,7 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 
 ## Actividad de los últimos 14 días
 
+- 62929d5 [F4] CAPABILITIES con 6 bloques AUTO + drift-checker
 - b314ef0 [F3] Identidad de Sato editable en caliente, misma fuente para voz y GAS
 - 665cbbe PC-A/PC-D del encargo POST-OLAS: scan de endpoints corrible solo + nombre que espera PC-D
 - b162ef4 HANDOFF maestro: cross-reference al cierre de las Olas 0-3
@@ -244,7 +245,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - a3cf8c9 promote /exec: CAPABILITIES regen + HANDOFF al 25-08-2026
 - eede685 selfTest D43: resiliente al rate limit de Drive (backoff en _driveCopiar_ + SKIP) - fix cert
 - 0b547f1 HANDOFF.md: cabecera al 25-ago (sesion Cowork tandas 1-4)
-- 25b149d Sato panel in-page por defecto + telefono opcional + botones Sato ocultos + mobile CRM + CAPABILITIES regen
 
 ## Funciones por módulo (apéndice)
 

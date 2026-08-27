@@ -27,6 +27,7 @@ from livekit import agents
 from livekit.agents import Agent, AgentServer, AgentSession, RunContext, function_tool
 from livekit.agents.llm import ToolError
 from livekit.plugins import openai, deepgram, elevenlabs, silero
+from livekit.plugins import anthropic as anthropic_plugin   # F6 · motor Claude (opt-in por env)
 
 from brief_hoy import brief_hoy as _brief_hoy  # E2.d: parser del bloque HOY (módulo propio = testeable sin levantar livekit)
 import gas_voz_client  # cliente autenticado: Bearer (refresh de luciano@) + secreto-en-body + redirect 302
@@ -355,6 +356,67 @@ def _anunciar(context: RunContext) -> None:
     except Exception as e:  # noqa: BLE001 — el filler es cosmético, jamás bloquea la consulta real
         logger.debug("filler de voz no emitido: %s", e)
 
+
+
+
+# ═══ F6 · MOTOR DEL LLM (OpenAI ↔ Claude) ════════════════════════════════════
+#
+# Flag `SATO_VOZ_MOTOR`: `openai` (default) | `anthropic`. Se migra el CÓDIGO ahora y el FLIP lo
+# hace un humano después de mirar — la decisión del Consejo (F5) fue explícita en esto: E1+E2
+# entraron a prod el mismo día, y meter el motor nuevo en la misma jornada haría imposible
+# bisecar una regresión de voz entre dos cambios simultáneos.
+#
+# Modelo por default `claude-haiku-4-5`, NO Sonnet 5. El acta de F5 §1 corrige la palanca que
+# traía el encargo: el "Sonnet cacheado 5× más barato que Haiku sin cachear" es de Sato-in-GAS,
+# donde el gate conservador (4 chars/token) deja el bloque en 3.728 y Haiku ni intenta cachear.
+# En la VOZ el prefijo son ~7.917 tokens reales: Haiku cachea igual, cuesta la mitad y es el tier
+# más rápido — y R6 dice que el LLM es el 8% del turno, o sea el 8% que se puede empeorar.
+#
+# ⚠ El VAD NO SE TOCA. Silero sigue igual: quitarlo rompe el turn-detection (decisión firme).
+SATO_VOZ_MOTOR = os.environ.get("SATO_VOZ_MOTOR", "openai").strip().lower()
+SATO_VOZ_MODELO = os.environ.get("SATO_VOZ_MODELO", "claude-haiku-4-5").strip()
+_TOKENS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "out", "voz-tokens.jsonl")
+
+
+def _construir_llm():
+    """Devuelve el LLM según el flag. Fail-safe: si el motor Claude no se puede construir, se
+    cae a OpenAI y se avisa — una voz muda es peor que una voz con el motor viejo."""
+    if SATO_VOZ_MOTOR != "anthropic":
+        return openai.LLM(model="gpt-4o-mini")
+    try:
+        llm = anthropic_plugin.LLM(model=SATO_VOZ_MODELO, caching="ephemeral")
+        logger.info("motor de voz: anthropic %s (caching ephemeral)", SATO_VOZ_MODELO)
+        return llm
+    except Exception as e:  # noqa: BLE001
+        logger.error("no pude construir el motor anthropic (%s) — vuelvo a gpt-4o-mini", e)
+        return openai.LLM(model="gpt-4o-mini")
+
+
+def _log_uso(ev) -> None:
+    """Telemetría de caché y latencia por turno → out/voz-tokens.jsonl. Nunca lanza.
+
+    Es la única forma de saber si el envelope de dos bloques está pegando: si `cache_read` no
+    sube desde el 2º turno, el prefijo NO está cacheando y hay que mirarlo — no es que "todavía
+    no calentó" (F5, condición 3 de la aprobación).
+    """
+    try:
+        u = getattr(ev, "usage", None) or ev
+        fila = {
+            "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+            "motor": SATO_VOZ_MOTOR,
+            "modelo": SATO_VOZ_MODELO if SATO_VOZ_MOTOR == "anthropic" else "gpt-4o-mini",
+            "input": getattr(u, "prompt_tokens", None) or getattr(u, "input_tokens", None),
+            "output": getattr(u, "completion_tokens", None) or getattr(u, "output_tokens", None),
+            "cache_read": getattr(u, "cache_read_input_tokens", None)
+            or getattr(u, "prompt_cached_tokens", None),
+            "cache_write": getattr(u, "cache_creation_input_tokens", None),
+            "ttft_s": getattr(u, "ttft", None),
+        }
+        os.makedirs(os.path.dirname(_TOKENS_LOG), exist_ok=True)
+        with open(_TOKENS_LOG, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(fila, ensure_ascii=False) + "\n")
+    except Exception as e:  # noqa: BLE001 — la telemetría jamás corta un turno
+        logger.debug("no pude loguear uso: %s", e)
 
 
 # ═══ F3 · IDENTIDAD EDITABLE EN CALIENTE ═════════════════════════════════════
@@ -901,10 +963,15 @@ async def entrypoint(ctx: agents.JobContext):
                 "Pipol", "Crocante", "Oxaca", "Sando", "Couleur", "LC Travel", "DAM Barbers", "MesaQuince",
             ],
         ),
-        llm=openai.LLM(model="gpt-4o-mini"),
+        llm=_construir_llm(),
         tts=elevenlabs.TTS(voice_id=os.environ.get("ELEVENLABS_VOICE_ID", ""), model="eleven_turbo_v2_5", language="es"),
         vad=silero.VAD.load(),
     )
+    # F6 · telemetría de caché y latencia por turno (condición 3 de la aprobación del Consejo).
+    try:
+        session.on("metrics_collected", lambda ev: _log_uso(getattr(ev, "metrics", ev)))
+    except Exception as e:  # noqa: BLE001
+        logger.debug("no pude enganchar metrics_collected: %s", e)
     await session.start(room=ctx.room, agent=SatoriVoz())
     await session.generate_reply(instructions=await _instrucciones_saludo())
 
