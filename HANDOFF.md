@@ -1,16 +1,24 @@
-# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1)
+# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1 en prod + E2 en repo)
 
 DEPLOY: **prod `/exec` = @56 — E1 EN PRODUCCIÓN, con los dos gates SALTEADOS** (decisión de Luciano 27-ago: pidió el push y el promote antes de certificar). GAS HEAD == repo, verificado byte a byte antes y después del push. **Rollback = @55 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 55`), que sí estaba CERTIFICADO 994/0.
 
 ⚠ **VERDE CON ASTERISCO — qué falta para que esto sea verde de verdad:**
-1. **`selfTestTramo6()` en el editor** — la tanda **D48** (15 asserts del lazo) NUNCA corrió contra Sheets. Está en prod sin certificar. Un tramo sin correr no es verde: es «sin correr».
+0. **E2 está en el repo pero NO en GAS**: sin `clasp push`, sin editor y sin promote. `/exec` @56 = E1 solo.
+1. **`selfTestTramo6()` en el editor** — ahora corre **D48 (E1, 15 asserts)** + **D49 (E2, 17 asserts)**. Ninguno de los dos corrió nunca contra Sheets. Un tramo sin correr no es verde: es «sin correr».
 2. **Eyeball de `/exec` @56** (2 min): abrir la app como luciano@ y probar la voz 30 s.
 3. **El riesgo concreto a mirar primero:** `encargosReportar_` ahora escribe la columna `avisado`. Es el camino por el que el runner cierra los encargos — si ahí hay un fallo, el encargo queda colgado en `en_ejecucion`. Se ve corriendo un encargo de punta a punta, o mirando la hoja `Encargos` después de que el runner reporte.
 4. **La voz TODAVÍA no enuncia nada**: `agent.py` NO lo despliega `clasp` (corre en el proceso LiveKit). El saludo con el lazo recién existe cuando se **reinicia el agente**. Lo que sí está vivo en @56 es el push al teléfono y la tool en el backend.
-5. **`NTFY_TOKEN` sin cargar** (dependencia humana, E0.2 del RUNBOOK): el canal de push está cableado y **mudo** hasta que exista la credencial. `probarPushTelefono()` devuelve `que_falta`.
+5. **`NTFY_TOKEN` sin cargar** (dependencia humana, E0.2 del RUNBOOK): el canal de push está cableado y **mudo** hasta que exista la credencial. `probarPushTelefono()` devuelve `que_falta`. Con E2 esto pesa más: el push de las 07:00 depende del mismo canal.
+6. **`push_proactivo_on` sigue en `false`**, a propósito: E2 se despliega inerte y lo enciende un humano después de mirarlo, igual que `correo_on`.
 
-PRÓXIMO PASO: los 5 puntos de arriba, en ese orden. Después: **E2** (proactividad + health de conectores + saludo de voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E1 y libera E2.
+PRÓXIMO PASO: los 6 puntos de arriba, en ese orden — el 1 cubre E1 y E2 en una sola corrida del tramo 6. Después: **E3** (leer correo por voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E2 y libera E3.
 
+> **E2 (Ola 1.2 · proactividad) — construido y verde offline, SIN pushear ni promover.** `node _harness.js` **899/0** (869 → +30). Entró: (a) sello `conector_<id>_ult_sync` al cerrar bien cada sync + chequeo **`conectores_sync`** en `correrSalud` (8º chequeo, con capa humana) sobre el juicio PURO `_staleEstado_`; (b) **`pushProactivoDiario_`** al cierre de `corridaDiaria` — opt-in `push_proactivo_on` (default OFF), silencioso sin señales, PII-free (solo cantidades), dedupe diario que **solo marca si el envío salió**; (c) **anti-brief-estático**: bloque `## HOY hay que mirar (N señales)` insertado entre el BLUF y el contrato v1 —el contrato no se toca—; (d) el saludo de voz lee ese bloque y **se calla con 0 señales**; (e) Config `push_proactivo_on` + `conector_max_dias`. Asserts: **D49a-f** (tramo 6) + 30 en el arnés, incluido el parser Python REAL ejercitado desde el arnés vía `voz/agent/brief_hoy.py`.
+>
+> **Un bug real que cazó el arnés antes de prod:** `_staleEstado_('')` daba `ok` (`Number('')` es 0, no NaN) — una celda de sello en blanco se leía como «sincronizó hace 0 días». Corregido: ausencia de dato ⇒ `warn`.
+>
+> **Dos desvíos del encargo E2, declarados:** (1) `resumen.vigilancia.criticos` NO existe — `vigilanciaCorrida_` devuelve `rojos`; pedir `criticos` habría contado 0 siempre (push mudo con cara de sano). (2) El dedupe diario va por Script Property y no por cache: el cache de GAS tope a 6 h, así que un dedupe «por día» montado ahí se vence a media tarde. (3) La llamada al push va al final REAL de `corridaDiaria` (después de correo/admin), no justo después de `calentarEstadoCacheSistema_`, para contar el resumen completo.
+>
 > **Sesión del 27-ago (Code) — E1 + E1-bis del RUNBOOK, pusheados a GAS y promovidos a `/exec` @56.** Verificación offline: `node _harness.js` **869/0** (845 → +24) · `python3 _verificar_index.py` OK (453/453) · guardia GAS↔repo OK antes y después del push. **Nada de esto se certificó contra Sheets vivos** — ver el bloque de VERDE CON ASTERISCO arriba.
 >
 > **Qué entró en E1** — el encargo que termina ahora AVISA. `encargosReportar_` con estado `hecho` marca `avisado:false` y dispara `_pushTelefono_` (un `fallido` NO dispara push de éxito: N5 llevada al canal nuevo); la tool de voz **`encargos_listos`** (`encargosListos`, gateada + en `ENDPOINTS_UI` + en `VOZ_TOOLS` + case en doPost) devuelve lo terminado-y-no-enunciado y lo marca en la misma pasada bajo `conLock` — se dice UNA vez; `agent.py` la llama **determinísticamente en el saludo** del entrypoint (timeout propio de 10 s, fail-open) y trae la REGLA E1 en el prompt. Schema: `Encargos` +`avisado` al final (aditiva; `ensureSheet` la materializa sola).

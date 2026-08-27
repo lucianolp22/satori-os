@@ -28,6 +28,7 @@ from livekit.agents import Agent, AgentServer, AgentSession, RunContext, functio
 from livekit.agents.llm import ToolError
 from livekit.plugins import openai, deepgram, elevenlabs, silero
 
+from brief_hoy import brief_hoy as _brief_hoy  # E2.d: parser del bloque HOY (módulo propio = testeable sin levantar livekit)
 import gas_voz_client  # cliente autenticado: Bearer (refresh de luciano@) + secreto-en-body + redirect 302
 
 import logging
@@ -757,38 +758,67 @@ _TIMEOUT_SALUDO_S = 10
 _SALUDO_BASE = "Saludá breve a Luciano en español rioplatense y preguntale en qué lo ayudás."
 
 
-async def _instrucciones_saludo() -> str:
-    """Arma las instrucciones del saludo de apertura, con los encargos terminados si los hay."""
+async def _saludo_pide(tool: str):
+    """Una consulta del saludo: devuelve el dato ya parseado, o None si no se pudo (fail-open).
+
+    Cada consulta tiene su propio timeout corto y se traga TODO lo que pueda fallar. El saludo es lo
+    primero que se oye: puede llegar más pobre, nunca puede no llegar."""
     try:
-        crudo = await asyncio.wait_for(_llamar_backend("encargos_listos"), timeout=_TIMEOUT_SALUDO_S)
+        crudo = await asyncio.wait_for(_llamar_backend(tool), timeout=_TIMEOUT_SALUDO_S)
     except asyncio.TimeoutError:
-        # Se anota FUERTE: el backend pudo haber marcado los encargos como avisados igual (la
-        # llamada sigue viva del otro lado), así que un vencimiento acá puede costar un enunciado.
-        logger.warning("saludo: `encargos_listos` no respondió en %ss — saludo sin novedades", _TIMEOUT_SALUDO_S)
-        return _SALUDO_BASE
+        # Se anota FUERTE en el caso de `encargos_listos`: el backend pudo haber marcado los
+        # encargos como avisados igual (la llamada sigue viva del otro lado), así que un
+        # vencimiento acá puede costar un enunciado.
+        logger.warning("saludo: `%s` no respondió en %ss — sigo sin ese dato", tool, _TIMEOUT_SALUDO_S)
+        return None
     except Exception as e:  # ToolError / transporte caído: el saludo NUNCA se cae por esto
-        logger.warning("saludo: `encargos_listos` falló (%s) — saludo sin novedades", e)
-        return _SALUDO_BASE
+        logger.warning("saludo: `%s` falló (%s) — sigo sin ese dato", tool, e)
+        return None
     if crudo is _MSG_BACKEND_TIMEOUT:
-        return _SALUDO_BASE
+        return None
+    if not isinstance(crudo, str):
+        return crudo
     try:
-        data = json.loads(crudo) if isinstance(crudo, str) else crudo
+        return json.loads(crudo)
     except (TypeError, ValueError):
-        logger.warning("saludo: respuesta de `encargos_listos` ilegible — saludo sin novedades")
-        return _SALUDO_BASE
-    items = (data or {}).get("items") or []
-    if not items:
-        return _SALUDO_BASE
-    # Se le pasa el JSON tal cual: el LLM enuncia, no interpreta ni completa (N4).
-    omitidos = (data or {}).get("omitidos") or 0
-    extra = (" Hay %d más viejos que no detallás." % omitidos) if omitidos else ""
-    return (
-        _SALUDO_BASE
-        + " ANTES de la pregunta, contale que terminaron estos encargos y decí de cada uno el id y una "
-        + "línea de resumen; los que tengan estado 'fallido' presentalos como FALLIDOS, no como listos. "
-        + "Enunciálos UNA vez, sin adornar ni completar lo que no dice el dato: "
-        + json.dumps(items, ensure_ascii=False) + extra
+        return crudo  # el brief es markdown crudo, no JSON: se devuelve tal cual
+
+
+async def _instrucciones_saludo() -> str:
+    """Instrucciones del saludo de apertura: encargos terminados (E1) + qué mirar hoy (E2.d).
+
+    Las dos consultas van EN PARALELO. Secuenciales, dos timeouts de 10 s se apilan y el saludo
+    podría tardar 20 s en salir — que es peor que no traer la novedad."""
+    encargos, brief = await asyncio.gather(
+        _saludo_pide("encargos_listos"), _saludo_pide("brief")
     )
+
+    partes = [_SALUDO_BASE]
+
+    # ── E1 · encargos terminados. Se le pasa el JSON tal cual: el LLM enuncia, no interpreta (N4).
+    items = (encargos or {}).get("items") if isinstance(encargos, dict) else None
+    if items:
+        omitidos = (encargos or {}).get("omitidos") or 0
+        extra = (" Hay %d más viejos que no detallás." % omitidos) if omitidos else ""
+        partes.append(
+            "ANTES de la pregunta, contale que terminaron estos encargos y decí de cada uno el id y "
+            "una línea de resumen; los que tengan estado 'fallido' presentalos como FALLIDOS, no como "
+            "listos. Enunciálos UNA vez, sin adornar ni completar lo que no dice el dato: "
+            + json.dumps(items, ensure_ascii=False) + extra
+        )
+
+    # ── E2.d · qué requiere acción HOY. SILENCIO BUENO: con 0 señales no se dice nada. Un saludo que
+    # todos los días recita "no hay vencimientos, conectores OK, sin encargos" enseña a no escucharlo.
+    if isinstance(brief, str):
+        senales, lineas = _brief_hoy(brief)
+        if senales and lineas:
+            partes.append(
+                "También, en UNA frase corta y hablada (no una lista), decile qué requiere acción hoy. "
+                "Son %d señal(es); no agregues ninguna que no esté acá ni inventes cifras (N4): %s"
+                % (senales, " | ".join(lineas))
+            )
+
+    return " ".join(partes)
 
 
 server = AgentServer()

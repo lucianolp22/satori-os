@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 10:25 · commit: 88142b7
+> Generado: 2026-08-27 10:59 · commit: 8ed2150
 
 ## Módulos
 
@@ -13,10 +13,10 @@
 | `03_cliente.js` | Alta de clientes y plantilla de Sheet cliente | 2 |
 | `04_sync.js` | Agregación MAESTRO ← Sheets cliente (vía GAS, NO IMPORTRANGE) | 1 |
 | `05_costos.js` | Wrapper de costos de API + Bastión de seguridad (ETAPA 2 · Módulos 2-3) | 10 |
-| `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 22 |
+| `06_avisos.js` | Avisos internos y trigger diario batched (handoff 1.4) | 23 |
 | `07_util.js` | Helpers compartidos. Sin estado propio; todo deriva del MAESTRO | 32 |
-| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 101 |
-| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 54 |
+| `08_webapp.js` | Web App interna (acceso "solo yo", ejecutar como yo) | 102 |
+| `09_selftest.js` | Verificación end-to-end (handoff: "ejecutar, no asumir") | 55 |
 | `10_bootstrap.js` | Arranque real de Etapa 1 en UNA corrida (autoriza una vez) | 1 |
 | `11_aprobaciones.js` | Motor de aprobaciones (ETAPA 2 · Módulo 1) | 15 |
 | `12_cola.js` | Cola de tareas durable (ETAPA 2 · capa Trillion, Cola.gs donante adaptado) | 17 |
@@ -25,8 +25,8 @@
 | `15_cerebro.js` | Cerebro (grafo de memoria) multi-tenant (ETAPA 8a · módulo a1) | 25 |
 | `16_salud.js` | Loop de salud del sistema (ETAPA 8a · módulo a3) | 3 |
 | `17_bandeja.js` | Bandeja de captura única + clasificador Haiku con confianza (Fase 1 · Jarvis) | 10 |
-| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 65 |
-| `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 30 |
+| `18_direccion.js` | Capa de Dirección (Fase D · kevinfremon). MUST #1: estadoVigente | 67 |
+| `19_conectores.js` | Capa de conectores (integración con los sistemas de los clientes) | 35 |
 | `20_killswitch.js` | Kill switch unificado (riel Bastión #7) | 5 |
 | `21_backup.js` | Backup/snapshot semanal de los DATOS (B3) | 14 |
 | `22_seguridad.js` | MÓDULO S (T3 · Bastión lidera). Seguridad del motor | 24 |
@@ -134,6 +134,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 - WORKER
 - alertas_email_on
 - brief_push_on
+- push_proactivo_on
 - voz_alerta_fecha
 
 ## Funciones por módulo (apéndice)
@@ -148,13 +149,13 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **05_costos.js:** modeloDeModulo_ _cacheMinimo_ _estimarTokens_ _systemBloques_ llamadaAPI costearUSD_ logCostoCliente anonimizar desanonimizar consolidarCostosMes 
 
-**06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush crearAviso _crearAviso_ _focoPazEvaluar_ _focoPazUmbrales_ _focoPazMetricas_ guardianFocoPaz_ corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas resolverAvisosDonde_ detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
+**06_avisos.js:** alertaEmail_ probarAlertaEmail briefPush_ probarBriefPush pushProactivoDiario_ crearAviso _crearAviso_ _focoPazEvaluar_ _focoPazUmbrales_ _focoPazMetricas_ guardianFocoPaz_ corridaDiaria encolarVigiaClientesActivos detectarVencimientos detectarTareasEstancadas resolverAvisosDonde_ detectarProyectosSinMovimiento expirarAprobaciones hace mapaProyectoCliente invalidarMapaPC clienteDeProyecto instalarTriggers 
 
 **07_util.js:** getMaestro ahoraISO hoyISO mesISO aFechaISO esVerdadero_ fechaHoraCorta_ ensureSheet aplicarFormatoTexto leerTabla appendFila sanitizarCelda conLock abrirCliente _trashArchivo_ _driveUrlCarpeta_ _driveUrlSheet_ _driveCopiar_ _driveGet_ _driveCrearCarpeta_ _driveMover_ _driveListarHijos_ _driveBuscarPorNombre_ getConfig configPrefijo_ setConfig nextId protegerSheet _sinTildes_ _fmtMiles_ _valorPalabras_ normalizarCifrasTexto_ 
 
-**08_webapp.js:** doGet doPost vozAprobacionesPendientes_ vozDecidirAprobacion_ vozDispararAgente_ vozCrearTarea_ _encHoja_ _encSet_ vozEncargar_ _encargoAprobar_ encargosPoll_ encargosReportar_ encargosListos vozOut_ vozAuth_ charlaExportAuth_ encargosAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ _sgicMesValido_ sgicVentas_ sgicKpisOficial_ diagSatoVentasVivo _sgicResumenVentas_ _sgicPanelSnapshot_ _arVoz_ _mesVoz_ _sgicVozResumen_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes listaProyectos crearProyecto datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea guardarTarea detalleTarea _setArchivada_ archivarTarea desarchivarTarea tareasArchivadas guardarNotaProyecto aHoraLegible_ _hqHoja_ _hqCheckVigente_ hqHoy hqChecklist hqChecklistToggle hqObjetivos hqNumeros sembrarHQ 
+**08_webapp.js:** doGet doPost vozAprobacionesPendientes_ vozDecidirAprobacion_ vozDispararAgente_ vozCrearTarea_ _encHoja_ _encSet_ vozEncargar_ _encargoAprobar_ encargosPoll_ encargosReportar_ _encargosSinAvisarContar_ encargosListos vozOut_ vozAuth_ charlaExportAuth_ encargosAuth_ oficinaSyncAuth_ limpiarHostilTexto_ sgicConsulta_ _sgicMesValido_ sgicVentas_ sgicKpisOficial_ diagSatoVentasVivo _sgicResumenVentas_ _sgicPanelSnapshot_ _arVoz_ _mesVoz_ _sgicVozResumen_ _sgicMesDe_ _sgicFila_ _sgicCap_ asegurarTenantOficina_ oficinaSync_ accionVoz_ _hueleANorthStar_ ctEq_ vozStr_ vozLog_ vozRate_ clienteExiste_ vozRechazo_ setPrefUI prefsUI cerebroGrafo cerebroNodo estadoSistema datosHoy listaClientes listaProyectos crearProyecto datosCliente consumoApiCliente fichaCliente _checklistSheet_ checklistCliente checklistMarcar checklistAgregar briefCliente tareasActivasOrdenadas esVencida estadoAgentes telemetriaMaestro_ _bootSeccion_ bootUniverso bootResto bootUnico _bootRangoSemana_ estadoSalud estadosAgentesCola_ datosActividadAgentes feedReciente_ inboxAprobaciones_ dispararAgenteUI resolverAprobacionUI metricasValidasUI asignarMetricaUI quitarAgregada_ tableroTareas sumarDiasISO_ parseRecurrencia parseQuickAdd crearTarea crearTareaQuick moverTarea guardarTarea detalleTarea _setArchivada_ archivarTarea desarchivarTarea tareasArchivadas guardarNotaProyecto aHoraLegible_ _hqHoja_ _hqCheckVigente_ hqHoy hqChecklist hqChecklistToggle hqObjetivos hqNumeros sembrarHQ 
 
-**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ _asertsD40_ _asertsP2_ _asertsD44_ _asertsD46_ _asertsD47_ _asertsD48_ _asertsD45_ _d45Unicos_ _selfTestRegistrar_ selfTestTramo selfTestVeredicto _asertsD41_ selfTestTramo2 selfTestTramo3 selfTestTramo4 selfTestTramo5 selfTestTramo6 _asertsD43_ purgaAuditoria 
+**09_selftest.js:** selfTest _resumenSelfTest_ _aprobarSiOk_ _asertsF2_ _asertsD14_ _asertsD15_ _asertsD16_ _asertsD17j_ _asertsD18_ _asertsD19_ _asertsD20_ _asertsD21_ _asertsD22_ _asertsD23_ _asertsD24_ _asertsD25_ _asertsD26_ _endpointSinGateD19_ _asertsD17h_ _asertsD17i_ _asertsD27_ _asertsD28_ _asertsD30_ _asertsD31_ _asertsD32_ _asertsD33_ _asertsD34_ _asertsD37_ _asertsD38_ selfTestF2_ selfTestF2 debugE21 limpiarTodoTest borrarFilasDonde _asertsD39_ _asertsD40_ _asertsP2_ _asertsD44_ _asertsD46_ _asertsD47_ _asertsD48_ _asertsD49_ _asertsD45_ _d45Unicos_ _selfTestRegistrar_ selfTestTramo selfTestVeredicto _asertsD41_ selfTestTramo2 selfTestTramo3 selfTestTramo4 selfTestTramo5 selfTestTramo6 _asertsD43_ purgaAuditoria 
 
 **10_bootstrap.js:** bootstrap 
 
@@ -172,9 +173,9 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **17_bandeja.js:** esResearch_ esPreparaReunion_ _resolverClientePrep_ capturar bandejaUmbral_ clasificarBandeja promptClasificador_ parseClasificacion_ llamadaClasificador_ instalarTriggerBandeja 
 
-**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ calentarBriefCache verifBriefCache estadoCacheado_ calentarEstadoCacheSistema_ calentarEstadoCache verifEstadoCache contratoStatusReport_ _tendencia_ _contrapeso_ _verificacion_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ briefDiarioCliente_ calentarCachesVoz instalarWarmVoz northStarSatori_ registrarNorteDelDia_ _puntoSerieAccion_ _serieNorte_ _nsLista_ _nsPivots_ northStarTenant_ _pivotsTenant_ _hzLimpio_ metricasValidas_ sembrarNorthStarSatori_ sembrarNorthStarSatori cargarNorthStarSatori cargarNorthStarVehemence migrarObjetivosNorthStar _respaldarObjetivos_ _verificarRespaldo_ resetObjetivosYNorthStar restaurarObjetivosDesdeBackup limpiarErroresFantasma_ limpiarErroresFantasma verVehemence truncar_ _diasDesde_ recomendacionDelDia_ _pivotMuerto_ _recNorthStar_ _recCandidatas_ clienteKpiEnAlerta_ _valorOperativoDeKpi_ _nsSerieHoy_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento actualizarEvento cancelarEvento agendaRango registrarFeedback 
+**18_direccion.js:** estadoVigente estadoVigenteSistema_ estadoVigenteCliente_ objetoAConteo_ briefDiario briefCacheado_ calentarBriefCacheSistema_ verifBriefCache_ calentarBriefCache verifBriefCache estadoCacheado_ calentarEstadoCacheSistema_ calentarEstadoCache verifEstadoCache contratoStatusReport_ _tendencia_ _contrapeso_ _verificacion_ _recContractual_ _cierreAccionMetrica_ briefDiarioSistema_ _briefHoyLineas_ _briefInsertarHoy_ briefDiarioCliente_ calentarCachesVoz instalarWarmVoz northStarSatori_ registrarNorteDelDia_ _puntoSerieAccion_ _serieNorte_ _nsLista_ _nsPivots_ northStarTenant_ _pivotsTenant_ _hzLimpio_ metricasValidas_ sembrarNorthStarSatori_ sembrarNorthStarSatori cargarNorthStarSatori cargarNorthStarVehemence migrarObjetivosNorthStar _respaldarObjetivos_ _verificarRespaldo_ resetObjetivosYNorthStar restaurarObjetivosDesdeBackup limpiarErroresFantasma_ limpiarErroresFantasma verVehemence truncar_ _diasDesde_ recomendacionDelDia_ _pivotMuerto_ _recNorthStar_ _recCandidatas_ clienteKpiEnAlerta_ _valorOperativoDeKpi_ _nsSerieHoy_ registrarRecomendacionDelDia marcarRecomendacion aprobacionDesdeRecomendacion recomendacionesAbiertas agendaSemana agendarEvento actualizarEvento cancelarEvento agendaRango registrarFeedback 
 
-**19_conectores.js:** sincronizarVehemence mapearLibroLcTravel_ _importeMQ_ mapearMovimientosMesaquince_ mapearFreshaDam_ sembrarConectoresHallados _mapaConectores_ _decidirConector_ mapearOperacionesGenerico_ _monedaConector_ sincronizarCliente_ sincronizarConectorOperaciones_ sincronizarConectores altaConector encenderConector apagarConector probarConector estadoConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ probarDAM encenderDAM apagarDAM probarLC encenderLC apagarLC probarMQ encenderMQ apagarMQ 
+**19_conectores.js:** sincronizarVehemence mapearLibroLcTravel_ _importeMQ_ mapearMovimientosMesaquince_ mapearFreshaDam_ sembrarConectoresHallados _mapaConectores_ _vehemencePorCodigo_ _conectoresQueCorren_ _conectorUltSyncClave_ _staleEstado_ _decidirConector_ mapearOperacionesGenerico_ _monedaConector_ sincronizarCliente_ sincronizarConectorOperaciones_ _sellarUltSync_ sincronizarConectores altaConector encenderConector apagarConector probarConector estadoConectores sincronizarConectorVentas_ borrarFilasBatch_ agregarVentasPorMes_ probarDAM encenderDAM apagarDAM probarLC encenderLC apagarLC probarMQ encenderMQ apagarMQ 
 
 **20_killswitch.js:** _sistemaPausado_ pausarSistema reanudarSistema estadoPausa smokeKill 
 

@@ -302,6 +302,60 @@ function _mapaConectores_(filasConfig) {
 }
 
 /**
+ * PURA: ¿Vehemence (CLI-002) corre POR CÓDIGO en vez de por el mapa de Config? Existe como función
+ * y no como condición suelta porque `correrSalud` necesita la MISMA respuesta para saber a quién
+ * vigilar (E2.a): dos copias de esta condición serían dos verdades, y la que se desincronice deja
+ * justo a Vehemence fuera del chequeo de stale — que es el conector que ya se cayó en silencio
+ * durante días (incidente P0-bis 27-jul).
+ */
+function _vehemencePorCodigo_(mapa) {
+  return !mapa || !mapa['CLI-002'] || !mapa['CLI-002'].on;
+}
+
+/**
+ * PURA: los conectores que el sync REALMENTE corre — los del mapa que pasan `_decidirConector_`,
+ * más Vehemence cuando entra por código. Es la lista que `correrSalud` vigila: preguntar por el
+ * stale de un conector que nadie corre sería ruido, y no preguntar por uno que sí corre es el
+ * agujero que este chequeo viene a tapar.
+ */
+function _conectoresQueCorren_(mapa) {
+  var out = [];
+  Object.keys(mapa || {}).sort().forEach(function (cli) {
+    if (_decidirConector_(cli, mapa[cli]).correr) out.push(cli);
+  });
+  if (_vehemencePorCodigo_(mapa)) out.push('CLI-002');
+  return out;
+}
+
+/** Clave de Config donde vive el sello del último sync OK de un conector. */
+function _conectorUltSyncClave_(cli) { return CONECTOR_PREFIJO + String(cli) + '_ult_sync'; }
+
+/**
+ * PURA (E2.a) — juicio de stale de UN conector. Se separa del chequeo de salud a propósito: acá es
+ * ejercitable offline con números, mientras que `correrSalud` necesita Sheets.
+ *
+ * `null` (nunca sincronizado o sin sello) ⇒ **warn, no crit**: un conector recién configurado que
+ * todavía no corrió no es una emergencia, y un chequeo que arma escándalo el primer día se aprende
+ * a ignorar justo antes del día que importa. Pasado 3× el umbral sí es crit: ahí ya no es "todavía
+ * no corrió", es "hace rato que no corre y nadie se enteró".
+ *
+ * @param {number|null} dias  días desde el último sync OK (null = sin sello)
+ * @param {number} umbral     `conector_max_dias` de Config
+ * @return {'ok'|'warn'|'crit'}
+ */
+function _staleEstado_(dias, umbral) {
+  var u = Number(umbral);
+  if (!(u > 0)) u = 2;                       // umbral ilegible ⇒ default prudente, nunca "todo ok"
+  // OJO con la cadena vacía: `Number('')` es 0, no NaN. Sin este guard, una celda de Config en
+  // blanco se leía como «sincronizó hace 0 días» ⇒ ok. Lo cazó el arnés antes de llegar a prod.
+  if (dias === null || dias === undefined || dias === '' || isNaN(Number(dias))) return 'warn';
+  var d = Number(dias);
+  if (d > u * 3) return 'crit';
+  if (d > u) return 'warn';
+  return 'ok';
+}
+
+/**
  * PURA: ¿este conector corre? Devuelve {correr:boolean, motivo:string}. El motivo se loguea y se
  * reporta — un conector que no corre en silencio es indistinguible de uno que corrió y no trajo nada.
  */
@@ -465,6 +519,17 @@ function sincronizarConectorOperaciones_(idCliente, src, hoja, fuente, ad, cfg) 
  * producción. Si alguien le agrega las 3 filas de Config, el mapa gana y el wrapper no corre dos
  * veces — la deduplicación es explícita, no un accidente de orden.
  */
+/**
+ * E2.a (27-ago) — sella el último sync OK de un conector. Va DENTRO del `try` de cada conector y
+ * DESPUÉS de que el sync devolvió: un conector que falló NO se sella, y esa ausencia es justo el
+ * criterio de stale. Idempotente (una clave por conector, se pisa con la fecha de hoy).
+ * Fail-silencioso: sellar es instrumentación — no puede voltear un sync que ya trajo los datos.
+ */
+function _sellarUltSync_(cli) {
+  try { setConfig(_conectorUltSyncClave_(cli), hoyISO()); }
+  catch (e) { try { Logger.log('_sellarUltSync_ ' + cli + ' falló: ' + ((e && e.message) || e)); } catch (_e) {} }
+}
+
 function sincronizarConectores() {
   _ctxSistema_();   // T3-S1: entry point de sistema (trigger/editor) — habilita los endpoints gateados que reusa aguas adentro
   _soloOwner_('sincronizarConectores');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta. Va DESPUÉS de _ctxSistema_: antes rompería el trigger.
@@ -476,13 +541,13 @@ function sincronizarConectores() {
   Object.keys(mapa).sort().forEach(function (cli) {
     var d = _decidirConector_(cli, mapa[cli]);
     if (!d.correr) { out.omitidos.push(cli + ': ' + d.motivo); return; }
-    try { out[cli] = sincronizarCliente_(cli, mapa[cli]); out.corridos++; }
+    try { out[cli] = sincronizarCliente_(cli, mapa[cli]); out.corridos++; _sellarUltSync_(cli); }
     catch (e) { out.errores.push(cli + ': ' + ((e && e.message) || e)); }
   });
 
   // Vehemence por código, salvo que ya haya entrado por el mapa.
-  if (!mapa['CLI-002'] || !mapa['CLI-002'].on) {
-    try { out.vehemence = sincronizarVehemence(); out.corridos++; }
+  if (_vehemencePorCodigo_(mapa)) {
+    try { out.vehemence = sincronizarVehemence(); out.corridos++; _sellarUltSync_('CLI-002'); }
     catch (e) { out.errores.push('CLI-002 (Vehemence, por código): ' + ((e && e.message) || e)); }
   }
 

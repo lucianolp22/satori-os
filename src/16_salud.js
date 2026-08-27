@@ -1,7 +1,7 @@
 /**
  * 16_salud.js — Loop de salud del sistema (ETAPA 8a · módulo a3).
  *
- * correrSalud() corre 7 chequeos (el 7º es el security-scan, T3-S4), los clasifica (ok/warn/crit) y escribe los hallazgos
+ * correrSalud() corre 8 chequeos (el 7º es el security-scan T3-S4; el 8º, `conectores_sync`, E2.a 27-ago), los clasifica (ok/warn/crit) y escribe los hallazgos
  * al feed (Actividad, agente "Salud") + Avisos para los CRÍTICOS (surfacean en "Hoy").
  * **0 API** (100% reglas). **Alerta, no arregla**: el auto-heal está detrás del flag
  * AUTOHEAL_ON (Script Property o Config 'autoheal_on'); en piloto = false → solo alerta.
@@ -22,7 +22,8 @@
  */
 
 /**
- * T3 · MÓDULO H · H2 (21-jul) — capa HUMANA de los 7 chequeos.
+ * T3 · MÓDULO H · H2 (21-jul) — capa HUMANA de los chequeos (hoy 8; la cantidad la DERIVAN los
+ * asserts de este mapa, no un número clavado — precedente E8a-3).
  *
  * El panel del CM mostraba el estado crudo: `cola [crit] 0 pendientes · 2 tomadas colgadas`. Eso lo
  * lee bien quien escribió el chequeo; nadie más. Acá vive, por chequeo, el nombre en llano y el
@@ -53,6 +54,9 @@ var SALUD_HUMANO = {
   cerebro: { titulo: 'Memoria de los clientes',
              warn: 'Hay clientes activos sin su cerebro materializado — el Director no los está dirigiendo. Corré repararCerebro() y después correrDirector().',
              crit: 'Clientes activos sin memoria: no hay contexto para analizarlos. Corré repararCerebro() y correrDirector().' },
+  conectores_sync: { titulo: 'Conectores trayendo datos',
+                     warn: 'Algún conector encendido no sincroniza hace más días que el umbral (Config conector_max_dias), o nunca sincronizó. Corré sincronizarConectores() desde el editor y mirá el detalle: si falla, el aviso conector_error tiene el motivo.',
+                     crit: 'Un conector encendido lleva más de 3× el umbral sin traer datos: los números de ese cliente están viejos y el sistema los sigue mostrando como si fueran de hoy. Corré sincronizarConectores() y revisá el conector_<id>_db / _on en Config.' },
   seguridad: { titulo: 'Cerrojos del sistema',
                warn: 'Algo de seguridad pide atención (un secreto sin fecha de vencimiento, o un endpoint que no se pudo verificar). Mirá el detalle y, si es un secreto, corré sembrarExpirySecretos().',
                crit: 'Hay un cerrojo abierto: un endpoint sin gate de identidad, un secreto vencido o una credencial faltante. Esto se resuelve ANTES que cualquier otra cosa — mirá el detalle y corré securityScan_() desde el editor para el desglose completo.' }
@@ -169,6 +173,32 @@ function correrSalud(opts) {
       // Un scan que revienta NO puede pasar por "ok": es exactamente el caso que debía detectar.
       H('seguridad', 'crit', 'securityScan_ falló: ' + ((e && e.message) || e));
     }
+  })();
+
+  // 8) E2.a (27-ago) — CONECTORES QUE NO TRAEN DATOS. El agujero que cierra: un conector puede
+  //    fallar todos los días y el sistema sigue mostrando el último número que trajo como si fuera
+  //    de hoy (incidente P0-bis 27-jul: Vehemence llevaba días sin refrescar y nadie lo vio). El
+  //    criterio de stale es la AUSENCIA del sello: `_sellarUltSync_` solo escribe cuando el sync
+  //    cerró bien, así que un conector que revienta deja su fecha quieta sola.
+  (function () {
+    var umbral = parseInt(getConfig('conector_max_dias') || '2', 10);
+    var cfg = leerTabla(ss.getSheetByName('Config'));
+    // La lista sale de `_conectoresQueCorren_` — la MISMA función que decide a quién corre el sync.
+    // Preguntar por otro lado sería inventar una segunda verdad (regla del stub divergente).
+    var activos = _conectoresQueCorren_(_mapaConectores_(cfg));
+    var sellos = {};
+    cfg.forEach(function (f) { sellos[String(f.clave || '')] = String(f.valor || '').trim(); });
+    var peor = 'ok', partes = [];
+    activos.forEach(function (cli) {
+      var ult = aFechaISO(sellos[_conectorUltSyncClave_(cli)] || '');
+      var dias = ult ? _diasEntreISO_(ult, hoyISO()) : null;
+      var est = _staleEstado_(dias, umbral);
+      if (est === 'crit') peor = 'crit';
+      else if (est === 'warn' && peor !== 'crit') peor = 'warn';
+      partes.push(cli + '=' + (dias === null ? 'sin sello' : dias + 'd') + (est === 'ok' ? '' : ' (' + est + ')'));
+    });
+    H('conectores_sync', activos.length ? peor : 'ok',
+      activos.length ? ('umbral ' + umbral + 'd · ' + partes.join(' · ')) : 'ningún conector encendido');
   })();
 
   // Clasificación global.

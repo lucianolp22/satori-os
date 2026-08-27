@@ -349,7 +349,18 @@ var CONFIG_DEFAULTS = [
   ['correo_on', 'false'],
   // Lista de remitentes a descartar sin clasificar (CSV, match por substring: 'newsletter@x.com'
   // o '@x.com'). Nace VACÍA: hasta que alguien la complete se comporta como si no existiera.
-  ['correo_remitentes_ignorados', '']
+  ['correo_remitentes_ignorados', ''],
+  // ── CAPACIDADES-SATO E2 (27-ago) · proactividad ────────────────────────────────────────────
+  // Push del cierre de `corridaDiaria`. Nace APAGADO, mismo criterio que `correo_on` y
+  // `brief_push_on`: el código se despliega inerte y lo enciende un humano después de mirarlo.
+  // Cualquier valor que no sea exactamente 'true' lo deja apagado.
+  ['push_proactivo_on', 'false'],
+  // Días sin sincronizar a partir de los cuales un conector ENCENDIDO cuenta como stale (chequeo
+  // `conectores_sync` de correrSalud). 2 y no 1: un conector que corre a las 07:00 y se mira a
+  // las 07:00 del día siguiente daría warn por un margen de minutos. A 3× el umbral pasa a crit.
+  ['conector_max_dias', '2']
+  // `conector_<id>_ult_sync` NO va acá: la escribe el propio sync al cerrar bien cada conector
+  // (19_conectores.js). Es dato, no configuración — no se toca a mano.
 ];
 // PURGA #11/#12: 'cursor_sync' era decorativo (se escribía, nunca se leía) → removido.
 // 'timezone' se quitó del seed: la fuente de verdad de la zona es TZ en 07_util.js;

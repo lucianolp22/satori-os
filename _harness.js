@@ -2918,6 +2918,122 @@ seccion('E1-bis · ntfy autenticado (Authorization solo cuando hay NTFY_TOKEN)')
       'E1-bis 🔒 el diagnóstico reporta la PRESENCIA del token nuevo (!!), nunca su valor');
 }
 
+// ═══ E2 · PROACTIVIDAD (CAPACIDADES-SATO, 27-ago) ═══════════════════════════════════════════════
+// Lo vivo (Sheets) lo certifica D49 en el tramo 6. Acá va lo que el arnés puede probar de verdad:
+// el juicio de stale es PURO y se ejercita con números, y el contrato entre el brief y la voz se
+// verifica CORRIENDO el parser Python real — no una copia del regex en JS, que sería justo el
+// «stub divergente» que ya nos mordió.
+seccion('E2 · proactividad (stale de conectores, push 07:00, contrato brief↔voz)');
+{
+  const sinComE2 = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  // (a) juicio PURO del stale — el corazón del chequeo nuevo, sin tocar un Sheet.
+  chk(ctx._staleEstado_(null, 2) === 'warn',
+      'E2 🔒 conector SIN sello = warn, no crit (recién configurado no arma escándalo)');
+  chk(ctx._staleEstado_(undefined, 2) === 'warn' && ctx._staleEstado_('', 2) === 'warn',
+      'E2 la ausencia de dato en cualquiera de sus formas cae en warn, nunca en ok');
+  chk(ctx._staleEstado_(0, 2) === 'ok' && ctx._staleEstado_(2, 2) === 'ok' && ctx._staleEstado_(3, 2) === 'warn',
+      'E2 el borde exacto del umbral NO alarma; pasarlo sí');
+  chk(ctx._staleEstado_(6, 2) === 'warn' && ctx._staleEstado_(7, 2) === 'crit',
+      'E2 3× el umbral es el corte a crit («hace rato que no corre y nadie se enteró»)');
+  chk(ctx._staleEstado_(1, 0) === 'ok' && ctx._staleEstado_(99, null) === 'crit',
+      'E2 umbral ilegible cae al default prudente (2d), no a «todo ok»');
+
+  // (b) la lista vigilada sale de la MISMA decisión que toma el sync (una sola verdad).
+  chk(ctx._conectoresQueCorren_({}).indexOf('CLI-002') >= 0,
+      'E2 🔒 Vehemence entra a la lista vigilada cuando corre por código — el conector que ya se cayó en silencio');
+  const TIPO_OK = Object.keys(ctx.CONECTOR_ADAPTERS)[0];   // adapter REAL, no uno inventado
+  chk(ctx._conectoresQueCorren_({ 'CLI-002': { db: 'x', tipo: TIPO_OK, on: true } }).filter(
+        (c) => c === 'CLI-002').length === 1,
+      'E2 y NO se duplica cuando además está encendido en el mapa');
+  chk(ctx._conectoresQueCorren_({ 'CLI-009': { db: 'x', tipo: TIPO_OK, on: false } }).indexOf('CLI-009') < 0,
+      'E2 un conector apagado no se vigila (preguntar por el stale de algo que nadie corre es ruido)');
+  const con19 = sinComE2(fs.readFileSync(path.join(SRC, '19_conectores.js'), 'utf8'));
+  chk(/_vehemencePorCodigo_\(mapa\)/.test(con19) && (con19.match(/mapa\['CLI-002'\]\.on/g) || []).length === 1,
+      'E2 🔒 la condición de «Vehemence por código» existe UNA sola vez (sync y salud leen la misma)');
+  chk(/out\.corridos\+\+; _sellarUltSync_\(cli\)/.test(con19) &&
+      /out\.corridos\+\+; _sellarUltSync_\('CLI-002'\)/.test(con19) &&
+      !/out\.errores\.push\([^;]*_sellarUltSync_/.test(con19),
+      'E2 🔒 el sello va pegado al contador de ÉXITO en los dos caminos, y ningún camino de error lo toca (eso ES el criterio de stale)');
+
+  // (c) el chequeo de salud está dado de alta con capa humana, y los conteos se DERIVAN.
+  const sal16 = fs.readFileSync(path.join(SRC, '16_salud.js'), 'utf8');
+  chk(/conectores_sync: \{ titulo:/.test(sal16) && /H\('conectores_sync'/.test(sinComE2(sal16)),
+      'E2 `conectores_sync` está en SALUD_HUMANO y se emite como hallazgo');
+  const st49 = fs.readFileSync(path.join(SRC, '09_selftest.js'), 'utf8');
+  chk(!/hallazgos\.length === 7/.test(st49) && /Object\.keys\(SALUD_HUMANO\)\.length/.test(st49),
+      'E2 🔒 los asserts de conteo de chequeos DERIVAN de SALUD_HUMANO (el 7 clavado ya rompió 2 veces)');
+  chk(/\{ n: 'D49[^']*', f: _asertsD49_, tramo: 6 \}/.test(st49),
+      'E2 la tanda D49 está registrada CON tramo (si no, no la corre nadie)');
+
+  // (d) el push proactivo: opt-in, PII-free y a prueba de tumbar la corrida.
+  const avi = sinComE2(fs.readFileSync(path.join(SRC, '06_avisos.js'), 'utf8'));
+  const cuerpoPP = avi.slice(avi.indexOf('function pushProactivoDiario_'), avi.indexOf('function crearAviso'));
+  chk(/getProperty\('push_proactivo_on'\)[\s\S]{0,120}'false'/.test(cuerpoPP) &&
+      /motivo: 'push_proactivo_on=false'/.test(cuerpoPP),
+      'E2 🔒 el push nace APAGADO y lo dice con motivo (mismo criterio que correo_on)');
+  chk(/motivo: 'sin señales'/.test(cuerpoPP),
+      'E2 🔒 sin señales NO manda — un push que llega todos los días deja de leerse');
+  chk(/if \(r\.enviado\) props\.setProperty\(PROP_PUSHPROA_ULTIMO/.test(cuerpoPP),
+      'E2 🔒 la marca del día se pone SOLO si salió: un 429 no puede consumir el aviso del día');
+  chk(/vig\.rojos/.test(cuerpoPP) && !/vigilancia\.criticos|vig\.criticos/.test(cuerpoPP),
+      'E2 lee `rojos` de vigilanciaCorrida_ (el `criticos` del encargo no existe: habría contado 0 siempre)');
+  chk(!/nombre|cliente\.|id_cliente/.test(cuerpoPP) && /partes\.join/.test(cuerpoPP),
+      'E2 🔒 el cuerpo del push son CANTIDADES: ni un nombre de cliente al teléfono (PII-free)');
+  chk(/function pushProactivoDiario_\([^)]*\)\s*\{\s*try\s*\{/.test(cuerpoPP) &&
+      /catch \(e\) \{[\s\S]{0,200}return \{ enviado: false/.test(cuerpoPP),
+      'E2 🔒 cuerpo entero en try y el catch DEVUELVE: no puede voltear corridaDiaria');
+  chk(/try \{ resumen\.push_proactivo = pushProactivoDiario_\(resumen\); \}/.test(avi) &&
+      avi.indexOf('resumen.push_proactivo = pushProactivoDiario_') > avi.indexOf('adminRefrescarResumen_()') &&
+      avi.indexOf('resumen.push_proactivo = pushProactivoDiario_') < avi.indexOf("setConfig('ultima_corrida_avisos'"),
+      'E2 la LLAMADA va al final de corridaDiaria —después de admin, antes del cierre— con su propio try');
+  // El contador que usa el push NO puede ser el que marca: se comería el enunciado de la voz.
+  const web2 = sinComE2(fs.readFileSync(path.join(SRC, '08_webapp.js'), 'utf8'));
+  const cuerpoCont = web2.slice(web2.indexOf('function _encargosSinAvisarContar_'), web2.indexOf('function encargosListos'));
+  chk(cuerpoCont.length > 0 && !/setValues|= true;/.test(cuerpoCont),
+      'E2 🔒 `_encargosSinAvisarContar_` NO escribe: contar no puede consumir el aviso que la voz va a dar');
+
+  // (e) CONTRATO brief↔voz, verificado con el PARSER PYTHON REAL (no una traducción a JS).
+  const dir18 = fs.readFileSync(path.join(SRC, '18_direccion.js'), 'utf8');
+  chk(/BRIEF_HOY_TITULO = 'HOY hay que mirar'/.test(dir18) &&
+      /'\\n## ' \+ BRIEF_HOY_TITULO \+ ' \(' \+ hoy\.senales \+ ' señales\)/.test(dir18),
+      'E2 el brief emite el encabezado CON el conteo de señales (el contrato que lee la voz)');
+  chk(/return _briefInsertarHoy_\(mdSis, _briefHoyLineas_\(sal, abiertas\)\);/.test(dir18) &&
+      /if \(i < 0\) return md;/.test(dir18),
+      'E2 el bloque se INSERTA sobre el contrato v1, y si no encuentra dónde devuelve el brief intacto');
+
+  const muestra = [
+    '# Brief — Satori — 2026-08-27', '', '**BLUF**', '',
+    '## HOY hay que mirar (2 señales)',
+    '- Vencimientos: 1 tarea(s) para hoy/mañana — cerrar propuesta (2026-08-27)',
+    '- Conectores: WARN — umbral 2d · CLI-002=5d (warn)',
+    '- Encargos: sin encargos pendientes de aviso.', '',
+    '## Hoy', '- otra cosa', '',
+  ].join('\n');
+  const quieto = muestra.replace('(2 señales)', '(0 señales)');
+  const py = (md) => JSON.parse(require('child_process').execFileSync('python3',
+    ['-c', 'import sys,json;sys.path.insert(0,"voz/agent");from brief_hoy import brief_hoy;' +
+           'n,l=brief_hoy(sys.stdin.read());print(json.dumps([n,l]))'],
+    { input: md, encoding: 'utf8', cwd: __dirname }));
+  const [n1, l1] = py(muestra);
+  chk(n1 === 2 && l1.length === 3 && l1[0].indexOf('Vencimientos:') === 0,
+      'E2 🔒 el parser REAL de agent.py lee las 3 líneas y el conteo del brief REAL');
+  chk(l1.every((x) => x.indexOf('## ') < 0),
+      'E2 el parser corta en la sección siguiente (no se traga el contrato entero)');
+  const [n0] = py(quieto);
+  chk(n0 === 0, 'E2 🔒 con 0 señales el parser devuelve 0 ⇒ SILENCIO BUENO (Sato no recita «no hay nada» todos los días)');
+  const [nSin, lSin] = py('# Brief\n## Hoy\n- x');
+  chk(nSin === 0 && lSin.length === 0, 'E2 un brief SIN el bloque no rompe el saludo: devuelve silencio');
+
+  const agE2 = fs.readFileSync(path.join(__dirname, 'voz', 'agent', 'agent.py'), 'utf8');
+  chk(/from brief_hoy import brief_hoy as _brief_hoy/.test(agE2),
+      'E2 agent.py usa ESE parser (el que el arnés acaba de ejercitar), no una copia propia');
+  chk(/asyncio\.gather\(\s*_saludo_pide\("encargos_listos"\), _saludo_pide\("brief"\)\s*\)/.test(agE2),
+      'E2 las dos consultas del saludo van EN PARALELO (dos timeouts de 10 s en serie = 20 s de silencio)');
+  chk(/if senales and lineas:/.test(agE2),
+      'E2 🔒 la voz enuncia SOLO si el brief declara señales');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;

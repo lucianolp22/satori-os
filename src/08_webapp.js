@@ -400,6 +400,30 @@ function encargosReportar_(payload) {
 }
 
 /**
+ * E2 (27-ago) — CUÁNTOS encargos terminaron sin enunciar. Lectura PURA: cuenta y se va.
+ *
+ * Existe separada de `encargosListos` por una razón dura: aquélla MARCA `avisado` al leer, así que
+ * usarla para contar en el push de las 07:00 se comería el enunciado de la voz de esa mañana — el
+ * push mataría justo lo que el push viene a anunciar. Contar y enunciar son dos actos distintos.
+ * @return {number}
+ */
+function _encargosSinAvisarContar_() {
+  try {
+    var sh = _encHoja_(); if (!sh) return 0;
+    var m = sh.getDataRange().getValues(); var H = m[0];
+    var iEst = H.indexOf('estado'), iAv = H.indexOf('avisado');
+    if (iEst < 0 || iAv < 0) return 0;
+    var n = 0;
+    for (var r = 1; r < m.length; r++) {
+      var est = String(m[r][iEst]).toLowerCase();
+      if (est !== 'hecho' && est !== 'fallido') continue;
+      if (!esVerdadero_(m[r][iAv])) n++;
+    }
+    return n;
+  } catch (e) { return 0; }   // contar es instrumentación: jamás voltea a quien lo llama
+}
+
+/**
  * E1 · LAZO CERRADO — qué terminó y todavía no te lo dije. Tool de voz `encargos_listos`.
  *
  * Devuelve los encargos en estado terminal con `avisado` falsy y los marca `avisado:true` en la
@@ -1853,7 +1877,7 @@ function _bootSeccion_(nombre, fn) {
  * va en su PROPIA ejecución GAS para que corra en paralelo con `bootResto()`
  * (dos google.script.run concurrentes → el wall-clock es el más lento, no la suma).
  *
- * `estadoSalud()` (lo más caro: 6 chequeos) queda FUERA de acá a propósito: el
+ * `estadoSalud()` (lo más caro: los 8 chequeos) queda FUERA de acá a propósito: el
  * clima ámbar puede llegar tarde sin frenar el universo. Fail-closed por sección.
  *
  * Incluye `listaClientes()` (no solo el `clientes_activos` de estadoAgentes) para
@@ -1926,7 +1950,7 @@ function _bootRangoSemana_(desdeISO, hastaISO) {
 }
 
 /**
- * Estado de Salud para el panel del Command Center (E8a4): los 6 chequeos + integridad%.
+ * Estado de Salud para el panel del Command Center (E8a4): los chequeos + integridad%.
  * dryRun → NO escribe a producción (no ensucia feed/avisos en cada refresh de la UI).
  */
 function estadoSalud() {

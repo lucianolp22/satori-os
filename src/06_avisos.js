@@ -67,6 +67,65 @@ function probarBriefPush() {
   return briefPush_();
 }
 
+/**
+ * E2.b (27-ago) · PUSH PROACTIVO DEL CIERRE DE LA CORRIDA. Un empujón al teléfono cuando hay algo
+ * que mirar hoy — no un resumen diario que se aprende a ignorar.
+ *
+ * Tres reglas que lo hacen soportable en el tiempo:
+ *  1. **Silencio si no hay señal.** Cero avisos, cero salud en amarillo, cero rojos, cero encargos
+ *     ⇒ NO manda nada. Un push que llega todos los días deja de leerse a la semana, y entonces no
+ *     sirve para el día que de verdad importa (mismo criterio que el guardián foco/paz).
+ *  2. **PII-FREE.** Solo CANTIDADES. Ni un nombre de cliente, ni una cifra de negocio: el teléfono
+ *     es la superficie menos controlada que tenemos y el detalle vive en el CM, detrás del gate.
+ *  3. **No puede voltear la corrida.** Cuerpo entero en try; el llamador lo envuelve otra vez.
+ *
+ * Opt-in por `push_proactivo_on` (default `false`), y dedupe diario por Script Property — el mismo
+ * primitivo que `briefPush_` y el guardián, y NO el cache: el cache de GAS tope a 6 h, así que un
+ * dedupe "por día" montado ahí se vence a media tarde y el push del día podría salir dos veces.
+ *
+ * @param {Object} resumen  el resumen vivo de `corridaDiaria` (se lee, no se muta)
+ * @return {{enviado:boolean, motivo:string, senales?:Object}}
+ */
+var PROP_PUSHPROA_ULTIMO = 'PUSHPROA_ultimo';
+function pushProactivoDiario_(resumen) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var on = String(props.getProperty('push_proactivo_on') || getConfig('push_proactivo_on') || 'false') === 'true';
+    if (!on) return { enviado: false, motivo: 'push_proactivo_on=false' };
+    if (props.getProperty(PROP_PUSHPROA_ULTIMO) === hoyISO()) return { enviado: false, motivo: 'ya enviado hoy' };
+
+    resumen = resumen || {};
+    var sal = resumen.salud || {};
+    var hall = sal.hallazgos || [];
+    var saludMal = hall.filter(function (h) { return h.estado === 'crit' || h.estado === 'warn'; }).length;
+    // `rojos`, no `criticos`: `vigilanciaCorrida_` devuelve {clientes,verdes,ambar,rojos,grises,
+    // errores,truncado}. Pedirle `criticos` habría contado siempre 0 — un push mudo que parece sano.
+    var vig = resumen.vigilancia || {};
+    var rojos = Number(vig.rojos || 0);
+    var encargos = _encargosSinAvisarContar_();
+    var avisos = Number(resumen.avisos_nuevos || 0);
+    var senales = { avisos: avisos, salud: saludMal, rojos: rojos, encargos: encargos };
+
+    if (!avisos && !saludMal && !rojos && !encargos) return { enviado: false, motivo: 'sin señales', senales: senales };
+
+    var partes = [];
+    if (avisos) partes.push(avisos + ' aviso(s) nuevo(s)');
+    if (saludMal) partes.push(saludMal + ' chequeo(s) de salud en amarillo o rojo');
+    if (rojos) partes.push(rojos + ' cliente(s) en rojo');
+    if (encargos) partes.push(encargos + ' encargo(s) terminado(s)');
+    var cuerpo = 'Hoy: ' + partes.join(' · ') + '. El detalle está en el Centro de Mando.';
+
+    var r = _pushTelefono_('Satori · brief del día', cuerpo);
+    // La marca del día se pone SOLO si salió de verdad. Marcarla igual convertiría un 429 o una
+    // credencial faltante en «hoy ya avisé», y el día entero se perdería en silencio.
+    if (r.enviado) props.setProperty(PROP_PUSHPROA_ULTIMO, hoyISO());
+    return { enviado: !!r.enviado, motivo: r.motivo || '', senales: senales };
+  } catch (e) {
+    try { Logger.log('pushProactivoDiario_ fallo: ' + e.message); } catch (_e) {}
+    return { enviado: false, motivo: 'error: ' + ((e && e.message) || e) };
+  }
+}
+
 function crearAviso(a) {
   _soloOwner_('crearAviso');   // X4 (03-ago): top-level ⇒ invocable por RPC ⇒ puerta.
   return _crearAviso_(a);
@@ -295,7 +354,7 @@ function corridaDiaria() {
   try { resumen.director = correrDirector(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Director falló: ' + e.message }); }
 
-  // ETAPA 8a: loop de salud (6 chequeos, 0 API, alerta-no-arregla). Liviano en el pase
+  // ETAPA 8a: loop de salud (8 chequeos, 0 API, alerta-no-arregla). Liviano en el pase
   // diario (schema solo MAESTRO); correrSalud({full:true}) abre clientes on-demand.
   try { resumen.salud = correrSalud(); }
   catch (e) { crearAviso({ tipo: 'sync_error', mensaje: 'Salud falló: ' + e.message }); }
@@ -356,6 +415,13 @@ function corridaDiaria() {
   // ADMIN. Si todavía no existe (F4a espera las facturas 2026), devuelve sin_datos y el brief lo dice.
   try { resumen.admin = adminRefrescarResumen_(); }
   catch (e) { try { Logger.log('adminRefrescarResumen_ falló: ' + e.message); } catch (_e) {} }
+
+  // E2.b · push proactivo. Va al FINAL DEL TODO —después de correo y admin, no donde decía el
+  // encargo ("después de calentarEstadoCacheSistema_")— porque cuenta señales DEL resumen: puesto
+  // más arriba se perdería lo que aportan las últimas etapas. Opt-in, PII-free y silencioso si no
+  // hay nada. El try/catch es el de la regla: un canal de aviso jamás voltea la corrida.
+  try { resumen.push_proactivo = pushProactivoDiario_(resumen); }
+  catch (e) { try { Logger.log('pushProactivoDiario fallo: ' + e.message); } catch (_e) {} }
 
   setConfig('ultima_corrida_avisos', ahoraISO());
   Logger.log('corridaDiaria: ' + JSON.stringify(resumen));

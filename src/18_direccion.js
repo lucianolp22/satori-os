@@ -164,7 +164,7 @@ function briefDiario(idCliente) {
 }
 
 // SPEC-GAS 14-jul (incidente 08:22 = doPost brief colgado 24-31s). El render de briefDiario es CARO:
-// estadoSalud() (los 6 chequeos de correrSalud) + Tareas entera. Bajo contención (CM polleando) el doPost
+// estadoSalud() (los chequeos de correrSalud) + Tareas entera. Bajo contención (CM polleando) el doPost
 // se iba a 30s+ y la voz colgaba. Read-only ⇒ solo TTL, sin invalidación. CacheService = strings ≤100KB.
 var _BRIEF_CACHE_TTL = 3600;        // voz: 1h (Problema B 24-ago: con 600s casi todo pegaba frio; el warm horario lo sostiene)
 var _BRIEF_CACHE_TTL_WARM = 21600;  // corridaDiaria calienta 6h → la consulta de la mañana es HIT instantáneo
@@ -576,7 +576,7 @@ function briefDiarioSistema_() {
   cierre.push('');
   cierre.push('— generado por briefDiario() · contrato v1');
 
-  return contratoStatusReport_({
+  var mdSis = contratoStatusReport_({
     titulo: 'Brief — Satori — ' + hoyISO(),
     bluf: bluf,
     apertura: apertura,
@@ -589,6 +589,63 @@ function briefDiarioSistema_() {
     instrumentacion: instrumentacion,
     cierre: cierre
   });
+  // E2.c (27-ago) · ANTI-BRIEF-ESTÁTICO. El contrato v1 es completo pero es una FOTO: para saber
+  // qué hacer hoy había que leerlo entero. El bloque se INSERTA, no reemplaza — el contrato de 10
+  // secciones queda intacto (D14a las sigue encontrando en orden) y el BLUF sigue siendo lo
+  // primero después del título, que es su propio contrato. Solo se agrega un escalón entre ambos.
+  return _briefInsertarHoy_(mdSis, _briefHoyLineas_(sal, abiertas));
+}
+
+/**
+ * E2.c — las 3 líneas de "qué cambió y requiere acción HOY". Barato a propósito: los tres datos ya
+ * están leídos (salud y tareas vienen del render) o son una lectura de una hoja del MAESTRO. Este
+ * brief es el que colgaba el doPost de voz cuando se enfriaba: no se engorda.
+ *
+ * Cada línea dice explícitamente que NO hay nada cuando no lo hay ("nada", "OK", "sin"): un renglón
+ * ausente se lee como "no aplica", que es distinto de "lo miré y está bien". Y esa forma es la que
+ * `agent.py` usa para decidir si vale la pena hablar (silencio bueno).
+ */
+function _briefHoyLineas_(sal, abiertas) {
+  var L = [], senales = 0;
+  // 1 · Vencimientos que caen hoy o mañana, por fecha.
+  var manana = sumarDiasISO_(hoyISO(), 1);
+  var caen = (abiertas || []).filter(function (t) {
+    var f = String(aFechaISO(t.fecha_limite) || '');
+    return f && f <= manana;
+  }).sort(function (a, b) { return String(aFechaISO(a.fecha_limite)) < String(aFechaISO(b.fecha_limite)) ? -1 : 1; });
+  if (!caen.length) L.push('- Vencimientos: nada cae hoy ni mañana.');
+  else { senales++; L.push('- Vencimientos: ' + caen.length + ' tarea(s) para hoy/mañana — ' +
+              caen.slice(0, 3).map(function (t) { return truncar_(t.descripcion, 60) + ' (' + aFechaISO(t.fecha_limite) + ')'; }).join(' · ')); }
+  // 2 · Conectores: se lee el hallazgo de salud, no se re-calcula (una sola verdad).
+  var hc = ((sal && sal.hallazgos) || []).filter(function (h) { return h.nombre === 'conectores_sync'; })[0];
+  if (!hc) L.push('- Conectores: sin chequeo en esta corrida.');
+  else if (hc.estado === 'ok') L.push('- Conectores: OK (' + hc.detalle + ').');
+  else { senales++; L.push('- Conectores: ' + hc.estado.toUpperCase() + ' — ' + hc.detalle); }
+  // 3 · Encargos terminados sin enunciar (cuenta, NO marca: marcar es acto de la voz).
+  var nEnc = 0;
+  try { nEnc = _encargosSinAvisarContar_(); } catch (e) { nEnc = 0; }
+  if (nEnc) senales++;
+  L.push(nEnc ? ('- Encargos: ' + nEnc + ' terminado(s) sin avisar — pedíselos a Sato o mirá la hoja Encargos.')
+              : '- Encargos: sin encargos pendientes de aviso.');
+  return { lineas: L, senales: senales };
+}
+
+/**
+ * E2.c — inserta el bloque JUSTO ANTES de la primera sección del contrato. Si por lo que sea no
+ * encuentra dónde (contrato cambiado), devuelve el markdown INTACTO: un brief sin el escalón nuevo
+ * es un brief peor, pero un brief roto es un brief que nadie puede leer.
+ *
+ * El encabezado lleva **el conteo de señales entre paréntesis**, y eso es un CONTRATO con la voz,
+ * no decoración: `agent.py` decide si abre la boca leyendo ese número. La alternativa —que el
+ * agente adivine por el texto ("nada", "OK", "sin")— es la clase de acuerdo tácito entre dos
+ * lenguajes que se rompe la primera vez que alguien mejora una frase, y se rompe en silencio.
+ */
+var BRIEF_HOY_TITULO = 'HOY hay que mirar';
+function _briefInsertarHoy_(md, hoy) {
+  var i = String(md).indexOf('\n## ');
+  if (i < 0) return md;
+  var bloque = '\n## ' + BRIEF_HOY_TITULO + ' (' + hoy.senales + ' señales)\n' + hoy.lineas.join('\n') + '\n';
+  return md.slice(0, i) + bloque + md.slice(i);
 }
 
 /** Brief por CLIENTE: foco en el North Star + 3 cosas + números del cliente. */

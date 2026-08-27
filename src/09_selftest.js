@@ -182,9 +182,15 @@ function selfTest() {
     });
     chk(colaDir.length >= 1, 'E8a-2 el Analista del objetivo quedó encolado en la cola');
 
-    // ── ETAPA 8a · a3 — Salud (7 chequeos, dryRun: no escribe a producción) ────
+    // ── ETAPA 8a · a3 — Salud (dryRun: no escribe a producción) ────
+    // El conteo se DERIVA de SALUD_HUMANO en vez de clavarse: el invariante real es «cada chequeo
+    // tiene capa humana y cada capa humana es un chequeo», y así sobrevive a la próxima que se
+    // agregue. Clavar el 7 fue lo que rompió este assert cuando el módulo S sumó el de seguridad
+    // (E8a-3) y de nuevo cuando E2.a sumó `conectores_sync`. Tercera vez, y la última.
     var sal = correrSalud({ dryRun: true });
-    chk(sal.hallazgos.length === 7, 'E8a-3 Salud corre los 7 chequeos (' + sal.hallazgos.length + ')');
+    var _nCheq = Object.keys(SALUD_HUMANO).length;
+    chk(sal.hallazgos.length === _nCheq,
+        'E8a-3 Salud corre un chequeo por entrada de SALUD_HUMANO (' + sal.hallazgos.length + '/' + _nCheq + ')');
     chk(['ok', 'warn', 'crit'].indexOf(sal.global) >= 0, 'E8a-3 Salud clasifica el estado global (' + sal.global + ')');
     chk(sal.autoheal === false, 'E8a-3 auto-heal apagado en piloto (alerta, no arregla)');
 
@@ -1539,10 +1545,17 @@ function _asertsD24_(chk, log, opts) {
       'D24a6 el clasificador de Bandeja arranca con las invariantes de SOUL');
   chk(pc.indexOf('[S5]') < 0, 'D24a7 …pero NO con S5 (confirmación verbal): el clasificador no habla con nadie');
 
-  // ── H2 · capa humana de Salud. Los 7 chequeos tienen que estar TODOS cubiertos: un chequeo sin
+  // ── H2 · capa humana de Salud. TODOS los chequeos tienen que estar cubiertos: un chequeo sin
   //    "qué hacer" es el que te va a agarrar justo el día que se ponga rojo.
-  var CHEQUEOS = ['schema', 'sync', 'cola', 'presupuesto', 'aprobaciones', 'cerebro', 'seguridad'];
-  chk(Object.keys(SALUD_HUMANO).length === 7, 'D24b SALUD_HUMANO cubre los 7 chequeos');
+  //    La lista se DERIVA de la corrida real (no se transcribe a mano): así un chequeo nuevo entra
+  //    solo al assert, y uno que se agregue sin capa humana da rojo acá mismo.
+  var _salH2 = correrSalud({ dryRun: true });
+  var CHEQUEOS = _salH2.hallazgos.map(function (h) { return h.nombre; });
+  chk(CHEQUEOS.length === Object.keys(SALUD_HUMANO).length,
+      'D24b SALUD_HUMANO cubre exactamente los chequeos que corren (' + CHEQUEOS.length + ')');
+  Object.keys(SALUD_HUMANO).forEach(function (n) {
+    chk(CHEQUEOS.indexOf(n) >= 0, 'D24b0 ' + n + ' de SALUD_HUMANO es un chequeo que de verdad corre (nada huérfano)');
+  });
   CHEQUEOS.forEach(function (n) {
     var m = SALUD_HUMANO[n];
     chk(!!m && !!m.titulo && !!m.warn && !!m.crit, 'D24b2 ' + n + ': título + qué hacer en warn Y en crit');
@@ -3564,6 +3577,97 @@ function _asertsD48_(chk, log, opts) {
   log.push('   ↳ D48 lazo cerrado: hecho→avisado:false→push · fallido→sin push · enunciado idempotente');
 }
 
+/**
+ * D49 · CAPACIDADES-SATO E2 (27-ago) — PROACTIVIDAD.
+ *
+ * Tres cosas que sin assert se pudren en silencio, que es la peor forma de pudrirse:
+ *  · el chequeo de conectores stale (si nadie lo mira, un conector caído sigue "verde");
+ *  · el push proactivo (un canal que manda de más se apaga a la semana; uno que no manda nunca
+ *    parece que anda);
+ *  · el bloque HOY del brief, que es un CONTRATO con `agent.py` — el conteo de señales entre
+ *    paréntesis es lo que hace que Sato hable o se calle.
+ */
+function _asertsD49_(chk, log, opts) {
+  // ── (a) el chequeo nuevo existe, corre y tiene capa humana ──
+  var d49sal = correrSalud({ dryRun: true });
+  var d49c = d49sal.hallazgos.filter(function (h) { return h.nombre === 'conectores_sync'; })[0];
+  chk(!!d49c, 'D49a correrSalud incluye el chequeo `conectores_sync`');
+  chk(!!d49c && ['ok', 'warn', 'crit'].indexOf(d49c.estado) >= 0 && !!d49c.detalle,
+      'D49a2 el hallazgo trae estado válido y detalle no vacío (' + (d49c && d49c.estado) + ': ' + (d49c && d49c.detalle) + ')');
+  chk(!!SALUD_HUMANO.conectores_sync && !!SALUD_HUMANO.conectores_sync.warn && !!SALUD_HUMANO.conectores_sync.crit,
+      'D49a3 `conectores_sync` tiene capa humana en warn Y en crit (un chequeo mudo no se puede accionar)');
+
+  // ── (b) el juicio de stale, PURO: sin sello ⇒ warn, nunca crit ──
+  chk(_staleEstado_(null, 2) === 'warn',
+      'D49b 🔒 un conector SIN sello da warn, no crit — recién configurado no es una emergencia');
+  chk(_staleEstado_(0, 2) === 'ok' && _staleEstado_(2, 2) === 'ok',
+      'D49b2 dentro del umbral es ok (el borde exacto NO alarma)');
+  chk(_staleEstado_(3, 2) === 'warn' && _staleEstado_(6, 2) === 'warn' && _staleEstado_(7, 2) === 'crit',
+      'D49b3 pasado el umbral warn; pasado 3× el umbral crit');
+  chk(_staleEstado_(99, 0) === 'crit' && _staleEstado_(1, NaN) === 'ok',
+      'D49b4 umbral ilegible cae al default prudente (2d), no a «todo ok»');
+
+  // La lista vigilada sale de la MISMA función que usa el sync — no de una copia.
+  var d49mapa = _mapaConectores_(leerTabla(getMaestro().getSheetByName('Config')));
+  var d49act = _conectoresQueCorren_(d49mapa);
+  chk(Array.isArray(d49act) && d49act.length >= 1 && d49act.indexOf('CLI-002') >= 0,
+      'D49b5 🔒 Vehemence (CLI-002) entra a la lista vigilada aunque corra por código — es el que ya se cayó en silencio');
+
+  // ── (c-e) el push proactivo: opt-in, sin señales no manda, y el dedupe es diario ──
+  var propsD49 = PropertiesService.getScriptProperties();
+  var onPrevio = propsD49.getProperty('push_proactivo_on');
+  var ultPrevio = propsD49.getProperty(PROP_PUSHPROA_ULTIMO);
+  try {
+    propsD49.deleteProperty('push_proactivo_on');
+    propsD49.deleteProperty(PROP_PUSHPROA_ULTIMO);
+    var offCfg = String(getConfig('push_proactivo_on') || 'false') !== 'true';
+    if (offCfg) {
+      chk(pushProactivoDiario_({ avisos_nuevos: 9 }).motivo === 'push_proactivo_on=false',
+          'D49c 🔒 apagado (default) NO manda nada, aunque haya señales de sobra');
+    } else {
+      log.push('   ⏭️  D49c omitido: `push_proactivo_on` está en true en Config (el default de fábrica es false)');
+    }
+    propsD49.setProperty('push_proactivo_on', 'true');
+    var sinSenal = pushProactivoDiario_({ avisos_nuevos: 0, salud: { hallazgos: [] }, vigilancia: { rojos: 0 } });
+    // Ojo: `_encargosSinAvisarContar_` mira la hoja REAL. Si justo hay encargos sin enunciar, la
+    // señal es legítima y el assert se declara omitido en vez de dar un rojo que no es un rojo.
+    if (sinSenal.senales && sinSenal.senales.encargos) {
+      log.push('   ⏭️  D49d omitido: hay ' + sinSenal.senales.encargos + ' encargo(s) sin enunciar — señal real, no ruido de test');
+    } else {
+      chk(sinSenal.enviado === false && sinSenal.motivo === 'sin señales',
+          'D49d 🔒 sin señales NO manda: el silencio es parte del diseño (un push diario se ignora)');
+    }
+    propsD49.setProperty(PROP_PUSHPROA_ULTIMO, hoyISO());
+    chk(pushProactivoDiario_({ avisos_nuevos: 9 }).motivo === 'ya enviado hoy',
+        'D49e el dedupe diario corta el segundo envío del mismo día');
+  } finally {
+    if (onPrevio === null) propsD49.deleteProperty('push_proactivo_on'); else propsD49.setProperty('push_proactivo_on', onPrevio);
+    if (ultPrevio === null) propsD49.deleteProperty(PROP_PUSHPROA_ULTIMO); else propsD49.setProperty(PROP_PUSHPROA_ULTIMO, ultPrevio);
+  }
+
+  // ── (f) el bloque HOY: presente, ANTES del contrato, y con el conteo que la voz lee ──
+  var d49md = briefDiario();
+  chk(d49md.indexOf('# Brief — Satori') === 0,
+      'D49f el brief sigue abriendo por su título (contrato D2 intacto)');
+  var iHoy = d49md.indexOf('\n## ' + BRIEF_HOY_TITULO + ' (');
+  chk(iHoy > 0, 'D49f2 el bloque «' + BRIEF_HOY_TITULO + '» está en el brief de sistema');
+  chk(iHoy > 0 && d49md.indexOf('**') < iHoy,
+      'D49f3 el bloque va DESPUÉS del BLUF (la conclusión primero sigue siendo el contrato)');
+  var primeraSeccion = CONTRATO_ORDEN.filter(function (k) { return k !== 'bluf'; })
+    .map(function (k) { return d49md.indexOf('\n## ' + CONTRATO_TITULOS[k] + '\n'); })
+    .filter(function (p) { return p > 0; }).sort(function (a, b) { return a - b; })[0];
+  chk(iHoy > 0 && primeraSeccion > iHoy,
+      'D49f4 el bloque va ANTES de la primera sección del contrato v1 (se inserta, no reemplaza)');
+  chk(/\n## HOY hay que mirar \(\d+ señales\)\n/.test(d49md),
+      'D49f5 🔒 el encabezado declara el CONTEO de señales — es lo que agent.py lee para decidir si habla');
+  ['- Vencimientos:', '- Conectores:', '- Encargos:'].forEach(function (p) {
+    chk(d49md.indexOf(p) >= 0, 'D49f6 el bloque trae la línea «' + p.slice(2) + '» siempre (aunque diga que no hay nada)');
+  });
+
+  log.push('   ↳ D49 E2: salud ' + d49sal.hallazgos.length + ' chequeos (conectores_sync=' + (d49c && d49c.estado) +
+           ') · push proactivo opt-in+dedupe · bloque HOY en el brief');
+}
+
 var SELFTEST_TANDAS = [
   { n: 'D14 contrato F2', f: _asertsD14_, tramo: 2 },
   { n: 'D15 mantenimiento', f: _asertsD15_, tramo: 2 },
@@ -3603,7 +3707,8 @@ var SELFTEST_TANDAS = [
   { n: 'D47 SGIC integridad (config, endpoint, latencia, framing)', f: _asertsD47_, tramo: 6 },
   // CAPACIDADES-SATO E1 (27-ago). Va al tramo 6 y no a uno propio: son 12 asserts baratos y el 6 es
   // el tramo de certificación vigente — un tramo 7 para esto sumaría un viaje al editor por nada.
-  { n: 'D48 E1 lazo cerrado del encargo (avisado, push, idempotencia)', f: _asertsD48_, tramo: 6 }
+  { n: 'D48 E1 lazo cerrado del encargo (avisado, push, idempotencia)', f: _asertsD48_, tramo: 6 },
+  { n: 'D49 E2 proactividad (conectores stale, push 07:00, bloque HOY)', f: _asertsD49_, tramo: 6 }
 ];
 
 /**
