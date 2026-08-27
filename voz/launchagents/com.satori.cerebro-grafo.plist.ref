@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- com.satori.cerebro-grafo — mantiene vivo el server local del grafo del Cerebro (loopback).
+     Instalar en ~/Library/LaunchAgents/ y: launchctl load ~/Library/LaunchAgents/com.satori.cerebro-grafo.plist
+     Mismo patrón que com.satori.oficina-virtual. -->
+<!-- ⚠ COPIA DE REFERENCIA VERSIONADA — NO ES EL PLIST INSTALABLE.
+     El canónico vive en ~/Documents/Claude/_cerebro/_scripts/com.satori.cerebro-grafo.plist,
+     junto al grafo_server.py que levanta, y ESE es el que instala scripts/install-grafo-launchd.sh.
+     Este archivo existe porque ~/Documents/Claude NO es un repo git: sin esta copia, el plist
+     (y la lección del TCC que lleva escrita) vivirían sólo en el disco de Luciano.
+     `install-grafo-launchd.sh --check` avisa si el canónico y esta referencia divergieron.
+     Si tocás uno, tocá el otro. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.satori.cerebro-grafo</string>
+  <!-- NO usar /usr/bin/python3 (CommandLineTools): bajo launchd no tiene el permiso TCC de
+       ~/Documents y muere con "Operation not permitted" antes de abrir el script. El python de
+       Homebrew SÍ lo tiene — es el mismo que usa com.satori.oficina.observatorio. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3.12</string>
+    <string>grafo_server.py</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/lucianopablolp/Documents/Claude/_cerebro/_scripts</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/lucianopablolp/Library/Logs/satori-grafo-server.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/lucianopablolp/Library/Logs/satori-grafo-server.err.log</string>
+</dict>
+</plist>

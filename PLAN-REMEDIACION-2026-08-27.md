@@ -1,5 +1,34 @@
 # PLAN DE REMEDIACIÓN — stress test + pre-mortem + purga · 27/08/2026
 
+> ## ⛔ RETRACTACIÓN (27-ago, al ejecutar la Ola 0) — leer ANTES que nada
+>
+> **P0-2 y P1-1 eran FALSOS. Los retracto enteros.** También R2 y R2-bis, que salían de ellos.
+>
+> Al ir a implementar R2, el arnés cortó con dos asserts (D31b3 y D31h3) y me mandó a
+> `_harness.js:744-771`, a la sección **D31 · X4 · partición de la superficie RPC**. Ahí estaba,
+> desde antes de esta sesión, exactamente el mecanismo que yo proponía construir como «R2-bis»:
+> una partición **derivada del código** (no de `ENDPOINTS_UI`) que exige que toda función top-level
+> pública o esté gateada, **o esté declarada exenta con su motivo**.
+>
+> **Las 25 funciones que reporté como hallazgo estaban las 25 declaradas exentas, con motivo.**
+> Y el motivo de las 6 que llamé P0 es técnicamente sólido: `google.script.run` **no puede
+> serializar un `Sheet` ni un `Spreadsheet`**, ni como argumento ni como valor de retorno.
+> `appendFila(sh,…)`, `leerTabla(sh)`, `ensureSheet(ss,…)` y `conLock(fn)` son inalcanzables por RPC
+> porque no hay forma de construir su primer argumento; `getMaestro()` y `abrirCliente(id)` devuelven
+> un `Spreadsheet` que no cruza el puente. **No había hueco.** Los 9 wrappers de conectores tienen su
+> exención declarada («delega en gateada», decisión del 27-jul).
+>
+> **Mi error:** audité `ENDPOINTS_UI` y `securityScan_`, concluí «ciego estructural» —cierto de
+> `securityScan_` en aislamiento— y **nunca grepeé `_harness.js`**, que es el gate offline primario
+> del proyecto y que corrí cuatro veces esa misma sesión. La información estaba a un grep.
+>
+> Es la misma clase de fallo que el precedente **D25e**: un assert (el mío) probando el lugar
+> equivocado, mientras la defensa real estaba sana.
+>
+> **Qué sobrevive del informe:** P0-1 (el instalador — reproducido tumbando el servicio), P1-2, P2-1,
+> P2-2, los P3 y **los 7 modos del pre-mortem**, que no dependían de P0-2. Y aparecieron **dos
+> hallazgos nuevos y reales** durante la ejecución — ver «Ola 0 · ejecutada» al final.
+
 > Salida de los tres pases pedidos sobre el Bloque A recién construido y sobre el sistema.
 > **Todo lo de acá está verificado con un comando, no inferido.** Dos hallazgos son P0 y uno de los
 > dos lo introduje yo hoy.
@@ -298,3 +327,68 @@ Todo el resto de este plan corre sin vos.
 *Claude Code · 27/08/2026. Confianza: 9/10 en los hallazgos (cada uno tiene comando reproducible;
 P0-1 se reprodujo tumbando el servicio en vivo). 7/10 en las estimaciones de tiempo.
 La explotabilidad real de P0-2 queda declarada como plausible-no-demostrada.*
+
+---
+
+# OLA 0 · EJECUTADA (27-ago)
+
+| # | Estado | Qué pasó |
+|---|---|---|
+| **R1** | ✅ **hecho** | Instalador blindado: `plutil -lint` como 4º guard **antes** de copiar · backup `.prev` + `rollback()` con `trap INT TERM` · `--dry-run` · **guard de dominio** (aborta si `$HOME` no es el home real del uid) · `--check --force` avisa en vez de callarse |
+| **R2** | ⛔ **retractado** | No había hueco. Ver la retractación arriba. Cambios revertidos con `git checkout` |
+| **R2-bis** | ⛔ **retractado** | Ya existía: `_harness.js` D31 |
+| **R3** | ✅ **hecho** | 12 asserts nuevos (R3a-R3l). Arnés **899 → 911** |
+| **R5** | ✅ **adelantado** | `voz/launchagents/com.satori.cerebro-grafo.plist.ref` versionado; `--check` compara **por sustancia** (ignora comentarios XML) y avisa si divergen. `.bak` borrado |
+
+## Verificación de R1 — se repitió el test que tumbó el servicio
+
+| Test | Antes | Ahora |
+|---|---|---|
+| T11 · plist XML corrupto que pasa los greps | **servicio caído, plist pisado, sin rollback** | aborta en `plutil -lint` **antes del bootout**; servicio `running` + 200 |
+| `HOME` de juguete | **mataba producción** | `✗ HOME (/tmp/nope) no es el home real del uid 501` → aborta; servicio vivo |
+| plist válido que no levanta el server | no existía el caso | backup → bootstrap → no llega a 200 → **rollback automático** → «servicio restaurado con el plist anterior (200 OK)» → exit 1 |
+| `--dry-run --force` | — | imprime el plan completo sin tocar launchd |
+
+**Falsificación de los asserts** (un assert que no puede fallar no vale nada): tres mutantes
+—sacar `plutil -lint`, volver el plist a `/usr/bin/python3`, mandar los logs a `/tmp`— y los tres
+hacen fallar su assert. Verificado uno por uno.
+
+## Dos hallazgos NUEVOS, encontrados al ejecutar
+
+### 🔴 N1 · El arnés truncaba su propia salida justo cuando fallaba — **corregido**
+
+`_harness.js` terminaba con `process.exit(1)` cuando había fallos. `process.exit` mata el proceso
+**antes de que Node vacíe stdout**, y con la salida a un pipe se perdían las últimas ~13 líneas:
+**`RESULTADO` y la lista de fallos**. Medido: 957 líneas a archivo contra **944 a pipe**.
+
+Lo encontré porque dos de mis mutantes «no fallaban» — y no fallaban en el pipe, fallaban en el
+archivo. Sin éxito no se nota (no hay `exit`), así que **rompía sólo en el único caso que importa**,
+y `node _harness.js | tail -1` es el idiom que usa todo el mundo, esta sesión incluida.
+
+Fix: `process.exitCode = 1`. Verificado: el fallo ahora se ve por pipe y el exit code sigue siendo
+1 con fallo / 0 sin fallo (el hook `pre-push` depende de eso).
+
+### 🟠 N2 · Hay un camino **pre-autenticación** en `doPost` que llega a escribir en Sheets
+
+Lo reveló D31h3 al cortar: desde las semillas pre-auth de `doPost` (`vozRechazo_`, `vozAuth_`,
+`oficinaSyncAuth_`, …) se alcanzan transitivamente `appendFila`, `leerTabla`, `getMaestro` y
+`conLock` **antes de validar el secreto**. Es deliberado —el log de rechazos tiene que funcionar
+justo cuando la autenticación falla— y por eso mismo el assert existe: para que gatear cualquiera de
+ellas cante en vez de matar el logging en silencio.
+
+**No es un bug, es una superficie declarada.** Pero conviene tenerla escrita: un request anónimo al
+deployment público provoca una escritura en Sheets. Vector de amplificación/cuota, no de datos.
+Mitigación existente: `vozRechazo_` está acotado. **Acción sugerida: ninguna hoy; anotarlo.**
+
+## Estado al cerrar la Ola 0
+
+```
+arnés            911 / 0   (899 + 12 de R3)
+_verificar_index OK 453/453
+src/ y voz/agent SIN TOCAR — agent.py intacto (lección +59)
+Cerebro          running · 200 · plist en sincro con la referencia versionada
+```
+
+**Ola 1 pendiente:** R4 (que el grafo cante cuando el regen falla) · R7 (higiene de continuidad).
+**Ola 3:** R8 y R10-R14 siguen en pie; **R9 sigue en pie** (el comentario de `05_costos.js:50` es
+falso con independencia de todo esto).

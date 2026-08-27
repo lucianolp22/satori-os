@@ -3034,9 +3034,60 @@ seccion('E2 · proactividad (stale de conectores, push 07:00, contrato brief↔v
       'E2 🔒 la voz enuncia SOLO si el brief declara señales');
 }
 
+// ═══ R3 · el instalador del grafo y su plist ════════════════════════════════
+// Origen: incidente 27-ago. Un plist con XML corrupto que casualmente contenía el Label y la
+// ruta de homebrew pasaba los greps del instalador; el script lo copiaba encima del bueno,
+// hacía bootout (mataba el servicio vivo) y el bootstrap fallaba. Sin backup y sin rollback.
+// Peor: `launchctl bootout gui/$(id -u)` NO depende de $HOME, así que una corrida de prueba con
+// un HOME de juguete igual tumbaba producción. Estos asserts fijan los cuatro arreglos.
+seccion('R3 · instalador del grafo del Cerebro (launchd)');
+{
+  const sh = fs.readFileSync(path.join(__dirname, 'scripts', 'install-grafo-launchd.sh'), 'utf8');
+
+  chk(/plutil -lint "\$SRC"/.test(sh),
+      'R3a el instalador valida el XML con `plutil -lint` ANTES de copiar (el guard que faltaba)');
+  chk(sh.indexOf('plutil -lint "$SRC"') < sh.indexOf('cp "$SRC" "$DST"'),
+      'R3b la validación va ANTES del cp — validar después no sirve de nada');
+  chk(/REAL_HOME=/.test(sh) && /\$HOME" = "\$REAL_HOME/.test(sh),
+      'R3c guard de dominio: aborta si $HOME no es el home real del uid (bootout ignora $HOME)');
+  chk(/cp "\$DST" "\$DST\.prev"/.test(sh) && /rollback\(\)/.test(sh),
+      'R3d hace backup del plist vigente y define rollback()');
+  chk(/trap 'rollback' INT TERM/.test(sh),
+      'R3e el rollback también corre si interrumpen el script a mitad');
+  const iBootout = sh.indexOf('launchctl bootout "${DOMAIN}/${LABEL}" 2>/dev/null || true\nif ! launchctl');
+  chk(iBootout > sh.indexOf('HAY_PREV=1'),
+      'R3f el backup se toma ANTES del bootout — es lo único que permite volver');
+  chk(/--dry-run/.test(sh) && /DRY=1/.test(sh),
+      'R3g existe --dry-run (inspeccionar sin tocar launchd)');
+
+  // El plist canónico vive FUERA del repo (~/Documents/Claude no es git). Se aseria la copia
+  // de referencia versionada, que `--check` mantiene en sincro con el canónico.
+  const ref = fs.readFileSync(
+    path.join(__dirname, 'voz', 'launchagents', 'com.satori.cerebro-grafo.plist.ref'), 'utf8');
+  chk(/<string>com\.satori\.cerebro-grafo<\/string>/.test(ref),
+      'R3h la referencia declara Label=com.satori.cerebro-grafo');
+  chk(/\/opt\/homebrew\/bin\/python3\.12/.test(ref) && !/<string>\/usr\/bin\/python3<\/string>/.test(ref),
+      'R3i 🔒 usa el python de Homebrew y NO /usr/bin/python3 — el de CommandLineTools no tiene ' +
+      'permiso TCC de ~/Documents bajo launchd y el servicio muere antes de abrir el script');
+  chk(/<key>KeepAlive<\/key>\s*<true\/>/.test(ref) && /<key>RunAtLoad<\/key>\s*<true\/>/.test(ref),
+      'R3j KeepAlive y RunAtLoad siguen en true (el servicio resucita y arranca al login)');
+  chk(!/\/tmp\/cerebro-grafo/.test(ref) && /Library\/Logs\/satori-grafo-server\.(out|err)\.log/.test(ref),
+      'R3k los logs NO vuelven a /tmp (macOS lo purga: los diagnósticos se perdían)');
+  chk(/127\.0\.0\.1/.test(fs.readFileSync(
+        path.join(__dirname, 'scripts', 'install-grafo-launchd.sh'), 'utf8')),
+      'R3l el instalador verifica contra loopback, no contra una IP de LAN');
+}
+
 // ── Veredicto ────────────────────────────────────────────────────────────────
 const fallos = log.filter((l) => l.indexOf('❌') === 0);
 const pasa = log.filter((l) => l.indexOf('✅') === 0).length;
 console.log(log.join('\n'));
 console.log('\nRESULTADO: PASA ' + pasa + ' / FALLA ' + fallos.length);
-if (fallos.length) { console.log(fallos.join('\n')); process.exit(1); }
+if (fallos.length) {
+  console.log(fallos.join('\n'));
+  // `process.exit(1)` MATA el proceso antes de que Node termine de vaciar stdout cuando la
+  // salida va a un pipe: `node _harness.js | tail -1` perdía las últimas ~13 líneas, o sea
+  // RESULTADO y la lista de fallos. Justo en el único caso que importa. `exitCode` deja que
+  // Node salga solo, ya vaciado. (27-ago, encontrado verificando que los asserts R3 mordieran.)
+  process.exitCode = 1;
+}
