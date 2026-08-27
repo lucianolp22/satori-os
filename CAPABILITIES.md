@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 14:43 · commit: c0b5ae8
+> Generado: 2026-08-27 14:46 · commit: 5ce3665
 
 ## Módulos
 
@@ -216,6 +216,7 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 
 ## Actividad de los últimos 14 días
 
+- 5ce3665 [F7b] Widget Sato Ubicuo: dock persistente del header
 - c0b5ae8 [F7a+F7c+F13+F10-a] Backend Sato Ubicuo, polling, checkpoint anti-drift y Cerebro vivo
 - e878e52 [F11+F12+F-Diseno-Patrones] Los tres documentos del encargo
 - c991cc3 [F5+F6] Consejo GO + motor Claude cableado (flag apagado por default)
@@ -245,7 +246,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - e98d5fa CRM PRO §2d completo + D46/D47 (live) + regla de causa del SGIC
 - 7008fca CRM PRO — frontend §2d: presupuesto de señal, semáforo, modal de pérdida, Correo → CRM
 - 4bc9609 CRM PRO — backend completo (M1·M2·M3·S4·S5·S6·C7·C8) + 83 asserts offline
-- 1db0ba2 integridad de datos SGIC/Sato: fuente oficial + procedencia nombrada + fecha viva
 
 ## Funciones por módulo (apéndice)
 
