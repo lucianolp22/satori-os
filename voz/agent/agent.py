@@ -393,24 +393,78 @@ def _construir_llm():
 
 
 def _log_uso(ev) -> None:
-    """Telemetría de caché y latencia por turno → out/voz-tokens.jsonl. Nunca lanza.
+    """Telemetría de caché y latencia por turno de LLM → out/voz-tokens.jsonl. Nunca lanza.
 
     Es la única forma de saber si el envelope de dos bloques está pegando: si `cache_read` no
     sube desde el 2º turno, el prefijo NO está cacheando y hay que mirarlo — no es que "todavía
     no calentó" (F5, condición 3 de la aprobación).
+
+    ── B2 (27-ago) · POR QUÉ ESTO PARECÍA ROTO Y QUÉ ERA DE VERDAD ───────────────────────────
+    El diagnóstico que traía el encargo era «los 511 turnos con motor anthropic tienen todos los
+    campos en null». Falso: 511 FILAS no son 511 turnos. `metrics_collected` dispara para CADA
+    componente del pipeline —STT, LLM, TTS, VAD, EOU— y el hook viejo escribía una fila por
+    evento. De las 511: 403 de VAD/EOU (que no tienen ni un campo de tokens ⇒ todo null), 89 de
+    STT/TTS (que traen `input_tokens`/`output_tokens` con default 0), y sólo **19 de LLM**, de
+    las cuales **17 tenían los valores correctos**. La caché venía funcionando al 84,7-99,5%
+    desde el 2º turno; lo que estaba roto era la señal, ahogada 26:1 en ruido.
+
+    Los tres bugs reales, y su fix:
+      1. **Sin filtro por tipo.** Ahora sólo se loguea el evento de LLM (`type=='llm_metrics'`).
+         Los demás no van a este archivo: es un log de TOKENS, no de pipeline.
+      2. **La cadena `or` mataba los ceros legítimos.** `getattr(u,'prompt_tokens',None) or ...`
+         convierte un `0` real en `None` (2 de las 19 filas de LLM cayeron por ahí: turnos
+         cancelados con prompt_tokens=0). Ahora se lee con `is not None`, sin `or`.
+      3. **`cache_write` es INALCANZABLE por este canal, y no es un bug nuestro.** El plugin
+         `livekit.plugins.anthropic 1.6.4` SÍ emite `cache_creation_tokens` en su
+         `llm.CompletionUsage` (llm.py:327), pero `livekit.agents` lo DESCARTA al construir el
+         `LLMMetrics` (agents/llm/llm.py:315-330): la clase `LLMMetrics` (agents/metrics/base.py)
+         no tiene campo de cache-creation, sólo `prompt_cached_tokens`. Así que se loguea `null`
+         con el motivo escrito, en vez de fingir un número. Se recupera el día que LiveKit lo
+         pase — o envolviendo el LLM, que no vale el riesgo por una métrica de observabilidad.
+
+    Y un cabo del propio contrato de Anthropic: **`prompt_tokens` YA INCLUYE los cacheados**
+    (el plugin hace `input + cache_creation + cache_read`, llm.py:316-318). Por eso el hit-rate
+    correcto es `cache_read / prompt_tokens`, NO `cache_read / (input + cache_read + cache_write)`
+    como decía el encargo — esa fórmula cuenta los cacheados dos veces y subestima el hit.
     """
     try:
-        u = getattr(ev, "usage", None) or ev
+        # Sólo el evento de LLM. `type` es un Literal de pydantic en todas las clases de métricas
+        # (agents/metrics/base.py), así que el filtro es por el discriminante, no por adivinanza.
+        if str(getattr(ev, "type", "")) != "llm_metrics":
+            return
+
+        def _n(campo):
+            """Lee un campo numérico sin `or`: un 0 legítimo NO es lo mismo que ausencia."""
+            v = getattr(ev, campo, None)
+            return v if isinstance(v, (int, float)) else None
+
+        entrada = _n("prompt_tokens")          # incluye los cacheados (contrato del plugin)
+        cache_read = _n("prompt_cached_tokens")
+        meta = getattr(ev, "metadata", None)
+
         fila = {
             "ts": datetime.datetime.now().isoformat(timespec="seconds"),
             "motor": SATO_VOZ_MOTOR,
-            "modelo": SATO_VOZ_MODELO if SATO_VOZ_MOTOR == "anthropic" else "gpt-4o-mini",
-            "input": getattr(u, "prompt_tokens", None) or getattr(u, "input_tokens", None),
-            "output": getattr(u, "completion_tokens", None) or getattr(u, "output_tokens", None),
-            "cache_read": getattr(u, "cache_read_input_tokens", None)
-            or getattr(u, "prompt_cached_tokens", None),
-            "cache_write": getattr(u, "cache_creation_input_tokens", None),
-            "ttft_s": getattr(u, "ttft", None),
+            # El modelo REAL que reportó el proveedor, no el que pedimos por env: si el fail-safe
+            # de `_construir_llm` cayó a gpt-4o-mini, el log tiene que decirlo.
+            "modelo": (getattr(meta, "model_name", None) or
+                       (SATO_VOZ_MODELO if SATO_VOZ_MOTOR == "anthropic" else "gpt-4o-mini")),
+            "proveedor": getattr(meta, "model_provider", None),
+            "input": entrada,
+            "output": _n("completion_tokens"),
+            "total": _n("total_tokens"),
+            "cache_read": cache_read,
+            # No se puede: LiveKit descarta `cache_creation_tokens` al armar LLMMetrics (ver arriba).
+            "cache_write": None,
+            "cache_write_motivo": "livekit.agents 1.x no expone cache_creation en LLMMetrics",
+            # Hit-rate ya calculado, para no re-derivarlo mal río abajo (y con el denominador bueno).
+            "hit": (round(cache_read / entrada, 4)
+                    if (entrada and cache_read is not None) else None),
+            "ttft_s": _n("ttft"),
+            "dur_s": _n("duration"),
+            "tps": _n("tokens_per_second"),
+            "cancelado": bool(getattr(ev, "cancelled", False)),
+            "req_id": str(getattr(ev, "request_id", "") or "")[:64],
         }
         os.makedirs(os.path.dirname(_TOKENS_LOG), exist_ok=True)
         with open(_TOKENS_LOG, "a", encoding="utf-8") as fh:
