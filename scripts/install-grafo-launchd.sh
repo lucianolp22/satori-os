@@ -30,6 +30,8 @@ DST="${HOME}/Library/LaunchAgents/${LABEL}.plist"
 REF="$(cd "$(dirname "$0")/.." && pwd)/voz/launchagents/${LABEL}.plist.ref"   # R5: copia versionada
 SRV="${HOME}/Documents/Claude/_cerebro/_scripts/grafo_server.py"
 SRV_REF="$(cd "$(dirname "$0")/.." && pwd)/voz/launchagents/grafo_server.py.ref"   # R4/R13: idem
+GEN="${HOME}/Documents/Claude/_cerebro/_scripts/grafo.py"
+GEN_REF="$(cd "$(dirname "$0")/.." && pwd)/voz/launchagents/grafo.py.ref"          # F10-a: idem
 PORT=8788
 DOMAIN="gui/$(id -u)"
 FORCE=0; CHECK=0; DRY=0
@@ -88,6 +90,10 @@ if [ "$CHECK" = 1 ]; then
   if [ -f "$SRV_REF" ] && [ -f "$SRV" ]; then
     if cmp -s "$SRV" "$SRV_REF"; then echo "server  : grafo_server.py en sincro con su referencia"
     else echo "server  : ⚠ grafo_server.py DIVERGE de $SRV_REF"; fi
+  fi
+  if [ -f "$GEN_REF" ] && [ -f "$GEN" ]; then
+    if cmp -s "$GEN" "$GEN_REF"; then echo "gen     : grafo.py en sincro con su referencia"
+    else echo "gen     : ⚠ grafo.py DIVERGE de $GEN_REF"; fi
   fi
   exit 0
 fi

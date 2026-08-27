@@ -7,3 +7,4 @@ grafo.py
 grafo_server.py
 dashboard.html
 consolidado.csv
+GRAFO.html

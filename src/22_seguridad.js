@@ -311,6 +311,10 @@ var ENDPOINTS_UI = [
 
   // F3 (27-ago)
   'sembrarIdentidadSato'
+,
+
+  // F7 (27-ago) · Sato Ubicuo (36_sato_ubicuo.js). Los 4 y ni uno más — es el tope del encargo.
+  'charlaCola', 'charlaEnviarTexto', 'charlaPendientes', 'guardarTurnoCharla'
 ];
 
 /**

@@ -467,6 +467,66 @@ def cargar_identidad() -> str:
         return _ident_cache["txt"] or INSTRUCCIONES
 
 
+
+# ═══ F7c · ESPEJO widget → LiveKit  ·  F13 · CHECKPOINT ANTI-DRIFT ══════════
+#
+# F7c — el dock del header escribe en la hoja `charla` del tenant con `origen=texto`. Este poll los
+# levanta y los inyecta en la sesión como si Luciano los hubiera dicho. Opción A del encargo: vía
+# la hoja, sin canal nuevo. El backend los marca `texto_visto` en la misma pasada bajo lock, así
+# que se entregan UNA vez aunque el poll se solape.
+#
+# Silencioso por diseño: si el endpoint devuelve `sato_ubicuo_off` (el default), este task no hace
+# nada y no ensucia el log. El dock nace apagado.
+_UBICUO_POLL_S = 2.0
+_UBICUO_TENANT = os.environ.get("SATO_UBICUO_TENANT", "").strip()   # "" = sistema (CLI-000)
+
+
+async def _poll_widget(session) -> None:
+    """Levanta lo escrito en el dock y lo mete en la conversación. Nunca tumba la sesión."""
+    fallos = 0
+    while True:
+        await asyncio.sleep(_UBICUO_POLL_S)
+        try:
+            r = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: gas_voz_client.call_tool(
+                    "charlaPendientes", args={"idCliente": _UBICUO_TENANT}))
+            fallos = 0
+            if not isinstance(r, dict) or not r.get("ok"):
+                if r and r.get("motivo") == "sato_ubicuo_off":
+                    return          # dock apagado: no tiene sentido seguir puliendo
+                continue
+            for p in r.get("pendientes") or []:
+                txt = str(p.get("texto") or "").strip()
+                if txt:
+                    logger.info("widget → voz: %r", txt[:80])
+                    await session.generate_reply(user_input=txt)
+        except Exception as e:  # noqa: BLE001
+            fallos += 1
+            # Backoff después de 3 fallos seguidos: si GAS está caído no se lo martilla cada 2 s.
+            if fallos >= 3:
+                await asyncio.sleep(min(30.0, _UBICUO_POLL_S * 2 ** min(fallos - 2, 4)))
+            logger.debug("poll del widget falló (%d seguidos): %s", fallos, e)
+
+
+# F13 — una conversación larga te corre de a poco: aparecen hedges, se alarga la respuesta, se
+# afloja el rioplatense. No es un fallo del turno: es deriva acumulada. Cada N turnos se inyecta
+# UNA vez el recordatorio del §8 de la identidad, y DECAE (no se repite en los turnos siguientes).
+SATO_CHECKPOINT_TURNO = int(os.environ.get("SATO_CHECKPOINT_TURNO", "15"))
+SATO_CHECKPOINT_ON = os.environ.get("SATO_CHECKPOINT_ON", "si").strip().lower() != "no"
+_CHECKPOINT_TXT = (
+    "[CHECKPOINT DE VOZ]: antes de responder, chequeá tu draft contra "
+    "(a) rioplatense sin hedge, (b) breve para voz, (c) invariantes S1-S8."
+)
+
+
+def _checkpoint_si_toca(n_turnos: int) -> str:
+    """Devuelve el recordatorio SÓLO en el turno múltiplo de N. Decae solo: en el turno N+1
+    devuelve '' porque la condición ya no se cumple."""
+    if not SATO_CHECKPOINT_ON or SATO_CHECKPOINT_TURNO <= 0 or n_turnos <= 0:
+        return ""
+    return _CHECKPOINT_TXT if (n_turnos % SATO_CHECKPOINT_TURNO) == 0 else ""
+
+
 class SatoriVoz(Agent):
     def __init__(self) -> None:
         # F3 · dos bloques: identidad ESTABLE primero (es lo que se cachea), fecha viva después.
@@ -973,6 +1033,27 @@ async def entrypoint(ctx: agents.JobContext):
     except Exception as e:  # noqa: BLE001
         logger.debug("no pude enganchar metrics_collected: %s", e)
     await session.start(room=ctx.room, agent=SatoriVoz())
+
+    # F7c · espejo del dock. Task de fondo: si el dock está apagado (default) se apaga solo.
+    asyncio.create_task(_poll_widget(session))
+
+    # F13 · contador de turnos para el checkpoint anti-drift.
+    _turnos = itertools.count(1)
+
+    def _tras_turno(_ev) -> None:
+        try:
+            n = next(_turnos)
+            aviso = _checkpoint_si_toca(n)
+            if aviso:
+                logger.info("checkpoint anti-drift inyectado en el turno %d", n)
+                asyncio.create_task(session.generate_reply(instructions=aviso))
+        except Exception as e:  # noqa: BLE001
+            logger.debug("checkpoint no inyectado: %s", e)
+
+    try:
+        session.on("user_input_transcribed", _tras_turno)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("no pude enganchar el contador de turnos: %s", e)
     await session.generate_reply(instructions=await _instrucciones_saludo())
 
 

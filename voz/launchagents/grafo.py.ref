@@ -1,0 +1,304 @@
+#!/usr/bin/env python3
+# grafo.py — genera _cerebro/GRAFO.html (visor del cerebro, autocontenido, sin dependencias).
+# Uso: python3 grafo.py [RAIZ]   (default: dos niveles arriba de este script)
+import hashlib
+import json
+import math
+import os
+import time, re, json, sys, unicodedata
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+EXCLUIR = {"_cerebro/INVENTARIO.md", "_cerebro/CAMBIOS-RECIENTES.md"}
+WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]")
+
+def nfc(s): return unicodedata.normalize("NFC", s)
+
+# 1) Recolectar archivos .md
+files = []
+for dirpath, dirnames, filenames in os.walk(ROOT):
+    dirnames[:] = [d for d in dirnames if d not in ("node_modules", ".git", "_scripts")]
+    for fn in filenames:
+        if fn.endswith(".md"):
+            rel = os.path.relpath(os.path.join(dirpath, fn), ROOT).replace(os.sep, "/")
+            if nfc(rel) in EXCLUIR: continue
+            files.append(rel)
+
+# Índices de resolución (estilo Obsidian: por ruta completa o por nombre de archivo)
+by_path = {nfc(f[:-3]): f for f in files}
+by_name = {}
+for f in files:
+    by_name.setdefault(nfc(os.path.basename(f)[:-3]), []).append(f)
+
+def resolver(target):
+    t = nfc(target.strip())
+    if t in by_path: return by_path[t]
+    if t in by_name and len(by_name[t]) >= 1: return by_name[t][0]
+    return None
+
+# 2) Nodos y aristas desde wikilinks
+nodes, edges, deg = {}, set(), {}
+def add_node(rel):
+    if rel in nodes: return
+    top = rel.split("/")[0] if "/" in rel else "(raíz)"
+    if top == "Projects": top = rel.split("/")[1] if rel.count("/") >= 2 else "Projects (raíz)"
+    # F10-a · P3: la EDAD del archivo. Sin esto el grafo no tiene dimensión temporal y un
+    # archivo de hoy se dibuja igual que uno de hace 4 meses (medido: mediana 49 días).
+    try:
+        edad = max(0.0, (time.time() - os.path.getmtime(os.path.join(ROOT, rel))) / 86400.0)
+    except OSError:
+        edad = 999.0
+    nodes[rel] = {"id": rel, "label": os.path.basename(rel)[:-3], "group": nfc(top),
+                  "moc": rel.startswith("_cerebro/"), "edad": round(edad, 1)}
+for f in files: add_node(f)
+for f in files:
+    try:
+        with open(os.path.join(ROOT, f), encoding="utf-8", errors="ignore") as fh: txt = fh.read()
+    except OSError: continue
+    for m in WIKILINK.finditer(txt):
+        dest = resolver(m.group(1))
+        if dest and dest != f:
+            edges.add((f, dest))
+            deg[f] = deg.get(f, 0) + 1; deg[dest] = deg.get(dest, 0) + 1
+for n in nodes.values(): n["deg"] = deg.get(n["id"], 0)
+
+# F10-a · P4: layout precomputado y DETERMINISTA (150 iteraciones, siembra por golden-angle).
+# Antes el layout se resolvía EN VIVO en el navegador: 996²/2 ≈ 496.000 chequeos de par POR FRAME
+# durante ~17 s, y sembrado con Math.random() ⇒ el grafo salía distinto en cada carga.
+_ns = list(nodes.values())
+_idx = {n["id"]: i for i, n in enumerate(_ns)}
+_lk = [(_idx[a], _idx[b]) for a, b in sorted(edges) if a in _idx and b in _idx]
+# CACHÉ DEL LAYOUT: el force-directed es O(n²)·150 y con ~1.000 nodos tarda ~19 s en Python — muy
+# por encima del timeout de 10 s del regen del server. Pero el layout sólo cambia si cambia el
+# CONJUNTO de nodos y aristas: editar el contenido de un .md no lo mueve. Se cachea por hash de la
+# topología y se recomputa sólo cuando alguien agrega o borra archivos/enlaces.
+_topo = hashlib.sha256(
+    ("\n".join(n["id"] for n in _ns) + "|" + "\n".join(f"{a}>{b}" for a, b in sorted(edges))
+     ).encode("utf-8")).hexdigest()
+_CACHE = os.path.join(SCRIPT_DIR, ".layout-cache.json")
+_prev = {}
+try:
+    with open(_CACHE, encoding="utf-8") as fh:
+        _c = json.load(fh)
+    if _c.get("topo") == _topo:
+        _prev = _c.get("pos") or {}
+except Exception:
+    _prev = {}
+
+# Iteraciones: con ~1.000 nodos, 150 tardan ~19 s — por encima del timeout de 10 s del regen del
+# server, así que la PRIMERA corrida tras un cambio de topología moriría y no dejaría caché (y el
+# ciclo se repetiría). 60 entran cómodas y el layout ya está asentado: el resto son microajustes
+# que nadie ve. Si el vault crece mucho, bajar esto antes que subir el timeout.
+_ITERS = 60
+_PHI = math.pi * (3.0 - math.sqrt(5.0))          # golden angle: reparte sin agrupar
+for _i, _n in enumerate(_ns):
+    _r = 40.0 + 380.0 * math.sqrt((_i + 0.5) / max(len(_ns), 1))
+    _n["x"], _n["y"] = _r * math.cos(_i * _PHI), _r * math.sin(_i * _PHI)
+for _it in range(0 if _prev else _ITERS):
+    _a = 1.0 - _it / 150.0
+    _fx = [0.0] * len(_ns); _fy = [0.0] * len(_ns)
+    for _i in range(len(_ns)):                    # repulsión con corte (igual que el JS: 300px)
+        for _j in range(_i + 1, len(_ns)):
+            _dx = _ns[_i]["x"] - _ns[_j]["x"]; _dy = _ns[_i]["y"] - _ns[_j]["y"]
+            _d2 = _dx * _dx + _dy * _dy
+            if _d2 > 9e4 or _d2 < 1e-6: continue
+            _f = 900.0 / _d2 * _a; _d = math.sqrt(_d2)
+            _fx[_i] += _dx / _d * _f; _fy[_i] += _dy / _d * _f
+            _fx[_j] -= _dx / _d * _f; _fy[_j] -= _dy / _d * _f
+    for _s, _t in _lk:                            # atracción por arista
+        _dx = _ns[_t]["x"] - _ns[_s]["x"]; _dy = _ns[_t]["y"] - _ns[_s]["y"]
+        _d = math.hypot(_dx, _dy) or 1.0
+        _f = max(-4.0, min(4.0, (_d - 90.0) * 0.01 * _a))
+        _fx[_s] += _dx / _d * _f; _fy[_s] += _dy / _d * _f
+        _fx[_t] -= _dx / _d * _f; _fy[_t] -= _dy / _d * _f
+    for _i, _n in enumerate(_ns):                 # gravedad al centro + paso
+        _fx[_i] -= _n["x"] * 0.0004 * _a; _fy[_i] -= _n["y"] * 0.0004 * _a
+        _n["x"] += max(-8.0, min(8.0, _fx[_i])); _n["y"] += max(-8.0, min(8.0, _fy[_i]))
+if _prev:
+    for _n in _ns:
+        _p = _prev.get(_n["id"])
+        if _p: _n["x"], _n["y"] = _p[0], _p[1]
+for _n in _ns:
+    _n["x"] = round(_n["x"], 1); _n["y"] = round(_n["y"], 1)
+try:
+    with open(_CACHE, "w", encoding="utf-8") as fh:
+        json.dump({"topo": _topo, "pos": {n["id"]: [n["x"], n["y"]] for n in _ns}}, fh)
+except Exception:
+    pass
+
+data = {"nodes": _ns, "links": [{"source": a, "target": b} for a, b in sorted(edges)]}
+
+# ── Vista (rediseño 07-ago: mismo lenguaje visual que el Satori OS — cósmico-zen, oro con glow,
+#    panel-tarjeta translúcido, nodos que brillan como los orbes del CM. Tokens satori-design. ──
+HTML = """<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cerebro Satori — grafo</title>
+<style>
+:root{
+  --ink:#ECEAE3; --mut:#ADAB9F; --sub:#7C7A70;
+  --oro:#D4A857; --jade:#4FB89C; --panel:rgba(26,23,18,.74); --panel-solid:#1C1C17;
+  --line:rgba(212,168,87,.16); --line2:#33332B;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  background:radial-gradient(120% 92% at 50% 36%, #241d13 0%, #16130d 46%, #0b0a07 100%);
+  color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  overflow:hidden;-webkit-font-smoothing:antialiased;
+}
+/* velo cósmico: estrellas + brillo, sin imagen pesada */
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(1.5px 1.5px at 18% 28%, rgba(236,231,223,.22), transparent),
+    radial-gradient(1.5px 1.5px at 73% 20%, rgba(236,231,223,.15), transparent),
+    radial-gradient(1.6px 1.6px at 58% 72%, rgba(236,231,223,.13), transparent),
+    radial-gradient(1.2px 1.2px at 33% 82%, rgba(236,231,223,.11), transparent),
+    radial-gradient(1px 1px at 86% 58%, rgba(236,231,223,.15), transparent),
+    radial-gradient(1px 1px at 44% 14%, rgba(236,231,223,.12), transparent);
+}
+canvas{display:block;position:relative;z-index:1}
+#bar{position:fixed;top:0;left:0;right:0;display:flex;gap:12px;align-items:center;
+  padding:11px 16px;background:linear-gradient(180deg,rgba(16,14,10,.95),rgba(16,14,10,.7));
+  border-bottom:1px solid var(--line);-webkit-backdrop-filter:blur(9px);backdrop-filter:blur(9px);z-index:5}
+.brand{display:flex;align-items:baseline;gap:8px;margin-right:2px}
+.brand h1{font-size:15px;font-weight:600;letter-spacing:.02em;color:var(--oro);
+  text-shadow:0 0 16px rgba(212,168,87,.5);margin:0}
+.brand .sub{font-size:10.5px;color:var(--sub);letter-spacing:.14em;text-transform:uppercase}
+#q{flex:0 0 236px;background:var(--panel-solid);border:1px solid var(--line2);color:var(--ink);
+  border-radius:9px;padding:7px 11px;outline:none;font-size:13px}
+#q::placeholder{color:var(--sub)}
+#q:focus-visible{outline:2px solid var(--oro);outline-offset:1px;border-color:var(--oro)}
+#bar label{color:var(--mut);font-size:12px;display:flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap}
+#leyenda{display:flex;flex-wrap:wrap;gap:5px 13px;font-size:11px;color:var(--mut);margin-left:auto;max-width:50%;justify-content:flex-end}
+#leyenda span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+#leyenda i,.grp i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 7px currentColor;flex:none}
+#info{position:fixed;right:14px;top:60px;bottom:14px;width:310px;background:var(--panel);
+  border:1px solid var(--line);border-radius:14px;padding:16px 18px;overflow:auto;display:none;z-index:4;
+  -webkit-backdrop-filter:blur(11px);backdrop-filter:blur(11px);box-shadow:0 12px 44px rgba(0,0,0,.5)}
+#info h2{font-size:15px;color:var(--ink);margin-bottom:3px;line-height:1.25}
+#info .path{font-size:10.5px;color:var(--sub);word-break:break-all;margin-bottom:14px;font-family:ui-monospace,monospace}
+#info h3{font-size:10.5px;color:var(--oro);margin:15px 0 7px;text-transform:uppercase;letter-spacing:.1em;font-weight:600}
+#info .grp{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut)}
+#info ul{list-style:none}
+#info li{font-size:12.5px;padding:5px 0;cursor:pointer;color:var(--mut);border-bottom:1px solid rgba(212,168,87,.07)}
+#info li:hover{color:var(--oro)}
+#hint{position:fixed;left:16px;bottom:12px;color:var(--sub);font-size:11px;z-index:5;letter-spacing:.02em}
+</style></head><body>
+<div id="bar">
+  <div class="brand"><h1>◐ Cerebro Satori</h1><span class="sub">grafo</span></div>
+  <input id="q" placeholder="buscar nodo…" aria-label="Buscar nodo">
+  <label><input type="checkbox" id="soloconect">solo conectados</label>
+  <span id="leyenda"></span>
+  <span id="stats" style="opacity:.62;font-size:11px;margin-left:14px;letter-spacing:.02em"></span>
+</div>
+<div id="info"></div><canvas id="c"></canvas>
+<div id="hint">arrastrá nodos · rueda = zoom · click = detalle · doble click al fondo = reset</div>
+<script>
+const DATA = __DATA__;
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+// F10-a P1 · DPR. `cv.width=innerWidth` dibujaba a la MITAD de resolución en Retina: el grafo se
+// veía borroso desde siempre. Tope en 2 para no cuadruplicar el fill-rate en pantallas 3x.
+let W,H,DPR=Math.min(devicePixelRatio||1,2);
+function rs(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;
+ cv.style.width=W+'px';cv.style.height=H+'px';cx.setTransform(DPR,0,0,DPR,0,0);sucio=true}
+let sucio=true;rs();addEventListener('resize',rs);
+// Paleta categórica armonizada con satori-design sobre fondo cósmico (oro, info, jade, mauve, coral…)
+const PAL=['#D4A857','#5FA8C9','#5FB97A','#C98AB1','#DD6B5C','#9B8FD4','#4FB89C','#C2B36F','#D5824F','#7FA9D4'];
+const groups=[...new Set(DATA.nodes.map(n=>n.group))].sort();
+const gcol=Object.fromEntries(groups.map((g,i)=>[g,PAL[i%PAL.length]]));
+document.getElementById('leyenda').innerHTML=groups.map(g=>`<span><i style="color:${gcol[g]}"></i>${g}</span>`).join('');
+const N=DATA.nodes,L=DATA.links,idx=Object.fromEntries(N.map((n,i)=>[n.id,i]));
+const links=L.map(l=>({s:idx[l.source],t:idx[l.target]})).filter(l=>l.s!=null&&l.t!=null);
+const nb=N.map(_=>[]);links.forEach(l=>{nb[l.s].push(l.t);nb[l.t].push(l.s)});
+// F10-a P4 · las posiciones vienen PRECOMPUTADAS y deterministas desde grafo.py (antes se
+// sembraban con Math.random() ⇒ el grafo salía distinto en cada carga) y se centran acá.
+// P3 · `fresh` = 0.5^(edad/30) con piso 0.15: un archivo de hoy brilla, uno de hace 4 meses se
+// apaga sin desaparecer. `fase` = hash FNV-1a del id ⇒ el pulso ambiental NO va sincronizado.
+function fnv(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0)/4294967296}
+N.forEach((n,i)=>{n.x=(n.x||0)+W/2;n.y=(n.y||0)+H/2;n.vx=0;n.vy=0;
+ n.r=n.moc?10:4+Math.min(n.deg,12)*0.8;
+ n.fresh=Math.max(0.15,Math.pow(0.5,(n.edad==null?999:n.edad)/30));
+ n.fase=fnv(n.id)*6.283});
+let zoom=1,ox=0,oy=0,drag=null,pan=null,sel=-1,q='',soloC=false,alpha=1;
+function step(){
+ if(alpha<0.005)return;alpha*=0.995;
+ for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){
+  const a=N[i],b=N[j];let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy;if(d2<1)d2=1;if(d2>9e4)continue;
+  const f=900/d2*alpha;const d=Math.sqrt(d2);dx/=d;dy/=d;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;}
+ links.forEach(l=>{const a=N[l.s],b=N[l.t];let dx=b.x-a.x,dy=b.y-a.y;const d=Math.sqrt(dx*dx+dy*dy)||1;
+  const f=Math.max(-4,Math.min(4,(d-90)*0.01*alpha));dx/=d;dy/=d;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;});
+ N.forEach(n=>{n.vx+=(W/2-n.x)*0.0004*alpha;n.vy+=(H/2-n.y)*0.0004*alpha;
+  const sp=Math.sqrt(n.vx*n.vx+n.vy*n.vy);if(sp>8){n.vx*=8/sp;n.vy*=8/sp}
+  if(n!==drag){n.x+=n.vx;n.y+=n.vy}n.vx*=0.85;n.vy*=0.85;});
+}
+function visible(n){if(q&&!n.label.toLowerCase().includes(q))return false;if(soloC&&n.deg===0)return false;return true}
+function draw(){
+ cx.clearRect(0,0,W,H);cx.save();cx.translate(ox,oy);cx.scale(zoom,zoom);
+ const selSet=sel>=0?new Set([sel,...nb[sel]]):null;
+ cx.lineWidth=1/zoom;cx.shadowBlur=0;
+ links.forEach(l=>{const a=N[l.s],b=N[l.t];if(!visible(a)||!visible(b))return;
+  const hot=selSet&&(l.s===sel||l.t===sel);
+  cx.strokeStyle=hot?'rgba(212,168,87,.85)':'rgba(150,135,105,.18)';
+  cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke();});
+ N.forEach((n,i)=>{if(!visible(n))return;
+  const dim=selSet&&!selSet.has(i);
+  // F10-a P3 · la EDAD se ve: un archivo de hoy va a alpha lleno, uno de hace 4 meses al piso.
+  cx.globalAlpha=dim?0.16:(0.30+0.70*n.fresh);
+  // glow SOLO en MOCs, hubs y el seleccionado (los orbes que importan) — barato y elegante
+  const glow=!dim&&(n.moc||n.deg>4||i===sel);
+  cx.shadowColor=glow?gcol[n.group]:'transparent';cx.shadowBlur=glow?(n.moc?16:10)*n.fresh:0;
+  cx.fillStyle=gcol[n.group];cx.beginPath();cx.arc(n.x,n.y,n.r,0,6.29);cx.fill();
+  cx.shadowBlur=0;
+  if(n.moc){cx.strokeStyle='rgba(236,231,223,.85)';cx.lineWidth=1.4/zoom;cx.stroke();}
+  if(n.moc||n.deg>4||zoom>1.4||i===sel){cx.fillStyle=dim?'rgba(236,231,223,.32)':'#F1EDE4';
+   cx.font=(n.moc?12:10)/zoom*Math.min(zoom,1.6)+'px -apple-system,sans-serif';cx.fillText(n.label,n.x+n.r+4,n.y+3);}
+  cx.globalAlpha=1;});
+ cx.restore();
+ // F10-a P2 · antes esto se re-agendaba SIEMPRE: 996 nodos + 1.164 aristas con shadowBlur a 60fps
+ // para siempre, con la pestaña quieta. Ahora sólo redibuja si la física sigue viva, si hay
+ // interacción, o si el pulso ambiental está encendido.
+}
+// F10-a P2 · el bucle. Antes `draw()` se re-agendaba SIEMPRE: 1.016 nodos + 1.161 aristas con
+// shadowBlur a 60 fps para siempre, con la pestaña quieta. Ahora el rAF sigue corriendo (es
+// barato) pero sólo REDIBUJA si algo cambió: física viva, interacción, o pulso ambiental.
+function loop(){
+ const vivo=alpha>=0.005;
+ if(vivo)step();
+ if(vivo||sucio||drag||pan){sucio=false;draw()}
+ requestAnimationFrame(loop);
+}
+// F10-a P5 · deep links `#node=<id>`: Sato puede mandar a un nodo concreto. Y `stats` con los
+// conteos REALES (F12: no se dibuja lo que no está en la fuente de verdad).
+function irANodo(id){const i=N.findIndex(n=>n.id===id||n.label===id);if(i<0)return false;
+ sel=i;zoom=1.6;ox=W/2-N[i].x*zoom;oy=H/2-N[i].y*zoom;sucio=true;
+ try{history.replaceState(null,'','#node='+encodeURIComponent(N[i].id))}catch(e){}
+ if(typeof panel==='function')panel(i);return true}
+addEventListener('hashchange',()=>{const m=location.hash.match(/^#node=(.+)$/);if(m)irANodo(decodeURIComponent(m[1]))});
+(()=>{const m=location.hash.match(/^#node=(.+)$/);if(m)setTimeout(()=>irANodo(decodeURIComponent(m[1])),50)})();
+(()=>{const el=document.getElementById('stats');if(!el)return;
+ const fr=N.filter(n=>(n.edad!=null&&n.edad<7)).length,hu=N.filter(n=>n.deg===0).length;
+ el.textContent=`${N.length} nodos · ${links.length} aristas · ${groups.length} grupos · `+
+  `${N.filter(n=>n.moc).length} MOCs · ${fr} tocados esta semana · ${hu} huérfanos`})();
+function pick(mx,my){const x=(mx-ox)/zoom,y=(my-oy)/zoom;
+ for(let i=N.length-1;i>=0;i--){const n=N[i];if(!visible(n))continue;
+  const dx=n.x-x,dy=n.y-y;if(dx*dx+dy*dy<(n.r+4)*(n.r+4))return i}return -1}
+cv.onmousedown=e=>{const i=pick(e.clientX,e.clientY);if(i>=0){drag=N[i]}else pan={x:e.clientX-ox,y:e.clientY-oy}};
+cv.onmousemove=e=>{if(drag){drag.x=(e.clientX-ox)/zoom;drag.y=(e.clientY-oy)/zoom;alpha=Math.max(alpha,.3)}
+ else if(pan){ox=e.clientX-pan.x;oy=e.clientY-pan.y}};
+cv.onmouseup=e=>{if(drag&&Math.abs(drag.vx)<9){const i=N.indexOf(drag);show(i)}drag=null;pan=null};
+cv.ondblclick=e=>{if(pick(e.clientX,e.clientY)<0){sel=-1;zoom=1;ox=0;oy=0;document.getElementById('info').style.display='none'}};
+cv.onwheel=e=>{e.preventDefault();const f=e.deltaY<0?1.12:0.89,nz=Math.min(6,Math.max(.25,zoom*f));
+ ox=e.clientX-(e.clientX-ox)*nz/zoom;oy=e.clientY-(e.clientY-oy)*nz/zoom;zoom=nz};
+function show(i){sel=i;const n=N[i],el=document.getElementById('info');
+ const con=nb[i].map(j=>`<li onclick="show(${j})">↔ ${N[j].label}</li>`).join('')||'<li style="color:var(--sub)">sin conexiones</li>';
+ el.innerHTML=`<h2>${n.moc?'🗺 ':''}${n.label}</h2><div class="path">${n.id}</div>
+ <h3>Grupo</h3><div class="grp"><i style="color:${gcol[n.group]}"></i>${n.group}</div>
+ <h3>Conexiones · ${nb[i].length}</h3><ul>${con}</ul>`;el.style.display='block'}
+document.getElementById('q').oninput=e=>{q=e.target.value.toLowerCase()};
+document.getElementById('soloconect').onchange=e=>{soloC=e.target.checked};
+draw();
+</script></body></html>"""
+
+out = os.path.join(ROOT, "_cerebro", "GRAFO.html")
+with open(out, "w", encoding="utf-8") as fh:
+    fh.write(HTML.replace("__DATA__", json.dumps(data, ensure_ascii=False)))
+print(f"OK: GRAFO.html — {len(data['nodes'])} nodos, {len(data['links'])} aristas")

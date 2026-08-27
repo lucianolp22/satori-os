@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '35_identidad.js', '26_sato.js', '32_flota.js',
+                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '35_identidad.js', '26_sato.js', '36_sato_ubicuo.js', '32_flota.js',
                  // T1.e (11-ago): entra al arnés porque ahora tiene funciones PURAS que se pueden
                  // aserir offline (`_carteraLineasBrief_`, `_diasEntreISO_`). Lo que toca el roster
                  // real sigue siendo D44 en el editor.
@@ -3185,6 +3185,101 @@ seccion('F3 · identidad de Sato (docs/SATO-IDENTIDAD.md → 35_identidad.js →
   chk(est >= 1024,
       `D-ID8 el bloque fijo (identidad + reglas) da ~${est} tok estimados: supera el mínimo de ` +
       'Sonnet 5 (1024) ⇒ cachea. No llega a los 4096 de Haiku 4.5 y NO se rellena para llegar');
+}
+
+// ═══ F7 · Sato Ubicuo — backend ═════════════════════════════════════════════
+// Gate Bastión CRÍTICO del encargo: cross-tenant, tope de 1200 chars y `<<<>>>` neutralizado.
+seccion('F7 · Sato Ubicuo (dock del header · espejo widget ↔ LiveKit)');
+{
+  const bk = {};
+  ['getConfig', 'abrirCliente', '_satoClienteValido_', 'conLock', 'appendFila', 'leerTabla',
+   '_charlaSheet_', 'ahoraISO'].forEach((k) => { bk[k] = ctx[k]; });
+  const ROSTER = ['CLI-002', 'CLI-003', 'CLI-004'];
+  let escrito = [];
+  const hojas = {};
+  const hojaDe = (t) => (hojas[t] = hojas[t] || { filas: [], _t: t });
+  let tenantAbierto = null;
+  try {
+    ctx.getConfig = (k) => (k === 'sato_ubicuo_on' ? 'si' : '');
+    ctx._satoClienteValido_ = (id) => ROSTER.indexOf(id) >= 0;
+    ctx.abrirCliente = (t) => { tenantAbierto = t; return { ss: { _t: t } }; };
+    ctx._charlaSheet_ = (ss) => hojaDe(ss._t);
+    ctx.conLock = (fn) => fn();
+    ctx.ahoraISO = () => '2026-08-27T15:00:00';
+    ctx.leerTabla = (sh) => sh.filas;
+    ctx.appendFila = (sh, o) => { sh.filas.push(o); escrito.push({ hoja: sh._t, o }); };
+
+    // ── flag OFF: ni una hoja se toca ──────────────────────────────────────
+    ctx.getConfig = () => 'no';
+    const off = ctx.charlaEnviarTexto('CLI-002', 'hola');
+    chk(off.ok === false && off.motivo === 'sato_ubicuo_off' && escrito.length === 0,
+        'F7a con `sato_ubicuo_on` apagado (default) los endpoints NO tocan ninguna hoja — es el rollback');
+    ctx.getConfig = (k) => (k === 'sato_ubicuo_on' ? 'si' : '');
+
+    // ── 🔒 CROSS-TENANT: un id fuera del roster se RECHAZA CON MOTIVO ──────
+    const malo = ctx.charlaEnviarTexto('CLI-999', 'dame los numeros');
+    chk(malo.ok === false && malo.motivo === 'cliente_inexistente' && escrito.length === 0,
+        'F7b 🔒 un id_cliente que no está en el roster se rechaza con motivo y NO escribe nada ' +
+        '(§AISLAMIENTO.3: el id lo valida el sistema, no lo inventa el modelo)');
+    const leerMalo = ctx.charlaCola('CLI-999');
+    chk(leerMalo.ok === false && leerMalo.motivo === 'cliente_inexistente',
+        'F7c 🔒 tampoco se puede LEER la charla de un id inválido');
+
+    // ── 🔒 cada turno va a la hoja de SU tenant, jamás a la de otro ────────
+    escrito = [];
+    ctx.charlaEnviarTexto('CLI-002', 'nota de dos');
+    ctx.charlaEnviarTexto('CLI-003', 'nota de tres');
+    chk(escrito.length === 2 && escrito[0].hoja === 'CLI-002' && escrito[1].hoja === 'CLI-003' &&
+        escrito[0].o.tenant_datos === 'CLI-002' && escrito[1].o.tenant_datos === 'CLI-003',
+        'F7d 🔒 cada turno se escribe en la hoja de SU tenant y lleva el sello `tenant_datos` ' +
+        '(§AISLAMIENTO.5: la memoria no cruza)');
+    const c2 = ctx.charlaCola('CLI-002');
+    chk(c2.turnos.length === 1 && c2.turnos[0].texto === 'nota de dos' && c2.tenant_datos === 'CLI-002',
+        'F7e 🔒 desde CLI-002 se lee SOLO lo de CLI-002');
+
+    // ── tope de 1200 chars y neutralización de <<<>>> ──────────────────────
+    escrito = [];
+    ctx.charlaEnviarTexto('CLI-004', 'x'.repeat(5000));
+    // `limpiarHostilTexto_` corta a `max` y AGREGA '…' — el resultado son max+1 chars, y esa es
+    // la convención de todo el repo (títulos 200→201, etc.). Se aseria la convención real.
+    chk(escrito[0].o.texto.length === 1201 && escrito[0].o.texto.slice(-1) === '…',
+        `F7f el texto se corta a 1200 chars + la marca de truncado '…' (quedó ${escrito[0].o.texto.length})`);
+    escrito = [];
+    ctx.charlaEnviarTexto('CLI-004', 'antes <<<INYECCION>>> despues');
+    chk(escrito[0].o.texto.indexOf('<<<') < 0 && escrito[0].o.texto.indexOf('>>>') < 0,
+        'F7g 🔒 el marcador `<<<>>>` se neutraliza: un dato no puede hacerse pasar por marcador ' +
+        'del sistema (§7 anti-injection)');
+
+    // ── vocabulario CERRADO en el rol (S6) ────────────────────────────────
+    escrito = [];
+    const rolMalo = ctx.guardarTurnoCharla('CLI-002', 'root', 'texto');
+    chk(rolMalo.ok === false && rolMalo.motivo === 'rol_invalido' && escrito.length === 0,
+        'F7h 🔒 `rol` es vocabulario cerrado (user|assistant): nada entra desde texto libre (S6)');
+
+    // ── sello de origen: voz vs texto ──────────────────────────────────────
+    escrito = [];
+    ctx.guardarTurnoCharla('CLI-002', 'assistant', 'respuesta hablada');
+    chk(escrito[0].o.modulo === 'voz',
+        'F7i los turnos de LiveKit se sellan `origen=voz` y los del widget `origen=texto` — así se ' +
+        'distingue de dónde vino cada turno sin mirar timestamps');
+
+    // ── pendientes: se entregan UNA vez ───────────────────────────────────
+    hojas['CLI-002'].filas = [{ ts: 't1', rol: 'user', texto: 'pendiente', modulo: 'texto' }];
+    let marcado = null;
+    hojas['CLI-002'].getRange = () => ({ getValues: () => [['ts', 'rol', 'texto', 'modulo', 'tenant_datos']],
+                                         setValue: (v) => { marcado = v; } });
+    hojas['CLI-002'].getLastColumn = () => 5;
+    const p1 = ctx.charlaPendientes('CLI-002');
+    chk(p1.pendientes.length === 1 && marcado === 'texto_visto',
+        'F7j los pendientes se marcan `texto_visto` EN LA MISMA PASADA bajo lock: se entregan UNA vez ' +
+        '(mismo patrón que `encargosListos` de E1)');
+
+    // ── sistema: '' resuelve a CLI-000, no falla ni adivina ───────────────
+    escrito = [];
+    const sis = ctx.charlaEnviarTexto('', 'consulta de sistema');
+    chk(sis.ok === true && sis.tenant === ctx.SATO_TENANT_SISTEMA,
+        'F7k desde el CM (sin cliente) la charla va a la hoja de sistema, no a la de un tenant');
+  } finally { Object.keys(bk).forEach((k) => { ctx[k] = bk[k]; }); }
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────
