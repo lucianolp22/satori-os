@@ -829,15 +829,20 @@ function agregarVentasPorMes_(ventas) {
  * Mismo patrón que sincronizarVehemence(). Delegan en las funciones gated (probar/encender
  * llevan _soloOwner_ adentro), así que no abren superficie nueva. Editor-only, no son endpoints UI.
  */
-function probarDAM()   { return probarConector('CLI-004'); }
-function encenderDAM() { return encenderConector('CLI-004'); }
-function apagarDAM()   { return apagarConector('CLI-004'); }
-function probarLC()    { return probarConector('CLI-003'); }
-function encenderLC()  { return encenderConector('CLI-003'); }
-function apagarLC()    { return apagarConector('CLI-003'); }
-function probarMQ()    { return probarConector('CLI-001'); }
-function encenderMQ()  { return encenderConector('CLI-001'); }
-function apagarMQ()    { return apagarConector('CLI-001'); }
+// R8 (27-ago) · wrappers no-arg para el desplegable del editor. La regla dura del 04-ago pide
+// que CADA wrapper lleve su `_soloOwner_` y su alta en ENDPOINTS_UI, aunque delegue en una
+// función ya gateada. Supersede la exención «delega en gateada» del 27-jul (regla posterior,
+// y el gate está cacheado por ejecución ⇒ costo ~0). El aislamiento no cambia: la capa
+// interna sigue gateada igual.
+function probarDAM() { _soloOwner_('probarDAM'); return probarConector('CLI-004'); }
+function encenderDAM() { _soloOwner_('encenderDAM'); return encenderConector('CLI-004'); }
+function apagarDAM() { _soloOwner_('apagarDAM'); return apagarConector('CLI-004'); }
+function probarLC() { _soloOwner_('probarLC'); return probarConector('CLI-003'); }
+function encenderLC() { _soloOwner_('encenderLC'); return encenderConector('CLI-003'); }
+function apagarLC() { _soloOwner_('apagarLC'); return apagarConector('CLI-003'); }
+function probarMQ() { _soloOwner_('probarMQ'); return probarConector('CLI-001'); }
+function encenderMQ() { _soloOwner_('encenderMQ'); return encenderConector('CLI-001'); }
+function apagarMQ() { _soloOwner_('apagarMQ'); return apagarConector('CLI-001'); }
 // 27-jul (incidente apagarMQ): le pedí a Luciano correr apagarMQ y NO EXISTÍA — solo estaban
 // probar/encender. REGLA (3ª vez que se paga): toda acción de operador va con su wrapper no-arg
 // COMPLETO (probar + encender + APAGAR) desde el día uno; el desplegable no pasa parámetros.

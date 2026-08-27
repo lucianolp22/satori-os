@@ -47,11 +47,16 @@ var TARIFAS = {
 // o memoria. Si se cachea un bloque que contiene datos del tenant, pasan dos cosas y las dos son
 // malas: (1) el cache no pega NUNCA, porque ese bloque cambia en cada turno; (2) peor, se fija un
 // prefijo con datos de UN cliente, que es exactamente lo que el aislamiento prohíbe.
-//   · Los 5 agentes y la Bandeja mandan `GUARDIA_INYECCION`, una constante — todo cacheable.
+//   · Los 5 agentes y la Bandeja mandan `GUARDIA_INYECCION`, una constante — pero de sólo ~143
+//     tokens, o sea MUY por debajo del mínimo de cualquier modelo (1024 Sonnet / 4096 Haiku).
+//     Constante NO es lo mismo que cacheable: hoy `_systemBloques_` los rechaza con motivo y
+//     `cache_intentado` queda en false. (R9, 27-ago: antes esta línea decía «todo cacheable»,
+//     que era falso y hacía creer que el caching estaba operando cuando no lo está.)
 //   · Sato NO: su system incluye `_satoContexto_(id)` y la charla previa. Por eso `llamadaAPI`
 //     recibe la parte fija en `system` y la viva en `systemVivo`, y SOLO la primera se marca.
 //
-// AHORRO HOY ≈ CERO. Con el gasto actual (~$0.08/mes) esto no mueve la aguja: el valor de la
+// AHORRO HOY = CERO, y no por poco volumen: NINGÚN módulo llega hoy al mínimo del modelo que
+// usa, así que no se cachea nada (medido 27-ago, F1). El valor de la
 // tanda es la TELEMETRÍA y quedar listo para cuando el volumen crezca. No se infla ningún prompt
 // para llegar al mínimo — si el bloque fijo no llega, no se cachea y se dice por qué.
 

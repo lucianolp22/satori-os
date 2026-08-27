@@ -762,10 +762,10 @@ seccion('D31 · X4 · partición de la superficie RPC (toda pública: gateada o 
     parseQuickAdd: 'pura',
     // (c) puerta propia
     doGet: 'gate de owner propio', doPost: 'secreto fail-closed propio',
-    // (d) wrappers no-arg que delegan en funciones YA gateadas (decisión 27-jul)
-    probarDAM: 'delega en gateada', encenderDAM: 'delega en gateada', apagarDAM: 'delega en gateada',
-    probarLC: 'delega en gateada', encenderLC: 'delega en gateada', apagarLC: 'delega en gateada',
-    probarMQ: 'delega en gateada', encenderMQ: 'delega en gateada', apagarMQ: 'delega en gateada',
+    // (d) [VACÍA desde R8, 27-ago] Los 9 wrappers de conectores estaban exentos acá por «delega en
+    // gateada» (decisión 27-jul). La regla dura del 04-ago —posterior— exige gate propio + alta en
+    // ENDPOINTS_UI para todo wrapper no-arg del desplegable del editor, así que se GATEARON y
+    // salieron de esta lista. Si volvieran a aparecer acá sin desgatear, D31b3 lo cantaría.
     // (e) X4b: las 16 lecturas se GATEARON en TC-1b (03-ago). Ya no son exentas — si alguna
     // volviera a aparecer acá, D31b3 lo cantaría como lista que miente sobre el estado real.
   };

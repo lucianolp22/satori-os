@@ -217,6 +217,18 @@ function parseClasificacion_(texto) {
  * confianza, slug, tags, resumen e id_cliente — ninguno necesita el email de vuelta. Un mapa que no
  * se guarda no se puede filtrar.
  */
+// ── POR QUÉ ESTA RUTA NO PASA POR `llamadaAPI` (R14, 27-ago) ────────────────
+// Una auditoría marcó este UrlFetch propio como «2ª ruta al mismo proveedor, a unificar». Se
+// revisó y la respuesta es NO, con tres motivos:
+//   1. `llamadaAPI(idCliente, …)` loguea en `Costos_API` **de la hoja del cliente**. La Bandeja es
+//      captura PERSONAL y cross-cliente: no hay un `idCliente` al que atribuirla sin inventarlo.
+//      Por eso costea contra `Consumo_agentes` del MAESTRO vía `registrarConsumoAgente_`.
+//   2. La anonimización es DELIBERADAMENTE externa (línea ~137, `anonimizar(...)` antes de armar
+//      el prompt) para dejar el punto de corte visible en el flujo. Meterla adentro la escondería.
+//   3. El caching no se pierde por esto: `GUARDIA_INYECCION` son ~143 tokens, muy por debajo del
+//      mínimo de cualquier modelo (1024/4096), así que tampoco cachearía pasando por `_systemBloques_`.
+// Consecuencia real y aceptada: `clasificador` no escribe `cache_write`/`cache_read`, así que no
+// aparece en una tabla de hit-rate. No es un bug: no hay hit-rate que mostrar.
 function llamadaClasificador_(prompt, maxTokens) {
   var out = { ok: false, texto: '', usd: 0, error: null };
   var key = PropertiesService.getScriptProperties().getProperty('CLAUDE_API_KEY');

@@ -47,3 +47,8 @@ voz/runner/.runner_state.json
 entregables/encargos/
 voz/runner/.pending_reports.jsonl
 voz/runner/.bak-*
+
+# Bastión (R11, 27-ago): claves privadas. Faltaban — .clasp.json/.env.local/client_secret ya estaban.
+*.pem
+*.key
+*.p12

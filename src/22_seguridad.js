@@ -301,6 +301,12 @@ var ENDPOINTS_UI = [
   // acá (guión bajo ⇒ no es RPC-invocable); el wrapper de prueba SÍ, porque es top-level y
   // consume UrlFetch + lee Script Properties.
   'probarPushTelefono'                                                          // 34_push.js
+,
+
+  // R8 (27-ago) · wrappers no-arg del desplegable del editor (19_conectores.js). Delegan en
+  // funciones ya gateadas, pero la regla dura del 04-ago exige gate propio + alta acá.
+  'probarDAM', 'encenderDAM', 'apagarDAM', 'probarLC', 'encenderLC', 'apagarLC',
+  'probarMQ', 'encenderMQ', 'apagarMQ'
 ];
 
 /**
