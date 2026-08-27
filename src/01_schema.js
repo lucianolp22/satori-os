@@ -298,6 +298,11 @@ var CONFIG_DEFAULTS = [
   // H4 (T3, 21-jul) — mapa neural del Cerebro dentro del Espacio de Akasha. 'off' | 'on'.
   // Default OFF: es render 3D extra y el piso de 30fps en iPhone lo valida Luciano a ojo.
   ['cerebro_map', 'off'],
+  // B5 (27-ago) · el grafo del Cerebro. `max_nodos` es el cap DECLARADO del payload (la respuesta
+  // dice cuántos había en total); `timeout_ms` es la paciencia del cliente por CADA pedido — desde
+  // B5 los pedidos van de a uno, así que este número mide un round-trip, no una cola.
+  ['cerebro_grafo_max_nodos', 400],
+  ['cerebro_grafo_timeout_ms', 12000],
   ['voz_url', 'http://127.0.0.1:8787'],
   ['oficina_url', 'http://127.0.0.1:8420'],
   // E0 (11-ago) — Cerebro (mapa de notas, loopback). Mismo criterio que `oficina_url`: el CM lo

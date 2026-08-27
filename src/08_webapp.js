@@ -1094,7 +1094,10 @@ function setPrefUI(clave, valor) {
 /** Lee las preferencias de UI (default seguro si faltan). */
 function prefsUI() {
   _soloOwner_('prefsUI');   // S1 (T3-S): endpoint client-callable — gate de identidad
-  return { orbe_calidad: getConfig('orbe_calidad') || 'alto', cerebro_map: getConfig('cerebro_map') || 'off' };
+  // B5: el timeout del grafo se configura acá y no clavado en el HTML — subirlo no cuesta un push.
+  var tm = parseInt(getConfig('cerebro_grafo_timeout_ms'), 10);
+  return { orbe_calidad: getConfig('orbe_calidad') || 'alto', cerebro_map: getConfig('cerebro_map') || 'off',
+           cerebro_grafo_timeout_ms: (isNaN(tm) || tm < 1000) ? 12000 : tm };
 }
 
 /**
@@ -1104,10 +1107,21 @@ function prefsUI() {
  */
 function cerebroGrafo(idCliente) {
   _soloOwner_('cerebroGrafo');   // S1 (T3-S): endpoint client-callable — gate de identidad
+  var t0 = Date.now();
   try {
     var ss = abrirCliente(idCliente).ss;
     var nodos = leerTabla(ss.getSheetByName('nodos')) || [];
     var aristas = leerTabla(ss.getSheetByName('aristas')) || [];
+    // B5 (27-ago) · CAP DECLARADO. Antes esto devolvía la hoja entera sin tope: un tenant con
+    // muchos nodos manda un payload que crece sin límite por un render que igual no los distingue
+    // (el front ya corta las aristas en 1500 al dibujar). Se cortan los MÁS RECIENTES y se DICE
+    // que se cortó — `total_nodos` + `truncado` viajan en la respuesta. Regla del repo: un cap
+    // silencioso se lee como "acá está todo" cuando no lo está.
+    var tope = parseInt(getConfig('cerebro_grafo_max_nodos'), 10);
+    if (isNaN(tope) || tope <= 0) tope = 400;
+    var totalNodos = nodos.length;
+    var truncado = totalNodos > tope;
+    if (truncado) nodos = nodos.slice(totalNodos - tope);   // los últimos = los más recientes
     var idx = {}, outN = [];
     for (var i = 0; i < nodos.length; i++) {
       var n = nodos[i]; idx[String(n.id_nodo)] = i;
@@ -1124,8 +1138,16 @@ function cerebroGrafo(idCliente) {
       var o = idx[String(aristas[j].origen)], d = idx[String(aristas[j].destino)];
       if (o != null && d != null) outA.push([o, d]);
     }
-    return { nodos: outN, aristas: outA };
-  } catch (e) { return { nodos: [], aristas: [] }; } // sin cerebro → orbe decorativo
+    // `ms` es la instrumentación que pedía B5: el front lo loguea, así que la próxima vez que
+    // aparezca un timeout hay un NÚMERO del lado servidor en vez de una conjetura.
+    return { nodos: outN, aristas: outA, total_nodos: totalNodos, truncado: truncado,
+             tope: tope, ms: Date.now() - t0 };
+  } catch (e) {
+    // Sin cerebro → orbe decorativo. Se conserva el shape y se declara el motivo: un {} vacío
+    // sin explicación es indistinguible de "este tenant no tiene nodos".
+    return { nodos: [], aristas: [], total_nodos: 0, truncado: false,
+             ms: Date.now() - t0, error: String((e && e.message) || e).slice(0, 120) };
+  }
 }
 
 /** Cuántos eventos del log de un nodo se devuelven en el detalle (H3). Tope duro, no configurable. */

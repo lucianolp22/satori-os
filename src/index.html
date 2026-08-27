@@ -7911,18 +7911,47 @@ window.AKASHA = (function () {
   function cargarPrefsAk() {
     pedir('prefsUI', []).then(function (r) { if (r && r.ok && r.v) AK_PREFS = r.v; });
   }
+  /* B5 (27-ago) · POR QUÉ SALTABA EL TIMEOUT, Y NO ERA QUE EL SERVIDOR FUERA LENTO ───────────
+     `cargarCerebros` disparaba TODOS los tenants a la vez y arrancaba un setTimeout por cada uno
+     en el mismo instante. Pero Apps Script SERIALIZA los `google.script.run` de una misma sesión:
+     se encolan. Así que del 2º en adelante el reloj corría mientras la llamada esperaba turno, y
+     con un round-trip medido de ~6,75 s de mediana (R6) el 2º ya llegaba al límite de 12 s sin
+     que el servidor hubiera tardado de más. Por eso el warning salía en UN cliente y parecía
+     "CLI-003 está pesado": no era el tenant, era su lugar en la cola.
+
+     Fix: los pedidos van DE A UNO, encadenados. El reloj de cada uno arranca cuando su llamada
+     sale de verdad, así que ahora mide un round-trip y no una espera. El wall-clock total es el
+     mismo (GAS los serializaba igual), pero deja de haber timeouts fantasma y el HUD avanza
+     honesto. El timeout sale de Config (`cerebro_grafo_timeout_ms`): subirlo no cuesta un push. */
   var CEREBRO_TIMEOUT_MS = 12000;
   function pedirCerebro(id) {
     return new Promise(function (res) {
       var listo = false;
+      var t0 = Date.now();
+      var tope = (AK_PREFS && AK_PREFS.cerebro_grafo_timeout_ms) || CEREBRO_TIMEOUT_MS;
       var t = setTimeout(function () {
         if (listo) return; listo = true;
-        console.warn('[AKASHA] cerebroGrafo timeout: ' + id);
-        res({ ok: false });
-      }, CEREBRO_TIMEOUT_MS);
-      gas('cerebroGrafo', [id],
-        function (v) { if (listo) return; listo = true; clearTimeout(t); res({ ok: true, v: v }); },
-        function (e) { if (listo) return; listo = true; clearTimeout(t); console.error('[AKASHA] cerebroGrafo ' + id + ':', e); res({ ok: false }); });
+        console.warn('[AKASHA] cerebroGrafo timeout: ' + id + ' (' + tope + 'ms, de a uno)');
+        res({ ok: false, motivo: 'timeout' });
+      }, tope);
+      /* El throw es SÍNCRONO si el nombre no existe en el runner (`r[fn]` sería undefined), así
+         que va envuelto: si no, la promesa se rechaza, `res` no corre nunca y el único síntoma
+         que se ve es... el timeout. Justo el que se está tratando de explicar. */
+      try {
+        gas('cerebroGrafo', [id],
+          function (v) {
+            if (listo) return; listo = true; clearTimeout(t);
+            var ms = Date.now() - t0;
+            if (v && v.truncado) console.info('[AKASHA] cerebroGrafo ' + id + ': ' + v.nodos.length +
+              ' de ' + v.total_nodos + ' nodos (cap ' + v.tope + '), ' + ms + 'ms cliente / ' + v.ms + 'ms servidor');
+            else if (ms > 5000) console.info('[AKASHA] cerebroGrafo ' + id + ': ' + ms +
+              'ms cliente / ' + ((v && v.ms) || '?') + 'ms servidor');
+            res({ ok: true, v: v, ms: ms });
+          },
+          function (e) { if (listo) return; listo = true; clearTimeout(t); console.error('[AKASHA] cerebroGrafo ' + id + ':', e); res({ ok: false, motivo: 'error' }); });
+      } catch (ex) {
+        if (!listo) { listo = true; clearTimeout(t); console.error('[AKASHA] cerebroGrafo ' + id + ' no despachó:', ex); res({ ok: false, motivo: 'no_despacho' }); }
+      }
     });
   }
   function hudCerebros() {
@@ -7938,7 +7967,19 @@ window.AKASHA = (function () {
     CEREBROS = { listos: 0, total: DATA.clientes.length, cargando: true, fallidos: [] };
     hudCerebros();
     var gen = AK.gen;                       // si salís y volvés, la ola vieja se descarta
-    DATA.clientes.forEach(function (c) {
+    /* DE A UNO (B5): GAS los serializa igual, pero encadenados cada timeout mide su propio
+       round-trip en vez de la cola entera. Mismo wall-clock, sin timeouts fantasma. */
+    var cola = DATA.clientes.slice();
+    (function siguiente() {
+      if (gen !== AK.gen || !DATA) return;                 // saliste de la Oficina: se corta la ola
+      var c = cola.shift();
+      if (!c) {
+        CEREBROS.cargando = false; hudCerebros();
+        if (CEREBROS.fallidos.length) {
+          toast('Sin constelación de ' + CEREBROS.fallidos.length + ' Espacio(s) — el resto de la Oficina está entero');
+        }
+        return;
+      }
       pedirCerebro(c.id).then(function (r) {
         if (gen !== AK.gen || !DATA) return;
         CEREBROS.listos++;
@@ -7948,14 +7989,11 @@ window.AKASHA = (function () {
             c.reg.push(i);
           });
         } else CEREBROS.fallidos.push(c.id);
-        if (CEREBROS.listos >= CEREBROS.total) CEREBROS.cargando = false;
         hudCerebros();
         if (S.engine && S.engine.refrescarNucleo) S.engine.refrescarNucleo();   // repinta con lo que haya
-        if (!CEREBROS.cargando && CEREBROS.fallidos.length) {
-          toast('Sin constelación de ' + CEREBROS.fallidos.length + ' Espacio(s) — el resto de la Oficina está entero');
-        }
+        siguiente();
       });
-    });
+    })();
   }
   /* Refresh post-acción (despertar/resolver): fresco DE VERDAD, sin las promesas
      memoizadas del boot. Repuebla el universo y los docks. */

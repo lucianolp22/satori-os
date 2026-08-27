@@ -3240,6 +3240,43 @@ seccion('F3 · identidad de Sato (docs/SATO-IDENTIDAD.md → 35_identidad.js →
       'mentira es la que tapó el fallback durante toda una sesión (precondición PC-4 falsa)');
 }
 
+// ═══ B5 · cerebroGrafo: cap declarado, tiempo medido y pedidos de a uno ════
+// El warning `[AKASHA] cerebroGrafo timeout: CLI-003` no era un tenant pesado: `cargarCerebros`
+// disparaba todos los Espacios a la vez y arrancaba un setTimeout por cada uno en el mismo
+// instante, pero Apps Script SERIALIZA los google.script.run de una sesión. Del 2º en adelante
+// el reloj corría durante la espera en cola — con un round-trip de ~6,75 s medido (R6), el 2º ya
+// llegaba a 12 s sin que el servidor tardara de más. Estos asserts congelan las tres partes.
+seccion('B5 · cerebroGrafo (cap declarado + de a uno)');
+{
+  const wa = fs.readFileSync(path.join(__dirname, 'src', '08_webapp.js'), 'utf8');
+  const ix = fs.readFileSync(path.join(__dirname, 'src', 'index.html'), 'utf8');
+
+  chk(/cerebro_grafo_max_nodos/.test(wa) && /truncado: truncado/.test(wa),
+      'B5a el cap del payload existe Y viaja declarado (`truncado` + `total_nodos`): un cap ' +
+      'silencioso se lee como «acá está todo» cuando no lo está');
+  chk(/total_nodos: totalNodos/.test(wa) && /ms: Date\.now\(\) - t0/.test(wa),
+      'B5b la respuesta trae el tiempo del SERVIDOR — la próxima vez que salte un timeout hay un ' +
+      'número en vez de una conjetura (era el pedido de instrumentación de B5)');
+  chk(/return \{ nodos: \[\], aristas: \[\], total_nodos: 0/.test(wa),
+      'B5c el catch conserva el shape y declara el motivo: un {} pelado es indistinguible de ' +
+      '«este tenant no tiene nodos»');
+  chk(/cerebro_grafo_timeout_ms/.test(wa) && /cerebro_grafo_timeout_ms/.test(ix),
+      'B5d el timeout sale de Config por prefsUI y no clavado en el HTML — subirlo no cuesta un push');
+
+  const cfg = ctx.CONFIG_DEFAULTS.filter((p2) => String(p2[0]).indexOf('cerebro_grafo_') === 0);
+  chk(cfg.length === 2,
+      `B5e las dos claves viven en CONFIG_DEFAULTS (${cfg.map((x) => x[0]).join(', ')}) — setup() las siembra`);
+
+  chk(/DE A UNO \(B5\)/.test(ix) && /\(function siguiente\(\) \{/.test(ix),
+      'B5f 🔒 los pedidos van encadenados, no en paralelo: así cada timeout mide SU round-trip y ' +
+      'no la cola de GAS. Este es el fix del warning, no el cap');
+  chk(!/DATA\.clientes\.forEach\(function \(c\) \{\s*\n\s*pedirCerebro/.test(ix),
+      'B5g y no quedó el forEach paralelo viejo dando vueltas');
+  chk(/no despachó/.test(ix),
+      'B5h el despacho va en try/catch: si `r[fn]` no existiera, el throw es SÍNCRONO, la promesa ' +
+      'se rechaza, `res` no corre nunca y el único síntoma visible sería… un timeout');
+}
+
 // ═══ F7b · Sato Ubicuo — el dock TIENE que estar por encima del CM ═════════
 // B1 (27-ago): el dock estaba en el repo desde hacía días y Luciano no lo veía. Vive a nivel
 // <body>, donde sus vecinos son #centro (fixed, z-index:50) y #akasha (200) — y traía z-index:30,
