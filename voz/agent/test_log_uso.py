@@ -2,11 +2,12 @@
 regla STUB DIVERGENTE = VERDE FALSO, CLAUDE.md 24-jul)."""
 import importlib.util, json, os, sys, tempfile, types
 
-sys.path.insert(0, os.path.dirname(os.path.abspath("agent.py")))
+_AQUI = os.path.dirname(os.path.abspath(__file__))   # corre desde cualquier cwd
+sys.path.insert(0, _AQUI)
 from livekit.agents.metrics.base import LLMMetrics, STTMetrics, TTSMetrics, VADMetrics, EOUMetrics, Metadata
 
 # Se carga agent.py sin ejecutar el entrypoint (import normal: el módulo no arranca nada al importarse).
-spec = importlib.util.spec_from_file_location("agentmod", "agent.py")
+spec = importlib.util.spec_from_file_location("agentmod", os.path.join(_AQUI, "agent.py"))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 

@@ -30,6 +30,7 @@ from livekit.plugins import openai, deepgram, elevenlabs, silero
 from livekit.plugins import anthropic as anthropic_plugin   # F6 · motor Claude (opt-in por env)
 
 from brief_hoy import brief_hoy as _brief_hoy  # E2.d: parser del bloque HOY (módulo propio = testeable sin levantar livekit)
+import web_satori  # B3: web search/fetch con whitelist Satori (módulo propio, por lo mismo)
 import gas_voz_client  # cliente autenticado: Bearer (refresh de luciano@) + secreto-en-body + redirect 302
 
 import logging
@@ -380,15 +381,49 @@ _TOKENS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..
 
 def _construir_llm():
     """Devuelve el LLM según el flag. Fail-safe: si el motor Claude no se puede construir, se
-    cae a OpenAI y se avisa — una voz muda es peor que una voz con el motor viejo."""
+    cae a OpenAI y se avisa — una voz muda es peor que una voz con el motor viejo.
+
+    ── B3 (27-ago) · EL FAIL-SAFE VENÍA DISPARANDO SIEMPRE, Y NADIE SE ENTERÓ ────────────────
+    Con `SATO_VOZ_MOTOR=anthropic` puesto y todo "en verde", la voz corrió **siempre sobre
+    gpt-4o-mini**. En el log estaba escrito dos veces el mismo día:
+
+        no pude construir el motor anthropic (Invalid `http_client` argument; Expected an
+        instance of `httpx2.AsyncClient` but got <class 'httpx.AsyncClient'>) — vuelvo a gpt-4o-mini
+
+    CAUSA: `livekit-plugins-anthropic 1.6.4` arma su cliente con
+    `anthropic.AsyncClient(http_client=httpx.AsyncClient(...))` (llm.py:124-131), pero el SDK
+    `anthropic` 1.x corre sobre **httpx2**, no httpx. El constructor rechaza el argumento y
+    revienta ANTES de mandar un solo request. Es la misma clase de drift que documenta la guía
+    de upgrade del SDK (anthropic 0.x → 1.x cambió de httpx a httpx2).
+
+    POR QUÉ NADIE LO VIO: el `_log_uso` viejo escribía `"modelo": SATO_VOZ_MODELO`, o sea el
+    valor de la env var — no el modelo que efectivamente contestó. Así que `voz-tokens.jsonl`
+    decía `motor:anthropic, modelo:claude-haiku-4-5` mientras hablaba OpenAI, y esa fila era la
+    evidencia con la que se dio por buena la precondición del encargo. Un error ruidoso tapado
+    por una métrica que mentía (CLAUDE.md: "un error tragado es peor que un error ruidoso").
+    Arreglado en B2: ahora el modelo lo reporta el proveedor, así que si esto vuelve a caerse,
+    el propio log de tokens lo canta en la primera fila.
+
+    FIX: se le pasa al plugin NUESTRO cliente. El parámetro `client=` existe justo para esto, así
+    que no hay que tocar una sola dependencia (§7: cero deps nuevas) ni parchear el venv. Se
+    conservan los timeouts cortos que traía el plugin —una voz no puede esperar 10 minutos, que
+    es el default del SDK— construidos con el `anthropic.Timeout` bueno (que ES `httpx2.Timeout`).
+    """
     if SATO_VOZ_MOTOR != "anthropic":
         return openai.LLM(model="gpt-4o-mini")
     try:
-        llm = anthropic_plugin.LLM(model=SATO_VOZ_MODELO, caching="ephemeral")
-        logger.info("motor de voz: anthropic %s (caching ephemeral)", SATO_VOZ_MODELO)
+        import anthropic as _anthropic_sdk
+        cliente = _anthropic_sdk.AsyncAnthropic(
+            timeout=_anthropic_sdk.Timeout(5.0, read=30.0, write=10.0, connect=5.0),
+            max_retries=1,   # el turno de voz se muere antes que un backoff largo
+        )
+        llm = anthropic_plugin.LLM(model=SATO_VOZ_MODELO, caching="ephemeral", client=cliente)
+        logger.info("motor de voz: anthropic %s (caching ephemeral, cliente propio)", SATO_VOZ_MODELO)
         return llm
     except Exception as e:  # noqa: BLE001
-        logger.error("no pude construir el motor anthropic (%s) — vuelvo a gpt-4o-mini", e)
+        # Ruidoso A PROPÓSITO: este es el camino por el que la voz se degrada en silencio.
+        logger.error("MOTOR CLAUDE CAIDO — la voz corre en gpt-4o-mini, NO en %s. Causa: %s",
+                     SATO_VOZ_MODELO, e)
         return openai.LLM(model="gpt-4o-mini")
 
 
@@ -853,6 +888,79 @@ class SatoriVoz(Agent):
         se cuenta como FALLIDO, nunca como listo.
         """
         return await _llamar_backend("encargos_listos")
+
+    # ═══ B3 · WEB SEARCH + WEB FETCH ═══════════════════════════════════════════════════════
+    # Finas A PROPÓSITO: toda la lógica (whitelist, presupuesto, saneado, logs) vive en
+    # `web_satori.py`, que se testea sin levantar LiveKit y se edita sin costar un reload.
+    # El plugin de LiveKit NO expone las server tools de Anthropic (verificado en fuente), así
+    # que la búsqueda es una llamada aparte con el SDK cliente. Ver la cabecera del módulo.
+
+    @function_tool()
+    async def web_search(self, context: RunContext, consulta: str, categoria: str) -> str:
+        """Busca en internet, PERO SOLO dentro de la whitelist Satori. No es una busqueda libre.
+
+        Categorias validas hoy: fiscal_es · fiscal_ar · noticias_negocio · clima_utilidades ·
+        cotizaciones · tecnica_os. Si el tema no encaja en ninguna, NO la llames: deci que ese
+        dominio no esta autorizado y ofrece encargarselo a Cowork con `capturar`.
+
+        REGLA N10 (S5, obligatoria): antes de llamarla decis en voz alta "voy a buscar [tema] en
+        [dominio previsto], confirmas?" y esperas un si explicito EN EL MISMO TURNO.
+
+        Al contestar nombra el dominio de la fuente (N4). Si devuelve `presupuesto_agotado`,
+        decilo tal cual y no inventes resultados (N9).
+
+        Args:
+            consulta: que buscar, en una frase.
+            categoria: una de las categorias de arriba. Es la que decide en que dominios se busca.
+        """
+        _anunciar(context)
+        r = await web_satori.buscar(consulta, categoria)
+        if r.get("ok"):
+            aviso = (" Aviso: ya vas %s de %s dolares de busquedas este mes."
+                     % (r["usado"], r["tope"])) if r.get("aviso") else ""
+            return "%s (fuentes: %s).%s" % (r["texto"], ", ".join(r.get("fuentes") or []) or "sin fuente", aviso)
+
+        err = r.get("error")
+        if err == "presupuesto_agotado":
+            return ("presupuesto_agotado: agote el presupuesto de web search del mes (%s de %s USD). "
+                    "Decilo tal cual: no podes buscar mas hasta el 1 del mes que viene o hasta que "
+                    "Luciano suba el tope en docs/WHITELIST-SATO-WEB.md. No inventes resultados."
+                    % (r.get("usado"), r.get("tope")))
+        if err == "categoria_desconocida":
+            return ("Esa categoria no existe en la whitelist. Las que hay son: %s. Deci que ese "
+                    "dominio no esta autorizado y ofrece encargarselo a Cowork."
+                    % ", ".join(r.get("categorias") or []))
+        if err == "whitelist_no_disponible":
+            return "No pude leer la whitelist, asi que no busco nada. Decilo y ofrece encargarlo a Cowork."
+        if err == "sin_resultados":
+            return ("No hubo resultados en %s. Decilo tal cual: no completes con lo que sepas de memoria."
+                    % ", ".join(r.get("dominios") or []))
+        return "La busqueda fallo (%s). Decilo y no inventes el dato." % (r.get("codigo") or r.get("detalle") or err)
+
+    @function_tool()
+    async def web_fetch(self, context: RunContext, url: str) -> str:
+        """Trae y resume UNA pagina concreta, solo si su dominio esta en la whitelist Satori.
+
+        Usala cuando ya tenes la url (te la dijo Luciano o salio de un `web_search`). No inventes
+        urls: si no la tenes, busca primero. Misma regla N10 (S5) que web_search: avisas que la
+        vas a abrir y esperas el si.
+
+        Args:
+            url: la direccion completa, con https://.
+        """
+        _anunciar(context)
+        r = await web_satori.traer(url)
+        if r.get("ok"):
+            return "%s (fuente: %s)." % (r["texto"], r.get("fuente"))
+        err = r.get("error")
+        if err in ("whitelist_violation", "redirect_fuera_de_whitelist"):
+            return ("%s no esta en mi whitelist, asi que no lo abro. Decilo y ofrece encargarlo a Cowork."
+                    % (r.get("host_final") or r.get("host") or "ese dominio"))
+        if err == "whitelist_no_disponible":
+            return "No pude leer la whitelist, asi que no abro nada. Decilo y ofrece encargarlo a Cowork."
+        if err == "url_invalida":
+            return "Esa no es una direccion web valida. Pedile la url de nuevo (N8)."
+        return "No pude traer la pagina (%s). Decilo y no inventes el contenido." % (r.get("codigo") or r.get("detalle") or err)
 
     @function_tool()
     async def oficina_estado(self, context: RunContext) -> str:
