@@ -75,7 +75,9 @@ if [ "$CHECK" = 1 ]; then
   echo "plist   : $( [ -f "$DST" ] && echo "instalado en $DST" || echo 'NO instalado' )"
   echo "sincro  : $( [ -f "$DST" ] && cmp -s "$SRC" "$DST" && echo 'igual al canónico' || echo 'DIFIERE del canónico' )"
   echo "launchd : $(estado)"
-  echo "http    : $(curl -sS -m 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/" || echo 'sin respuesta')"
+  # 15 s, no 5: tras un cambio de topología el regen recomputa el layout (~8 s) y el primer
+  # request espera. Con 5 s daba un falso "sin respuesta" con el servidor perfectamente sano.
+  echo "http    : $(curl -sS -m 15 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/" || echo 'sin respuesta')"
   # R5: el canónico vive fuera de git (~/Documents/Claude no es repo). La copia de referencia
   # versionada tiene que seguirlo; si divergen, la lección del TCC queda sólo en un disco.
   if [ -f "$REF" ]; then
