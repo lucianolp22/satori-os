@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 15:59 · commit: 0f1752c
+> Generado: 2026-08-27 16:01 · commit: e07ea3b
 
 ## Módulos
 
@@ -216,6 +216,7 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 
 ## Actividad de los últimos 14 días
 
+- e07ea3b [B1] promote /exec: dock Sato Ubicuo visible (CAPABILITIES regen)
 - 0f1752c merge B1: Sato Ubicuo visible en /exec
 - 154bd1b [B1] Sato Ubicuo visible: z-index 30 -> 230 (estaba debajo de #centro) + rotulo que sigue al tenant
 - 9fe2140 fix: --check con timeout de 15s (el regen frio del layout tarda ~8s y daba falso 'sin respuesta')
@@ -245,7 +246,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - 8ed2150 HANDOFF: /exec @56 — E1 en prod con los dos gates salteados (verde con asterisco + qué falta)
 - 2199c6d promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
 - 88142b7 [CAPACIDADES-SATO E1] Lazo cerrado del encargo + E1-bis fix 429 de ntfy
-- 8b5def5 [CAPACIDADES-SATO] Ola 1.0 — cobertura del canal de push: alta en MODULOS + 12 asserts
 
 ## Funciones por módulo (apéndice)
 

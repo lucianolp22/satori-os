@@ -27,8 +27,14 @@ if ! bash _capabilities_gen.sh >/dev/null 2>&1; then
   rm -f "$ANTES" "$NUEVO" "$VIEJO"
   exit 0
 fi
-grep -v '^> Generado:' CAPABILITIES.md > "$NUEVO"
-grep -v '^> Generado:' "$ANTES" > "$VIEJO"
+# Se recortan las dos secciones que NO son introspeccion de src/ y que cambian solas con cada
+# commit: la linea "> Generado:" (fecha+hash) y "## Actividad de los ultimos 14 dias" (git log).
+# Sin este recorte el hook entra en BUCLE: commiteas el regen -> el log ahora incluye ESE commit
+# -> el regen siguiente difiere -> aborta otra vez. Encontrado el 27-ago (B1): el push a GitHub
+# estaba estructuralmente bloqueado. El drift que este hook existe para cazar es el de src/.
+recortar(){ grep -v '^> Generado:' "$1" | sed '/^## Actividad de los/,/^## /{ /^## Actividad de los/d; /^## /!d; }'; }
+recortar CAPABILITIES.md > "$NUEVO"
+recortar "$ANTES" > "$VIEJO"
 if cmp -s "$NUEVO" "$VIEJO"; then
   cp "$ANTES" CAPABILITIES.md
   rm -f "$ANTES" "$NUEVO" "$VIEJO"
