@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 16:27 · commit: a72ace6
+> Generado: 2026-08-27 16:38 · commit: dab96c6
 
 ## Módulos
 
@@ -218,6 +218,7 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 
 ## Actividad de los últimos 14 días
 
+- dab96c6 [B6] Cierre: RUNBOOK con palanca (f) web search + CAPABILITIES regen + gitignore de telemetria
 - a72ace6 [B5] cerebroGrafo: el timeout no era el tenant, era su lugar en la cola de GAS
 - 9f9b381 [B4] R15: assert del cache cliff por recorte de tools (+ guard de regresion del z-index del dock)
 - a6916f9 [B3] Web search + web fetch para Sato-VOZ, con whitelist Satori — y el motor Claude que nunca corrio
@@ -247,7 +248,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - b0017bf [SATO-VIVIENTE F0+F1] Auditoria consumo Claude Max + auditoria estatica del caching TC-10
 - 9c17f68 HANDOFF: /exec @57 — E1 + E2 en prod sin el gate del editor
 - 39acc42 promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
-- 77ca402 HANDOFF: excepción declarada ANTES del promote de E2 (gate del editor salteado)
 
 ## Funciones por módulo (apéndice)
 
