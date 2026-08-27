@@ -356,9 +356,60 @@ def _anunciar(context: RunContext) -> None:
         logger.debug("filler de voz no emitido: %s", e)
 
 
+
+# ═══ F3 · IDENTIDAD EDITABLE EN CALIENTE ═════════════════════════════════════
+#
+# La identidad de Sato vive en `docs/SATO-IDENTIDAD.md`, en la raíz del repo. Este proceso la relee
+# por mtime con TTL de 60 s, así que **editar el .md cambia a Sato sin reiniciar el agente** — que
+# es todo el punto (lección +59: cada cambio en este archivo cuesta un reload; el .md no).
+#
+# Fail-safe: si el .md no está, no se puede leer o quedó vacío, se usa `INSTRUCCIONES` inline. Sato
+# nunca se queda sin identidad, ni siquiera si alguien borra el archivo con el agente corriendo.
+#
+# ⚠ El .md es el PREFIJO ESTABLE que se marca con `cache_control` (F6). Por eso no lleva fecha ni
+#   id de sesión: la parte volátil va en el bloque fresco, después del breakpoint.
+_IDENTIDAD_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))), "docs", "SATO-IDENTIDAD.md")
+_IDENT_TTL = 60.0
+_ident_cache: dict = {"txt": "", "mtime": 0.0, "chequeado": 0.0}
+
+
+def cargar_identidad() -> str:
+    """Identidad vigente del .md, releída por mtime con TTL de 60 s. Nunca lanza."""
+    ahora = time.time()
+    if _ident_cache["txt"] and (ahora - _ident_cache["chequeado"]) < _IDENT_TTL:
+        return _ident_cache["txt"]
+    try:
+        m = os.path.getmtime(_IDENTIDAD_PATH)
+        _ident_cache["chequeado"] = ahora
+        if m == _ident_cache["mtime"] and _ident_cache["txt"]:
+            return _ident_cache["txt"]
+        with open(_IDENTIDAD_PATH, encoding="utf-8") as fh:
+            md = fh.read()
+        # Se recorta la cabecera meta (para humanos) igual que en scripts/_identidad_gen.sh:
+        # lo que va al modelo arranca después del primer separador.
+        i = md.find("\n---\n")
+        cuerpo = md[i + 5:].strip() if i > 0 else md.strip()
+        j = cuerpo.rfind("\n---\n")
+        if j > 0:
+            cuerpo = cuerpo[:j].strip()
+        if len(cuerpo) < 200:
+            raise ValueError("identidad sospechosamente corta (%d chars)" % len(cuerpo))
+        _ident_cache.update({"txt": cuerpo, "mtime": m})
+        logger.info("identidad recargada: %d chars (mtime %s)", len(cuerpo), int(m))
+        return cuerpo
+    except Exception as e:  # noqa: BLE001 — jamás dejar a Sato sin identidad
+        if not _ident_cache["txt"]:
+            logger.warning("no pude leer %s (%s) — uso INSTRUCCIONES inline", _IDENTIDAD_PATH, e)
+        _ident_cache["chequeado"] = ahora
+        return _ident_cache["txt"] or INSTRUCCIONES
+
+
 class SatoriVoz(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions=INSTRUCCIONES)
+        # F3 · dos bloques: identidad ESTABLE primero (es lo que se cachea), fecha viva después.
+        # El orden importa: el caching es match de prefijo y `_FECHA_HOY` cambia por día.
+        super().__init__(instructions=cargar_identidad() + "\n\n" + _FECHA_HOY)
 
     @function_tool()
     async def estado(self, context: RunContext, id_cliente: str = "") -> str:

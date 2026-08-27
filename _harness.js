@@ -71,7 +71,7 @@ vm.createContext(ctx);
 // ── Carga de módulos (mismo contexto: respeta dependencias cruzadas) ─────────
 const SRC = path.join(__dirname, 'src');
 const MODULOS = ['01_schema.js', '02_setup.js', '07_util.js', '22_seguridad.js', '06_avisos.js', '05_costos.js', '27_decisiones.js', '14_director.js', '11_aprobaciones.js', '13_agentes.js', '28_forge.js', '12_cola.js', '17_bandeja.js', '19_conectores.js',
-                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '26_sato.js', '32_flota.js',
+                 '21_backup.js', '25_hilo.js', '29_vigilancia.js', '30_correo.js', '31_admin.js', '18_direccion.js', '08_webapp.js', '35_identidad.js', '26_sato.js', '32_flota.js',
                  // T1.e (11-ago): entra al arnés porque ahora tiene funciones PURAS que se pueden
                  // aserir offline (`_carteraLineasBrief_`, `_diasEntreISO_`). Lo que toca el roster
                  // real sigue siendo D44 en el editor.
@@ -3099,6 +3099,92 @@ seccion('R3 · instalador del grafo del Cerebro (launchd)');
       'R13b el que no toma el lock NO espera: sirve la copia en disco (fail-safe declarado)');
   chk(/timeout=10,/.test(srv) && !/timeout=30,/.test(srv),
       'R13c timeout del regen bajado a 10 s');
+}
+
+// ═══ F3 · identidad editable en caliente ════════════════════════════════════
+seccion('F3 · identidad de Sato (docs/SATO-IDENTIDAD.md → 35_identidad.js → hoja)');
+{
+  const md = fs.readFileSync(path.join(__dirname, 'docs', 'SATO-IDENTIDAD.md'), 'utf8');
+
+  // D-ID1 · el generado NO puede divergir del .md. Es la razón de ser del generador.
+  const i = md.indexOf('\n---\n');
+  let cuerpo = md.slice(i + 5).trim();
+  const j = cuerpo.lastIndexOf('\n---\n');
+  if (j > 0) cuerpo = cuerpo.slice(0, j).trim();
+  chk(ctx.SATO_IDENTIDAD_MD === cuerpo,
+      'D-ID1 🔒 src/35_identidad.js coincide EXACTO con docs/SATO-IDENTIDAD.md ' +
+      '(si no: corré `bash scripts/_identidad_gen.sh` — el .md es la fuente única)');
+
+  // D-ID2 · las 8 secciones que el encargo fija por FORMA.
+  const secs = (ctx.SATO_IDENTIDAD_MD.match(/^## §\d/gm) || []).length;
+  chk(secs === 8, `D-ID2 la identidad tiene las 8 secciones §1-§8 (tiene ${secs})`);
+
+  // D-ID3 · espejo textual de SOUL. Tres copias que se separan aflojan una invariante sin que
+  // nadie lo note (la razón por la que 24_soul.js avisa del espejo en su cabecera).
+  // `24_soul.js` no está en MODULOS: se lee el archivo REAL en vez de agregarlo al arnés (y en
+  // vez de stubearlo — un stub adivinado acá sería un verde falso, lección D25e).
+  const soulSrc = fs.readFileSync(path.join(__dirname, 'src', '24_soul.js'), 'utf8');
+  const reglas = [...soulSrc.matchAll(/\{\s*id:\s*'(S\d)'\s*,\s*regla:\s*'((?:[^'\\]|\\.)*)'/g)]
+    .map((m) => ({ id: m[1], regla: m[2].replace(/\\'/g, "'").replace(/\\"/g, '"') }));
+  chk(reglas.length === 8, `D-ID3a se leyeron las 8 SOUL_REGLAS de 24_soul.js (se leyeron ${reglas.length})`);
+  // Se compara normalizando espacios: el .md corta las reglas en varias líneas para que se lean,
+  // y eso NO es divergencia. Lo que se aseria es que el TEXTO sea el mismo, no el wrapping.
+  const plano = (t) => t.replace(/\s+/g, ' ').trim();
+  const idPlano = plano(ctx.SATO_IDENTIDAD_MD);
+  const faltan = reglas.filter((r) => idPlano.indexOf(plano(r.regla)) < 0);
+  chk(faltan.length === 0,
+      'D-ID3 🔒 las 8 SOUL van TEXTUALES en la identidad (espejo de 24_soul.js)' +
+      (faltan.length ? ' — divergen: ' + faltan.map((r) => r.id).join(', ') : ''));
+
+  // D-ID4 · REGLA DE PREFIJO. Va al bloque cacheado ⇒ nada que cambie entre turnos.
+  const volatil = [/\b20\d\d-\d\d-\d\d\b/, /\bCLI-\d{3}\b/, /\bid_sesion\b/, /\bDate\.now\b/];
+  const sucio = volatil.filter((r) => r.test(ctx.SATO_IDENTIDAD_MD));
+  chk(sucio.length === 0,
+      'D-ID4 🔒 la identidad NO tiene fecha, id de cliente ni id de sesión — es el prefijo que se ' +
+      'cachea y un byte variable acá invalida el caché de TODOS los turnos (TC-10)');
+
+  // D-ID5 · el loader es PURO respecto del tenant. Si recibiera un id, el prefijo se fragmentaría
+  // por cliente y volveríamos al problema que R10 acaba de arreglar.
+  chk(/function _cargarIdentidadSato_\(\s*\)/.test(String(ctx._cargarIdentidadSato_)) ||
+      ctx._cargarIdentidadSato_.length === 0,
+      'D-ID5 🔒 _cargarIdentidadSato_() no recibe id_cliente: la identidad es igual para todos los ' +
+      'tenants, y eso es lo que la hace cacheable');
+
+  // D-ID6 · fail-safe: sin hoja y sin Config, igual devuelve la identidad del módulo.
+  const cfgPrev = ctx.getConfig, maePrev = ctx.getMaestro;
+  try {
+    ctx._SATO_IDENT_CACHE_ = null;
+    ctx.getConfig = () => '';
+    ctx.getMaestro = () => { throw new Error('MAESTRO caído'); };
+    const t = ctx._cargarIdentidadSato_();
+    chk(t === ctx.SATO_IDENTIDAD_MD,
+        'D-ID6 🔒 si la hoja o el MAESTRO fallan, cae al módulo — Sato nunca se queda sin identidad');
+  } finally { ctx.getConfig = cfgPrev; ctx.getMaestro = maePrev; ctx._SATO_IDENT_CACHE_ = null; }
+
+  // D-ID7 · la hoja es LAZY: en MAESTRO_SHEETS pero NO en MAESTRO_ORDEN. Meterla en ORDEN
+  // rompería `drillRestore` y `correrSalud`, que cuentan MAESTRO_ORDEN.length (lección lista-contrato).
+  chk(!!ctx.MAESTRO_SHEETS._sato_identidad && ctx.MAESTRO_ORDEN.indexOf('_sato_identidad') === -1,
+      'D-ID7 _sato_identidad es LAZY: declarada en MAESTRO_SHEETS y fuera de MAESTRO_ORDEN');
+
+  // D-ID8 · el tamaño manda si el caching se enciende. Se asERTA el número REAL medido, no un
+  // deseo: con el bloque fijo actual el estimador de 4 c/tok da ~3.7k, que NO llega al mínimo de
+  // Haiku 4.5 (4096) y SÍ al de Sonnet 5 (1024). No se rellena el prompt para llegar —
+  // 05_costos.js lo prohíbe explícitamente. Si esto cambia, que se sepa.
+  const est = Math.floor((ctx.SATO_IDENTIDAD_MD.length + 4935) / 4);
+  // ── lado Sato-VOZ: mismo .md, mismo texto, y con red de seguridad.
+  const ag = fs.readFileSync(path.join(__dirname, 'voz', 'agent', 'agent.py'), 'utf8');
+  chk(/def cargar_identidad\(\) -> str:/.test(ag) && /_IDENT_TTL = 60/.test(ag),
+      'D-ID9 agent.py tiene cargar_identidad() con TTL 60 s por mtime — editar el .md cambia a Sato ' +
+      'SIN reload (que es el punto: cada cambio en agent.py cuesta un reload, lección +59)');
+  chk(/return _ident_cache\["txt"\] or INSTRUCCIONES/.test(ag),
+      'D-ID10 🔒 fallback a INSTRUCCIONES inline si el .md falta o falla — Sato nunca sin identidad');
+  chk(/super\(\).__init__\(instructions=cargar_identidad\(\) \+ "\\n\\n" \+ _FECHA_HOY\)/.test(ag),
+      'D-ID11 two-block: identidad ESTABLE primero, _FECHA_HOY después (el caching es match de ' +
+      'prefijo; la fecha adelante invalidaría todo cada día)');
+
+  chk(est >= 1024,
+      `D-ID8 el bloque fijo (identidad + reglas) da ~${est} tok estimados: supera el mínimo de ` +
+      'Sonnet 5 (1024) ⇒ cachea. No llega a los 4096 de Haiku 4.5 y NO se rellena para llegar');
 }
 
 // ── Veredicto ────────────────────────────────────────────────────────────────

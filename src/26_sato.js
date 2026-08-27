@@ -25,6 +25,71 @@
  * los botones de la ficha (checklist, encargo, aprobaciones) — default-deny del sistema intacto.
  */
 
+
+// ═══ F3 · IDENTIDAD EDITABLE EN CALIENTE ═════════════════════════════════════
+//
+// La identidad de Sato (propósito, personalidad, SOUL, N4-N9, aislamiento, anti-injection) vive en
+// `docs/SATO-IDENTIDAD.md`, se genera a `src/35_identidad.js` con `bash scripts/_identidad_gen.sh`
+// y viaja a GAS con el push. La pestaña `_sato_identidad` del MAESTRO es el OVERRIDE en caliente:
+// editarla cambia a Sato sin deploy. Si está vacía o falla, se usa el módulo — Sato nunca se queda
+// sin identidad.
+//
+// ⚠ VA EN EL BLOQUE FIJO (el que se cachea). Por eso no lleva fecha, ni id de cliente, ni nada que
+// cambie entre turnos: un byte variable acá tira abajo el caché de todos los turnos (TC-10).
+
+/** Hoja de identidad (lazy, oculta+protegida — mismo patrón que `charla`). */
+function _identidadSheet_(ss, crear) {
+  var sh = ss.getSheetByName('_sato_identidad');
+  if (!sh && crear) {
+    sh = ensureSheet(ss, '_sato_identidad', MAESTRO_SHEETS._sato_identidad);
+    try { protegerSheet(sh, false); sh.hideSheet(); } catch (e) { /* estética, no bloquea */ }
+  }
+  return sh;
+}
+
+/**
+ * Identidad vigente. Cache por `_sato_identidad_version` de Config: bumpeá esa Config (o borrala)
+ * para forzar relectura sin deploy. PURA respecto del tenant: no recibe ni usa `id_cliente` — la
+ * identidad es la misma para todos los clientes, y eso es lo que hace cacheable al prefijo.
+ * @return {string}
+ */
+function _cargarIdentidadSato_() {
+  var ver = '';
+  try { ver = String(getConfig('_sato_identidad_version') || '1'); } catch (e) { ver = '1'; }
+  if (_SATO_IDENT_CACHE_ && _SATO_IDENT_CACHE_.ver === ver) return _SATO_IDENT_CACHE_.txt;
+  var txt = '';
+  try {
+    var sh = _identidadSheet_(getMaestro(), false);
+    if (sh) {
+      var filas = leerTabla(sh).slice().sort(function (a, b) { return Number(a.orden || 0) - Number(b.orden || 0); });
+      txt = filas.map(function (f) { return String(f.texto || ''); }).filter(String).join('\n');
+    }
+  } catch (e) { txt = ''; }                      // la hoja nunca puede romper un turno
+  // Fallback al módulo generado. NO es degradación: es el mismo texto que el `.md` en git.
+  if (!txt || txt.length < 200) txt = (typeof SATO_IDENTIDAD_MD === 'string') ? SATO_IDENTIDAD_MD : '';
+  _SATO_IDENT_CACHE_ = { ver: ver, txt: txt };
+  return txt;
+}
+var _SATO_IDENT_CACHE_ = null;   // cache por ejecución (GAS levanta un V8 nuevo por invocación)
+
+/**
+ * Vuelca la identidad del módulo a la pestaña, para poder editarla en caliente. Idempotente:
+ * reescribe la hoja entera desde `SATO_IDENTIDAD_MD`. Corre a mano desde el editor.
+ */
+function sembrarIdentidadSato() {
+  _soloOwner_('sembrarIdentidadSato');
+  var ss = getMaestro(), sh = _identidadSheet_(ss, true);
+  var secciones = String(SATO_IDENTIDAD_MD || '').split(/\n(?=## )/);
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+  secciones.forEach(function (sec, i) {
+    var t = sec.trim(); if (!t) return;
+    var m = t.match(/^## ([^\n]+)/);
+    appendFila(sh, { orden: i + 1, seccion: m ? m[1] : ('bloque ' + (i + 1)), texto: t });
+  });
+  try { setConfig('_sato_identidad_version', String(Date.now())); } catch (e) {}
+  return { secciones: secciones.length, chars: String(SATO_IDENTIDAD_MD || '').length };
+}
+
 var SATO_MEMORIA = 12;      // turnos de la hoja que entran al contexto de cada llamada
 var SATO_MAXTOK = 700;      // respuesta acotada: es un chat de trabajo, no un informe
 
@@ -358,6 +423,9 @@ function satoChat(idCliente, mensaje, opts) {
   }).join('\n');
 
   var system = [
+    // F3: la identidad va PRIMERA y es idéntica para todos los tenants ⇒ es el prefijo estable
+    // que `_systemBloques_` marca para cachear. Lo específico del turno va en `systemVivo`.
+    _cargarIdentidadSato_(),
     'Sos Sato, el asistente del sistema Satori OS de Luciano (consultor de negocios, Barcelona).',
     'Propósito primario del sistema: ejecutar tareas administrativas y financieras cross-cliente, mantener el Cerebro navegable, y alertar cuando algo se rompe o vence. Vos servís a ese propósito desde esta superficie.',
     modoSistema

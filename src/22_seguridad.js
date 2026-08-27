@@ -307,6 +307,10 @@ var ENDPOINTS_UI = [
   // funciones ya gateadas, pero la regla dura del 04-ago exige gate propio + alta acá.
   'probarDAM', 'encenderDAM', 'apagarDAM', 'probarLC', 'encenderLC', 'apagarLC',
   'probarMQ', 'encenderMQ', 'apagarMQ'
+,
+
+  // F3 (27-ago)
+  'sembrarIdentidadSato'
 ];
 
 /**

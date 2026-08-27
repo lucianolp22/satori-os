@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 14:02 · commit: b162ef4
+> Generado: 2026-08-27 14:25 · commit: 665cbbe
 
 ## Módulos
 
@@ -33,7 +33,7 @@
 | `23_evals.js` | Golden-set + runner de evals (T3 · MÓDULO M · M4, 21-jul-2026) | 6 |
 | `24_soul.js` | SOUL: identidad operativa de Satori OS (T3 · MÓDULO H · H1 · D11, 21-jul-2026) | 2 |
 | `25_hilo.js` | HILO DE TRABAJO por cliente (TC-W1 / W2 / W4 · 21-jul-2026) | 12 |
-| `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 15 |
+| `26_sato.js` | SATO EN LA FICHA (T1.4 · 28-jul-2026) | 18 |
 | `27_decisiones.js` | DECISION LOG (TC-2 · F4b). Las decisiones de dirección, con su porqué | 6 |
 | `28_forge.js` | FORGE (TC-9 · adenda 03-ago). Promoción laboratorio → producción de agentes | 8 |
 | `29_vigilancia.js` | TC-11 · A5 · VIGILANCIA MULTI-SUPERFICIE (04-ago-2026) | 11 |
@@ -42,6 +42,7 @@
 | `32_flota.js` | EDIFICIO SATORI · lectores de la FLOTA PROPIA (10-ago-2026) | 11 |
 | `33_cartera.js` | PIPELINE COMERCIAL (E1, 11-ago-2026) | 23 |
 | `34_push.js` | Canal de push al teléfono de Luciano (proactividad, decisión 26-ago) | 2 |
+| `35_identidad.js` | GENERADO. No editar a mano | 0 |
 
 ## Entry points de editor (se corren a mano desde Apps Script)
 
@@ -189,7 +190,7 @@ webapp.access = DOMAIN · executeAs = USER_DEPLOYING
 
 **25_hilo.js:** _armarHilo_ _semaforoHilo_ hiloCliente _numeroConectorCliente_ _ultimoEspejo_ repararHilo espejarHilo espejarHiloCSV _parseCSVLinea_ _seccionHilo_ _recDesdeHilo_ _clienteConHiloCaliente_ 
 
-**26_sato.js:** _charlaSheet_ _charlaQuien_ _charlaMd_ exportarCharlas satoCharla _satoClienteValido_ _satoDatos_ _satoPedido_ _satoContexto_ satoChat satoVoz diagVoz _satoTurnosHoy_ satoCierreSesion satoAplicarCierre 
+**26_sato.js:** _identidadSheet_ _cargarIdentidadSato_ sembrarIdentidadSato _charlaSheet_ _charlaQuien_ _charlaMd_ exportarCharlas satoCharla _satoClienteValido_ _satoDatos_ _satoPedido_ _satoContexto_ satoChat satoVoz diagVoz _satoTurnosHoy_ satoCierreSesion satoAplicarCierre 
 
 **27_decisiones.js:** _decisionVisible_ _decisionNormalizar_ registrarDecision decisionesVigentes revertirDecision sembrarDecisionInicial 
 
