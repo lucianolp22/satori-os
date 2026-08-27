@@ -64,6 +64,32 @@ Un `max_tokens` alto no cuesta si no se usa, pero **truncar sí cuesta**: obliga
 paga el input dos veces. Valores vigentes, todos deliberados: voz 300 (hablado = corto = rápido) ·
 Sato texto 700 · agentes 500-700 · clasificador 400. **No hay nada sobredimensionado hoy.**
 
+## Palanca (f) · Web search — el único costo que NO es por token (27-ago, B3)
+
+`web_search` se factura **por búsqueda: $10 por 1.000, o sea $0,01 cada una** (tarifa oficial de la
+Claude API verificada el 27/08/2026), *aparte* de los tokens del contenido que trae. Es la primera
+línea del gasto que no se controla con caching ni con `max_tokens`: se controla con un tope.
+
+- **Tope:** `tope_usd_mes` en `docs/WHITELIST-SATO-WEB.md`, default **10 USD/mes** = 1.000
+  búsquedas. Editable en caliente, sin reload del agente.
+- **Aviso al 80%**, corte al 100%: la tool devuelve `presupuesto_agotado` y Sato lo dice tal cual
+  (N9). El contador se resetea solo el día 1 — el archivo guarda el mes del gasto, así que no hay
+  cron que se pueda olvidar de correr.
+- **El conteo no es una estimación:** sale de `usage.server_tool_use.web_search_requests`, el
+  número que devuelve la propia API. Un error de búsqueda no se factura.
+- **`web_fetch` no tiene costo adicional** — sólo los tokens del contenido traído. Por eso no
+  consume presupuesto, y por eso `max_content_tokens` (hoy 20.000) es el control que importa ahí:
+  una página de 100 kB son ~25.000 tokens de input.
+- Dónde mirar el gasto: `out/web-search.jsonl` (una línea por búsqueda, con `usd` y `usd_mes`) y
+  `out/web-presupuesto.json` (el acumulado del mes).
+
+⚠ **El filo de esta palanca vive en otra parte.** El prefijo cacheable de la voz son las
+definiciones de las **tools** más la identidad (~5.034 tok estimados hoy): la identidad sola son
+~2.926, **por debajo** del mínimo de 4.096 que pide Haiku 4.5. O sea: son las tools las que hacen
+que Haiku cachee. Recortarlas —una limpieza que parece sana— tira el prefijo del otro lado del
+umbral y **Haiku deja de cachear en silencio**. El assert **R15** de `_harness.js` lo caza; el
+número lo mide `voz/agent/prefijo_voz.py` importando `agent.py` de verdad.
+
 ## Palanca (e) · Anti-`Read` redundante y TTL de caché
 
 - **En Claude Code**, el gasto no está en el modelo sino en **releer lo ya leído**. La regla de

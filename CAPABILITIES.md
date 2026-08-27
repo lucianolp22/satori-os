@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 16:01 · commit: e07ea3b
+> Generado: 2026-08-27 16:27 · commit: a72ace6
 
 ## Módulos
 
@@ -149,13 +149,13 @@ Override en caliente: pestaña `_sato_identidad` del MAESTRO. Loader: `_cargarId
 | §1 | · Propósito primario | 1238 |
 | §2 | · Personalidad y voz | 1082 |
 | §3 | · Invariantes SOUL (S1-S8) — copia textual, no parafrasear | 1085 |
-| §4 | · Reglas numeradas N4-N9 | 1322 |
+| §4 | · Reglas numeradas N4-N9 (N10 vive en §7, con el resto de lo anti-injection) | 1322 |
 | §5 | · ESCRITURA vs HABLA (A1 · A3 · A4 · T1-B) | 2150 |
 | §6 | · Aislamiento de cliente (T1.8) — es ley, no preferencia | 1290 |
-| §7 | · Anti-injection | 829 |
+| §7 | · Anti-injection | 2563 |
 | §8 | · Anti-drift (checkpoint F13) | 1125 |
 
-Total:    11580 chars (~2895 tok estimados por el gate de `_systemBloques_`).
+Total:    13367 chars (~3341 tok estimados por el gate de `_systemBloques_`).
 
 ## Invariantes SOUL (S1-S8)
 
@@ -185,6 +185,8 @@ Total:    11580 chars (~2895 tok estimados por el gate de `_systemBloques_`).
 - `crear_tarea`
 - `encargar`
 - `encargos_listos`
+- `web_search`
+- `web_fetch`
 - `oficina_estado`
 - `oficina_brief`
 - `oficina_aprobaciones`
@@ -216,6 +218,11 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 
 ## Actividad de los últimos 14 días
 
+- a72ace6 [B5] cerebroGrafo: el timeout no era el tenant, era su lugar en la cola de GAS
+- 9f9b381 [B4] R15: assert del cache cliff por recorte de tools (+ guard de regresion del z-index del dock)
+- a6916f9 [B3] Web search + web fetch para Sato-VOZ, con whitelist Satori — y el motor Claude que nunca corrio
+- 07ef468 [B2] Telemetria de tokens de voz: el problema era el ruido, no los valores
+- 7e92eb0 CAPABILITIES: regen + fix del bucle del pre-push (ignoraba la fecha pero no el git log embebido)
 - e07ea3b [B1] promote /exec: dock Sato Ubicuo visible (CAPABILITIES regen)
 - 0f1752c merge B1: Sato Ubicuo visible en /exec
 - 154bd1b [B1] Sato Ubicuo visible: z-index 30 -> 230 (estaba debajo de #centro) + rotulo que sigue al tenant
@@ -241,11 +248,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - 9c17f68 HANDOFF: /exec @57 — E1 + E2 en prod sin el gate del editor
 - 39acc42 promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
 - 77ca402 HANDOFF: excepción declarada ANTES del promote de E2 (gate del editor salteado)
-- 608a0ff HANDOFF: E2 a /dev (endoso de Cowork), promote bloqueado hasta selfTestTramo6
-- b852d0d [CAPACIDADES-SATO E2] Proactividad: conectores stale + push 07:00 + anti-brief-estático + saludo
-- 8ed2150 HANDOFF: /exec @56 — E1 en prod con los dos gates salteados (verde con asterisco + qué falta)
-- 2199c6d promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
-- 88142b7 [CAPACIDADES-SATO E1] Lazo cerrado del encargo + E1-bis fix 429 de ntfy
 
 ## Funciones por módulo (apéndice)
 

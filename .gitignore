@@ -52,3 +52,9 @@ voz/runner/.bak-*
 *.pem
 *.key
 *.p12
+
+# B6 (27-ago) · telemetria de RUNTIME, no fuente. Crecen sin techo con cada turno de voz y cada
+# busqueda, y su contenido es medicion (tokens, latencia, URLs consultadas, gasto), no codigo.
+# Se leen con `tail`/`jq` en la maquina; commitearlos ensuciaria el diff de cada sesion.
+out/*.jsonl
+out/web-presupuesto.json
