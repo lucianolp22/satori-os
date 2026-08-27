@@ -1,7 +1,7 @@
 # CAPABILITIES — Satori OS  (autogenerado)
 
 > **NO editar a mano.** Se regenera con `bash _capabilities_gen.sh` (introspección de `src/`).
-> Generado: 2026-08-27 14:46 · commit: 5ce3665
+> Generado: 2026-08-27 15:59 · commit: 0f1752c
 
 ## Módulos
 
@@ -216,6 +216,10 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 
 ## Actividad de los últimos 14 días
 
+- 0f1752c merge B1: Sato Ubicuo visible en /exec
+- 154bd1b [B1] Sato Ubicuo visible: z-index 30 -> 230 (estaba debajo de #centro) + rotulo que sigue al tenant
+- 9fe2140 fix: --check con timeout de 15s (el regen frio del layout tarda ~8s y daba falso 'sin respuesta')
+- 36b4670 [F14] Cierre: RUNBOOK de optimizacion de tokens + handoff + cross-reference
 - 5ce3665 [F7b] Widget Sato Ubicuo: dock persistente del header
 - c0b5ae8 [F7a+F7c+F13+F10-a] Backend Sato Ubicuo, polling, checkpoint anti-drift y Cerebro vivo
 - e878e52 [F11+F12+F-Diseno-Patrones] Los tres documentos del encargo
@@ -242,10 +246,6 @@ Partición completa (gateadas / declaradas / exentas con motivo): `bash scripts/
 - 2199c6d promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
 - 88142b7 [CAPACIDADES-SATO E1] Lazo cerrado del encargo + E1-bis fix 429 de ntfy
 - 8b5def5 [CAPACIDADES-SATO] Ola 1.0 — cobertura del canal de push: alta en MODULOS + 12 asserts
-- 29df0ba promote /exec: CAPABILITIES regen + HANDOFF al 27-08-2026
-- e98d5fa CRM PRO §2d completo + D46/D47 (live) + regla de causa del SGIC
-- 7008fca CRM PRO — frontend §2d: presupuesto de señal, semáforo, modal de pérdida, Correo → CRM
-- 4bc9609 CRM PRO — backend completo (M1·M2·M3·S4·S5·S6·C7·C8) + 83 asserts offline
 
 ## Funciones por módulo (apéndice)
 
