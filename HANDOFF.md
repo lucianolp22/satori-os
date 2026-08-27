@@ -1,15 +1,17 @@
 # HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1)
 
-DEPLOY-PENDIENTE: sí — **prod `/exec` = @55, CERTIFICADO 994/0** (los 5 tramos en el editor; rollback en `_promote_rollback.txt`). El repo va ADELANTE de `/exec` y de `/dev`: **`8b5def5`** (Ola 1.0 — cobertura del canal de push) **NO está pusheado a GAS**, y encima va este commit **[CAPACIDADES-SATO E1]** (lazo cerrado del encargo + fix 429 de ntfy), que todavía **no corrió en el editor ni se pushó**.
+DEPLOY: **prod `/exec` = @56 — E1 EN PRODUCCIÓN, con los dos gates SALTEADOS** (decisión de Luciano 27-ago: pidió el push y el promote antes de certificar). GAS HEAD == repo, verificado byte a byte antes y después del push. **Rollback = @55 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 55`), que sí estaba CERTIFICADO 994/0.
 
-PRÓXIMO PASO — cierre de E1, en este orden (regla de oro del RUNBOOK, una etapa por vez):
-1. **Luciano, editor GAS: `selfTestTramo6()`** — es el tramo donde entró la tanda **D48** (15 asserts del lazo). Un tramo sin correr NO es verde.
-2. `clasp push` a `/dev` (con el diff repo↔GAS antes) → **eyeball**: abrir la voz y comprobar que Sato enuncia los encargos terminados en el saludo.
-3. `_promote_exec.sh --go` a `/exec` cuando el eyeball pase.
-4. **Push 429 (dependencia humana, E0.2 del RUNBOOK):** cargar `NTFY_TOKEN` en Script Properties (cuenta ntfy) y correr `probarPushTelefono()`. Sin token el canal sigue funcionando anónimo — y sigue expuesto al 429 por IP compartida.
-Después de E1: **E2** (proactividad + health de conectores + saludo de voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E1 y libera E2.
+⚠ **VERDE CON ASTERISCO — qué falta para que esto sea verde de verdad:**
+1. **`selfTestTramo6()` en el editor** — la tanda **D48** (15 asserts del lazo) NUNCA corrió contra Sheets. Está en prod sin certificar. Un tramo sin correr no es verde: es «sin correr».
+2. **Eyeball de `/exec` @56** (2 min): abrir la app como luciano@ y probar la voz 30 s.
+3. **El riesgo concreto a mirar primero:** `encargosReportar_` ahora escribe la columna `avisado`. Es el camino por el que el runner cierra los encargos — si ahí hay un fallo, el encargo queda colgado en `en_ejecucion`. Se ve corriendo un encargo de punta a punta, o mirando la hoja `Encargos` después de que el runner reporte.
+4. **La voz TODAVÍA no enuncia nada**: `agent.py` NO lo despliega `clasp` (corre en el proceso LiveKit). El saludo con el lazo recién existe cuando se **reinicia el agente**. Lo que sí está vivo en @56 es el push al teléfono y la tool en el backend.
+5. **`NTFY_TOKEN` sin cargar** (dependencia humana, E0.2 del RUNBOOK): el canal de push está cableado y **mudo** hasta que exista la credencial. `probarPushTelefono()` devuelve `que_falta`.
 
-> **Sesión del 27-ago (Code) — E1 + E1-bis del RUNBOOK.** Verificación offline: `node _harness.js` **869/0** (845 → +24) · `python3 _verificar_index.py` OK (453/453). Lo que toca Sheets vivos NO está certificado: es el tramo 6 del paso 1.
+PRÓXIMO PASO: los 5 puntos de arriba, en ese orden. Después: **E2** (proactividad + health de conectores + saludo de voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E1 y libera E2.
+
+> **Sesión del 27-ago (Code) — E1 + E1-bis del RUNBOOK, pusheados a GAS y promovidos a `/exec` @56.** Verificación offline: `node _harness.js` **869/0** (845 → +24) · `python3 _verificar_index.py` OK (453/453) · guardia GAS↔repo OK antes y después del push. **Nada de esto se certificó contra Sheets vivos** — ver el bloque de VERDE CON ASTERISCO arriba.
 >
 > **Qué entró en E1** — el encargo que termina ahora AVISA. `encargosReportar_` con estado `hecho` marca `avisado:false` y dispara `_pushTelefono_` (un `fallido` NO dispara push de éxito: N5 llevada al canal nuevo); la tool de voz **`encargos_listos`** (`encargosListos`, gateada + en `ENDPOINTS_UI` + en `VOZ_TOOLS` + case en doPost) devuelve lo terminado-y-no-enunciado y lo marca en la misma pasada bajo `conLock` — se dice UNA vez; `agent.py` la llama **determinísticamente en el saludo** del entrypoint (timeout propio de 10 s, fail-open) y trae la REGLA E1 en el prompt. Schema: `Encargos` +`avisado` al final (aditiva; `ensureSheet` la materializa sola).
 > **Qué entró en E1-bis** — la rama ntfy manda `Authorization: Bearer <NTFY_TOKEN>` cuando la property existe: una request autenticada se cuotea contra la cuenta y no contra la IP saliente de Apps Script, que es de donde salía el 429. Sin token, idéntica a antes.
@@ -43,7 +45,7 @@ Después de E1: **E2** (proactividad + health de conectores + saludo de voz), se
 - Eyeball de Luciano en /dev (tanda 3): "todo muy bien"; obs de la voz → resuelta en T4.
 
 ## No verificado (⚠ gate del promote)
-- **D48 EN VIVO (tramo 6)** — el lazo cerrado del encargo NO corrió contra Sheets. Es el PRÓXIMO PASO 1. Los 24 asserts offline del arnés cubren el contrato y la rama del push; lo que toca la hoja `Encargos` (materialización de `avisado`, idempotencia real) solo lo prueba el editor.
+- **D48 EN VIVO (tramo 6)** — el lazo cerrado del encargo NO corrió contra Sheets, y ya está en PRODUCCIÓN (@56). Es el PRÓXIMO PASO 1. Los 24 asserts offline del arnés cubren el contrato y la rama del push; lo que toca la hoja `Encargos` (materialización de `avisado`, idempotencia real) solo lo prueba el editor.
 - **El push REAL nunca se envió** — `PUSH_PROVIDER`/credenciales no están cargadas en Script Properties, así que `_pushTelefono_` es un no-op declarado y `probarPushTelefono()` devuelve `que_falta`. El canal está cableado y sin estrenar.
 - **El saludo de voz con el lazo** — `agent.py` cambió; no se levantó el agente LiveKit en esta sesión. Eyeball del paso 2.
 - **Asserts D45 EN VIVO del CRM** — los endpoints nuevos tocan Sheets y NO tienen assert en vivo (lección +46). DEUDA con dueño (Cowork), a construir al **profundizar el CRM** (próxima sesión). Riesgo residual bajo: escrituras aditivas, gateadas, con lock, reversibles.
@@ -71,7 +73,7 @@ Después de E1: **E2** (proactividad + health de conectores + saludo de voz), se
 | repo | satori-os | `github.com/lucianolp22/satori-os` · HEAD = este commit `[CAPACIDADES-SATO E1]`, sobre `8b5def5` |
 | MAESTRO (Sheet) | Satori OS — MAESTRO | `1DMORlkps1Rgvk2D-1XXA7h3R2gMfSGIXirIGR3KjYjk` |
 | scriptId GAS | — | `1M-LYF0GO_Zgh2quGNlCzl4Okcx-DFqQxUhA_jqFqtbJNXYqnIu-2GVnO` |
-| deployment /exec (prod) | — | `AKfycbxZJL4E…phLm` (**@55**, CERTIFICADO 994/0; rollback en `_promote_rollback.txt`) |
+| deployment /exec (prod) | — | `AKfycbxZJL4E…phLm` (**@56**, E1 SIN certificar; rollback a **@55** —certificado 994/0— en `_promote_rollback.txt`) |
 | deployment /dev | — | `AKfycbzT5QktUHRuKosiuph5rPHU5sZbv2E5E_DNKRVy_6I` |
 | backend CRM | 33_cartera.js | `carteraProxAccion` · `propuestaRegistrar` · `propuestaFirmar` · `_carteraFoco_` · `carteraPipeline` |
 | UI CRM/orbe | src/index.html | anclas: `CRM 25-ago` · `ORBE PERSISTENTE v2` · `unificación Director Sato` · `f360Comercial_` |
