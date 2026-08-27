@@ -2,7 +2,22 @@
 
 DEPLOY: **`/dev` (GAS HEAD) = E1 + E2 · prod `/exec` = @56 = E1 solo.** El `clasp push` de E2 salió con endoso de Cowork sobre los 3 desvíos, el fix del `Number('')` y el refactor de la lista-contrato. Guardia corrida antes y después: GAS HEAD == repo byte a byte, y antes del push GAS estaba exactamente en `8ed2150` (nada ajeno que pisar). **NO se promueve hasta que Luciano corra `selfTestTramo6()` + eyeball** — instrucción explícita de Cowork, y además la regla que quedó escrita tras el precedente #55. **Rollback de prod = @55 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 55`), CERTIFICADO 994/0.
 
-E1 sigue en prod con sus dos gates salteados (decisión de Luciano, 27-ago). Eso no cambia con este push: `/exec` no se tocó.
+### EXCEPCIÓN DECLARADA — promote de E2 sin el gate del editor (27-ago)
+
+Escrita **ANTES** de promover, como manda la regla que quedó del precedente #55.
+
+- **Qué se saltea:** `selfTestTramo6()` (D48 E1 + D49 E2, 32 asserts vivos) y el eyeball en `/dev`. Cowork había bloqueado este promote; Luciano lo levantó.
+- **Qué NO está probado en ningún lado:** `correrSalud` con su 8º chequeo **nunca se ejecutó**. El arnés no carga `16_salud.js` (no está en `MODULOS`), así que de ese archivo solo hay `node --check` y asserts estáticos sobre su texto. Lo mismo para el render del brief con el bloque HOY: probado el insertador y el parser, no la corrida entera.
+- **Con qué se compensa:**
+  1. **Rollback en un comando** a @56 (E1, ya en prod desde hoy) — la línea vieja queda en `_promote_rollback.txt` al promover.
+  2. **E2 nace inerte:** `push_proactivo_on=false` ⇒ `pushProactivoDiario_` devuelve `{enviado:false}` sin tocar red. El único código E2 que corre de verdad sin encender nada es el 8º chequeo de salud, el sello de `_ult_sync` y el bloque del brief.
+  3. **Todo lo nuevo está envuelto:** el sello y el push van en try/catch propios; `_briefInsertarHoy_` devuelve el brief intacto si no encuentra dónde insertar.
+- **Qué mirar si algo se rompe:** el CM y el brief son los primeros en cantarlo (el panel de Salud pasaría a mostrar 8 chequeos; si `correrSalud` tira, `estadoSalud()` falla y el panel queda vacío). La corrida diaria de mañana 07:00 es la primera pasada real.
+- **La deuda NO se cierra con el promote:** `selfTestTramo6()` sigue siendo obligatorio. Estar en prod no certifica nada.
+
+---
+
+E1 sigue en prod con sus dos gates salteados (decisión de Luciano, 27-ago). Con este promote, E2 se le suma en la misma condición.
 
 ⚠ **VERDE CON ASTERISCO — qué falta para que esto sea verde de verdad:**
 0. **E2 está en `/dev`, NO en prod.** El promote queda bloqueado a propósito hasta el punto 1.
