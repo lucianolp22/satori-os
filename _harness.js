@@ -3185,6 +3185,90 @@ seccion('F3 · identidad de Sato (docs/SATO-IDENTIDAD.md → 35_identidad.js →
   chk(est >= 1024,
       `D-ID8 el bloque fijo (identidad + reglas) da ~${est} tok estimados: supera el mínimo de ` +
       'Sonnet 5 (1024) ⇒ cachea. No llega a los 4096 de Haiku 4.5 y NO se rellena para llegar');
+
+  // ═══ R15 (B4, 27-ago) · CACHE CLIFF POR RECORTE DE TOOLS ═══════════════════════════════
+  //
+  // El hallazgo de F5, hecho assert. El caching de Anthropic es match de PREFIJO y el orden de
+  // render es `tools` → `system` → `messages`; el plugin de LiveKit pone el breakpoint en la
+  // última tool Y en el último bloque de system. O sea: el prefijo cacheable de la VOZ son las
+  // definiciones de las tools MÁS la identidad — no la identidad sola.
+  //
+  // Y ahí está el filo: la identidad sola son ~2.9k tok estimados, POR DEBAJO de los 4.096 que
+  // pide Haiku 4.5. Son las tools las que empujan el prefijo por encima del umbral. Si alguien
+  // recorta tools —una limpieza que a cualquiera le parecería sana— el prefijo cae del otro lado
+  // y **Haiku deja de cachear en silencio**: sin error, sin warning, sólo la factura. Este es el
+  // assert que lo caza.
+  //
+  // El número se DERIVA del código (`prefijo_voz.py` importa agent.py e introspecciona los
+  // @function_tool con la API de LiveKit), no de una lista escrita a mano: el que agregue o saque
+  // una tool no tiene que acordarse de actualizar nada. Regla de las listas-contrato — los
+  // asserts que derivan sobreviven al cambio, los clavados a mano no.
+  const VENV_PY = path.join(__dirname, 'voz', 'agent', '.venv', 'bin', 'python');
+  if (fs.existsSync(VENV_PY)) {
+    let pf = null;
+    try {
+      pf = JSON.parse(require('child_process').execFileSync(VENV_PY,
+        [path.join(__dirname, 'voz', 'agent', 'prefijo_voz.py')],
+        { encoding: 'utf8', cwd: __dirname, timeout: 60000 }));
+    } catch (e) { pf = { error: String(e && e.message).slice(0, 160) }; }
+
+    chk(pf && !pf.error && pf.tools > 0,
+        `R15a prefijo_voz.py mide el prefijo importando agent.py de verdad (${(pf && pf.error) ? pf.error : ((pf && pf.tools) + ' tools')})`);
+    chk(!!pf && pf.tok_estimado >= 4096,
+        `R15 🔒 el prefijo cacheable de Sato-VOZ (${pf && pf.tok_estimado} tok = ${pf && pf.tools} tools + identidad) ` +
+        'supera el mínimo de Haiku 4.5 (4096). Si esto falla, alguien recortó tools y Haiku dejó ' +
+        'de cachear EN SILENCIO — no hay error que lo cante, sólo la factura');
+    chk(!!pf && pf.chars_sys / 4 < 4096,
+        `R15b y el margen lo ponen las TOOLS, no la identidad: la identidad sola son ~${pf && Math.floor(pf.chars_sys / 4)} ` +
+        'tok, por debajo de 4096. Por eso recortar tools es lo peligroso y no tocar el .md');
+  } else {
+    chk(true, 'R15 (saltado: no hay venv de la voz en esta máquina — el assert corre donde vive el agente)');
+  }
+
+  // R15c · el otro modo de degradación silenciosa de la voz, de la misma familia: el fail-safe de
+  // `_construir_llm` cae a gpt-4o-mini si el motor Claude no se puede construir. Pasó de verdad
+  // (plugin pasando un httpx.AsyncClient a un SDK que corre sobre httpx2) y no se detectó durante
+  // horas porque el log de tokens escribía la env var en vez del modelo que contestó.
+  chk(/client=cliente/.test(ag) && /AsyncAnthropic\(/.test(ag),
+      'R15c agent.py le pasa al plugin su PROPIO cliente anthropic — el que arma el plugin usa ' +
+      'httpx y el SDK 1.x corre sobre httpx2, así que el constructor revienta y la voz cae a ' +
+      'gpt-4o-mini sin que nadie se entere');
+  chk(/MOTOR CLAUDE CAIDO/.test(ag),
+      'R15d y si igual se cae, el log lo grita: un fail-safe silencioso es un verde falso');
+  chk(/"modelo": \(getattr\(meta, "model_name", None\)/.test(ag),
+      'R15e el log de tokens escribe el modelo que reportó el PROVEEDOR, no la env var — esa ' +
+      'mentira es la que tapó el fallback durante toda una sesión (precondición PC-4 falsa)');
+}
+
+// ═══ F7b · Sato Ubicuo — el dock TIENE que estar por encima del CM ═════════
+// B1 (27-ago): el dock estaba en el repo desde hacía días y Luciano no lo veía. Vive a nivel
+// <body>, donde sus vecinos son #centro (fixed, z-index:50) y #akasha (200) — y traía z-index:30,
+// un número tomado de la escala de ADENTRO de #centro. Se pintaba, pero la barra del CM se lo
+// comía: `elementFromPoint` sobre el chip devolvía #btn-despacho. Leer el CSS no lo mostraba;
+// sólo el hit-test del render. Este assert congela el invariante para que no vuelva.
+seccion('F7b · Sato Ubicuo: z-index por encima de #centro y #akasha');
+{
+  const html = fs.readFileSync(path.join(__dirname, 'src', 'index.html'), 'utf8');
+  const z = (sel) => {
+    const m = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\{[^}]*z-index:(\\d+)').exec(html);
+    return m ? Number(m[1]) : null;
+  };
+  const zDock = z('#satoUbicuo'), zCentro = z('#centro'), zAkasha = z('#akasha');
+  chk(zDock !== null && zCentro !== null,
+      `F7b-z se leen los z-index del CSS (dock=${zDock}, centro=${zCentro}, akasha=${zAkasha})`);
+  chk(zDock > zCentro,
+      `F7b-z1 🔒 el dock (${zDock}) le gana a #centro (${zCentro}) — si no, se pinta pero no se ` +
+      'puede tocar: la barra del CM se come el click');
+  chk(zDock > 200,
+      `F7b-z2 🔒 y también a #akasha (200) y sus scrims: el dock es UBICUO, tiene que estar en ` +
+      'todas las vistas');
+  chk(zDock < 300,
+      `F7b-z3 pero por DEBAJO de las superficies de trabajo que él mismo abre (panel Sato 300, ` +
+      'Cartera 310, ⌘K 320): un acceso rápido no puede flotar sobre el panel al que te manda');
+  chk(/rotulo\(\);\s*\/\* el tenant puede haber cambiado/.test(html),
+      'F7b-t 🔒 el rótulo del tenant se recalcula en cada tick del poll: una Ficha 360 abierta ' +
+      'DESPUÉS de cargar no puede dejar el chip diciendo «Sistema» mientras los datos van ' +
+      'anclados a ese cliente (regla dura de aislamiento §8)');
 }
 
 // ═══ F7 · Sato Ubicuo — backend ═════════════════════════════════════════════
