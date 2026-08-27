@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAQUETA v2 · CRM PRO — Satori OS · Prueba integral</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!--
+  MAQUETA CRM PRO v2 — 25-ago-2026 · Cowork (Satori)
+  Registro: OPERATIVO (A) · tokens REALES del OS (src/index.html prod, bloque .cartera).
+  Integra: CRM base (tanda /dev 25-ago) + tanda PRO completa aprobada por Luciano:
+    M1 último contacto auto-sellado · M2 timeline Gmail (correo_on ON, staging+confirmación)
+    M3 semáforo retención (REUSA vigilancia — decisión Luciano: "sí al semáforo")
+    S4 oportunidades múltiples · S5 motivo de pérdida · S6 recontacto 90 días
+    C7 dossier enriquecido · presupuesto de señal: máx 2 señales visibles por card.
+  PRUEBA INTEGRAL: panel lateral con checklist de 10 flujos que se tilda solo al ejecutarlos.
+  Vanilla GAS-compatible. Estado en memoria. Datos: cartera v2 real · montos [EJEMPLO]
+  salvo Vehemence USD 250 · threads de correo SIMULADOS y etiquetados.
+-->
+<style>
+:root{
+  --_ink-950:#14110D; --_ink-900:#1E1B18; --_ink-800:#2F2A20; --_ink-600:#514838;
+  --_ink-500:#6E6450; --_ink-400:#938872; --_ink-300:#B8AD96; --_ink-100:#ECE4D3; --_ink-50:#F4EEE2;
+  --_terra-300:#E6A87E; --_terra-400:#D5824F; --_terra-500:#C2683D;
+  --_jade-300:#6FC2A8; --_jade-400:#3E9B82; --_jade-500:#1F6F5C;
+  --_red-400:#E0795F; --_amber-400:#DCA75E; --_blue-400:#7FB1FF;
+  --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
+  --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
+  --glass-border:rgba(244,238,226,.12); --glass-bg:rgba(22,18,15,.92);
+  --color-primary:#D5824F; --color-primary-hover:#E0975F; --color-primary-weak:rgba(213,130,79,.16);
+  --color-accent:#3E9B82; --color-accent-weak:rgba(62,155,130,.16);
+  --color-danger:#E0795F; --color-danger-weak:rgba(224,121,95,.16);
+  --color-warning:#DCA75E; --color-warning-weak:rgba(220,167,94,.16);
+  --color-info:#7FB1FF; --color-info-weak:rgba(127,177,255,.14);
+  --font-ui:'Hanken Grotesk',-apple-system,sans-serif;
+  --font-brand:'Fraunces','Georgia',serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:18px; --radius-full:9999px;
+  --ease-out:cubic-bezier(.25,1,.5,1); --dur-fast:140ms; --dur-state:240ms;
+  --shadow-lg:0 24px 60px -20px rgba(0,0,0,.85);
+  --ring:0 0 0 2px rgba(0,0,0,.6), 0 0 0 4px var(--_terra-400);
+  --fondo:#100D0A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--fondo);color:var(--color-text);font-family:var(--font-ui);font-size:16px;line-height:1.5}
+body{background:radial-gradient(1200px 600px at 75% -10%, rgba(213,130,79,.07), transparent 60%),
+  radial-gradient(900px 500px at 10% 110%, rgba(62,155,130,.05), transparent 60%),var(--fondo)}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:none;box-shadow:var(--ring);border-radius:var(--radius-sm)}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.92em}
+code{font-family:var(--font-mono);font-size:.85em;color:var(--color-info)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ── barra maqueta ── */
+.mq-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 24px;
+  background:var(--glass-bg);border-bottom:1px solid var(--color-border);position:sticky;top:0;z-index:60;backdrop-filter:blur(16px)}
+.mq-bar .tag{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-warning);
+  border:1px solid var(--color-warning);border-radius:var(--radius-full);padding:3px 10px}
+.mq-bar h1{font-family:var(--font-brand);font-weight:500;font-size:1.0625rem}
+.mq-tabs{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.mq-tab{padding:8px 16px;border-radius:var(--radius-full);font-size:.8125rem;color:var(--color-text-muted);
+  border:1px solid transparent;min-height:36px;transition:all var(--dur-fast) var(--ease-out)}
+.mq-tab:hover{background:rgba(255,255,255,.05)}
+.mq-tab.on{background:var(--color-primary-weak);color:var(--_terra-300);border-color:var(--color-primary)}
+.mq-note{font-size:.75rem;color:var(--color-text-subtle);width:100%}
+.ej{color:var(--color-warning);font-size:.75rem}
+.vista{display:none;padding:24px 24px 120px}
+.vista.on{display:block}
+
+/* ── panel PRUEBA INTEGRAL ── */
+.pi{position:fixed;right:16px;bottom:16px;width:300px;background:rgba(18,14,11,.98);
+  border:1px solid var(--color-border-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);z-index:80;overflow:hidden}
+.pi-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--color-border);cursor:pointer}
+.pi-h b{font-size:12.5px;letter-spacing:.04em}
+.pi-h .n{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--_jade-300)}
+.pi-body{max-height:320px;overflow-y:auto;padding:8px 14px 12px}
+.pi.min .pi-body{display:none}
+.pi ul{list-style:none}
+.pi li{display:flex;gap:8px;align-items:flex-start;padding:5px 0;font-size:11.5px;color:var(--color-text-muted);line-height:1.4}
+.pi li .chk{width:15px;height:15px;border-radius:4px;border:1px solid var(--color-border-strong);flex:none;margin-top:1px;
+  display:grid;place-items:center;font-size:10px;color:transparent;transition:all var(--dur-state) var(--ease-out)}
+.pi li.done{color:var(--color-text)}
+.pi li.done .chk{background:var(--_jade-400);border-color:var(--_jade-400);color:#1a1410}
+.pi-full{display:none;padding:8px 14px 12px;font-size:12px;color:var(--_jade-300);border-top:1px solid var(--color-border)}
+.pi.completo .pi-full{display:block}
+
+/* ── panel Cartera (réplica .cartera del OS) ── */
+.cartera{max-width:1560px;margin:0 auto;background:rgba(18,14,11,.985);border:1px solid var(--color-border);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column}
+.cartera-h{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--color-border);flex-wrap:wrap}
+.cartera-h b{font-size:15px;letter-spacing:.02em}
+.cartera-h .st{color:var(--color-text-subtle);font-size:12px}
+.cartera-h .sp{margin-left:auto;display:flex;gap:8px}
+.hbtn{font-size:12px;color:var(--color-text-muted);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  padding:5px 11px;min-height:30px;transition:all var(--dur-fast) var(--ease-out)}
+.hbtn:hover{border-color:var(--color-border-strong);color:var(--color-text)}
+.hbtn.terra{color:var(--_terra-300);border-color:var(--color-primary)}
+.mrow{display:flex;gap:10px;padding:12px 18px;border-bottom:1px solid var(--color-border);flex-wrap:wrap}
+.mtile{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:8px 14px;min-width:148px}
+.mtile .k{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-text-subtle)}
+.mtile .v{font-size:18px;font-weight:600}
+.mtile .v small{font-size:11px;font-weight:400;color:var(--color-text-muted)}
+.mtile.rojo .v{color:var(--color-danger)}
+.mtile.jade .v{color:var(--_jade-300)}
+.foco{display:flex;gap:12px;align-items:center;margin:12px 18px 0;padding:10px 14px;
+  background:var(--color-primary-weak);border:1px solid rgba(213,130,79,.35);border-radius:var(--radius-md);flex-wrap:wrap}
+.foco .t{font-size:12px;color:var(--color-text-muted);flex:1;min-width:260px}
+.foco .t strong{color:var(--color-text)}
+.foco.ok{background:var(--color-accent-weak);border-color:rgba(62,155,130,.4)}
+.cartera-cols{display:flex;gap:12px;padding:14px 18px 18px;overflow-x:auto;align-items:flex-start}
+.cartera-col{flex:0 0 240px;display:flex;flex-direction:column;gap:8px}
+.cartera-col > h6{margin:0;padding:4px 0 8px;font-size:11px;letter-spacing:.10em;text-transform:uppercase;
+  color:var(--color-text-muted);display:flex;align-items:center;gap:6px}
+.cartera-col > h6 .n{color:var(--color-text-subtle);font-family:var(--font-mono)}
+.cartera-col > h6 .dot{width:7px;height:7px;border-radius:50%}
+[data-etapa="frio"] .dot{background:var(--_ink-500)}
+[data-etapa="tibio"] .dot{background:var(--_amber-400)}
+[data-etapa="caliente"] .dot{background:var(--_terra-400)}
+[data-etapa="activo"] .dot{background:var(--_jade-400)}
+[data-etapa="en_pausa"] .dot{background:var(--_blue-400)}
+[data-etapa="perdido"] .dot{background:var(--_ink-600)}
+.cartera-vacia{color:var(--color-text-subtle);font-size:12px;padding:6px 2px}
+
+.cartera-card{width:100%;text-align:left;background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);padding:10px;display:flex;flex-direction:column;gap:7px;
+  transition:border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out)}
+.cartera-card:hover{border-color:var(--color-border-strong);transform:translateY(-1px)}
+.cartera-card .top{display:flex;align-items:center;gap:8px}
+.cartera-card .logo{width:26px;height:26px;border-radius:7px;flex:none;background:var(--color-primary);
+  color:#1a1410;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.cartera-card .nm{font-weight:600;font-size:13px;line-height:1.25}
+.cartera-card .id{font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.cartera-card .px{font-size:12px;line-height:1.35;border-left:2px solid var(--color-primary);padding-left:7px}
+.cartera-card .px.sin{border-left-color:var(--color-danger);color:var(--color-danger);font-style:italic}
+.cartera-card .meta{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.cartera-card .meta .venc{color:var(--color-danger);font-weight:600}
+.cartera-card .meta .frio-al{color:var(--color-warning);font-weight:600}
+.bds{display:flex;flex-wrap:wrap;gap:4px}
+.bg{font-size:10.5px;border-radius:6px;padding:1px 7px;border:1px solid var(--color-border);color:var(--color-text-muted)}
+.bg.svc{color:var(--_jade-300);border-color:rgba(62,155,130,.4);background:var(--color-accent-weak)}
+.bg.prop{color:var(--_amber-400);border-color:rgba(220,167,94,.4);background:var(--color-warning-weak)}
+.bg.firm{color:var(--_jade-300);border-color:var(--_jade-400);background:var(--color-accent-weak);font-weight:600}
+.bg.foco{color:var(--_terra-300);border-color:var(--color-primary);background:var(--color-primary-weak);font-weight:600}
+.bg.rec{color:var(--_blue-400);border-color:rgba(127,177,255,.4);background:var(--color-info-weak)}
+/* M3 · semáforo de retención (solo activos) */
+.sret{display:inline-flex;gap:3px;align-items:center;font-size:10.5px;color:var(--color-text-subtle)}
+.sret .led{width:8px;height:8px;border-radius:50%}
+.led.v{background:var(--_jade-400)} .led.a{background:var(--_amber-400)} .led.r{background:var(--_red-400)}
+.cartera-card select{width:100%;background:rgba(0,0,0,.28);color:var(--color-text);
+  border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:5px 7px;font-size:12px}
+
+/* ── Ficha 360 overlay ── */
+.scrim{position:fixed;inset:0;background:rgba(10,8,6,.6);backdrop-filter:blur(3px);display:none;z-index:90}
+.scrim.on{display:block}
+.f360{position:fixed;top:2.5vh;left:50%;transform:translateX(-50%);width:min(980px,96vw);max-height:95vh;
+  overflow:auto;background:rgba(18,14,11,.985);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);display:none;z-index:100}
+.f360.on{display:block}
+.f360-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--color-border);
+  position:sticky;top:0;background:rgba(18,14,11,.985);z-index:2}
+.f360-head .logo{width:42px;height:42px;border-radius:10px;background:var(--color-primary);color:#1a1410;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px}
+.f360-head h3{font-family:var(--font-brand);font-weight:500;font-size:1.25rem}
+.f360-head .est{font-size:11.5px;color:var(--color-text-muted)}
+.f360-x{margin-left:auto;width:34px;height:34px;border-radius:var(--radius-md);display:grid;place-items:center;color:var(--color-text-muted)}
+.f360-x:hover{background:rgba(255,255,255,.06)}
+.f360-tabs{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--color-border);overflow-x:auto}
+.f360-tab{padding:11px 14px;font-size:12.5px;color:var(--color-text-muted);border-bottom:2px solid transparent;min-height:42px;white-space:nowrap}
+.f360-tab.on{color:var(--_terra-300);border-bottom-color:var(--color-primary);font-weight:600}
+.f360-body{padding:20px}
+.sec{margin-bottom:20px}
+.sec>h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-subtle);margin-bottom:10px}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fila3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media (max-width:860px){.fila2,.fila3{grid-template-columns:1fr}}
+.panelbox{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:14px}
+.panelbox h6{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-subtle);margin-bottom:8px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--color-border);font-size:12.5px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--color-text-muted)}
+.encaje{list-style:none}
+.encaje li{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:12.5px;cursor:pointer;border-radius:6px}
+.encaje li:hover{background:rgba(255,255,255,.04)}
+.encaje .led2{width:10px;height:10px;border-radius:50%;flex:none;border:1px solid var(--color-border-strong)}
+.encaje .si{background:var(--_jade-400);border-color:var(--_jade-400)}
+.encaje .no{background:var(--_red-400);border-color:var(--_red-400)}
+.encaje small{color:var(--color-text-subtle);margin-left:auto;font-size:10px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius-md);
+  border:1px solid var(--color-border-strong);font-size:12.5px;color:var(--color-text);min-height:38px;
+  transition:all var(--dur-fast) var(--ease-out)}
+.btn:hover{background:rgba(255,255,255,.05)}
+.btn.pri{background:var(--color-primary);color:#1a1410;border-color:var(--color-primary);font-weight:600}
+.btn.pri:hover{background:var(--color-primary-hover)}
+.btn.jade{background:var(--_jade-400);color:#1a1410;border-color:var(--_jade-400);font-weight:600}
+.btn:disabled{opacity:.45;cursor:default}
+.acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.hist{list-style:none}
+.hist li{display:flex;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--color-border)}
+.hist li:last-child{border-bottom:none}
+.hist .f{color:var(--color-text-subtle);flex:none;width:78px;font-family:var(--font-mono);font-size:11px}
+.editrow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.editrow input{flex:1;min-width:140px;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  color:var(--color-text);padding:7px 10px;font-size:12.5px;min-height:38px;font-family:var(--font-ui)}
+.nota-back{font-size:11px;color:var(--color-text-subtle);border-left:2px solid var(--color-border-strong);
+  padding-left:10px;margin-top:10px;line-height:1.5}
+/* oportunidades (S4) */
+.oplist{list-style:none}
+.oplist li{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;
+  padding:8px 10px;border:1px solid var(--glass-border);border-radius:var(--radius-md);margin-bottom:6px;font-size:12px;background:rgba(0,0,0,.2)}
+.oplist .st{font-size:10.5px;padding:2px 8px;border-radius:6px}
+.oplist .st.g{background:var(--color-accent-weak);color:var(--_jade-300)}
+.oplist .st.p{background:var(--color-warning-weak);color:var(--_amber-400)}
+.oplist li.p{opacity:.7}
+/* timeline Gmail (M2) */
+.thr{list-style:none}
+.thr li{display:flex;gap:10px;padding:8px 10px;border:1px solid var(--glass-border);border-radius:var(--radius-md);
+  margin-bottom:6px;font-size:12px;background:rgba(0,0,0,.2);align-items:center}
+.thr .ic{flex:none;width:26px;height:26px;border-radius:8px;background:var(--color-info-weak);color:var(--_blue-400);display:grid;place-items:center;font-size:12px}
+.thr .s{flex:1;min-width:0}
+.thr .asunto{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.thr .quien{font-size:10.5px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.thr a{color:var(--_blue-400);font-size:11px;text-decoration:none;flex:none}
+/* modal motivo pérdida (S5) */
+.modal{position:fixed;inset:0;display:none;place-items:center;background:rgba(10,8,6,.65);z-index:110}
+.modal.on{display:grid}
+.modal .caja{width:min(440px,92vw);background:rgba(24,19,15,.99);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-lg)}
+.modal h4{font-family:var(--font-brand);font-weight:500;margin-bottom:6px}
+.modal p{font-size:12.5px;color:var(--color-text-muted);margin-bottom:12px}
+.modal input{width:100%;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  color:var(--color-text);padding:9px 11px;font-size:13px;margin-bottom:12px}
+.modal .rowb{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+/* ── vista Correo→CRM (M2 staging) ── */
+.correo{max-width:900px;margin:0 auto}
+.correo-h{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.correo-h h2{font-family:var(--font-brand);font-weight:500;font-size:1.25rem}
+.correo-h .pill{font-size:11px;color:var(--_jade-300);border:1px solid var(--_jade-400);border-radius:var(--radius-full);padding:3px 10px}
+.stg{display:flex;gap:10px;padding:12px;border:1px solid var(--glass-border);border-radius:var(--radius-md);
+  margin-bottom:10px;background:var(--glass-bg);align-items:center;flex-wrap:wrap}
+.stg .ic{flex:none;width:32px;height:32px;border-radius:8px;background:var(--color-info-weak);color:var(--_blue-400);display:grid;place-items:center}
+.stg .s{flex:1;min-width:220px}
+.stg .asunto{font-weight:600;font-size:13px}
+.stg .quien{font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.stg .sug{font-size:11px;color:var(--color-text-muted)}
+.stg .sug b{color:var(--_terra-300)}
+.stg .rowb{display:flex;gap:6px}
+.stg.done{opacity:.5}
+.correo .tope{font-size:11.5px;color:var(--color-text-subtle);margin:14px 0}
+
+/* ── móvil ── */
+.mov-wrap{display:flex;flex-wrap:wrap;gap:32px;justify-content:center;align-items:flex-start}
+.iphone{width:393px;flex:none;background:#000;border-radius:54px;padding:12px;box-shadow:var(--shadow-lg);border:1px solid var(--color-border-strong)}
+.iphone .pantalla{background:var(--fondo);border-radius:44px;overflow:hidden;height:800px;display:flex;flex-direction:column;position:relative}
+.isla{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#000;border-radius:var(--radius-full);z-index:5}
+.m-head{padding:56px 16px 10px;background:rgba(18,14,11,.985);border-bottom:1px solid var(--color-border)}
+.m-head h3{font-family:var(--font-brand);font-weight:500;font-size:1.25rem}
+.m-head .sub{font-size:11px;color:var(--color-text-subtle)}
+.m-foco{margin:10px 16px 0;padding:9px 12px;background:var(--color-primary-weak);border:1px solid rgba(213,130,79,.35);border-radius:var(--radius-md);font-size:12px}
+.m-foco b{color:var(--_terra-300)}
+.m-chips{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;scrollbar-width:none}
+.m-chips::-webkit-scrollbar{display:none}
+.m-chip{flex:none;font-size:13px;padding:0 16px;border-radius:var(--radius-full);border:1px solid var(--color-border);
+  color:var(--color-text-muted);min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.m-chip.on{background:var(--color-primary-weak);color:var(--_terra-300);border-color:var(--color-primary);font-weight:600}
+.m-lista{flex:1;overflow-y:auto;padding:0 16px 92px}
+.m-card{width:100%;text-align:left;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:14px;margin-bottom:10px}
+.m-card .top{display:flex;align-items:center;gap:10px}
+.m-card .logo{width:30px;height:30px;border-radius:8px;background:var(--color-primary);color:#1a1410;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}
+.m-card .nm{font-weight:600;font-size:14px}
+.m-card .id{font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.m-card .px{font-size:12.5px;margin-top:8px;border-left:2px solid var(--color-primary);padding-left:8px}
+.m-card .meta{display:flex;gap:8px;margin-top:8px;font-size:11px;color:var(--color-text-subtle);flex-wrap:wrap;font-family:var(--font-mono)}
+.m-tabbar{position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(18,14,11,.96);backdrop-filter:blur(16px);
+  border-top:1px solid var(--color-border);padding:8px 8px 22px}
+.m-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:var(--color-text-subtle);min-height:48px}
+.m-tabbar button.on{color:var(--_terra-300)}
+.m-tabbar .ic{font-size:19px}
+.m-side{max-width:400px;color:var(--color-text-muted);font-size:.8125rem}
+.m-side h3{font-family:var(--font-brand);font-weight:500;color:var(--color-text);font-size:1.25rem;margin-bottom:12px}
+.m-side ul{list-style:none}
+.m-side li{padding:8px 0;border-bottom:1px solid var(--color-border);display:flex;gap:10px;line-height:1.5}
+.m-side li:last-child{border-bottom:none}
+.m-side .pt{color:var(--_terra-400);flex:none}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(24,19,15,.98);
+  border:1px solid var(--color-border-strong);border-radius:var(--radius-md);padding:10px 18px;
+  font-size:12.5px;box-shadow:var(--shadow-lg);display:none;z-index:120;max-width:88vw}
+.toast.on{display:block}
+</style>
+</head>
+<body>
+
+<header class="mq-bar">
+  <span class="tag">Maqueta v2 · CRM PRO · prueba integral</span>
+  <h1>Cartera · CRM Pro — Satori OS</h1>
+  <nav class="mq-tabs">
+    <button class="mq-tab on" data-v="v1">① Cartera</button>
+    <button class="mq-tab" data-v="v2">② Correo → CRM</button>
+    <button class="mq-tab" data-v="v3">③ Móvil</button>
+  </nav>
+  <p class="mq-note">Tokens reales del OS · cartera v2 real · único monto real: Vehemence USD 250 · correos SIMULADOS <span class="ej">[EJEMPLO]</span> · nada escribe en el MAESTRO. <strong style="color:var(--color-text)">Ejecutá los 10 flujos del panel de abajo a la derecha para completar la prueba integral.</strong></p>
+</header>
+
+<!-- ═══════ ① CARTERA ═══════ -->
+<section class="vista on" id="v1">
+  <div class="cartera">
+    <div class="cartera-h">
+      <b>◉ Cartera</b><span class="st" id="hSt">20 cliente(s)</span>
+      <div class="sp"><button class="hbtn">☀ mi día</button><button class="hbtn">🎙 Hablar con Sato</button><button class="hbtn terra">⌂ HQ</button></div>
+    </div>
+    <div class="mrow" id="mrow"></div>
+    <div class="foco" id="foco">
+      <span>◎</span>
+      <div class="t"><b style="color:var(--color-text)">Foco de la semana (F3: 2 contactos):</b> <strong>MesaQuince</strong> (vencía 20-ago · destrabar SGIC) y <strong>SIP Coffee</strong> (vencía 22-ago · agendar reunión). El OS propone con motivo; <strong>vos decidís</strong>.</div>
+      <button class="hbtn terra" id="focoOk">Aceptar foco</button>
+    </div>
+    <div class="cartera-cols" id="kanban"></div>
+  </div>
+</section>
+
+<!-- ═══════ ② CORREO → CRM (M2) ═══════ -->
+<section class="vista" id="v2">
+  <div class="correo">
+    <div class="correo-h">
+      <h2>Correo → CRM</h2>
+      <span class="pill">correo_on = true · gmail.readonly · 0 escritura</span>
+    </div>
+    <p style="font-size:12.5px;color:var(--color-text-muted);margin-bottom:16px">El OS detecta threads de candidatos/clientes del roster y los trae a <b>staging</b>. Nada se asocia solo (lección Copper: el auto-link se equivoca): <b>vos confirmás o descartás</b>. Confirmado → aparece linkeado en la timeline de la Ficha. Tope 10 pendientes: si se acumulan, deja de capturar y avisa (anti-cementerio).</p>
+    <div id="staging"></div>
+    <p class="tope">Threads = LINKS al hilo de Gmail, jamás copias del contenido. Sin píxeles, sin tracking de apertura (rechazado por RGPD/ePrivacia + señal rota por Apple MPP — ver PROPUESTA §6).</p>
+  </div>
+</section>
+
+<!-- ═══════ ③ MÓVIL ═══════ -->
+<section class="vista" id="v3">
+  <div class="mov-wrap">
+    <div class="iphone"><div class="pantalla">
+      <div class="isla"></div>
+      <div class="m-head"><h3>Cartera</h3><p class="sub" id="mSub">—</p></div>
+      <div class="m-foco">◎ <b>Hoy:</b> destrabar MesaQuince · agendar SIP</div>
+      <div class="m-chips" id="mChips"></div>
+      <div class="m-lista" id="mLista"></div>
+      <div class="m-tabbar"><button><span class="ic">☀</span>Hoy</button><button class="on"><span class="ic">◉</span>Cartera</button><button><span class="ic">🜂</span>Sato</button><button><span class="ic">⌂</span>HQ</button></div>
+    </div></div>
+    <aside class="m-side">
+      <h3>Qué cambia en móvil con la tanda Pro</h3>
+      <ul>
+        <li><span class="pt">◆</span><span><strong>Días sin contacto en cada card</strong> (M1): parado en la calle ves de un vistazo quién se está enfriando — es EL dato del research (23% de leads sin respuesta nunca).</span></li>
+        <li><span class="pt">◆</span><span><strong>Semáforo de retención en activos</strong> (M3): el cliente firmado que no entregó datos del mes aparece en ámbar antes de que sea rojo.</span></li>
+        <li><span class="pt">◆</span><span><strong>Vencidas y fríos suben solos</strong>: la lista ordena por urgencia real (vencida > fría > resto), no por alfabeto.</span></li>
+        <li><span class="pt">◆</span><span><strong>Presupuesto de señal</strong>: máx 2 señales por card — una card con 6 alertas no tiene ninguna (pre-mortem #2 de la Propuesta).</span></li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<!-- Ficha 360 -->
+<div class="scrim" id="scrim"></div>
+<div class="f360" id="f360" role="dialog" aria-modal="true">
+  <div class="f360-head">
+    <div class="logo" id="fhLogo">—</div>
+    <div><h3 id="fhNombre">—</h3><p class="est" id="fhEst">—</p></div>
+    <button class="f360-x" id="f360x" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="f360-tabs">
+    <button class="f360-tab">Resumen</button><button class="f360-tab">Números</button>
+    <button class="f360-tab">Próximos pasos</button><button class="f360-tab">Hilo</button>
+    <button class="f360-tab on">Comercial</button>
+  </div>
+  <div class="f360-body" id="f360body"></div>
+</div>
+
+<!-- Modal motivo pérdida (S5) -->
+<div class="modal" id="mPerdido">
+  <div class="caja">
+    <h4>Motivo de pérdida</h4>
+    <p>Regla S5: nada pasa a <b>perdido</b> sin una línea de por qué — a 20 candidatos, cada pérdida es el 5% del universo y su aprendizaje vale oro.</p>
+    <input id="mpMotivo" placeholder="ej.: precio · timing · eligió otra opción · sin respuesta">
+    <div class="rowb">
+      <button class="btn" id="mpCancel">Cancelar</button>
+      <button class="btn" id="mpRec">Perder + recontacto en 90d</button>
+      <button class="btn pri" id="mpOk">Perder</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRUEBA INTEGRAL -->
+<div class="pi" id="pi">
+  <div class="pi-h" id="piH"><b>🧪 Prueba integral</b><span class="n" id="piN">0/10</span></div>
+  <div class="pi-body"><ul id="piList"></ul></div>
+  <div class="pi-full">✓ PRUEBA INTEGRAL COMPLETA — los 10 flujos del CRM Pro ejecutados. Con tu OK, armo el ENCARGO-CODE.</div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ═══ DATOS · cartera v2 real · montos [EJEMPLO] salvo Vehemence ═══ */
+var HOY='2026-08-25';
+var C=[
+ {id:'CLI-002',n:'Vehemence',etapa:'activo',svc:'S2 + S4 · e-comm',px:'Cerrar propuesta USD 250',pxf:'2026-08-27',desde:'2026-08-11',uc:'2026-08-22',resp:'Micaela',enc:['si','si','si','si'],ops:[{s:'Piloto SGIC',st:'g',imp:'—'},{s:'S2 Dirección Admin',st:'p',imp:'USD 250'}],ret:{datos:true,reunion:true,comp:false}},
+ {id:'CLI-003',n:'LC Travel',etapa:'activo',svc:'S2 · SGIC completo',px:'Formalizar retención de facto',pxf:'',desde:'2026-08-11',uc:'2026-08-18',resp:'Lucas',enc:['si','si','ns','si'],ops:[{s:'SGIC + cierre mensual',st:'g',imp:'—'}],ret:{datos:false,reunion:false,comp:true}},
+ {id:'CLI-004',n:'DAM Barbers',etapa:'activo',svc:'S1 → S2 · Fresha',px:'',pxf:'',desde:'2026-08-11',uc:'2026-08-05',resp:'Alex',enc:['si','si','si','ns'],ops:[{s:'SGIC Fresha',st:'g',imp:'—'}],ret:{datos:true,reunion:false,comp:true}},
+ {id:'CLI-007',n:'EJF + Figueras',etapa:'activo',svc:'S1/S3 · atípico',px:'Definir encaje',pxf:'',desde:'2026-08-11',uc:'2026-08-20',resp:'Elías',enc:['ns','ns','ns','si'],ops:[],ret:{datos:true,reunion:true,comp:true}},
+ {id:'CLI-001',n:'MesaQuince',etapa:'tibio',svc:'SGIC solo',px:'Esperando respuesta por SGIC',pxf:'2026-08-20',desde:'2026-08-11',uc:'2026-08-12',foco:true,enc:['si','si','si','ns'],ops:[]},
+ {id:'CLI-005',n:'SIP Coffee',etapa:'tibio',svc:'SGIC + consultoría',px:'Agendar reunión pendiente',pxf:'2026-08-22',desde:'2026-08-11',uc:'2026-07-30',foco:true,enc:['si','si','ns','si'],ops:[]},
+ {id:'CLI-008',n:'Pipol Coffee',etapa:'tibio',svc:'SGIC + consult. + Web',px:'Buscar Conversación de Exploración',pxf:'2026-08-29',desde:'2026-08-11',uc:'2026-08-16',resp:'Tato y Guille',enc:['si','ns','ns','si'],ops:[]},
+ {id:'CLI-009',n:'Nook Coffee',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-010',n:'Pol Train',etapa:'tibio',svc:'App + Web',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','si'],ops:[]},
+ {id:'CLI-011',n:'A. Bono Seguros',etapa:'tibio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','si','ns','ns'],ops:[]},
+ {id:'CLI-012',n:'Crocante',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',uc:'2026-07-15',resp:'Daniel',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-013',n:'Raro Coffee',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-014',n:'Café Sando',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-015',n:'Couleur Café',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',uc:'',resp:'Mohamed',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-016',n:'Oxaca Badalona',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-017',n:'Tech Log',etapa:'frio',svc:'Consultoría',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-018',n:'Galgo',etapa:'frio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-019',n:'Maravillas P&M',etapa:'frio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-020',n:'Activarte BCN',etapa:'frio',svc:'App + SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-021',n:'C. Tullio CBA',etapa:'frio',svc:'SGIC + Web · AR',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]}
+];
+var ETAPAS=['frio','tibio','caliente','activo','en_pausa','perdido'];
+var ETIQ={frio:'Frío',tibio:'Tibio',caliente:'Caliente',activo:'Activo',en_pausa:'En pausa',perdido:'Perdido'};
+var ENC_CRIT=['≥2 años de antigüedad','Ventas estabilizadas','Punto de equilibrio sostenido','Intención real de mejora'];
+var STAGING=[
+ {id:'t1',cli:'CLI-005',asunto:'[EJEMPLO] Re: propuesta reunión café',quien:'sip.coffee@… · hace 2 días',estado:'pend'},
+ {id:'t2',cli:'CLI-002',asunto:'[EJEMPLO] Números de agosto + dudas Xubio',quien:'micaela@… · hace 3 días',estado:'pend'},
+ {id:'t3',cli:'CLI-008',asunto:'[EJEMPLO] Consulta por la carta de precios',quien:'pipol.bcn@… · hace 5 días',estado:'pend'}
+];
+var THREADS={}; // cli -> [threads confirmados]
+var MET={ret:3, rec:'—'};
+var focoAceptado=false;
+
+/* ═══ PRUEBA INTEGRAL ═══ */
+var PI=[
+ ['foco','Aceptar el Foco de la semana'],
+ ['ficha','Abrir una Ficha desde una card'],
+ ['prox','Editar próxima acción + fecha'],
+ ['contacto','Registrar un contacto (M1: sella "último contacto")'],
+ ['encaje','Tildar un criterio de encaje KAIROS'],
+ ['registrar','Registrar una propuesta (S4/base)'],
+ ['firmar','Firmar una propuesta (mueve las métricas)'],
+ ['perder','Perder un candidato CON motivo (S5)'],
+ ['rec90','Programar recontacto a 90 días (S6)'],
+ ['thread','Confirmar un thread de Gmail al cliente (M2)']
+];
+var piDone={};
+function piMark(k){
+  if(piDone[k])return; piDone[k]=true;
+  var n=Object.keys(piDone).length;
+  document.getElementById('piN').textContent=n+'/10';
+  render_pi();
+  if(n===10){document.getElementById('pi').classList.add('completo');toast('🧪 PRUEBA INTEGRAL COMPLETA — 10/10 flujos ejecutados');}
+}
+function render_pi(){
+  var ul=document.getElementById('piList');ul.innerHTML='';
+  PI.forEach(function(p){
+    var li=el('li',piDone[p[0]]?'done':null);
+    var c=el('span','chk','✓');li.appendChild(c);li.appendChild(el('span',null,p[1]));ul.appendChild(li);
+  });
+}
+document.getElementById('piH').addEventListener('click',function(){document.getElementById('pi').classList.toggle('min')});
+
+/* ═══ helpers ═══ */
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function dias(a,b){if(!a)return null;var pa=a.split('-'),pb=b.split('-');return Math.round((Date.UTC(+pb[0],+pb[1]-1,+pb[2])-Date.UTC(+pa[0],+pa[1]-1,+pa[2]))/864e5)}
+function toast(t){var o=document.getElementById('toast');o.textContent=t;o.classList.add('on');clearTimeout(o._t);o._t=setTimeout(function(){o.classList.remove('on')},3200)}
+function byId(id){return C.filter(function(c){return c.id===id})[0]}
+function sellarContacto(c){c.uc=HOY}
+
+/* ═══ tabs maqueta ═══ */
+document.querySelectorAll('.mq-tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.mq-tab').forEach(function(x){x.classList.remove('on')});
+    document.querySelectorAll('.vista').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');document.getElementById(b.dataset.v).classList.add('on');
+  });
+});
+
+/* ═══ métricas / tiles ═══ */
+function renderTiles(){
+  var venc=C.filter(function(c){return c.pxf&&c.pxf<HOY&&c.etapa!=='perdido'}).length;
+  var sinPx=C.filter(function(c){return !c.px&&c.etapa!=='perdido'&&c.etapa!=='activo'}).length;
+  var frios30=C.filter(function(c){return c.etapa!=='perdido'&&c.uc&&dias(c.uc,HOY)>30}).length;
+  var m=document.getElementById('mrow');m.innerHTML='';
+  [['Retenciones activas',MET.ret+' <small>· <span class="ej">ej.</span></small>','jade'],
+   ['Recurrente / mes',MET.rec+' <small>por moneda</small>',MET.rec==='—'?'':'jade'],
+   ['Vencidas',String(venc),venc?'rojo':''],
+   ['Sin próximo paso',String(sinPx),sinPx?'rojo':''],
+   ['+30 días sin contacto',String(frios30),frios30?'rojo':'']
+  ].forEach(function(t){
+    var d=el('div','mtile '+t[2]);
+    d.appendChild(el('div','k',t[0]));
+    var v=el('div','v num');v.innerHTML=t[1];d.appendChild(v);m.appendChild(d);
+  });
+  document.getElementById('hSt').textContent=C.filter(function(c){return c.etapa!=='perdido'}).length+' cliente(s) en juego · '+C.filter(function(c){return c.etapa==='perdido'}).length+' en cola fría';
+}
+
+/* ═══ semáforo retención (M3 — reusa señal vigilancia/SGIC) ═══ */
+function sretEl(r){
+  var s=el('span','sret');
+  var estados=[r.datos,r.reunion,r.comp];
+  var rojo=estados.filter(function(x){return !x}).length;
+  var cls = rojo===0?'v':(rojo===1?'a':'r');
+  s.appendChild(el('span','led '+cls));
+  s.appendChild(document.createTextNode(rojo===0?'retención al día':(rojo===1?'retención: 1 pendiente':'retención en riesgo')));
+  s.title='Camino de éxito del mes: datos '+(r.datos?'✓':'✗')+' · reunión '+(r.reunion?'✓':'✗')+' · compromisos '+(r.comp?'✓':'✗');
+  return s;
+}
+
+/* ═══ card (presupuesto de señal: máx 2) ═══ */
+function cardEl(c){
+  var d=el('button','cartera-card');
+  var top=el('div','top');
+  top.appendChild(el('div','logo',c.n.charAt(0)));
+  var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id));top.appendChild(nm);
+  d.appendChild(top);
+  var bs=el('div','bds');
+  if(c.foco&&!focoAceptado)bs.appendChild(el('span','bg foco','◎ foco'));
+  if(c.svc)bs.appendChild(el('span','bg svc',c.svc));
+  var propViva=(c.ops||[]).filter(function(o){return o.st==='p'})[0];
+  var firmadas=(c.ops||[]).filter(function(o){return o.st==='g'&&o.imp!=='—'});
+  if(propViva)bs.appendChild(el('span','bg prop',propViva.imp+' · propuesta'));
+  else if(firmadas.length)bs.appendChild(el('span','bg firm','✓ '+firmadas[0].imp+'/mes'));
+  if(c.recontacto)bs.appendChild(el('span','bg rec','recontacto '+c.recontacto));
+  d.appendChild(bs);
+  if(c.px)d.appendChild(el('div','px','→ '+c.px));
+  else if(c.etapa!=='activo'&&c.etapa!=='perdido')d.appendChild(el('div','px sin','sin próxima acción — la regla pide una'));
+  var meta=el('div','meta');
+  /* presupuesto de señal: 1 de captación (la más urgente) + 1 de retención */
+  var duc=c.uc?dias(c.uc,HOY):null;
+  if(c.pxf&&c.pxf<HOY)meta.appendChild(el('span','venc','⚠ vencía '+c.pxf));
+  else if(duc!=null&&duc>30&&c.etapa!=='perdido')meta.appendChild(el('span','frio-al','❄ '+duc+'d sin contacto'));
+  else if(duc!=null)meta.appendChild(el('span',null,'últ. contacto hace '+duc+'d'));
+  else meta.appendChild(el('span',null,'sin contacto registrado'));
+  if(c.etapa==='activo'&&c.ret)meta.appendChild(sretEl(c.ret));
+  d.appendChild(meta);
+  var sel=el('select');sel.setAttribute('aria-label','Etapa de '+c.n);
+  [''].concat(ETAPAS).forEach(function(e){
+    var o=el('option',null,e?ETIQ[e]:'sin clasificar');o.value=e;if(c.etapa===e)o.selected=true;sel.appendChild(o);
+  });
+  sel.addEventListener('click',function(ev){ev.stopPropagation()});
+  sel.onchange=function(){moverEtapa(c,sel.value,sel)};
+  d.appendChild(sel);
+  d.addEventListener('click',function(){fichaAbrir(c)});
+  return d;
+}
+function renderKanban(){
+  var k=document.getElementById('kanban');k.innerHTML='';
+  ETAPAS.forEach(function(e){
+    var col=el('div','cartera-col');col.dataset.etapa=e;
+    var cs=C.filter(function(c){return c.etapa===e});
+    var h=el('h6');h.appendChild(el('span','dot'));h.appendChild(document.createTextNode(ETIQ[e]+' '));h.appendChild(el('span','n',String(cs.length)));
+    col.appendChild(h);
+    if(!cs.length)col.appendChild(el('div','cartera-vacia','—'));
+    cs.forEach(function(c){col.appendChild(cardEl(c))});
+    k.appendChild(col);
+  });
+  renderTiles();renderMovil();
+}
+
+/* ═══ mover etapa · S5 motivo pérdida · S6 recontacto ═══ */
+var pendientePerder=null;
+function moverEtapa(c,e,sel){
+  if(e==='perdido'){
+    pendientePerder={c:c,sel:sel,prev:c.etapa};
+    document.getElementById('mpMotivo').value='';
+    document.getElementById('mPerdido').classList.add('on');
+    return;
+  }
+  var de=c.etapa;c.etapa=e;
+  toast('Etapa: '+ETIQ[de]+' → '+(ETIQ[e]||'sin clasificar')+' · registrado en Actividad');
+  renderKanban();
+}
+document.getElementById('mpCancel').addEventListener('click',function(){
+  if(pendientePerder)pendientePerder.sel.value=pendientePerder.prev;
+  document.getElementById('mPerdido').classList.remove('on');pendientePerder=null;
+});
+function perder(conRecontacto){
+  var m=document.getElementById('mpMotivo').value.trim();
+  if(!m){toast('El motivo es obligatorio (regla S5) — una línea alcanza');return;}
+  var c=pendientePerder.c;c.etapa='perdido';c.motivo=m;c.px='';c.pxf='';
+  if(conRecontacto){
+    var rec='2026-11-23';
+    c.recontacto=rec;c.px='Recontactar — se perdió por: '+m;c.pxf=rec;
+    toast('Perdido («'+m+'») + recontacto '+rec+' — el brief lo revivirá solo (S6)');
+    piMark('rec90');
+  } else toast('Perdido — motivo registrado: «'+m+'». La cola fría no es un cementerio.');
+  piMark('perder');
+  document.getElementById('mPerdido').classList.remove('on');pendientePerder=null;
+  renderKanban();
+}
+document.getElementById('mpOk').addEventListener('click',function(){perder(false)});
+document.getElementById('mpRec').addEventListener('click',function(){perder(true)});
+
+/* ═══ foco ═══ */
+document.getElementById('focoOk').addEventListener('click',function(){
+  focoAceptado=true;
+  var f=document.getElementById('foco');f.classList.add('ok');
+  f.innerHTML='<span>✓</span><div class="t"><b style="color:var(--color-text)">Foco aceptado</b> — MesaQuince y SIP quedan como tareas [F3] de la semana en el CM.</div>';
+  piMark('foco');renderKanban();
+});
+
+/* ═══ FICHA 360 · solapa Comercial PRO ═══ */
+var fichaActual=null;
+function fichaAbrir(c){
+  fichaActual=c;
+  document.getElementById('fhLogo').textContent=c.n.charAt(0);
+  document.getElementById('fhNombre').textContent=c.n;
+  document.getElementById('fhEst').textContent=c.id+' · '+ETIQ[c.etapa]+(c.resp?' · '+c.resp:'')+(c.motivo?' · perdido: «'+c.motivo+'»':'');
+  fichaRender(c);
+  document.getElementById('scrim').classList.add('on');
+  document.getElementById('f360').classList.add('on');
+  piMark('ficha');
+}
+function fichaRender(c){
+  var b=document.getElementById('f360body');b.innerHTML='';
+  /* fila 1: oportunidad + encaje + próxima acción */
+  var s1=el('div','sec');s1.appendChild(el('h5',null,'Oportunidad'));
+  var f3=el('div','fila3');
+  var p1=el('div','panelbox');p1.appendChild(el('h6',null,'Datos'));
+  var duc=c.uc?dias(c.uc,HOY):null;
+  [['Servicio',c.svc||'—'],['Días en etapa',dias(c.desde,HOY)+' días'],
+   ['Último contacto (M1)',c.uc?(c.uc+' · hace '+duc+'d'):'sin registro'],
+   ['Etapa KAIROS',(c.ops||[]).some(function(o){return o.st==='p'})?'Etapa 4 · Propuesta':'Etapa 1-2']
+  ].forEach(function(kv){var r=el('div','kv');r.appendChild(el('span','k',kv[0]));r.appendChild(el('span','num',kv[1]));p1.appendChild(r)});
+  var bc=el('button','btn','📞 Registrar contacto (hoy)');
+  bc.addEventListener('click',function(){sellarContacto(c);toast('Contacto sellado: '+HOY+' → columna ultimo_contacto + línea en Actividad (M1)');piMark('contacto');fichaRender(c);renderKanban();});
+  p1.appendChild(el('div','acc')).appendChild(bc);
+  var p2=el('div','panelbox');p2.appendChild(el('h6',null,'Encaje target KAIROS (tap para tildar)'));
+  var ul=el('ul','encaje');
+  ENC_CRIT.forEach(function(cr,i){
+    var li=el('li');
+    var led=el('span','led2 '+(c.enc[i]==='ns'?'':c.enc[i]));
+    li.appendChild(led);li.appendChild(el('span',null,cr));
+    li.appendChild(el('small',null,c.enc[i]==='ns'?'sin dato':'relevado'));
+    li.addEventListener('click',function(){
+      c.enc[i]=c.enc[i]==='ns'?'si':(c.enc[i]==='si'?'no':'ns');
+      toast('Encaje actualizado → columna encaje_kairos_4b: '+c.enc.map(function(x){return x==='si'?'s':(x==='no'?'n':'-')}).join(''));
+      piMark('encaje');fichaRender(c);
+    });
+    ul.appendChild(li);
+  });
+  p2.appendChild(ul);
+  var p3=el('div','panelbox');p3.appendChild(el('h6',null,'Próxima acción (siempre existe)'));
+  p3.appendChild(el('div',null,c.px||'(sin próxima acción)'));
+  var er=el('div','editrow');
+  var inp=el('input');inp.value=c.px||'';inp.setAttribute('aria-label','Próxima acción');
+  var inf=el('input');inf.value=c.pxf||'';inf.placeholder='aaaa-mm-dd';inf.style.flex='0 0 110px';inf.setAttribute('aria-label','Fecha');
+  var ok=el('button','btn pri','Guardar');
+  ok.addEventListener('click',function(){c.px=inp.value;c.pxf=inf.value;toast('Guardada → carteraProxAccion() con lock + log');piMark('prox');fichaRender(c);renderKanban();});
+  er.appendChild(inp);er.appendChild(inf);er.appendChild(ok);p3.appendChild(er);
+  f3.appendChild(p1);f3.appendChild(p2);f3.appendChild(p3);s1.appendChild(f3);b.appendChild(s1);
+
+  /* fila 2: oportunidades (S4) + retención (M3) */
+  var s2=el('div','sec');s2.appendChild(el('h5',null,'Oportunidades · Retención'));
+  var f2=el('div','fila2');
+  var po=el('div','panelbox');po.appendChild(el('h6',null,'Todas las oportunidades (S4 · recurrentes_propios)'));
+  var ol=el('ul','oplist');
+  if((c.ops||[]).length){
+    c.ops.forEach(function(o){
+      var li=el('li',o.st==='p'?'p':null);
+      li.appendChild(el('span','id num',c.id));li.appendChild(el('span',null,o.s));
+      li.appendChild(el('span','num',o.imp));li.appendChild(el('span','st '+o.st,o.st==='g'?'activo':'propuesta'));
+      ol.appendChild(li);
+    });
+  } else ol.appendChild(el('li',null,'— sin oportunidades registradas'));
+  po.appendChild(ol);
+  var accO=el('div','acc');
+  var bReg=el('button','btn','→ Registrar propuesta S4 · 300 €/mes');
+  bReg.addEventListener('click',function(){
+    c.ops.push({s:'S4 Estrategia Fiscal',st:'p',imp:'300 €'});
+    toast('propuestaRegistrar() → fila estado=propuesta en recurrentes_propios (atenuada en HQ) · [EJEMPLO]');
+    piMark('registrar');fichaRender(c);renderKanban();
+  });
+  var prop=(c.ops||[]).filter(function(o){return o.st==='p'})[0];
+  var bFir=el('button','btn jade','✓ Marcar firmada');
+  if(!prop)bFir.disabled=true;
+  bFir.addEventListener('click',function(){
+    if(!prop)return;
+    prop.st='g';MET.ret+=1;
+    MET.rec=(prop.imp.indexOf('USD')>=0)?'USD 250':'300 € [ej]';
+    sellarContacto(c);
+    toast('propuestaFirmar() → estado=activo · retenciones +1 · ciclo medido en Actividad · hqNumeros la suma');
+    piMark('firmar');fichaRender(c);renderKanban();
+  });
+  accO.appendChild(bReg);accO.appendChild(bFir);po.appendChild(accO);
+  f2.appendChild(po);
+  var pr=el('div','panelbox');pr.appendChild(el('h6',null,'Señal de retención (M3 · reusa vigilancia/SGIC)'));
+  if(c.etapa==='activo'&&c.ret){
+    var lr=el('ul','encaje');
+    [['Entregó datos del mes',c.ret.datos],['Reunión mensual hecha/agendada',c.ret.reunion],['Compromisos al día',c.ret.comp]].forEach(function(x){
+      var li=el('li');li.style.cursor='default';
+      li.appendChild(el('span','led2 '+(x[1]?'si':'no')));li.appendChild(el('span',null,x[0]));
+      li.appendChild(el('small',null,x[1]?'✓':'pendiente'));lr.appendChild(li);
+    });
+    pr.appendChild(lr);
+    pr.appendChild(el('p','nota-back','No es un score: es el camino de éxito KAIROS del mes (Fase 6 · SOSTENER). Un pendiente = ámbar en la card; dos = rojo. La señal viene de la vigilancia que YA corre — esto es un render, no un motor nuevo.'));
+  } else pr.appendChild(el('p','nota-back','La señal de retención aplica a clientes ACTIVOS con retención en curso. Para candidatos, la señal es el embudo (vencidas / días sin contacto).'));
+  f2.appendChild(pr);s2.appendChild(f2);b.appendChild(s2);
+
+  /* fila 3: timeline Gmail (M2) + acciones */
+  var s3=el('div','sec');s3.appendChild(el('h5',null,'Timeline de correo (M2 · correo_on) · Acciones'));
+  var f2b=el('div','fila2');
+  var pt=el('div','panelbox');pt.appendChild(el('h6',null,'Threads confirmados de '+c.n));
+  var tl=el('ul','thr');
+  var ths=THREADS[c.id]||[];
+  if(ths.length){
+    ths.forEach(function(t){
+      var li=el('li');li.appendChild(el('span','ic','✉'));
+      var s=el('div','s');s.appendChild(el('div','asunto',t.asunto));s.appendChild(el('div','quien',t.quien));li.appendChild(s);
+      var a=el('a',null,'abrir en Gmail ↗');a.href='#';a.addEventListener('click',function(e){e.preventDefault();toast('En prod: abre mail.google.com/#inbox/<threadId> — link, jamás copia del contenido')});
+      li.appendChild(a);tl.appendChild(li);
+    });
+  } else tl.appendChild(el('li',null,'— sin threads confirmados. Confirmalos en la vista «② Correo → CRM».'));
+  pt.appendChild(tl);f2b.appendChild(pt);
+  var pa=el('div','panelbox');pa.appendChild(el('h6',null,'Acciones (C7: el dossier junta todo)'));
+  var ac=el('div','acc');
+  [['📄 Dossier de reunión','pri','Dossier enriquecido: brief + números del conector + últimos contactos (M1) + threads (M2) + oportunidades (S4) — datos reales, jamás inventados'],
+   ['🜂 Preguntarle a Sato','','Fuente cartera de SATO_FUENTES — ahora con último contacto y oportunidades'],
+   ['⚑ Encargar a Cowork','','capturar() → Bandeja etiquetada con '+c.id]].forEach(function(a){
+    var bt=el('button','btn '+a[1],a[0]);
+    bt.addEventListener('click',function(){toast(a[2])});
+    ac.appendChild(bt);
+  });
+  pa.appendChild(ac);
+  pa.appendChild(el('p','nota-back','Aislamiento (regla dura): todo anclado a '+c.id+' con sello tenant_datos. Endpoints nuevos con _soloOwner_ + alta en ENDPOINTS_UI en el mismo commit.'));
+  f2b.appendChild(pa);s3.appendChild(f2b);b.appendChild(s3);
+}
+function fichaCerrar(){document.getElementById('scrim').classList.remove('on');document.getElementById('f360').classList.remove('on')}
+document.getElementById('f360x').addEventListener('click',fichaCerrar);
+document.getElementById('scrim').addEventListener('click',fichaCerrar);
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){fichaCerrar();document.getElementById('mPerdido').classList.remove('on');}});
+
+/* ═══ Correo → CRM staging (M2) ═══ */
+function renderStaging(){
+  var d=document.getElementById('staging');d.innerHTML='';
+  var pend=STAGING.filter(function(t){return t.estado==='pend'});
+  if(!pend.length){d.appendChild(el('p','tope','Staging vacío — todo confirmado o descartado. El OS seguirá trayendo threads nuevos de contactos del roster.'));}
+  STAGING.forEach(function(t){
+    var c=byId(t.cli);
+    var s=el('div','stg'+(t.estado!=='pend'?' done':''));
+    s.appendChild(el('span','ic','✉'));
+    var mid=el('div','s');
+    mid.appendChild(el('div','asunto',t.asunto));
+    mid.appendChild(el('div','quien',t.quien));
+    var sug=el('div','sug');sug.innerHTML='Sugerido: <b>'+c.n+' ('+t.cli+')</b> — coincide remitente del roster';
+    mid.appendChild(sug);s.appendChild(mid);
+    var rb=el('div','rowb');
+    if(t.estado==='pend'){
+      var okb=el('button','btn jade','Confirmar');
+      okb.addEventListener('click',function(){
+        t.estado='ok';
+        if(!THREADS[t.cli])THREADS[t.cli]=[];
+        THREADS[t.cli].push(t);
+        sellarContacto(c);
+        toast('Thread confirmado → timeline de '+c.n+' + último contacto sellado (M1+M2 se alimentan mutuamente)');
+        piMark('thread');renderStaging();renderKanban();
+      });
+      var nob=el('button','btn','Descartar');
+      nob.addEventListener('click',function(){t.estado='no';toast('Descartado — no vuelve a aparecer (Correo_visto)');renderStaging();});
+      rb.appendChild(okb);rb.appendChild(nob);
+    } else rb.appendChild(el('span','sug',t.estado==='ok'?'✓ confirmado':'descartado'));
+    s.appendChild(rb);
+    d.appendChild(s);
+  });
+}
+
+/* ═══ móvil ═══ */
+var mEtapa='tibio';
+function renderMovil(){
+  var act=C.filter(function(c){return c.etapa==='activo'}).length;
+  var tib=C.filter(function(c){return c.etapa==='tibio'}).length;
+  var venc=C.filter(function(c){return c.pxf&&c.pxf<HOY&&c.etapa!=='perdido'}).length;
+  document.getElementById('mSub').textContent=act+' activos · '+tib+' tibios · '+venc+' vencidas';
+  var ch=document.getElementById('mChips');ch.innerHTML='';
+  ETAPAS.filter(function(e){return C.some(function(c){return c.etapa===e})}).forEach(function(e){
+    var n=C.filter(function(c){return c.etapa===e}).length;
+    var b=el('button','m-chip'+(e===mEtapa?' on':''));
+    b.appendChild(document.createTextNode(ETIQ[e]));b.appendChild(el('span','n num','('+n+')'));
+    b.addEventListener('click',function(){mEtapa=e;renderMovil()});
+    ch.appendChild(b);
+  });
+  var ls=document.getElementById('mLista');ls.innerHTML='';
+  C.filter(function(c){return c.etapa===mEtapa})
+   .sort(function(a,b){
+     var ua=(a.pxf&&a.pxf<HOY)?0:((a.uc&&dias(a.uc,HOY)>30)?1:2);
+     var ub=(b.pxf&&b.pxf<HOY)?0:((b.uc&&dias(b.uc,HOY)>30)?1:2);
+     return ua-ub;
+   })
+   .forEach(function(c){
+     var d=el('button','m-card');
+     var top=el('div','top');top.appendChild(el('div','logo',c.n.charAt(0)));
+     var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id+(c.svc?' · '+c.svc:'')));top.appendChild(nm);
+     d.appendChild(top);
+     if(c.px)d.appendChild(el('div','px','→ '+c.px));
+     var meta=el('div','meta');
+     var duc=c.uc?dias(c.uc,HOY):null;
+     if(c.pxf&&c.pxf<HOY){var v=el('span',null,'⚠ vencía '+c.pxf);v.style.color='var(--color-danger)';v.style.fontWeight='600';meta.appendChild(v);}
+     else if(duc!=null&&duc>30){var f=el('span',null,'❄ '+duc+'d sin contacto');f.style.color='var(--color-warning)';f.style.fontWeight='600';meta.appendChild(f);}
+     else if(duc!=null)meta.appendChild(el('span',null,'contacto hace '+duc+'d'));
+     if(c.etapa==='activo'&&c.ret)meta.appendChild(sretEl(c.ret));
+     d.appendChild(meta);
+     d.addEventListener('click',function(){document.querySelector('.mq-tab[data-v="v1"]').click();fichaAbrir(c);});
+     ls.appendChild(d);
+   });
+}
+
+/* ═══ init ═══ */
+render_pi();
+renderKanban();
+renderStaging();
+</script>
+</body>
+</html>

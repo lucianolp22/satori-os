@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAQUETA · CRM Pipeline — Satori OS</title>
+<!--
+  MAQUETA CRM/PIPELINE v0 — 24-ago-2026 · Cowork
+  Registro: OPERATIVO (A) · tema oscuro del OS · tokens satori-design (tokens-base.md §7)
+  GAS-compatible: HTML + CSS custom properties + JS vanilla. Sin frameworks, sin fetch,
+  sin localStorage (estado en memoria — es una maqueta navegable, no la app).
+  DATOS: cartera comercial v2 (11-ago) REAL en nombres/etapas/próximas acciones.
+  Montos: solo Vehemence USD 250 es real (documentado). Todo otro monto = [EJEMPLO].
+  Base verificada: 33_cartera.js (carteraPipeline/moverEtapaComercial) · 01_schema.js
+  (Clientes + recurrentes_propios) · Ficha 360 solapas (E4) · hqNumeros (E3, prod @46).
+-->
+<style>
+/* ══ TOKENS — satori-design tokens-base.md §7 (dark) — nada inline fuera de esto ══ */
+:root{
+  --color-bg:#14140F; --color-surface:#1C1C17; --color-surface-2:#24241E;
+  --color-border:#33332B; --color-border-strong:#474740;
+  --color-text:#ECEAE3; --color-text-muted:#ADAB9F; --color-text-subtle:#7C7A70;
+  --color-primary:#4FB89C; --color-primary-hover:#5FC9AC; --color-primary-weak:#16352C; --color-on-primary:#0B1A15;
+  --color-success:#5FB97A; --color-success-weak:#16301E;
+  --color-warning:#D79A3D; --color-warning-weak:#322611;
+  --color-danger:#DD6B5C;  --color-danger-weak:#34170F;
+  --color-info:#5FA8C9;    --color-info-weak:#122A35;
+  --color-focus-ring:#4FB89C;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-8:48px;
+  --text-xs:.75rem; --text-sm:.875rem; --text-base:1rem; --text-lg:1.25rem; --text-xl:1.5625rem;
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --radius-full:9999px;
+  --shadow-md:0 2px 8px rgba(0,0,0,.35); --shadow-lg:0 8px 24px rgba(0,0,0,.45);
+  --font-ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-ui);font-size:16px;line-height:1.5}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--color-focus-ring);outline-offset:2px;border-radius:var(--radius-sm)}
+.num{font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ══ Barra de la maqueta (meta, no es parte del OS) ══ */
+.mq-bar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);
+  background:var(--color-surface);border-bottom:1px solid var(--color-border);position:sticky;top:0;z-index:50}
+.mq-bar .tag{font-size:var(--text-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--color-warning);
+  border:1px solid var(--color-warning);border-radius:var(--radius-full);padding:2px 10px}
+.mq-bar h1{font-size:var(--text-base);font-weight:600}
+.mq-tabs{display:flex;gap:var(--space-2);margin-left:auto}
+.mq-tab{padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);font-size:var(--text-sm);
+  color:var(--color-text-muted);border:1px solid transparent;min-height:36px}
+.mq-tab:hover{background:var(--color-surface-2)}
+.mq-tab.on{background:var(--color-primary-weak);color:var(--color-primary);border-color:var(--color-primary)}
+.mq-note{font-size:var(--text-xs);color:var(--color-text-subtle);width:100%}
+.vista{display:none;padding:var(--space-5)}
+.vista.on{display:block}
+
+/* ══ VISTA 1 — el CRM embebido en el OS (chrome del Centro de Mando) ══ */
+.os-chrome{max-width:1480px;margin:0 auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);
+  overflow:hidden;background:var(--color-surface);box-shadow:var(--shadow-lg)}
+.os-head{display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-5);
+  border-bottom:1px solid var(--color-border);background:var(--color-surface-2)}
+.os-logo{width:28px;height:28px;border-radius:var(--radius-full);background:var(--color-primary-weak);
+  color:var(--color-primary);display:grid;place-items:center;font-weight:600;font-size:var(--text-sm)}
+.os-head .t{font-weight:600}
+.os-head .crumbs{color:var(--color-text-subtle);font-size:var(--text-sm)}
+.os-head .sp{margin-left:auto;display:flex;gap:var(--space-2)}
+.os-chip{font-size:var(--text-xs);color:var(--color-text-muted);border:1px solid var(--color-border);
+  border-radius:var(--radius-full);padding:4px 10px;min-height:28px}
+.os-chip.jade{color:var(--color-primary);border-color:var(--color-primary)}
+
+.crm-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-5)}
+.crm-top h2{font-size:var(--text-lg);font-weight:600}
+.crm-top .sub{color:var(--color-text-muted);font-size:var(--text-sm)}
+.crm-metrics{margin-left:auto;display:flex;gap:var(--space-3)}
+.mtile{background:var(--color-surface-2);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  padding:var(--space-2) var(--space-4);min-width:150px}
+.mtile .k{font-size:var(--text-xs);color:var(--color-text-subtle);text-transform:uppercase;letter-spacing:.06em}
+.mtile .v{font-size:var(--text-lg);font-weight:600}
+.mtile .v small{font-size:var(--text-xs);font-weight:400;color:var(--color-text-muted)}
+
+.kanban{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(232px,1fr);gap:var(--space-3);
+  padding:0 var(--space-5) var(--space-5);overflow-x:auto}
+.kcol{background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  padding:var(--space-3);min-height:200px}
+.kcol h6{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-muted);
+  display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-3)}
+.kcol h6 .n{background:var(--color-surface-2);border-radius:var(--radius-full);padding:1px 8px;color:var(--color-text-subtle)}
+.kcol h6 .dot{width:8px;height:8px;border-radius:50%}
+.kcol[data-etapa="frio"] .dot{background:var(--color-text-subtle)}
+.kcol[data-etapa="tibio"] .dot{background:var(--color-warning)}
+.kcol[data-etapa="caliente"] .dot{background:var(--color-danger)}
+.kcol[data-etapa="activo"] .dot{background:var(--color-primary)}
+.kcol[data-etapa="en_pausa"] .dot{background:var(--color-info)}
+.kcol[data-etapa="perdido"] .dot{background:var(--color-border-strong)}
+.kvacia{color:var(--color-text-subtle);text-align:center;padding:var(--space-4) 0;font-size:var(--text-sm)}
+
+.card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  padding:var(--space-3);margin-bottom:var(--space-3);width:100%;text-align:left;display:block;
+  transition:border-color .15s, box-shadow .15s}
+.card:hover{border-color:var(--color-border-strong);box-shadow:var(--shadow-md)}
+.card .top{display:flex;gap:var(--space-2);align-items:center}
+.logo{width:32px;height:32px;border-radius:var(--radius-md);background:var(--color-primary-weak);
+  color:var(--color-primary);display:grid;place-items:center;font-weight:600;flex:none}
+.card .nm{font-weight:600;font-size:var(--text-sm)}
+.card .id{font-size:var(--text-xs);color:var(--color-text-subtle)}
+.badges{display:flex;flex-wrap:wrap;gap:var(--space-1);margin-top:var(--space-2)}
+.bg{font-size:var(--text-xs);border-radius:var(--radius-sm);padding:2px 8px;border:1px solid var(--color-border);color:var(--color-text-muted)}
+.bg.svc{color:var(--color-info);border-color:var(--color-info);background:var(--color-info-weak)}
+.bg.prop{color:var(--color-warning);border-color:var(--color-warning);background:var(--color-warning-weak)}
+.bg.firm{color:var(--color-success);border-color:var(--color-success);background:var(--color-success-weak)}
+.bg.falta{color:var(--color-danger);border-color:var(--color-danger);background:var(--color-danger-weak)}
+.card .px{font-size:var(--text-sm);color:var(--color-text);margin-top:var(--space-2)}
+.card .meta{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2);font-size:var(--text-xs);color:var(--color-text-subtle)}
+.card .meta .venc{color:var(--color-danger);font-weight:600}
+
+/* Ficha 360 (overlay) con solapa Comercial */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;z-index:90}
+.scrim.on{display:block}
+.f360{position:fixed;top:4vh;left:50%;transform:translateX(-50%);width:min(880px,94vw);max-height:92vh;
+  overflow:auto;background:var(--color-surface);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);display:none;z-index:100}
+.f360.on{display:block}
+.f360-head{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-4) var(--space-5);
+  border-bottom:1px solid var(--color-border);position:sticky;top:0;background:var(--color-surface);z-index:2}
+.f360-head .logo{width:44px;height:44px;font-size:var(--text-lg)}
+.f360-head h3{font-size:var(--text-lg);font-weight:600}
+.f360-head .est{font-size:var(--text-xs);color:var(--color-text-muted)}
+.f360-x{margin-left:auto;width:36px;height:36px;border-radius:var(--radius-md);display:grid;place-items:center;color:var(--color-text-muted)}
+.f360-x:hover{background:var(--color-surface-2)}
+.f360-tabs{display:flex;gap:var(--space-1);padding:0 var(--space-5);border-bottom:1px solid var(--color-border)}
+.f360-tab{padding:var(--space-3) var(--space-4);font-size:var(--text-sm);color:var(--color-text-muted);
+  border-bottom:2px solid transparent;min-height:44px}
+.f360-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary);font-weight:600}
+.f360-body{padding:var(--space-5)}
+.sec{margin-bottom:var(--space-5)}
+.sec h5{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-subtle);margin-bottom:var(--space-3)}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}
+@media (max-width:760px){.fila2{grid-template-columns:1fr}}
+.panelbox{background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:var(--space-4)}
+.kv{display:flex;justify-content:space-between;gap:var(--space-3);padding:var(--space-2) 0;border-bottom:1px solid var(--color-border);font-size:var(--text-sm)}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--color-text-muted)}
+.acc{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-3)}
+.btn{display:inline-flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);
+  border-radius:var(--radius-md);border:1px solid var(--color-border-strong);font-size:var(--text-sm);
+  color:var(--color-text);min-height:40px}
+.btn:hover{background:var(--color-surface-2)}
+.btn.pri{background:var(--color-primary);color:var(--color-on-primary);border-color:var(--color-primary);font-weight:600}
+.btn.pri:hover{background:var(--color-primary-hover)}
+.hist{list-style:none}
+.hist li{display:flex;gap:var(--space-3);padding:var(--space-2) 0;font-size:var(--text-sm);border-bottom:1px solid var(--color-border)}
+.hist li:last-child{border-bottom:none}
+.hist .f{color:var(--color-text-subtle);flex:none;width:86px}
+.editrow{display:flex;gap:var(--space-2);margin-top:var(--space-2)}
+.editrow input{flex:1;background:var(--color-surface-2);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-md);color:var(--color-text);padding:var(--space-2) var(--space-3);font-size:var(--text-sm);min-height:40px}
+.nota-back{font-size:var(--text-xs);color:var(--color-text-subtle);border-left:2px solid var(--color-border-strong);
+  padding-left:var(--space-3);margin-top:var(--space-3)}
+.nota-back code{color:var(--color-info)}
+
+/* ══ VISTA 2 — iPhone / PWA ══ */
+.mov-wrap{display:flex;flex-wrap:wrap;gap:var(--space-6);justify-content:center;align-items:flex-start}
+.iphone{width:393px;flex:none;background:#000;border-radius:54px;padding:12px;box-shadow:var(--shadow-lg);border:1px solid var(--color-border-strong)}
+.iphone .pantalla{background:var(--color-bg);border-radius:44px;overflow:hidden;height:780px;display:flex;flex-direction:column;position:relative}
+.isla{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#000;border-radius:var(--radius-full);z-index:5}
+.m-head{padding:56px var(--space-4) var(--space-3);background:var(--color-surface);border-bottom:1px solid var(--color-border)}
+.m-head h3{font-size:var(--text-lg);font-weight:600}
+.m-head .sub{font-size:var(--text-xs);color:var(--color-text-subtle)}
+.m-chips{display:flex;gap:var(--space-2);overflow-x:auto;padding:var(--space-3) var(--space-4);scrollbar-width:none}
+.m-chips::-webkit-scrollbar{display:none}
+.m-chip{flex:none;font-size:var(--text-sm);padding:0 var(--space-4);border-radius:var(--radius-full);
+  border:1px solid var(--color-border);color:var(--color-text-muted);min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.m-chip.on{background:var(--color-primary-weak);color:var(--color-primary);border-color:var(--color-primary);font-weight:600}
+.m-chip .n{font-size:var(--text-xs);opacity:.8}
+.m-lista{flex:1;overflow-y:auto;padding:0 var(--space-4) 90px}
+.m-card{width:100%;text-align:left;background:var(--color-surface);border:1px solid var(--color-border);
+  border-radius:var(--radius-lg);padding:var(--space-4);margin-bottom:var(--space-3);min-height:44px}
+.m-card .top{display:flex;align-items:center;gap:var(--space-3)}
+.m-card .nm{font-weight:600}
+.m-card .px{font-size:var(--text-sm);color:var(--color-text-muted);margin-top:var(--space-2)}
+.m-card .meta{display:flex;gap:var(--space-2);margin-top:var(--space-2);font-size:var(--text-xs);color:var(--color-text-subtle);flex-wrap:wrap}
+.m-tabbar{position:absolute;bottom:0;left:0;right:0;display:flex;background:var(--color-surface);
+  border-top:1px solid var(--color-border);padding:var(--space-2) var(--space-2) var(--space-5)}
+.m-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:var(--text-xs);
+  color:var(--color-text-subtle);min-height:48px;border-radius:var(--radius-md)}
+.m-tabbar button.on{color:var(--color-primary)}
+.m-tabbar .ic{font-size:20px;line-height:1}
+/* hoja de acción (bottom sheet) */
+.m-sheet{position:absolute;left:0;right:0;bottom:0;background:var(--color-surface);border-top:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:var(--space-4) var(--space-4) var(--space-6);
+  transform:translateY(105%);transition:transform .25s ease;z-index:10;box-shadow:var(--shadow-lg)}
+.m-sheet.on{transform:translateY(0)}
+.m-sheet .asa{width:40px;height:4px;border-radius:var(--radius-full);background:var(--color-border-strong);margin:0 auto var(--space-3)}
+.m-sheet h4{font-weight:600;margin-bottom:var(--space-1)}
+.m-sheet .sub{font-size:var(--text-xs);color:var(--color-text-subtle);margin-bottom:var(--space-3)}
+.m-sheet .btn{width:100%;justify-content:flex-start;margin-bottom:var(--space-2);min-height:48px}
+.m-side{max-width:420px;color:var(--color-text-muted);font-size:var(--text-sm)}
+.m-side h3{color:var(--color-text);font-size:var(--text-lg);margin-bottom:var(--space-3)}
+.m-side ul{list-style:none}
+.m-side li{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border);display:flex;gap:var(--space-3)}
+.m-side li:last-child{border-bottom:none}
+.m-side .pt{color:var(--color-primary);flex:none}
+
+/* ══ VISTA 3 — flujo piloto → propuesta → firma ══ */
+.flujo{max-width:1100px;margin:0 auto}
+.stepper{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-5);flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-2) var(--space-4);
+  border-radius:var(--radius-full);border:1px solid var(--color-border);color:var(--color-text-muted);
+  font-size:var(--text-sm);min-height:44px}
+.step .n{width:24px;height:24px;border-radius:50%;background:var(--color-surface-2);display:grid;place-items:center;font-size:var(--text-xs)}
+.step.on{border-color:var(--color-primary);color:var(--color-primary);background:var(--color-primary-weak);font-weight:600}
+.step.on .n{background:var(--color-primary);color:var(--color-on-primary)}
+.step.done{color:var(--color-success);border-color:var(--color-success)}
+.step.done .n{background:var(--color-success);color:var(--color-on-primary)}
+.flecha{color:var(--color-text-subtle)}
+.fgrid{display:grid;grid-template-columns:300px 1fr 300px;gap:var(--space-4)}
+@media (max-width:980px){.fgrid{grid-template-columns:1fr}}
+.fcol h5{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-subtle);margin-bottom:var(--space-3)}
+.dispara{list-style:none}
+.dispara li{display:flex;gap:var(--space-3);padding:var(--space-3);border:1px solid var(--color-border);
+  border-radius:var(--radius-md);margin-bottom:var(--space-2);font-size:var(--text-sm);background:var(--color-surface)}
+.dispara .ic{flex:none;width:28px;height:28px;border-radius:var(--radius-md);display:grid;place-items:center;font-size:14px}
+.dispara .ic.auto{background:var(--color-primary-weak);color:var(--color-primary)}
+.dispara .ic.luci{background:var(--color-warning-weak);color:var(--color-warning)}
+.dispara .quien{font-size:var(--text-xs);color:var(--color-text-subtle)}
+.dispara code{color:var(--color-info);font-size:var(--text-xs)}
+.sheetrow{display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--space-3);align-items:center;
+  background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  padding:var(--space-3);font-size:var(--text-sm);margin-top:var(--space-2)}
+.sheetrow.prop{opacity:.65}
+.sheetrow .st{font-size:var(--text-xs);padding:2px 8px;border-radius:var(--radius-sm)}
+.sheetrow .st.p{background:var(--color-warning-weak);color:var(--color-warning)}
+.sheetrow .st.a{background:var(--color-success-weak);color:var(--color-success)}
+.fnav{display:flex;gap:var(--space-3);justify-content:center;margin-top:var(--space-6)}
+.mtile.big .v{font-size:var(--text-xl)}
+.delta{font-size:var(--text-xs);color:var(--color-success);font-weight:600}
+.ej{font-size:var(--text-xs);color:var(--color-warning)}
+.toast{position:fixed;bottom:var(--space-5);left:50%;transform:translateX(-50%);background:var(--color-surface-2);
+  border:1px solid var(--color-border-strong);border-radius:var(--radius-md);padding:var(--space-3) var(--space-5);
+  font-size:var(--text-sm);box-shadow:var(--shadow-lg);display:none;z-index:120}
+.toast.on{display:block}
+</style>
+</head>
+<body>
+
+<header class="mq-bar">
+  <span class="tag">Maqueta · datos de ejemplo</span>
+  <h1>CRM Pipeline — Satori OS</h1>
+  <nav class="mq-tabs" aria-label="Vistas de la maqueta">
+    <button class="mq-tab on" data-v="v1">① CRM en el OS</button>
+    <button class="mq-tab" data-v="v2">② Móvil · PWA</button>
+    <button class="mq-tab" data-v="v3">③ Flujo piloto → firma</button>
+  </nav>
+  <p class="mq-note">Cartera real v2 (11-ago) en nombres y etapas · el único monto real es la propuesta Vehemence USD 250 · todo otro número lleva la marca <span class="ej">[EJEMPLO]</span>. Nada de esto escribe en el MAESTRO: es navegable en memoria.</p>
+</header>
+
+<!-- ═══════════ VISTA 1 · CRM EMBEBIDO EN EL OS ═══════════ -->
+<section class="vista on" id="v1">
+  <div class="os-chrome">
+    <div class="os-head">
+      <div class="os-logo">S</div>
+      <span class="t">Satori OS</span>
+      <span class="crumbs">Centro de Mando › <strong style="color:var(--color-text)">Cartera</strong></span>
+      <div class="sp">
+        <span class="os-chip">☀ mi día</span>
+        <span class="os-chip">🜂 Sato</span>
+        <span class="os-chip jade">◉ Cartera</span>
+        <span class="os-chip">⌂ HQ</span>
+      </div>
+    </div>
+    <div class="crm-top">
+      <div>
+        <h2>Pipeline comercial</h2>
+        <p class="sub">La vista renderiza <code>etapa_comercial</code> del roster — sin hoja nueva (regla multi-vista B4). Click en una card abre su Ficha 360, solapa Comercial.</p>
+      </div>
+      <div class="crm-metrics">
+        <div class="mtile"><div class="k">Retenciones formalizadas</div><div class="v num" id="v1met1">3 <small>de 6 (North Star)</small></div></div>
+        <div class="mtile"><div class="k">Ingresos recurrentes / mes</div><div class="v num" id="v1met2">— <small>€ · <span class="ej">completa recurrentes_propios</span></small></div></div>
+        <div class="mtile"><div class="k">Próx. acciones vencidas</div><div class="v num" style="color:var(--color-danger)" id="v1met3">2</div></div>
+      </div>
+    </div>
+    <div class="kanban" id="kanban" aria-label="Pipeline por etapas"></div>
+  </div>
+</section>
+
+<!-- ═══════════ VISTA 2 · MÓVIL / PWA ═══════════ -->
+<section class="vista" id="v2">
+  <div class="mov-wrap">
+    <div class="iphone" aria-label="Vista en iPhone">
+      <div class="pantalla">
+        <div class="isla"></div>
+        <div class="m-head">
+          <h3>Cartera</h3>
+          <p class="sub">6 activos · 12 tibios · 2 acciones vencidas</p>
+        </div>
+        <div class="m-chips" id="mChips" role="tablist" aria-label="Filtrar por etapa"></div>
+        <div class="m-lista" id="mLista"></div>
+        <div class="m-tabbar" aria-label="Navegación del OS móvil">
+          <button><span class="ic">☀</span>Hoy</button>
+          <button class="on"><span class="ic">◉</span>Cartera</button>
+          <button><span class="ic">🜂</span>Sato</button>
+          <button><span class="ic">⌂</span>HQ</button>
+        </div>
+        <div class="m-sheet" id="mSheet" role="dialog" aria-label="Acciones del cliente">
+          <div class="asa"></div>
+          <h4 id="msNombre">—</h4>
+          <p class="sub" id="msSub">—</p>
+          <button class="btn pri" id="msDossier">📄 Ver dossier de reunión</button>
+          <button class="btn">✏️ Editar próxima acción</button>
+          <button class="btn">→ Mover de etapa</button>
+          <button class="btn" id="msCerrar">Cerrar</button>
+        </div>
+      </div>
+    </div>
+    <aside class="m-side">
+      <h3>Pensada para la calle, no un desktop encogido</h3>
+      <ul>
+        <li><span class="pt">◆</span><span><strong>Lista vertical por etapa</strong>, no kanban: en 393px el kanban obliga a scroll horizontal ciego. Chips arriba filtran la etapa; la lista muestra una card por cliente con lo que necesitás antes de entrar a la reunión.</span></li>
+        <li><span class="pt">◆</span><span><strong>Tap en la card → hoja de acciones</strong> (bottom sheet, targets ≥48px): dossier, editar próxima acción, mover etapa. Lo que hacés parado en la vereda, con una mano.</span></li>
+        <li><span class="pt">◆</span><span><strong>El dossier primero</strong>: es el botón primario porque el caso de uso real es "estoy por entrar a ver a Tato y Guille — ¿qué les ofrezco, qué hablamos la última vez, qué números llevo?".</span></li>
+        <li><span class="pt">◆</span><span><strong>Vencidas arriba</strong>: la lista ordena por fecha de próxima acción; lo vencido pinta en rojo y sube. Mismo dato que la línea del brief (<code style="color:var(--color-info)">_carteraLineasBrief_</code>), misma fuente.</span></li>
+        <li><span class="pt">◆</span><span><strong>Cómo llega al teléfono</strong>: misma página <code style="color:var(--color-info)">index.html</code> del OS (ya tiene 30 media queries de la tanda UI-MOVIL) — el CRM móvil es CSS sobre la misma vista, o la PWA existente. Cero código nuevo de plataforma.</span></li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<!-- ═══════════ VISTA 3 · FLUJO PILOTO → PROPUESTA → FIRMA ═══════════ -->
+<section class="vista" id="v3">
+  <div class="flujo">
+    <div class="stepper" id="stepper">
+      <button class="step on" data-s="0"><span class="n">1</span> Piloto</button>
+      <span class="flecha">→</span>
+      <button class="step" data-s="1"><span class="n">2</span> Propuesta presentada</button>
+      <span class="flecha">→</span>
+      <button class="step" data-s="2"><span class="n">3</span> Acuerdo firmado</button>
+    </div>
+    <div class="fgrid">
+      <div class="fcol">
+        <h5>La card en la Cartera</h5>
+        <div id="fCard"></div>
+        <h5 style="margin-top:var(--space-5)">Hoja <code style="color:var(--color-info)">recurrentes_propios</code> (HQ)</h5>
+        <div id="fSheet"></div>
+      </div>
+      <div class="fcol">
+        <h5>Qué pasa en el OS en este salto</h5>
+        <ul class="dispara" id="fDispara"></ul>
+        <p class="nota-back" id="fNota"></p>
+      </div>
+      <div class="fcol">
+        <h5>Métricas North Star</h5>
+        <div class="mtile big" style="margin-bottom:var(--space-3)">
+          <div class="k">retenciones_formalizadas</div>
+          <div class="v num" id="fMet1">—</div>
+          <div class="delta" id="fDelta1"></div>
+        </div>
+        <div class="mtile big">
+          <div class="k">ingresos_recurrentes_mes</div>
+          <div class="v num" id="fMet2">—</div>
+          <div class="delta" id="fDelta2"></div>
+        </div>
+        <p class="nota-back" style="margin-top:var(--space-4)">Las dos métricas viven en Config (<code>ns_satori_metricas</code>) y el HQ ya suma <code>recurrentes_propios</code> por moneda, sin total global. El CRM no crea una métrica nueva: <strong style="color:var(--color-text)">alimenta las que ya existen</strong>.</p>
+      </div>
+    </div>
+    <div class="fnav">
+      <button class="btn" id="fPrev">‹ Anterior</button>
+      <button class="btn pri" id="fNext">Siguiente ›</button>
+    </div>
+  </div>
+</section>
+
+<!-- Ficha 360 overlay -->
+<div class="scrim" id="scrim"></div>
+<div class="f360" id="f360" role="dialog" aria-modal="true" aria-label="Ficha 360">
+  <div class="f360-head">
+    <div class="logo" id="fhLogo">V</div>
+    <div>
+      <h3 id="fhNombre">—</h3>
+      <p class="est" id="fhEst">—</p>
+    </div>
+    <button class="f360-x" id="f360x" aria-label="Cerrar ficha">✕</button>
+  </div>
+  <div class="f360-tabs">
+    <button class="f360-tab">Resumen</button>
+    <button class="f360-tab">Números</button>
+    <button class="f360-tab">Próximos pasos</button>
+    <button class="f360-tab">Hilo</button>
+    <button class="f360-tab on">Comercial <span style="font-size:.7em;color:var(--color-warning)">● NUEVA</span></button>
+  </div>
+  <div class="f360-body" id="f360body"></div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ── DATOS DE LA MAQUETA — cartera v2 real (11-ago) · montos [EJEMPLO] salvo Vehemence ── */
+var HOY='2026-08-24';
+var CARTERA=[
+ {id:'CLI-002',n:'Vehemence',etapa:'activo',svc:'S2 + S4 · e-comm',px:'Cerrar propuesta USD 250',pxf:'2026-08-27',desde:'2026-08-11',sheet:true,prop:{txt:'USD 250/mes · propuesta',cls:'prop'},resp:'Micaela'},
+ {id:'CLI-003',n:'LC Travel',etapa:'activo',svc:'S2 · SGIC completo',px:'Formalizar retención (ya es de facto)',pxf:'',desde:'2026-08-11',sheet:true,prop:{txt:'sin propuesta aún',cls:''},resp:'Lucas'},
+ {id:'CLI-004',n:'DAM Barbers',etapa:'activo',svc:'S1 → S2 · Fresha',px:'',pxf:'',desde:'2026-08-11',sheet:true,resp:'Alex'},
+ {id:'CLI-007',n:'EJF + Figueras Music',etapa:'activo',svc:'S1/S3 · caso atípico',px:'Definir encaje',pxf:'',desde:'2026-08-11',sheet:true,resp:'Elías'},
+ {id:'CLI-001',n:'MesaQuince',etapa:'tibio',svc:'SGIC solo',px:'Esperando respuesta por SGIC',pxf:'2026-08-20',desde:'2026-08-11',sheet:true,resp:'—'},
+ {id:'CLI-005',n:'SIP Coffee',etapa:'tibio',svc:'SGIC + consultoría',px:'Agendar reunión pendiente',pxf:'2026-08-22',desde:'2026-08-11',sheet:true,resp:'—'},
+ {id:'CLI-008',n:'Pipol Coffee',etapa:'tibio',svc:'SGIC + consultoría + Web',px:'Ofrecer — contacto inicial',pxf:'2026-08-29',desde:'2026-08-11',sheet:false,resp:'Tato y Guille'},
+ {id:'CLI-009',n:'Nook Coffee',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-010',n:'Pol Train',etapa:'tibio',svc:'App + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-011',n:'Alejandro Bono Seguros',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-012',n:'Crocante',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false,resp:'Daniel'},
+ {id:'CLI-013',n:'Raro Coffee',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-014',n:'Café Sando',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-015',n:'Couleur Café',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false,resp:'Mohamed'},
+ {id:'CLI-016',n:'Oxaca Badalona',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-017',n:'Tech Log',etapa:'frio',svc:'Consultoría (± SGIC)',px:'',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-018',n:'Galgo',etapa:'frio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-019',n:'Maravillas P. y Minerales',etapa:'frio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-020',n:'Activarte Barcelona',etapa:'frio',svc:'App + SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false},
+ {id:'CLI-021',n:'Constructora Tullio CBA',etapa:'frio',svc:'SGIC + Web · AR ⚠ moneda',px:'',pxf:'',desde:'2026-08-11',sheet:false}
+];
+var ETAPAS=['frio','tibio','caliente','activo','en_pausa','perdido'];
+var ETIQ={frio:'Frío',tibio:'Tibio',caliente:'Caliente',activo:'Activo',en_pausa:'En pausa',perdido:'Perdido'};
+
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function dias(a,b){var pa=a.split('-'),pb=b.split('-');return Math.round((Date.UTC(+pb[0],+pb[1]-1,+pb[2])-Date.UTC(+pa[0],+pa[1]-1,+pa[2]))/864e5)}
+function toast(t){var o=document.getElementById('toast');o.textContent=t;o.classList.add('on');clearTimeout(o._t);o._t=setTimeout(function(){o.classList.remove('on')},2600)}
+
+/* ── tabs de la maqueta ── */
+document.querySelectorAll('.mq-tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.mq-tab').forEach(function(x){x.classList.remove('on')});
+    document.querySelectorAll('.vista').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');document.getElementById(b.dataset.v).classList.add('on');
+  });
+});
+
+/* ── VISTA 1 · kanban ── */
+function cardEl(c,compact){
+  var d=el('button','card');
+  d.setAttribute('aria-label','Abrir Ficha 360 de '+c.n);
+  var top=el('div','top');
+  top.appendChild(el('div','logo',c.n.charAt(0)));
+  var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id));top.appendChild(nm);
+  d.appendChild(top);
+  var bs=el('div','badges');
+  if(c.svc)bs.appendChild(el('span','bg svc',c.svc));
+  if(c.prop&&c.prop.cls)bs.appendChild(el('span','bg '+c.prop.cls,c.prop.txt));
+  if(!c.sheet&&(c.etapa==='caliente'||c.etapa==='activo'))bs.appendChild(el('span','bg falta','sin Sheet'));
+  d.appendChild(bs);
+  if(c.px)d.appendChild(el('div','px','→ '+c.px));
+  var meta=el('div','meta');
+  if(c.pxf){var v=c.pxf<HOY;meta.appendChild(el('span',v?'venc':null,(v?'⚠ vencía ':'para el ')+c.pxf))}
+  if(c.desde)meta.appendChild(el('span',null,dias(c.desde,HOY)+' días en '+ETIQ[c.etapa].toLowerCase()));
+  d.appendChild(meta);
+  d.addEventListener('click',function(){fichaAbrir(c)});
+  return d;
+}
+(function(){
+  var k=document.getElementById('kanban');
+  ETAPAS.forEach(function(e){
+    var col=el('div','kcol');col.dataset.etapa=e;
+    var cs=CARTERA.filter(function(c){return c.etapa===e});
+    var h=el('h6');h.appendChild(el('span','dot'));h.appendChild(document.createTextNode(ETIQ[e]));h.appendChild(el('span','n',String(cs.length)));
+    col.appendChild(h);
+    if(!cs.length)col.appendChild(el('div','kvacia','—'));
+    cs.forEach(function(c){col.appendChild(cardEl(c))});
+    k.appendChild(col);
+  });
+})();
+
+/* ── Ficha 360 · solapa Comercial ── */
+function fichaAbrir(c){
+  document.getElementById('fhLogo').textContent=c.n.charAt(0);
+  document.getElementById('fhNombre').textContent=c.n+' · '+c.id;
+  document.getElementById('fhEst').textContent='estado: '+(c.etapa==='activo'?'activo':'potencial')+' · etapa comercial: '+ETIQ[c.etapa]+(c.resp?' · '+c.resp:'');
+  var b=document.getElementById('f360body');b.innerHTML='';
+
+  var s1=el('div','sec');s1.appendChild(el('h5','', 'Oportunidad'));
+  var f2=el('div','fila2');
+  var p1=el('div','panelbox');
+  [['Servicio a ofrecer',c.svc||'—'],
+   ['Etapa KAIROS','Etapa 4 · Propuesta (mapea dentro de '+ETIQ[c.etapa].toLowerCase()+')'],
+   ['Propuesta viva',(c.prop&&c.prop.cls)?c.prop.txt:'ninguna'],
+   ['Días en etapa',dias(c.desde,HOY)+' días']
+  ].forEach(function(kv){var r=el('div','kv');r.appendChild(el('span','k',kv[0]));r.appendChild(el('span','num',kv[1]));p1.appendChild(r)});
+  var p2=el('div','panelbox');
+  p2.appendChild(el('h5','', 'Próxima acción'));
+  p2.appendChild(el('div',null,c.px||'(sin próxima acción)'));
+  var er=el('div','editrow');
+  var inp=el('input');inp.value=c.px||'';inp.setAttribute('aria-label','Editar próxima acción');
+  var ok=el('button','btn pri','Guardar');
+  ok.addEventListener('click',function(){c.px=inp.value;toast('Próxima acción guardada → carteraProxAccion() escribiría la celda del roster');});
+  er.appendChild(inp);er.appendChild(ok);p2.appendChild(er);
+  if(c.pxf)p2.appendChild(el('div','nota-back','Fecha: '+c.pxf+(c.pxf<HOY?' — VENCIDA (esta línea ya sale en el brief)':'')));
+  f2.appendChild(p1);f2.appendChild(p2);s1.appendChild(f2);b.appendChild(s1);
+
+  var s2=el('div','sec');s2.appendChild(el('h5','', 'Historial comercial (hoja Actividad, filtrada — ya existe)'));
+  var pb=el('div','panelbox');var ul=el('ul','hist');
+  [['11-ago','Seed cartera v2: etapa '+ETIQ[c.etapa].toLowerCase()+' · próx. acción sembrada'],
+   ['—','(cada moverEtapaComercial deja acá su línea: de → a, con fecha)']
+  ].forEach(function(h){var li=el('li');li.appendChild(el('span','f',h[0]));li.appendChild(el('span',null,h[1]));ul.appendChild(li)});
+  pb.appendChild(ul);s2.appendChild(pb);b.appendChild(s2);
+
+  var s3=el('div','sec');s3.appendChild(el('h5','', 'Acciones'));
+  var ac=el('div','acc');
+  [['📄 Dossier de reunión','pri'],['→ Registrar propuesta',''],['✓ Marcar firmada',''],['🜂 Preguntarle a Sato','']].forEach(function(a){
+    var bt=el('button','btn '+a[1],a[0]);
+    bt.addEventListener('click',function(){toast(a[0]+' — en el build real: endpoint gateado (_soloOwner_ + ENDPOINTS_UI)')});
+    ac.appendChild(bt);
+  });
+  s3.appendChild(ac);
+  s3.appendChild(el('p','nota-back','Backend real: la solapa lee lo que carteraPipeline() ya devuelve + Actividad filtrada por id. Escrituras nuevas: carteraProxAccion() y el par propuestaRegistrar()/propuestaFirmar() sobre recurrentes_propios. Aislamiento: todo anclado a '+c.id+' — nada de otro cliente entra a esta vista.'));
+  b.appendChild(s3);
+
+  document.getElementById('scrim').classList.add('on');
+  document.getElementById('f360').classList.add('on');
+}
+function fichaCerrar(){document.getElementById('scrim').classList.remove('on');document.getElementById('f360').classList.remove('on')}
+document.getElementById('f360x').addEventListener('click',fichaCerrar);
+document.getElementById('scrim').addEventListener('click',fichaCerrar);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')fichaCerrar()});
+
+/* ── VISTA 2 · móvil ── */
+var mEtapa='tibio';
+function mRender(){
+  var ch=document.getElementById('mChips');ch.innerHTML='';
+  ETAPAS.filter(function(e){return CARTERA.some(function(c){return c.etapa===e})}).forEach(function(e){
+    var n=CARTERA.filter(function(c){return c.etapa===e}).length;
+    var b=el('button','m-chip'+(e===mEtapa?' on':''));b.setAttribute('role','tab');
+    b.appendChild(document.createTextNode(ETIQ[e]));b.appendChild(el('span','n','('+n+')'));
+    b.addEventListener('click',function(){mEtapa=e;mRender()});
+    ch.appendChild(b);
+  });
+  var ls=document.getElementById('mLista');ls.innerHTML='';
+  CARTERA.filter(function(c){return c.etapa===mEtapa})
+    .sort(function(a,b){return (a.pxf||'9999')<(b.pxf||'9999')?-1:1})
+    .forEach(function(c){
+      var d=el('button','m-card');
+      var top=el('div','top');top.appendChild(el('div','logo',c.n.charAt(0)));
+      var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id+(c.svc?' · '+c.svc:'')));top.appendChild(nm);
+      d.appendChild(top);
+      if(c.px)d.appendChild(el('div','px','→ '+c.px));
+      var meta=el('div','meta');
+      if(c.pxf){var v=c.pxf<HOY;var s=el('span',null,(v?'⚠ vencía ':'para el ')+c.pxf);if(v){s.style.color='var(--color-danger)';s.style.fontWeight='600'}meta.appendChild(s)}
+      meta.appendChild(el('span',null,dias(c.desde,HOY)+' días en etapa'));
+      d.appendChild(meta);
+      d.addEventListener('click',function(){
+        document.getElementById('msNombre').textContent=c.n;
+        document.getElementById('msSub').textContent=c.id+' · '+ETIQ[c.etapa]+(c.svc?' · '+c.svc:'');
+        document.getElementById('mSheet').classList.add('on');
+      });
+      ls.appendChild(d);
+    });
+}
+document.getElementById('msCerrar').addEventListener('click',function(){document.getElementById('mSheet').classList.remove('on')});
+document.getElementById('msDossier').addEventListener('click',function(){toast('Dossier: brief del cliente + últimos números del conector + Hilo — lo arma el OS con datos reales, jamás inventados')});
+mRender();
+
+/* ── VISTA 3 · flujo Vehemence ── */
+var PASOS=[
+ {card:{etapa:'activo',badge:{txt:'piloto desde junio',cls:'prop'},px:'Presentar propuesta de retención',pxf:'2026-08-27'},
+  sheet:null,
+  met:['3 de 6','—'],delta:['',''],
+  dispara:[
+   ['luci','Luciano','Presenta la propuesta en la reunión (Etapa 4 KAIROS: reflejo + costo de no hacer nada + opciones + fecha). El precio siempre lo aprueba él antes.'],
+   ['auto','El OS','El dossier de la reunión sale de la Ficha 360: números del conector de ventas de Vehemence + Hilo + piloto. Datos reales, cero inventados.'],
+   ['auto','El OS','La card marca el riesgo que ya detectó el pre-mortem de F3: «piloto eterno» — piloto sin fecha de conversión es dependencia regalada (valor #5).']
+  ],
+  nota:'Estado actual real: Vehemence es activo-piloto desde junio, con la propuesta USD 250 en curso (memoria 11-ago). Este paso es HOY.'},
+ {card:{etapa:'activo',badge:{txt:'USD 250/mes · propuesta',cls:'prop'},px:'Seguimiento propuesta — respuesta Micaela',pxf:'2026-09-03'},
+  sheet:{st:'p',stTxt:'propuesta',imp:'USD 250'},
+  met:['3 de 6','—'],delta:['','propuesta NO suma (atenuada en HQ)'],
+  dispara:[
+   ['luci','Luciano','Un tap en la card: «Registrar propuesta» → servicio S2, importe 250, moneda USD.'],
+   ['auto','El OS','propuestaRegistrar() crea la fila en recurrentes_propios con estado=propuesta. La hoja YA existe (E3 HQ, certificada) — el CRM no inventa una nueva.'],
+   ['auto','El OS','El HQ (solapa Números) la muestra ATENUADA: una propuesta no es ingreso (regla E3: estado=propuesta no suma). El movimiento queda en Actividad con fecha.'],
+   ['auto','El OS','La próxima acción cambia sola de foco: de «presentar» a «seguir» — con fecha. Si vence, el brief lo canta.']
+  ],
+  nota:'Regla de honestidad que ya está en el código: dos monedas no se suman y una propuesta no es un ingreso. El CRM hereda ambas, no las re-implementa.'},
+ {card:{etapa:'activo',badge:{txt:'✓ retención firmada · USD 250/mes',cls:'firm'},px:'Sesión de arranque (≤7 días — Etapa 5 KAIROS)',pxf:'2026-09-10'},
+  sheet:{st:'a',stTxt:'activo',imp:'USD 250'},
+  met:['4 de 6','USD 250/mes'],delta:['+1 retención formalizada','entra al subtotal USD del HQ'],
+  dispara:[
+   ['luci','Luciano','Micaela firma. Un tap: «Marcar firmada» + fecha.'],
+   ['auto','El OS','propuestaFirmar() pasa la fila a estado=activo → hqNumeros la suma al subtotal USD (sin total global mezclando monedas). retenciones_formalizadas +1.'],
+   ['auto','El OS','Actividad registra la conversión con fecha (piloto → pago: 2 meses de piloto quedan medidos). El brief de mañana abre con la noticia.'],
+   ['auto','El OS','Gate KAIROS Etapa 5: propone la tarea «sesión de arranque ≤7 días» en el CM. El piloto deja de ser piloto: aviso para actualizar el acuerdo en el Hilo.'],
+   ['luci','Luciano','Nada se automatiza de más: mover etapa, registrar y firmar son SIEMPRE decisiones suyas. El OS muestra, Luciano mueve (doctrina E1).']
+  ],
+  nota:'El lazo completo North Star: una conversación → una fila que cambia de estado → las DOS métricas del sistema se mueven solas, medidas en el OS, no en un Excel aparte.'}
+];
+var pIx=0;
+function fRender(){
+  document.querySelectorAll('#stepper .step').forEach(function(s,i){
+    s.classList.toggle('on',i===pIx);s.classList.toggle('done',i<pIx);
+  });
+  var p=PASOS[pIx];
+  var fc=document.getElementById('fCard');fc.innerHTML='';
+  var c={id:'CLI-002',n:'Vehemence',etapa:p.card.etapa,svc:'S2 + S4 · e-comm',px:p.card.px,pxf:p.card.pxf,desde:'2026-08-11',sheet:true,prop:p.card.badge,resp:'Micaela'};
+  fc.appendChild(cardEl(c));
+  var fs=document.getElementById('fSheet');fs.innerHTML='';
+  if(p.sheet){
+    var r=el('div','sheetrow'+(p.sheet.st==='p'?' prop':''));
+    r.appendChild(el('span','id','CLI-002'));
+    r.appendChild(el('span',null,'S2 Dirección Admin'));
+    r.appendChild(el('span','num',p.sheet.imp));
+    r.appendChild(el('span','st '+p.sheet.st,p.sheet.stTxt));
+    fs.appendChild(r);
+  } else fs.appendChild(el('div','kvacia','(sin fila todavía — la propuesta aún no se registró)'));
+  var ul=document.getElementById('fDispara');ul.innerHTML='';
+  p.dispara.forEach(function(d){
+    var li=el('li');
+    li.appendChild(el('span','ic '+d[0],d[0]==='auto'?'⚙':'👤'));
+    var tx=el('div');tx.appendChild(el('div','quien',d[1]));
+    var body=el('div');body.innerHTML=d[2].replace(/(propuestaRegistrar\(\)|propuestaFirmar\(\)|recurrentes_propios|hqNumeros|estado=propuesta|estado=activo|retenciones_formalizadas|Actividad)/g,'<code>$1</code>');
+    tx.appendChild(body);li.appendChild(tx);ul.appendChild(li);
+  });
+  document.getElementById('fNota').textContent=p.nota;
+  document.getElementById('fMet1').textContent=p.met[0];
+  document.getElementById('fMet2').textContent=p.met[1];
+  document.getElementById('fDelta1').textContent=p.delta[0];
+  document.getElementById('fDelta2').textContent=p.delta[1];
+  document.getElementById('fPrev').disabled=pIx===0;
+  document.getElementById('fNext').textContent=pIx===2?'Fin del flujo':'Siguiente ›';
+}
+document.getElementById('fPrev').addEventListener('click',function(){if(pIx>0){pIx--;fRender()}});
+document.getElementById('fNext').addEventListener('click',function(){if(pIx<2){pIx++;fRender()}});
+document.querySelectorAll('#stepper .step').forEach(function(s){s.addEventListener('click',function(){pIx=+s.dataset.s;fRender()})});
+fRender();
+</script>
+</body>
+</html>

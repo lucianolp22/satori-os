@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Satori OS vs TheFounderOS — Benchmark v2 (post-video)</title>
+<style>
+  :root{
+    --bg:#12151a; --surface:#1a1f27; --surface-2:#222a34; --line:#2c343f;
+    --text:#e7eaef; --muted:#9aa4b2; --faint:#6b7480;
+    --accent:#35c9a3; --accent-soft:#1d3b35; --accent-ink:#0b1512;
+    --warn:#e0a23c; --danger:#e0645f; --good:#35c9a3; --violet:#8f7be0;
+    --sp1:4px; --sp2:8px; --sp3:12px; --sp4:16px; --sp5:24px; --sp6:32px; --sp7:48px;
+    --radius:10px; --radius-sm:7px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
+    font-size:15px;line-height:1.55;letter-spacing:.1px;
+    background-image:radial-gradient(60% 45% at 82% -5%, rgba(53,201,163,.10), transparent 70%);
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:var(--sp6) var(--sp5) var(--sp7)}
+  .num{font-variant-numeric:tabular-nums}
+  h1,h2,h3{margin:0;line-height:1.2;font-weight:650}
+  h1{font-size:26px;letter-spacing:-.3px}
+  h2{font-size:18px;letter-spacing:-.1px;margin-bottom:var(--sp4)}
+  a{color:var(--accent);text-decoration:none}
+
+  header{display:flex;flex-wrap:wrap;gap:var(--sp4);align-items:flex-end;justify-content:space-between;
+    padding-bottom:var(--sp5);border-bottom:1px solid var(--line);margin-bottom:var(--sp6)}
+  .brandline{display:flex;align-items:center;gap:var(--sp3);color:var(--muted);font-size:13px;margin-bottom:var(--sp3)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .sub{color:var(--muted);font-size:14px;margin-top:var(--sp2);max-width:64ch}
+  .chips{display:flex;flex-wrap:wrap;gap:var(--sp2)}
+  .chip{font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+    padding:var(--sp1) var(--sp3);border-radius:100px}
+  .chip b{color:var(--text);font-weight:600}
+
+  .sec{display:flex;gap:var(--sp3);align-items:flex-start;background:var(--surface);
+    border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:var(--radius);
+    padding:var(--sp4);margin-bottom:var(--sp6)}
+  .sec .ico{color:var(--warn);font-size:18px;line-height:1.2}
+  .sec p{margin:0;font-size:13.5px;color:var(--muted)}
+  .sec b{color:var(--text)}
+  .sec.new{border-left-color:var(--accent)}
+  .sec.new .ico{color:var(--accent)}
+
+  section{margin-bottom:var(--sp7)}
+  .eyebrow{font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:var(--sp2)}
+
+  .grid{display:grid;gap:var(--sp3)}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--sp4)}
+  .card h3{font-size:14px;margin-bottom:var(--sp2)}
+  .card .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.8px}
+  .card p{margin:var(--sp2) 0 0;font-size:13px;color:var(--muted)}
+  .card p b{color:var(--text)}
+
+  /* Hierarchy tree */
+  .tree{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--sp5)}
+  .tier{display:flex;flex-direction:column;align-items:center;gap:var(--sp2)}
+  .box{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+    padding:var(--sp2) var(--sp4);text-align:center;font-size:13px}
+  .box .role{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--faint);display:block}
+  .box.op{border-color:var(--accent)}
+  .box.cond{border-color:var(--violet);background:linear-gradient(180deg,rgba(143,123,224,.12),transparent)}
+  .box .tools{font-family:var(--mono);font-size:10.5px;color:var(--accent);margin-top:3px}
+  .conn{width:1px;height:16px;background:var(--line)}
+  .crews{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp2);margin-top:var(--sp2)}
+  .crew{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:var(--sp3)}
+  .crew h4{margin:0 0 var(--sp2);font-size:12px;color:var(--text)}
+  .crew .dep{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--violet);display:block;margin-bottom:2px}
+  .crew ul{margin:0;padding-left:14px;font-size:11.5px;color:var(--muted);line-height:1.5}
+  .crew .mcp{color:var(--accent)}
+
+  /* Brain motif */
+  .brainwrap{display:grid;grid-template-columns:1.1fr .9fr;gap:var(--sp5);align-items:center;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--sp5)}
+  .brainwrap p{margin:var(--sp2) 0 0;color:var(--muted);font-size:13.5px}
+  .brainwrap p b{color:var(--text)}
+  svg .edge{stroke:var(--line);stroke-width:1}
+  svg .node{fill:var(--surface-2);stroke:var(--faint);stroke-width:1}
+  svg .node.hot{fill:var(--accent-soft);stroke:var(--accent)}
+  svg .lbl{fill:var(--muted);font-size:9px;font-family:var(--font)}
+  .ingest{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-soft);
+    border:1px dashed var(--accent);border-radius:6px;padding:6px 10px;display:inline-block;margin-top:var(--sp3)}
+
+  /* Tables */
+  .tablecard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:var(--sp3) var(--sp4);border-bottom:1px solid var(--line);vertical-align:top}
+  thead th{background:var(--surface-2);color:var(--muted);font-weight:600;
+    font-size:11px;letter-spacing:.8px;text-transform:uppercase}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--surface-2)}
+  td .cap{font-weight:600;color:var(--text)}
+  td .st{color:var(--muted);font-size:12.5px;display:block;margin-top:2px}
+  .old{color:var(--danger)}
+  .newv{color:var(--good)}
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px var(--sp2);border-radius:5px;white-space:nowrap}
+  .b-alto{background:rgba(224,100,95,.14);color:#f0938f}
+  .b-med{background:rgba(224,162,60,.14);color:#eab866}
+  .b-bajo{background:rgba(154,164,178,.14);color:var(--muted)}
+  .meter{display:flex;align-items:center;gap:var(--sp2)}
+  .bar{width:52px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;flex:none}
+  .bar span{display:block;height:100%;background:var(--accent)}
+
+  .prio{border:1px solid var(--accent);background:linear-gradient(180deg,var(--accent-soft),transparent 120%);
+    border-radius:var(--radius);padding:var(--sp4)}
+  .prio .n{font-size:22px;font-weight:700;color:var(--accent);line-height:1}
+  .prio h3{font-size:15px;margin:var(--sp2) 0}
+  .prio p{margin:0;font-size:13px;color:var(--muted)}
+
+  .road{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp3)}
+  .col h3{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:var(--sp3);
+    padding-bottom:var(--sp2);border-bottom:1px solid var(--line)}
+  .col.must h3{color:var(--accent)}
+  .item{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:var(--sp3);margin-bottom:var(--sp2)}
+  .item .top{display:flex;justify-content:space-between;align-items:center;gap:var(--sp2)}
+  .item .name{font-weight:600;font-size:13.5px}
+  .tshirt{font-size:11px;font-weight:700;color:var(--accent-ink);background:var(--accent);border-radius:4px;padding:1px 6px}
+  .item p{margin:var(--sp2) 0 0;font-size:12.5px;color:var(--muted)}
+
+  /* commercial strip */
+  .commerce{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp3)}
+  .cm{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--sp4)}
+  .cm .big{font-size:20px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums}
+  .cm h4{margin:var(--sp2) 0 var(--sp1);font-size:13px}
+  .cm p{margin:0;font-size:12.5px;color:var(--muted)}
+
+  .balance{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:var(--sp5)}
+  .balance ul{margin:var(--sp3) 0 0;padding-left:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:var(--sp2) var(--sp5)}
+  .balance li{font-size:13px;color:var(--muted);padding-left:20px;position:relative}
+  .balance li::before{content:"◆";position:absolute;left:0;color:var(--accent);font-size:10px;top:3px}
+
+  .modules{display:flex;flex-wrap:wrap;gap:var(--sp2)}
+  .modchip{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:5px;padding:3px 9px;color:var(--muted)}
+  .modchip.hot{color:var(--accent);border-color:var(--accent)}
+
+  footer{border-top:1px solid var(--line);padding-top:var(--sp4);margin-top:var(--sp6);color:var(--faint);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:var(--sp2)}
+
+  @media (max-width:820px){
+    .g4,.g3,.g2,.road,.brainwrap,.crews,.commerce{grid-template-columns:1fr}
+    .balance ul{grid-template-columns:1fr}
+    .hide-sm{display:none}
+    .wrap{padding:var(--sp5) var(--sp4) var(--sp6)}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    .node.hot{animation:pulse 3.2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brandline"><span class="dot"></span> SATORI OS · BENCHMARK <b style="color:var(--accent)">v2</b> · POST-VIDEO</div>
+      <h1>Satori&nbsp;OS &nbsp;vs&nbsp; TheFounderOS</h1>
+      <p class="sub">Revisión tras ver los 2 videos. El producto real de <b style="color:var(--text)">Bennett Spooner (BENNETT OS)</b> quedó a la vista: lo que antes era inferencia de marketing, ahora es captura verificada.</p>
+    </div>
+    <div class="chips">
+      <span class="chip"><b>Etapa 1.5</b> · Re-análisis</span>
+      <span class="chip">Fuente <b>video</b></span>
+      <span class="chip">01/08/2026</span>
+      <span class="chip">Confianza <b class="num">8/10</b></span>
+    </div>
+  </header>
+
+  <div class="sec new">
+    <span class="ico">✦</span>
+    <p><b>Qué se me pasó por alto en v1 —</b> v1 se armó solo con el copy público. Ahora: (1) es una instancia concreta, <b>BENNETT OS v3</b> de <b>Bennett Spooner</b>, no "Matt-Gray genérico"; (2) el reel <b>expone la app entera</b> (org chart, brain, funnel, finanzas) — ya no es "reservado a la cohorte"; (3) es mono-operador pero <b>multi-negocio</b>; (4) el brain es un <b>motor de ingesta + pgvector + destilado</b>, no un markdown plano; (5) el landing trae un <b>aparato comercial completo</b> (calculadora de costo, garantía, muro de testimonios).</p>
+  </div>
+
+  <div class="sec new">
+    <span class="ico">✓</span>
+    <p><b>Audio confirmado —</b> con la transcripción del reel: son <b>37 agentes en 6 departamentos</b> (Comunicaciones · Sales · Finanzas · Clientes · Marketing/Growth · Tech); el brain está construido sobre <b>GBrain</b>; el conductor es un <b>"Hermes harness"</b> que delega en los 37; y cada operación tiene un <b>SOP con skill-files descargables + etiqueta de autonomía (human-led / assisted / autonomous)</b> — que es, literalmente, tu <b>escalera de maduración</b>. Las personas se <b>precargan al bootear</b>.</p>
+  </div>
+
+  <!-- ARQUITECTURA REAL -->
+  <section>
+    <div class="eyebrow">Lo nuevo · verificado en el reel</div>
+    <h2>La arquitectura real — una "empresa de 37 agentes"</h2>
+    <div class="tree">
+      <div class="tier">
+        <div class="box op"><span class="role">Operator · humano</span>Bennett Spooner</div>
+        <div class="conn"></div>
+        <div class="box cond"><span class="role">Super-agente · AI Head · "Hermes harness"</span>CONDUCTOR<div class="tools">broadcast · openclaw · tmux</div><span class="role" style="margin-top:4px">delega en los 37 · runtime builtin local ("hasta que llegue la Mac mini")</span></div>
+      </div>
+      <div class="crews">
+        <div class="crew"><span class="dep">Marketing</span><h4>Marketing / Growth Crew</h4><ul><li>Social Agent <i>(builtin)</i></li><li>Arcade Crea… · Higgsfield</li><li class="mcp">ManyChat MCP</li><li>Reaction · Zernio Pub…</li></ul></div>
+        <div class="crew"><span class="dep">Knowledge</span><h4>Tech Crew</h4><ul><li>Data Agent <i>(G-Brain)</i></li><li>Stack Monitor <i>(builtin)</i></li><li>Markdown Auditor</li><li>Vector Auditor · Notion Sync</li><li class="mcp">Supabase · Zeroentropy</li></ul></div>
+        <div class="crew"><span class="dep">Finances</span><h4>Finances Crew</h4><ul><li>Payments Pulse <i>(builtin)</i></li><li>FanBasis · Processor…</li><li class="mcp">stripe · paypal · square</li></ul></div>
+        <div class="crew"><span class="dep">Comms</span><h4>Comms Feed + más</h4><ul><li class="mcp">Gmail·WhatsApp·Slack</li><li>Sales · Product</li><li>Operations · Research</li><li>Client Delivery</li></ul></div>
+      </div>
+      <p style="margin:var(--sp3) 0 0;font-size:12.5px;color:var(--muted)">Cada agente es un <b style="color:var(--text)">personaje con job description en 1ª persona</b>. Ej. real — <i>Markdown Auditor</i> = "knowledge-base janitor": <span style="color:var(--muted)">"notás links rotos solo cuando algo tira 404 frente a un cliente… camina cada archivo, puntúa cada folder, trackea los fixes hasta done."</span></p>
+      <p style="margin:var(--sp3) 0 0;font-size:12.5px;color:var(--text);border-top:1px solid var(--line);padding-top:var(--sp3)">➤ <b>El puente con Satori:</b> cada operación de los 6 deptos tiene un <b>SOP + skill-files descargables</b> y una etiqueta <span style="font-family:var(--mono);color:var(--accent)">human-led / assisted / autonomous</span> — que <b>es tu escalera de maduración</b> (nivel 0→3), pero visible y por-SOP.</p>
+    </div>
+    <div style="margin-top:var(--sp4)">
+      <div class="eyebrow" style="color:var(--muted)">Módulos de la app (sidebar verificado)</div>
+      <div class="modules">
+        <span class="modchip">Home</span><span class="modchip">Comms</span><span class="modchip">Feed</span><span class="modchip">Workflows</span><span class="modchip hot">Social</span><span class="modchip">Content</span><span class="modchip hot">Finances</span><span class="modchip">Agents</span><span class="modchip">Tasks</span><span class="modchip">Skills</span><span class="modchip hot">Org Chart</span><span class="modchip hot">Optimal Engine</span><span class="modchip">Doctor</span><span class="modchip">Connections</span><span class="modchip">Roadmap</span><span class="modchip">Analytics</span><span class="modchip">Reference Vault</span><span class="modchip hot">Personas</span><span class="modchip hot">Funnel</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- BRAIN -->
+  <section>
+    <div class="eyebrow">El gap que disparó el pedido · afinado</div>
+    <h2>El "Optimal Engine": un brain que se ve, se toca… y digiere</h2>
+    <div class="brainwrap">
+      <svg viewBox="0 0 320 200" width="100%" height="auto" role="img" aria-label="Grafo de nodos del cerebro visual">
+        <line class="edge" x1="160" y1="100" x2="70" y2="45"/>
+        <line class="edge" x1="160" y1="100" x2="60" y2="140"/>
+        <line class="edge" x1="160" y1="100" x2="250" y2="55"/>
+        <line class="edge" x1="160" y1="100" x2="255" y2="150"/>
+        <line class="edge" x1="160" y1="100" x2="150" y2="30"/>
+        <line class="edge" x1="70" y1="45" x2="150" y2="30"/>
+        <line class="edge" x1="250" y1="55" x2="255" y2="150"/>
+        <line class="edge" x1="60" y1="140" x2="130" y2="175"/>
+        <line class="edge" x1="255" y1="150" x2="130" y2="175"/>
+        <circle class="node hot" cx="160" cy="100" r="14"/>
+        <circle class="node" cx="70" cy="45" r="8"/>
+        <circle class="node" cx="60" cy="140" r="8"/>
+        <circle class="node" cx="250" cy="55" r="9"/>
+        <circle class="node" cx="255" cy="150" r="8"/>
+        <circle class="node" cx="150" cy="30" r="6"/>
+        <circle class="node" cx="130" cy="175" r="6"/>
+        <text class="lbl" x="160" y="130" text-anchor="middle">Financial Model</text>
+        <text class="lbl" x="70" y="30" text-anchor="middle">Sales</text>
+        <text class="lbl" x="250" y="40" text-anchor="middle">Finances</text>
+        <text class="lbl" x="255" y="172" text-anchor="middle">Clients</text>
+        <text class="lbl" x="60" y="160" text-anchor="middle">Tech</text>
+      </svg>
+      <div>
+        <h3>En FounderOS</h3>
+        <p>Construido sobre <b>GBrain</b>. Grafo radial de nodos clickeables + barra de ingesta. Store <b>markdown + pgvector + bóveda Obsidian</b>, destilado en <b>8 folders / 8 clusters / notas</b>. Va <b>embebido en vivo en el hero del landing</b>.</p>
+        <span class="ingest">dump into the brain… (text · voice · drag · upload)</span>
+        <h3 style="margin-top:var(--sp4)">En Satori hoy</h3>
+        <p><b>_cerebro/</b> ya tiene ingesta (captura-cerebro) + wikilinks. Falta <b>el grafo visual</b> y <b>la capa semántica</b> (embeddings/pgvector + destilado). No es el contenido lo que falta — es la cara y el motor.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CORRECCIONES -->
+  <section>
+    <div class="eyebrow">v1 → v2 · lo que corregí</div>
+    <h2>Correcciones al análisis anterior</h2>
+    <div class="tablecard">
+      <table>
+        <thead><tr><th style="width:22%">Tema</th><th class="hide-sm" style="width:30%">v1 decía</th><th>La verdad (video)</th><th>Conf.</th></tr></thead>
+        <tbody>
+          <tr><td><span class="cap">Identidad</span></td><td class="hide-sm old">"Matt-Gray-style genérico"</td><td class="newv">Instancia real: BENNETT OS v3 · Bennett Spooner (@bennettx.ai)</td><td class="num">9/10</td></tr>
+          <tr><td><span class="cap">Internals</span></td><td class="hide-sm old">"Reservado a la cohorte / no verificado"</td><td class="newv">El reel expone la app entera</td><td class="num">9/10</td></tr>
+          <tr><td><span class="cap">Alcance</span></td><td class="hide-sm old">"Primo monousuario"</td><td class="newv">Mono-operador pero multi-negocio (6+ marcas bajo un OS)</td><td class="num">8/10</td></tr>
+          <tr><td><span class="cap">Brain</span></td><td class="hide-sm old">"Markdown plano + grafo"</td><td class="newv">Motor: ingesta (voz/doc) + pgvector + Obsidian + destilado</td><td class="num">8/10</td></tr>
+          <tr><td><span class="cap">Comercial</span></td><td class="hide-sm old">(no figuraba)</td><td class="newv">Calc. costo US$208K + garantía reversión + family wall + 2 tiers</td><td class="num">9/10</td></tr>
+          <tr><td><span class="cap">Agentes</span></td><td class="hide-sm old">"Advisory"</td><td class="newv">Personajes con job en 1ª persona + tools MCP por agente</td><td class="num">9/10</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- APARATO COMERCIAL -->
+  <section>
+    <div class="eyebrow">Lo que el landing enseña (y KAIROS puede robar)</div>
+    <h2>El aparato comercial de FounderOS</h2>
+    <div class="commerce">
+      <div class="cm"><div class="big num">US$208.000</div><h4>Costo de no hacer nada</h4><p>Calculadora: tu tarifa × 20 h/sem × 52 sem. "La cohorte es un error de redondeo contra eso."</p></div>
+      <div class="cm"><div class="big" style="color:var(--good)">$0 si falla</div><h4>Reversión de riesgo</h4><p>"Show up and build. If it doesn't deliver, you don't pay." Garantía condicionada a que aparezcas.</p></div>
+      <div class="cm"><div class="big" style="color:var(--violet)">≈20 tools</div><h4>"Real, working tools ship inside it"</h4><p>5 flagship (Creator·CRM·Finance·PM·Second-Brain) + 15 más (billing, legal, OKRs, team).</p></div>
+    </div>
+    <p style="margin:var(--sp3) 0 0;font-size:13px;color:var(--muted)">+ muro de testimonios en video ("AI family wall"), countdown de cohorte, y el ángulo <b style="color:var(--text)">"no diseñé un curso, documenté mi sistema"</b>. El reel mismo es output del Creator-OS: <b style="color:var(--text)">build-in-public</b>.</p>
+  </section>
+
+  <!-- GAP TABLE recalibrada -->
+  <section>
+    <div class="eyebrow">El núcleo del pedido · recalibrado</div>
+    <h2>Lo que FounderOS tiene y Satori no</h2>
+    <div class="tablecard">
+      <table>
+        <thead><tr><th style="width:34%">Capacidad</th><th class="hide-sm" style="width:30%">Estado en Satori</th><th>Impacto</th><th>Conf.</th></tr></thead>
+        <tbody>
+          <tr><td><span class="cap">Optimal Engine (ingesta+pgvector+destilado+grafo)</span><span class="st">Brain visual y semántico</span></td><td class="hide-sm">Ingesta y wikilinks sí; grafo y capa semántica no</td><td><span class="badge b-alto">Alto</span></td><td><div class="meter"><div class="bar"><span style="width:80%"></span></div><span class="num">8/10</span></div></td></tr>
+          <tr><td><span class="cap">Org chart visual de la flota propia</span><span class="st">Conductor→Crews→Agentes→Tools</span></td><td class="hide-sm">Flota existe (Círculo/Consejo/Equipo/Sato) pero solo texto, on-demand</td><td><span class="badge b-alto">Alto</span></td><td><div class="meter"><div class="bar"><span style="width:80%"></span></div><span class="num">8/10</span></div></td></tr>
+          <tr><td><span class="cap">Dogfooding: Satori se corre a sí mismo</span><span class="st">Social · Funnel · Finanzas · Content propios</span></td><td class="hide-sm">Todo apunta a clientes; sin cockpit propio</td><td><span class="badge b-alto">Alto</span></td><td><div class="meter"><div class="bar"><span style="width:80%"></span></div><span class="num">8/10</span></div></td></tr>
+          <tr><td><span class="cap">Aparato comercial de conversión</span><span class="st">Calc. costo · garantía · prueba social</span></td><td class="hide-sm">KAIROS tiene recepción de 5 etapas, sin estas piezas</td><td><span class="badge b-alto">Alto</span></td><td><div class="meter"><div class="bar"><span style="width:90%"></span></div><span class="num">9/10</span></div></td></tr>
+          <tr><td><span class="cap">Tools productizadas que "shippean"</span><span class="st">5 flagship + 15</span></td><td class="hide-sm">Tablero/SGIC/cierre existen pero bespoke</td><td><span class="badge b-alto">Alto</span></td><td><div class="meter"><div class="bar"><span style="width:70%"></span></div><span class="num">7/10</span></div></td></tr>
+          <tr><td><span class="cap">Funnel / CRM propio</span><span class="st">Decay 21d · archive 90d · MRR</span></td><td class="hide-sm">Gestiona CRMs de clientes; el propio no</td><td><span class="badge b-med">Medio</span></td><td><div class="meter"><div class="bar"><span style="width:70%"></span></div><span class="num">7/10</span></div></td></tr>
+          <tr><td><span class="cap">Finance personal + net worth</span><span class="st">Personal + negocio unificado</span></td><td class="hide-sm">Fuerte en fiscal de clientes; propio no</td><td><span class="badge b-med">Medio</span></td><td><div class="meter"><div class="bar"><span style="width:60%"></span></div><span class="num">6/10</span></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 80/20 -->
+  <section>
+    <div class="eyebrow">80 / 20 — dónde está el 80% del valor</div>
+    <h2>Los 3 focos que importan</h2>
+    <div class="grid g3">
+      <div class="prio"><div class="n num">01</div><h3>Optimal Engine</h3><p>Brain visual + capa semántica. Empezar por el grafo (M), fase 2 pgvector/destilado (L). Datos propios → Bastión verde.</p></div>
+      <div class="prio"><div class="n num">02</div><h3>Satori HQ</h3><p>Dogfooding: funnel propio (= recepción KAIROS), hilos de clientes, finanzas, feed del brain. "El líder es la palanca".</p></div>
+      <div class="prio"><div class="n num">03</div><h3>Aparato comercial + Kits</h3><p>Portar calc. de costo + garantía a la Propuesta de Valor KAIROS. Templatizar lo repetido en kits vendibles.</p></div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section>
+    <div class="eyebrow">Cómo integrarlo</div>
+    <h2>Roadmap · MoSCoW + esfuerzo</h2>
+    <div class="road">
+      <div class="col must">
+        <h3>Must</h3>
+        <div class="item"><div class="top"><span class="name">A · Optimal Engine de Satori</span><span class="tshirt">M→L</span></div><p>(a) Grafo HTML del <b>_cerebro/</b> (MOC + wikilinks + frontmatter), estático, satori-design. (b) Fase 2: pgvector + destilado en clusters. <b>Arranque recomendado.</b></p></div>
+        <div class="item"><div class="top"><span class="name">B · Satori HQ (dogfooding)</span><span class="tshirt">L</span></div><p>Cockpit propio: funnel = recepción KAIROS (11 candidatos) + hilos de clientes + finanzas/net worth + feed del brain. Stack lo decide stack-satori.</p></div>
+      </div>
+      <div class="col">
+        <h3>Should</h3>
+        <div class="item"><div class="top"><span class="name">C · Aparato comercial KAIROS</span><span class="tshirt">S-M</span></div><p>Calc. de costo-de-no-hacer + garantía de reversión + prueba social → Etapa 4 (Propuesta de Valor). Cero stack nuevo.</p></div>
+        <div class="item"><div class="top"><span class="name">D · Org chart de la flota Satori</span><span class="tshirt">M</span></div><p>Renderizar Círculo/Consejo/Equipo/Bastión/Sato como org chart visual con tools por agente. Ata con A.</p></div>
+        <div class="item"><div class="top"><span class="name">E · Workspaces programados</span><span class="tshirt">S-M</span></div><p>Digests advisory → tareas programadas. Solo datos propios al inicio.</p></div>
+      </div>
+      <div class="col">
+        <h3>Nice</h3>
+        <div class="item"><div class="top"><span class="name">F · Satori Kits</span><span class="tshirt">L</span></div><p>Tablero/SGIC/cierre → kits reutilizables/vendibles. Recién sobre lo repetido ≥2 veces.</p></div>
+        <div class="item"><div class="top"><span class="name">G · Finance personal + net worth</span><span class="tshirt">M</span></div><p>Extender cierre-mensual al patrimonio personal.</p></div>
+        <div class="item"><div class="top"><span class="name">H · Empaquetado portable</span><span class="tshirt">M</span></div><p>Manifiesto "Satori OS vX" versionado.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BALANCE -->
+  <section>
+    <div class="eyebrow">Para no sobre-indexar</div>
+    <h2>Lo que Satori ya hace mejor</h2>
+    <div class="balance">
+      <p style="margin:0;color:var(--text);font-size:14px">FounderOS corre negocios <b>propios</b> del operador → no tiene capa de seguridad de datos de terceros. Satori es un OS de <b>consultora</b> con gobernanza que FounderOS no evidencia:</p>
+      <ul>
+        <li>Aislamiento de tenant + Bastión (datos de terceros)</li>
+        <li>Compliance fiscal ES + AR con verificación de fuente</li>
+        <li>QA adversarial — Purga de errores</li>
+        <li>Consejo multi-modelo con voto</li>
+        <li>Ejecución supervisada (Cowork → Code → Luciano)</li>
+        <li>Árbol de stack con gates fiscales-legales</li>
+        <li>Delivery multi-cliente (SGIC · hilo · tablero · puesta en marcha)</li>
+        <li>Capa interior + estructura (diferencial de marca)</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    <span>Satori OS · Benchmark FounderOS v2 — re-análisis con video · Purga aplicada · audio no transcrito (nota)</span>
+    <span>Próximo: Bloque A (Optimal Engine)</span>
+  </footer>
+
+</div>
+</body>
+</html>

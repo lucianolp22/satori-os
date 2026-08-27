@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Satori HQ v3 · acabado Apple — Ficha 360 · Luciano</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   SATORI HQ v3 — acabado Apple/Glass sobre la paleta Satori (registro híbrido)
+   Regla de oro: SÓLIDO donde se lee · VIDRIO donde flota.
+   Tokens = paleta sellada Satori (§7 tokens-base) + material glass (material-apple).
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  /* base sólida — neutrales tintados cálidos Satori (NO gris/negro puro) */
+  --ink-950:#14110D; --ink-900:#1E1B18; --ink-850:#262119; --ink-800:#2F2A20;
+  --ink-700:#3D362A; --ink-600:#514838; --ink-500:#6E6450; --ink-400:#938872;
+  --ink-300:#B8AD96; --ink-200:#D8CFBA; --ink-100:#ECE4D3; --ink-50:#F4EEE2;
+  /* acento MARCA (cálido) — acción, hero, tabs activas */
+  --terra-300:#E6A87E; --terra-400:#D5824F; --terra-500:#C2683D; --terra-600:#A0502B;
+  /* acento ESTADO (jade Satori) — progreso, salud, éxito */
+  --jade-300:#6FC2A8; --jade-400:#3E9B82; --jade-500:#1F6F5C;
+  --oro:#C9A227; --cielo:#7FB1FF;
+  /* superficies semánticas */
+  --bg:var(--ink-950); --surface:#1F1B16; --surface-2:#262119; --surface-3:#2C271E;
+  --text:var(--ink-50); --text-muted:var(--ink-300); --text-subtle:var(--ink-400);
+  --border:rgba(81,72,56,.55); --border-strong:rgba(110,100,80,.6);
+  /* material glass (flota) — tinte cálido, no blanco puro */
+  --glass:rgba(236,228,211,.06); --glass-2:rgba(236,228,211,.09);
+  --glass-line:rgba(236,228,211,.16);
+  --glass-hi:inset 0 1px 0 rgba(255,255,255,.20);
+  --glass-blur:24px; --glass-sat:170%;
+  --track:rgba(38,33,25,.9);
+  /* tipografía — SF Pro real en el equipo de Luciano (acabado Apple auténtico) */
+  --font-brand:'Fraunces','Georgia',serif;
+  --font-ui:-apple-system,'SF Pro Display','SF Pro Text',system-ui,'Segoe UI',sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',monospace;
+  --r-s:8px; --r-m:12px; --r-l:18px; --r-xl:24px;
+  --sombra:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.28);
+  --sombra-glass:var(--glass-hi),0 24px 60px -34px rgba(0,0,0,.78);
+  --ease:cubic-bezier(.22,1,.36,1); /* ease-out expo, sin rebote */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-color:var(--ink-700) var(--ink-950)}
+body{
+  background:
+    radial-gradient(1200px 680px at 78% -10%, rgba(62,155,130,.16) 0%, transparent 55%),
+    radial-gradient(900px 520px at 8% 8%, rgba(213,130,79,.12) 0%, transparent 50%),
+    radial-gradient(1400px 900px at 60% 0%, #1B241E 0%, #141A16 42%, var(--ink-950) 78%);
+  color:var(--text);font-family:var(--font-ui);font-size:15px;line-height:1.5;
+  min-height:100vh;padding:20px;padding:max(20px,env(safe-area-inset-top)) 20px 20px;
+  position:relative;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+#cosmos{position:fixed;inset:0;z-index:-2;pointer-events:none}
+/* grano cinematográfico sutil (material-apple) */
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;
+  mix-blend-mode:soft-light;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+.wrap{max-width:1100px;margin:0 auto}
+
+/* ══ material glass reutilizable — SOLO capas que flotan ══ */
+.glass{background:var(--glass);border:1px solid var(--glass-line);
+  backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+  box-shadow:var(--sombra-glass)}
+/* superficie sólida — donde se LEE (datos densos) */
+.solid{background:var(--surface);border:1px solid var(--border);box-shadow:var(--sombra)}
+
+/* ══ Cabecera (VIDRIO — flota) ══ */
+.hq-head{display:flex;align-items:center;gap:var(--sp-4);padding:14px 18px;
+  border-radius:var(--r-xl);position:sticky;top:8px;z-index:20}
+.enso{width:44px;height:44px;flex:0 0 auto}
+.hq-tit h1{font-family:var(--font-brand);font-weight:600;font-size:23px;color:var(--ink-50);
+  letter-spacing:-.02em;line-height:1}
+.hq-tit p{color:var(--ink-400);font-size:12.5px;margin-top:2px}
+.hq-ns{margin-left:auto;display:flex;align-items:center;gap:14px}
+.ns-ring{width:56px;height:56px;flex:0 0 auto;position:relative}
+.ns-ring svg{transform:rotate(-90deg)}
+.ns-ring .mid{position:absolute;inset:0;display:grid;place-items:center;
+  font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:14px;color:var(--terra-300)}
+.hq-ns .txt{text-align:right}
+.hq-ns .lbl{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-400)}
+.hq-ns .sub{font-size:11px;color:var(--ink-300);max-width:180px}
+.volver{appearance:none;border:1px solid var(--glass-line);background:var(--glass-2);
+  color:var(--ink-100);font:inherit;font-weight:600;font-size:13px;padding:7px 13px;
+  border-radius:999px;cursor:pointer;min-height:36px;transition:background .2s var(--ease)}
+.volver:hover{background:rgba(236,228,211,.15)}
+.volver:focus-visible{outline:2px solid var(--terra-400);outline-offset:2px}
+
+/* ══ Solapas (VIDRIO — barra flota) ══ */
+.tabs{display:flex;gap:6px;margin:16px 0 16px;flex-wrap:wrap;padding:6px;
+  border-radius:999px;position:sticky;top:76px;z-index:15}
+.tab{appearance:none;border:1px solid transparent;background:transparent;color:var(--ink-300);
+  font:inherit;font-weight:600;font-size:13.5px;letter-spacing:-.01em;padding:9px 18px;
+  border-radius:999px;cursor:pointer;min-height:40px;
+  transition:background .25s var(--ease),color .25s var(--ease)}
+.tab:hover{color:var(--ink-100)}
+.tab:focus-visible{outline:2px solid var(--terra-400);outline-offset:2px}
+.tab[aria-selected="true"]{background:var(--terra-600);border-color:var(--terra-500);color:var(--ink-50);
+  box-shadow:0 6px 18px -8px rgba(160,80,43,.8)}
+.panel{display:none}
+.panel.on{display:block;animation:entra .34s var(--ease)}
+@keyframes entra{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ══ Piezas comunes ══ */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.card{border-radius:var(--r-l);padding:18px 20px} /* usar junto a .solid o .glass */
+h2{font-family:var(--font-brand);font-weight:500;font-size:16px;color:var(--ink-100);
+  letter-spacing:-.01em;margin-bottom:12px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+h2 .mut{color:var(--ink-400);font-family:var(--font-ui);font-size:12px;font-weight:400;letter-spacing:0}
+.bluf{border-left:3px solid var(--terra-400);padding:11px 15px;background:rgba(213,130,79,.09);
+  border-radius:0 var(--r-m) var(--r-m) 0;color:var(--ink-50);font-weight:600;margin-bottom:16px;
+  font-size:14.5px;letter-spacing:-.01em}
+.fila{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--ink-850)}
+.fila:last-child{border-bottom:0}
+.tagA{flex:0 0 auto;font-family:var(--font-mono);font-size:10.5px;color:var(--terra-300);
+  border:1px solid var(--terra-600);border-radius:5px;padding:2px 7px}
+.tagB{flex:0 0 auto;font-family:var(--font-mono);font-size:10.5px;color:var(--cielo);
+  border:1px solid #3E5A8A;border-radius:5px;padding:2px 7px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-200);
+  background:var(--surface-2);border:1px solid var(--ink-800);border-radius:999px;padding:5px 12px;min-height:28px}
+.chip .n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--terra-300);font-weight:600}
+.aviso-tira{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.mut{color:var(--ink-400)} .peq{font-size:12.5px}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+
+/* meter / barras / flows — todo SÓLIDO */
+.meter{height:8px;background:var(--track);border-radius:999px;overflow:hidden;margin:8px 0 4px}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--jade-500),var(--jade-400));border-radius:999px}
+.barh{display:grid;grid-template-columns:150px 1fr 78px;gap:8px;align-items:center;margin:7px 0}
+.barh .lbl2{font-size:12.5px;color:var(--ink-200);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barh .pista{height:12px;background:var(--track);border-radius:5px;overflow:hidden}
+.barh .pista i{display:block;height:100%;background:linear-gradient(90deg,var(--terra-600),var(--terra-400));border-radius:5px}
+.barh .v{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--ink-100);text-align:right}
+
+/* ══ HERO North Star (VIDRIO — momento emocional) ══ */
+.hero{border-radius:var(--r-xl);padding:20px 22px;display:grid;grid-template-columns:auto 1fr;gap:22px;align-items:center}
+.ring-big{width:118px;height:118px;position:relative;flex:0 0 auto}
+.ring-big svg{transform:rotate(-90deg)}
+.ring-big .mid{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ring-big .mid .big{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:30px;
+  font-weight:600;color:var(--ink-50);letter-spacing:-.03em;line-height:1}
+.ring-big .mid .cap{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-400);margin-top:3px}
+.hero h2{margin-bottom:6px;font-size:18px}
+.spark-svg{display:block;width:100%;height:56px;margin-top:8px}
+
+/* ══ CHECKLIST ══ */
+.chk label{display:flex;gap:11px;align-items:flex-start;padding:8px 6px;border-radius:var(--r-s);cursor:pointer;
+  transition:background .18s var(--ease);min-height:40px}
+.chk label:hover{background:rgba(61,54,42,.4)}
+.chk input{appearance:none;width:19px;height:19px;flex:0 0 auto;margin-top:2px;border:1.5px solid var(--ink-500);
+  border-radius:6px;cursor:pointer;position:relative;transition:background .18s var(--ease),border-color .18s var(--ease)}
+.chk input:focus-visible{outline:2px solid var(--terra-400);outline-offset:2px}
+.chk input:checked{background:var(--jade-500);border-color:var(--jade-400)}
+.chk input:checked::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-size:12px;color:var(--ink-50)}
+.chk input:checked + span{color:var(--ink-400);text-decoration:line-through}
+.capa{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-400);margin:14px 0 4px}
+.captura{display:flex;gap:8px;margin-top:14px}
+.captura input{flex:1;background:var(--ink-900);border:1px solid var(--ink-700);border-radius:var(--r-m);
+  color:var(--ink-100);font:inherit;padding:11px 13px;min-height:44px}
+.captura input::placeholder{color:var(--ink-500)}
+.captura input:focus-visible{outline:2px solid var(--terra-400);outline-offset:1px}
+.btn{appearance:none;border:1px solid var(--terra-500);background:var(--terra-600);color:var(--ink-50);
+  font:inherit;font-weight:600;padding:10px 17px;border-radius:var(--r-m);cursor:pointer;min-height:44px;
+  transition:background .2s var(--ease),transform .1s var(--ease)}
+.btn:hover{background:var(--terra-500)}
+.btn:active{transform:scale(.97)}
+.btn:focus-visible{outline:2px solid var(--terra-300);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ══ OBJETIVOS ══ */
+.obj-col h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-300);
+  margin-bottom:9px;display:flex;justify-content:space-between}
+.obj{background:var(--surface-2);border:1px solid var(--ink-800);border-radius:var(--r-m);padding:12px 14px;margin-bottom:11px}
+.obj .top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.obj .nom{font-weight:600;color:var(--ink-100);font-size:13.5px;letter-spacing:-.01em}
+.flow{height:7px;background:var(--ink-850);border-radius:999px;overflow:hidden;margin:8px 0 5px}
+.flow i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--terra-600),var(--terra-400));
+  transition:width .8s var(--ease)}
+.flow.ok i{background:linear-gradient(90deg,var(--jade-500),var(--jade-400))}
+.obj .meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-400)}
+.obj .sgic{margin-top:8px;font-size:12px;color:var(--terra-300);border-top:1px dashed var(--ink-800);padding-top:7px;letter-spacing:-.005em}
+.obj .sgic b{color:var(--terra-300);font-weight:600}
+.eje-prof{background:var(--terra-400)} .eje-vida{background:var(--jade-400)} .eje-fin{background:var(--oro)} .eje-op{background:var(--cielo)}
+.leyenda{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:12px;color:var(--ink-300)}
+.leyenda span{display:inline-flex;align-items:center;gap:6px}
+
+/* ══ NÚMEROS ══ */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-400);text-align:left;
+  padding:7px 8px;border-bottom:1px solid var(--ink-700)}
+th.num,td.num{text-align:right}
+td{padding:8px;border-bottom:1px solid var(--ink-850);color:var(--ink-200)}
+tr:last-child td{border-bottom:0}
+.tot td{color:var(--ink-100);font-weight:600;border-top:1px solid var(--ink-700)}
+.nota-f4a{margin-top:11px;font-size:12px;color:var(--ink-400);border:1px dashed var(--ink-700);border-radius:var(--r-m);padding:10px 13px}
+.sgic-btn{appearance:none;margin-top:12px;border:1px solid var(--terra-500);background:transparent;
+  color:var(--terra-300);font:inherit;font-weight:600;font-size:13px;padding:9px 15px;border-radius:var(--r-m);
+  cursor:pointer;min-height:40px;transition:background .2s var(--ease)}
+.sgic-btn:hover{background:var(--terra-600);color:var(--ink-50)}
+.sgic-btn:focus-visible{outline:2px solid var(--terra-300);outline-offset:2px}
+
+/* ══ CARTERA ══ */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:11px}
+.pcol{background:var(--surface-2);border:1px solid var(--ink-800);border-radius:var(--r-m);padding:11px}
+.pcol h3{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-300);
+  display:flex;justify-content:space-between;margin-bottom:9px}
+.pcol h3 .n{font-family:var(--font-mono);color:var(--terra-300)}
+.pcard{display:flex;gap:9px;align-items:center;background:var(--surface-3);border:1px solid var(--ink-800);
+  border-radius:var(--r-s);padding:8px 10px;margin-bottom:7px;transition:border-color .18s var(--ease)}
+.pcard:hover{border-color:var(--ink-600)}
+.pcard .b360{appearance:none;margin-left:auto;flex:0 0 auto;background:transparent;border:1px solid var(--terra-600);
+  color:var(--terra-300);font:inherit;font-size:10.5px;font-weight:700;padding:5px 9px;min-height:28px;
+  border-radius:6px;cursor:pointer;white-space:nowrap}
+.pcard .b360:hover{background:var(--terra-600);color:var(--ink-50)}
+.pcard .b360:focus-visible{outline:2px solid var(--terra-400);outline-offset:2px}
+.logo{width:28px;height:28px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
+  font-weight:700;font-size:12px;color:var(--ink-950);background:var(--ink-300)}
+img.logo{object-fit:cover;background:var(--ink-850)}
+.pcard .inf{min-width:0}
+.pcard .nom{font-size:12.5px;font-weight:600;color:var(--ink-100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .svc{font-size:10.5px;color:var(--ink-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* toast (VIDRIO) */
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);
+  background:var(--glass-2);border:1px solid var(--terra-600);color:var(--ink-50);font-size:13px;
+  padding:10px 17px;border-radius:var(--r-m);opacity:0;pointer-events:none;
+  backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);
+  transition:opacity .3s var(--ease),transform .3s var(--ease);box-shadow:var(--sombra);max-width:90vw}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.pie{margin-top:28px;text-align:center;color:var(--ink-500);font-size:11.5px;line-height:1.6}
+.leyenda-mat{display:inline-flex;gap:6px;align-items:center;font-size:10.5px;color:var(--ink-500);
+  border:1px solid var(--ink-800);border-radius:999px;padding:3px 10px;margin:0 3px}
+
+/* display / tracking Apple */
+.display{letter-spacing:-.035em}
+
+/* ── Accesibilidad del material ── */
+@media (prefers-reduced-transparency:reduce){
+  .glass,.hq-head,.tabs,.hero,#toast{background:var(--surface)!important;
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;border-color:var(--border)!important}
+}
+@media (prefers-reduced-motion:reduce){
+  .panel.on{animation:none}
+  .flow i{transition:none}
+  *{scroll-behavior:auto}
+}
+/* mobile — targets Apple ≥44px, safe areas */
+@media (max-width:640px){
+  body{padding:14px;padding-top:max(14px,env(safe-area-inset-top))}
+  .hq-head{flex-wrap:wrap;position:static}
+  .tabs{position:static;overflow-x:auto;flex-wrap:nowrap}
+  .hero{grid-template-columns:1fr;text-align:center;justify-items:center}
+  .tab{min-height:44px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hq-head glass">
+    <button class="volver" id="hqVolver" type="button" title="Volver al Satori OS">← OS</button>
+    <svg class="enso" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4a20 20 0 1 0 14.3 6" fill="none" stroke="#D5824F" stroke-width="3.4" stroke-linecap="round"/><circle cx="41" cy="7.5" r="2.1" fill="#D5824F"/></svg>
+    <div class="hq-tit">
+      <h1 class="display">SATORI HQ</h1>
+      <p>Ficha 360 · Luciano · <span id="hqFecha">—</span></p>
+    </div>
+    <div class="hq-ns">
+      <div class="ns-ring" title="North Star: 5 de 6 clientes pagos en paralelo">
+        <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
+          <circle cx="28" cy="28" r="24" fill="none" stroke="rgba(184,173,150,.18)" stroke-width="5"/>
+          <circle cx="28" cy="28" r="24" fill="none" stroke="#D5824F" stroke-width="5" stroke-linecap="round"
+                  stroke-dasharray="150.8" stroke-dashoffset="25.1" style="filter:drop-shadow(0 0 5px rgba(213,130,79,.5))"/>
+        </svg>
+        <div class="mid">5/6</div>
+      </div>
+      <div class="txt">
+        <div class="lbl">North Star</div>
+        <div class="sub">clientes pagos en paralelo · dic-2026</div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs glass" role="tablist" aria-label="Secciones de la ficha">
+    <button class="tab" role="tab" aria-selected="true" data-p="hoy">Hoy</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="chk">Checklist</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="obj">Objetivos</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="num">Números</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="car">Cartera</button>
+  </nav>
+
+  <!-- ══════════ HOY ══════════ -->
+  <section class="panel on" id="p-hoy" role="tabpanel">
+    <div class="bluf">2 tareas vencidas pidiendo cierre — la más vieja es residuo de test ya barrido; la real: REPORTE SEMANAL M15.</div>
+
+    <!-- HERO glass — momento emocional (anillo de actividad North Star) -->
+    <div class="hero glass" style="margin-bottom:14px">
+      <div class="ring-big" title="5 de 6 clientes pagos">
+        <svg width="118" height="118" viewBox="0 0 118 118" aria-hidden="true">
+          <circle cx="59" cy="59" r="50" fill="none" stroke="rgba(184,173,150,.16)" stroke-width="9"/>
+          <circle id="nsArc" cx="59" cy="59" r="50" fill="none" stroke="#D5824F" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="314.2" stroke-dashoffset="314.2" style="filter:drop-shadow(0 0 8px rgba(213,130,79,.55));transition:stroke-dashoffset 1.1s var(--ease)"/>
+        </svg>
+        <div class="mid"><span class="big">5/6</span></div>
+      </div>
+      <div>
+        <h2>North Star · serie 30 días <span class="mut">— NS_serie real</span></h2>
+        <p class="peq" style="color:var(--ink-200)">Tendencia estable · el salto pendiente es <b style="color:var(--terra-300)">UNA retención formalizada</b> (Vehemence es la candidata: piloto desde junio, sin fecha).</p>
+        <svg class="spark-svg" viewBox="0 0 300 56" preserveAspectRatio="none" role="img" aria-label="Serie North Star 30 días, estable en 5 de 6">
+          <line x1="0" y1="12" x2="300" y2="12" stroke="rgba(184,173,150,.22)" stroke-width="1" stroke-dasharray="3 4"/>
+          <text x="2" y="9" fill="#938872" font-size="8" font-family="JetBrains Mono,monospace">meta 6</text>
+          <path d="M0 44 L40 44 L60 34 L120 34 L150 23 L300 23" fill="none" stroke="#D5824F" stroke-width="2.4" stroke-linejoin="round"/>
+          <circle cx="300" cy="23" r="3.4" fill="#E6A87E"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="solid card">
+        <h2>Próximas 3 <span class="mut">— lo que movería hoy · Director</span></h2>
+        <div class="fila"><span class="tagA">A</span><span>Armar reuniones LC Travel</span></div>
+        <div class="fila"><span class="tagA">A</span><span>Registrar patinete en Hacienda (web)</span></div>
+        <div class="fila"><span class="tagB">B</span><span>Propuesta de retención Vehemence — ponerle fecha al piloto</span></div>
+        <div class="aviso-tira">
+          <span class="chip"><span class="n">3</span> aprobaciones</span>
+          <span class="chip"><span class="n">15</span> escalados de Bandeja</span>
+          <span class="chip"><span class="n">23</span> avisos activos</span>
+        </div>
+      </div>
+      <div class="solid card">
+        <h2>Guardián foco / paz <span class="mut">— mira tu carga, no tu producción</span></h2>
+        <p class="peq" style="color:var(--ink-200)">Hoy no hay eventos en agenda — día libre para lo importante. Carga razonable; <b style="color:var(--terra-300)">una cosa a soltar:</b> los 15 escalados de Bandeja llevan días esperando destino. Resolvelos en una pasada de 10 min, no de a uno.</p>
+        <p class="peq mut" style="margin-top:10px">Ciclo natural: mañana = crear · tarde = decidir · viernes = cerrar semana · domingo = descanso.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ CHECKLIST ══════════ -->
+  <section class="panel" id="p-chk" role="tabpanel">
+    <div class="grid g2">
+      <div class="solid card chk">
+        <h2>Rutinas <span class="mut">— reemplaza Notas del iPhone</span></h2>
+        <p class="capa">Diaria · mañana</p>
+        <label><input type="checkbox" checked><span>Meditación / respiración (10 min)</span></label>
+        <label><input type="checkbox" checked><span>Leer el brief del OS y elegir LA prioridad</span></label>
+        <label><input type="checkbox"><span>Revisar aprobaciones pendientes (3)</span></label>
+        <p class="capa">Diaria · cierre</p>
+        <label><input type="checkbox"><span>Registrar lo trabajado por cliente (cierre de sesión Sato)</span></label>
+        <label><input type="checkbox"><span>Capturar pendientes sueltos a la Bandeja</span></label>
+        <p class="capa">Semanal</p>
+        <label><input type="checkbox"><span>Revisión de objetivos (viernes) — mover flows</span></label>
+        <label><input type="checkbox"><span>2 contactos comerciales de la cartera tibia</span></label>
+      </div>
+      <div class="solid card">
+        <h2>Captura rápida <span class="mut">→ Bandeja + clasificador</span></h2>
+        <p class="peq mut">Todo entra por acá (texto o voz). El clasificador lo rutea a tarea / idea / cliente / lead con confianza; si duda, te escala.</p>
+        <div class="captura">
+          <input type="text" placeholder="!a llamar a Tato de Pipol #comercial @pipol viernes" aria-label="Captura rápida">
+          <button class="btn" type="button">Capturar</button>
+        </div>
+        <p class="capa" style="margin-top:18px">Capas del asistente</p>
+        <p class="peq" style="color:var(--ink-200);line-height:1.8">🜂 <b>Funcional:</b> rutinas + captura sincronizadas con Tareas y Bandeja reales.<br>🜁 <b>Inteligente:</b> el Director sugiere qué soltar y qué priorizar.<br>🜃 <b>Consciente:</b> el guardián foco/paz mira tu carga, no tu producción.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ OBJETIVOS ══════════ -->
+  <section class="panel" id="p-obj" role="tabpanel">
+    <div class="leyenda">
+      <span><span class="dot eje-prof"></span>Profesional</span>
+      <span><span class="dot eje-vida"></span>Calidad de vida</span>
+      <span><span class="dot eje-fin"></span>Finanzas</span>
+      <span><span class="dot eje-op"></span>Oportunidades</span>
+    </div>
+    <div class="grid g3">
+      <div class="obj-col">
+        <h3>Corto plazo <span class="mut">90 días</span></h3>
+        <div class="obj"><div class="top"><span class="dot eje-prof"></span><span class="nom">6 clientes pagos en paralelo</span></div>
+          <div class="flow ok"><i data-w="83%"></i></div>
+          <div class="meta"><span>5/6 · North Star</span><span>18 tareas ligadas</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> la #6 no es un desconocido — formalizá Vehemence (piloto desde junio, sin fecha).</div></div>
+        <div class="obj"><div class="top"><span class="dot eje-fin"></span><span class="nom">Ingresos recurrentes &gt; €2.000/mes</span></div>
+          <div class="flow"><i data-w="62%"></i></div>
+          <div class="meta"><span>~€1.322 hoy</span><span>métrica NS_serie</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> 1 retención Nivel 1 (300–500 €) de la cartera tibia cierra el gap.</div></div>
+      </div>
+      <div class="obj-col">
+        <h3>Mediano plazo <span class="mut">12 meses</span></h3>
+        <div class="obj"><div class="top"><span class="dot eje-prof"></span><span class="nom">SGIC como producto replicable</span></div>
+          <div class="flow"><i data-w="55%"></i></div>
+          <div class="meta"><span>4 instalados · 12 en oferta</span><span>pipeline Cartera</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> el patrón portal-token ya se reusó 3×: empaquetalo como oferta estándar.</div></div>
+        <div class="obj"><div class="top"><span class="dot eje-vida"></span><span class="nom">Semana sostenible (paz &gt; sprint)</span></div>
+          <div class="flow ok"><i data-w="70%"></i></div>
+          <div class="meta"><span>guardián activo</span><span>1 aviso foco/día máx.</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> esta semana el techo es 2 contactos fríos — no lo subas por ansiedad.</div></div>
+      </div>
+      <div class="obj-col">
+        <h3>Largo plazo <span class="mut">36 meses</span></h3>
+        <div class="obj"><div class="top"><span class="dot eje-fin"></span><span class="nom">Empresa y vida más libres y alineadas</span></div>
+          <div class="flow"><i data-w="35%"></i></div>
+          <div class="meta"><span>tesis Satori</span><span>revisión trimestral</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> el fin no es facturar más: medí también paz, salud y propósito acá.</div></div>
+        <div class="obj"><div class="top"><span class="dot eje-op"></span><span class="nom">Radar de oportunidades vivo</span></div>
+          <div class="flow"><i data-w="40%"></i></div>
+          <div class="meta"><span>OV + monitor IG</span><span>misión contactos E7</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> los 15 escalados de Bandeja pueden esconder leads — triage antes de descartar.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ NÚMEROS ══════════ -->
+  <section class="panel" id="p-num" role="tabpanel">
+    <div class="grid g2">
+      <div class="solid card">
+        <h2>Ingresos recurrentes <span class="mut">— por moneda, sin total global</span></h2>
+        <table>
+          <thead><tr><th>Cliente</th><th>Servicio</th><th class="num">Importe / mes</th></tr></thead>
+          <tbody>
+            <tr><td>EJF + Figueras Music</td><td>Asesoramiento + SGIC</td><td class="num">€ 400</td></tr>
+            <tr><td>DAM Barbers</td><td>Asesoramiento + SGIC</td><td class="num">€ 600 +IVA</td></tr>
+            <tr class="tot"><td colspan="2">Subtotal EUR</td><td class="num">€ 1.000 +IVA</td></tr>
+            <tr><td>LC Travel</td><td>Asesoramiento + SGIC</td><td class="num">USD 350</td></tr>
+            <tr><td style="color:var(--ink-400)">Vehemence</td><td style="color:var(--ink-400)">propuesta en curso</td><td class="num" style="color:var(--ink-400)">USD 250</td></tr>
+          </tbody>
+        </table>
+        <div class="nota-f4a">⚠ F4a: sin facturación 2026 cargada — el motor de administración está, los datos no. Cargar las facturas activa resumen fiscal por jurisdicción.</div>
+      </div>
+      <div class="solid card">
+        <h2>Recurrentes por moneda <span class="mut">— magnitudes, sin mezclar</span></h2>
+        <div class="barh"><span class="lbl2">DAM Barbers</span><div class="pista"><i style="width:100%"></i></div><span class="v">€ 600</span></div>
+        <div class="barh"><span class="lbl2">EJF + Figueras</span><div class="pista"><i style="width:67%"></i></div><span class="v">€ 400</span></div>
+        <div class="barh"><span class="lbl2">LC Travel</span><div class="pista"><i style="width:58%;opacity:.55"></i></div><span class="v">USD 350</span></div>
+        <div class="barh"><span class="lbl2 mut">Vehemence (prop.)</span><div class="pista"><i style="width:42%;opacity:.3"></i></div><span class="v mut">USD 250</span></div>
+        <p class="peq mut" style="margin-top:8px">Barras USD atenuadas: otra moneda, otra escala — se comparan aparte.</p>
+        <h2 style="margin-top:18px">Gasto API del mes</h2>
+        <div class="meter"><i style="width:1.2%"></i></div>
+        <p class="peq"><span class="num" style="color:var(--jade-300)">$ 0,29</span> <span class="mut">de $ 25 de tope · 64 llamadas · 0 errores</span></p>
+      </div>
+      <div class="solid card">
+        <h2>Operación del OS <span class="mut">— agosto 2026</span></h2>
+        <table>
+          <thead><tr><th>Métrica</th><th class="num">Valor</th></tr></thead>
+          <tbody>
+            <tr><td>Gasto API del mes</td><td class="num">$ 0,29 / $ 25</td></tr>
+            <tr><td>Llamadas · tokens</td><td class="num">64 · 148.441</td></tr>
+            <tr><td>Errores</td><td class="num" style="color:var(--jade-300)">0</td></tr>
+            <tr><td>Integridad (Salud)</td><td class="num" style="color:var(--jade-300)">100 %</td></tr>
+            <tr><td>Backup semanal</td><td class="num" style="color:var(--jade-300)">09-ago · 8 archivos</td></tr>
+            <tr><td>Producción /exec</td><td class="num">@45 · 14-ago</td></tr>
+          </tbody>
+        </table>
+        <button class="sgic-btn" type="button" onclick="hqToast('En el OS real: abre tu propio SGIC/panel. En cada Ficha de cliente, el botón abrirá el /exec del sistema de ESE cliente (obs 17-ago).')">▶ Abrir mi panel de números</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ CARTERA ══════════ -->
+  <section class="panel" id="p-car" role="tabpanel">
+    <div class="pipe" id="pipe"></div>
+    <p class="peq mut" style="margin-top:12px">Mover un cliente de etapa escribe en el roster + `Cartera_log` (append-only). Los logos reales entran por `logo_url`; sin logo, inicial.</p>
+  </section>
+
+  <p class="pie">
+    <span class="leyenda-mat">◇ vidrio = flota</span><span class="leyenda-mat">▪ sólido = se lee</span><br>
+    SATORI HQ v3 · acabado Apple/Glass sobre paleta Satori · Cartera = roster REAL (carteraPipeline) · Hoy/Checklist/Objetivos/Números = maqueta para tu observación (E3) · nada de esto escribe en el sistema.
+  </p>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+/* Fondo cósmico común del OS (translúcido) */
+(function(){
+  var c=document.createElement('canvas');c.id='cosmos';document.body.prepend(c);
+  var x=c.getContext('2d');
+  function pinta(){
+    c.width=innerWidth;c.height=innerHeight;
+    for(var i=0;i<160;i++){
+      var px=Math.random()*c.width,py=Math.random()*c.height,r=Math.random()*1.2+.3;
+      x.beginPath();x.arc(px,py,r,0,7);
+      x.fillStyle='rgba(233,201,168,'+(Math.random()*.45+.1).toFixed(2)+')';x.fill();
+    }
+  }
+  pinta();var t;addEventListener('resize',function(){clearTimeout(t);t=setTimeout(pinta,180);});
+})();
+
+/* Solapas accesibles (crossfade, sin bounce) */
+var tabs=document.querySelectorAll('.tab');
+tabs.forEach(function(t){t.addEventListener('click',function(){
+  tabs.forEach(function(x){x.setAttribute('aria-selected','false');});
+  t.setAttribute('aria-selected','true');
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('on');});
+  document.getElementById('p-'+t.dataset.p).classList.add('on');
+});});
+
+/* Anillo North Star — animar desde el valor en pantalla (Apple: interrumpible, sin salto) */
+(function(){
+  var arc=document.getElementById('nsArc'); if(!arc) return;
+  var C=314.2, frac=5/6;               /* 5 de 6 */
+  var mq=window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(mq){ arc.style.transition='none'; arc.style.strokeDashoffset=(C*(1-frac)).toFixed(1); return; }
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){
+    arc.style.strokeDashoffset=(C*(1-frac)).toFixed(1);
+  });});
+})();
+
+/* Flows de objetivos — animar el ancho al entrar */
+(function(){
+  document.querySelectorAll('.flow i[data-w]').forEach(function(i){
+    var w=i.getAttribute('data-w');
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){ i.style.width=w; });});
+  });
+})();
+
+/* fecha + volver */
+(function(){
+  var f=document.getElementById('hqFecha');
+  if(f){ try{ f.textContent=new Date().toLocaleDateString('es-ES',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}); }catch(_e){ f.textContent=''; } }
+  var b=document.getElementById('hqVolver');
+  if(b) b.addEventListener('click',function(){
+    if(window.SATORI_WRAPPER_URL){ (window.top||window).location.href=SATORI_WRAPPER_URL; }
+    else { hqToast('Sin URL del OS (¿abriste HQ por fuera de /exec?)'); }
+  });
+})();
+
+function hqToast(msg){ var t=document.getElementById('toast'); if(!t)return;
+  t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove('on');},2800); }
+
+/* Cartera — FALLBACK estático (maqueta); con GAS, carteraPipeline() lo reemplaza con el roster real */
+var CARTERA={
+ 'Caliente · activos':[
+   ['EJF + Figueras Music','Asesoramiento + SGIC','#C9A227','CLI-007'],
+   ['Vehemence','Asesoramiento + SGIC','#8A5A3B','CLI-002'],
+   ['LC Travel','Asesoramiento + SGIC','#3E9B82','CLI-003'],
+   ['DAM Barbers','Asesoramiento + SGIC','#B8AD96','CLI-004']],
+ 'Tibio · en vista':[
+   ['MesaQuince','SGIC solo — esperando rta.','','CLI-001'],
+   ['SIP','SGIC + consultoría básica','','CLI-005'],
+   ['Pol Train','App + Web',''],['Pipol Coffee','SGIC + básica + Web',''],
+   ['Nook Coffee','SGIC + Web',''],['Alejandro Bono Seguros','SGIC + Web',''],
+   ['Tech Log','Consultoría básica ± SGIC',''],['Galgo','SGIC',''],
+   ['Maravillas P. y Minerales','SGIC + Web',''],['Activarte Barcelona','App + SGIC',''],
+   ['Crocante','SGIC + Web',''],['Constructora Tullio CBA','SGIC + Web',''],
+   ['Raro Coffee','SGIC',''],['Café Sando','SGIC',''],
+   ['Couleur Café','SGIC',''],['Oxaca (Badalona)','SGIC','']],
+ 'Frío · por generar':[
+   ['Misión contactos 1er grado','Equipo Agentes Pro · gate Bastión','']]
+};
+var pipe=document.getElementById('pipe');
+function hqCard(nombre, svc, colorFallback, id, logoUrl){
+  var card=document.createElement('div');card.className='pcard';
+  var lg;
+  if(logoUrl){ lg=document.createElement('img');lg.className='logo';lg.src=logoUrl;lg.alt='';
+    lg.onerror=(function(n){return function(){ var f=document.createElement('div');f.className='logo';
+      f.textContent=String(n||'?').charAt(0); if(lg.parentNode)lg.parentNode.replaceChild(f,lg); };})(nombre); }
+  else { lg=document.createElement('div');lg.className='logo';lg.textContent=String(nombre||'?').charAt(0);
+    if(colorFallback)lg.style.background=colorFallback; }
+  var inf=document.createElement('div');inf.className='inf';
+  var nom=document.createElement('div');nom.className='nom';nom.textContent=nombre;
+  var s=document.createElement('div');s.className='svc';s.textContent=svc||'';
+  inf.appendChild(nom);inf.appendChild(s);card.appendChild(lg);card.appendChild(inf);
+  if(id){ var b=document.createElement('button');b.className='b360';b.type='button';b.textContent='→ 360';
+    b.title='Ficha 360 de '+nombre;
+    b.addEventListener('click',function(){ hqToast('La Ficha 360 de '+nombre+' vive en el OS — volvé con « ← OS » y tocá el cliente.'); });
+    card.appendChild(b); }
+  return card;
+}
+function hqCol(titulo, cards){
+  var d=document.createElement('div');d.className='pcol';
+  var h=document.createElement('h3');h.textContent=titulo+' ';
+  var n=document.createElement('span');n.className='n';n.textContent=cards.length;h.appendChild(n);d.appendChild(h);
+  cards.forEach(function(c){ d.appendChild(c); });
+  return d;
+}
+function hqPipeEstatico(){
+  pipe.textContent='';
+  Object.keys(CARTERA).forEach(function(col){
+    pipe.appendChild(hqCol(col, CARTERA[col].map(function(c){ return hqCard(c[0],c[1],c[2],c[3],''); })));
+  });
+}
+if(window.google && google.script && google.script.run){
+  google.script.run
+    .withSuccessHandler(function(p){
+      if(!p||!p.etapas){ hqPipeEstatico(); hqToast('Cartera: respuesta vacía — muestro la maqueta'); return; }
+      pipe.textContent='';
+      p.etapas.forEach(function(e){
+        var cards=((p.columnas&&p.columnas[e])||[]).map(function(c){
+          return hqCard(c.nombre||c.id_cliente, (c.prox_accion||c.rubro||''), '', c.id_cliente, c.logo_url||''); });
+        pipe.appendChild(hqCol(String(e).replace(/_/g,' '), cards));
+      });
+      if((p.sin_etapa||[]).length){
+        pipe.appendChild(hqCol('sin clasificar', p.sin_etapa.map(function(c){
+          return hqCard(c.nombre||c.id_cliente, (c.prox_accion||c.rubro||''), '', c.id_cliente, c.logo_url||''); })));
+      }
+    })
+    .withFailureHandler(function(e){ hqPipeEstatico(); hqToast('No pude traer la cartera real: '+((e&&e.message)||e)); })
+    .carteraPipeline();
+} else { hqPipeEstatico(); }
+</script>
+</body>
+</html>

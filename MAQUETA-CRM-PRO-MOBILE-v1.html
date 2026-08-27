@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maqueta móvil · CRM PRO — Satori OS (iPhone)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!--
+  MAQUETA MÓVIL · CRM PRO — Satori OS · v1 · 26-ago-2026 · Cowork
+  Registro: OPERATIVO (A). Tokens REALES del OS (mismo :root que la v2 = src/index.html prod).
+  Propósito: re-adaptación INTEGRAL para iPhone del CRM PRO ya aprobado, SIN tocar el escritorio.
+  Mecanismo real de no-interferencia: todo lo móvil vive en @media (max-width:640px) del OS;
+  el escritorio (>=641px) nunca lee esas reglas -> queda idéntico al de hoy.
+  Vanilla, GAS-compatible (HtmlService). Estado 100% en memoria (sin localStorage).
+  Datos: cartera v2 real (21) · único monto real Vehemence USD 250 · correos SIMULADOS [EJEMPLO].
+  Nada escribe en el MAESTRO: es una maqueta para decidir antes de construir.
+-->
+<style>
+:root{
+  --_ink-950:#14110D; --_ink-900:#1E1B18; --_ink-800:#2F2A20; --_ink-600:#514838;
+  --_ink-500:#6E6450; --_ink-400:#938872; --_ink-300:#B8AD96; --_ink-100:#ECE4D3; --_ink-50:#F4EEE2;
+  --_terra-300:#E6A87E; --_terra-400:#D5824F; --_terra-500:#C2683D;
+  --_jade-300:#6FC2A8; --_jade-400:#3E9B82; --_jade-500:#1F6F5C;
+  --_red-400:#E0795F; --_amber-400:#DCA75E; --_blue-400:#7FB1FF;
+  --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
+  --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
+  --glass-border:rgba(244,238,226,.12); --glass-bg:rgba(22,18,15,.92);
+  --color-primary:#D5824F; --color-primary-hover:#E0975F; --color-primary-weak:rgba(213,130,79,.16);
+  --color-accent:#3E9B82; --color-accent-weak:rgba(62,155,130,.16);
+  --color-danger:#E0795F; --color-danger-weak:rgba(224,121,95,.16);
+  --color-warning:#DCA75E; --color-warning-weak:rgba(220,167,94,.16);
+  --color-info:#7FB1FF; --color-info-weak:rgba(127,177,255,.14);
+  --font-ui:'Hanken Grotesk',-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-brand:'Fraunces','Georgia',serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:18px; --radius-xl:26px; --radius-full:9999px;
+  --ease-out:cubic-bezier(.25,1,.5,1); --dur-fast:140ms; --dur-state:240ms;
+  --shadow-lg:0 24px 60px -20px rgba(0,0,0,.85);
+  --shadow-sheet:0 -18px 50px -12px rgba(0,0,0,.7);
+  --ring:0 0 0 2px rgba(0,0,0,.6), 0 0 0 4px var(--_terra-400);
+  --fondo:#100D0A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--fondo);color:var(--color-text);font-family:var(--font-ui);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(1200px 600px at 75% -10%, rgba(213,130,79,.06), transparent 60%),
+  radial-gradient(900px 500px at 10% 110%, rgba(62,155,130,.05), transparent 60%),var(--fondo)}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input{font:inherit}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:none;box-shadow:var(--ring);border-radius:var(--radius-sm)}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ── barra maqueta (chrome, no forma parte del OS) ── */
+.mq-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 20px;
+  background:var(--glass-bg);border-bottom:1px solid var(--color-border);position:sticky;top:0;z-index:60;backdrop-filter:blur(16px)}
+.mq-bar .tag{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-warning);
+  border:1px solid var(--color-warning);border-radius:var(--radius-full);padding:3px 10px}
+.mq-bar h1{font-family:var(--font-brand);font-weight:500;font-size:1.0625rem}
+.mq-seg{display:flex;gap:4px;margin-left:auto;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:var(--radius-full);padding:3px}
+.mq-seg button{padding:7px 14px;border-radius:var(--radius-full);font-size:.8125rem;color:var(--color-text-muted);min-height:36px}
+.mq-seg button.on{background:var(--color-primary-weak);color:var(--_terra-300);font-weight:600}
+.mq-note{font-size:.75rem;color:var(--color-text-subtle);width:100%;line-height:1.5}
+.mq-note b{color:var(--color-text)} .ej{color:var(--color-warning)}
+
+.modo{display:none} .modo.on{display:block}
+
+/* ── escena iPhone ── */
+.stage{display:flex;justify-content:center;align-items:flex-start;padding:34px 16px 80px;gap:34px;flex-wrap:wrap}
+.iphone{width:393px;flex:none;background:#050403;border-radius:56px;padding:13px;box-shadow:var(--shadow-lg);border:1px solid var(--color-border-strong)}
+.pantalla{background:var(--fondo);border-radius:44px;overflow:hidden;height:830px;display:flex;flex-direction:column;position:relative;isolation:isolate}
+.isla{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:33px;background:#000;border-radius:var(--radius-full);z-index:40}
+.statusbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;justify-content:space-between;
+  padding:16px 30px 0;font-size:13px;font-weight:600;color:var(--color-text);z-index:30;pointer-events:none}
+.statusbar .r{display:flex;gap:6px;align-items:center;font-size:12px}
+
+/* zona scrolleable */
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:96px}
+.scroll::-webkit-scrollbar{width:0}
+
+/* ── header de app ── */
+.appbar{padding:60px 18px 4px;background:linear-gradient(180deg,rgba(18,14,11,.99),rgba(18,14,11,.99) 62%,transparent)}
+.appbar .hi{font-size:12px;color:var(--color-text-subtle)}
+.appbar .hi b{color:var(--color-text)}
+.appbar .row{display:flex;align-items:flex-end;gap:8px;margin-top:2px}
+.appbar h2{font-family:var(--font-brand);font-weight:500;font-size:1.6rem;line-height:1.1}
+.appbar .count{margin-left:auto;font-size:11px;color:var(--color-text-subtle);text-align:right;line-height:1.4;padding-bottom:3px}
+.appbar .count b{color:var(--_jade-300)}
+
+/* ── barra de funciones ── */
+.funcbar{display:flex;gap:8px;padding:12px 16px 8px;position:sticky;top:0;z-index:12;
+  background:linear-gradient(180deg,rgba(16,13,10,.98),rgba(16,13,10,.86));backdrop-filter:blur(10px)}
+.search{flex:1;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.32);border:1px solid var(--color-border);
+  border-radius:var(--radius-full);padding:0 14px;min-height:46px}
+.search span{color:var(--color-text-subtle);font-size:15px}
+.search input{flex:1;background:none;border:none;color:var(--color-text);font-size:15px;min-width:0}
+.search input::placeholder{color:var(--color-text-subtle)}
+.fbtn{width:46px;height:46px;flex:none;border-radius:var(--radius-full);border:1px solid var(--color-border);
+  display:grid;place-items:center;font-size:18px;color:var(--color-text-muted);transition:all var(--dur-fast) var(--ease-out)}
+.fbtn:hover{border-color:var(--color-border-strong);color:var(--color-text)}
+.fbtn.pri{background:var(--color-primary);color:#1a1410;border-color:var(--color-primary);font-weight:700}
+
+/* ── atajos / secciones rápidas ── */
+.atajos{display:flex;gap:9px;overflow-x:auto;padding:6px 16px 12px;scrollbar-width:none}
+.atajos::-webkit-scrollbar{display:none}
+.atajo{flex:none;min-width:96px;min-height:66px;border-radius:var(--radius-lg);border:1px solid var(--glass-border);
+  background:var(--glass-bg);padding:10px 12px;display:flex;flex-direction:column;justify-content:space-between;
+  text-align:left;transition:all var(--dur-fast) var(--ease-out)}
+.atajo:hover,.atajo:active{border-color:var(--color-border-strong);transform:translateY(-1px)}
+.atajo .ic{font-size:17px}
+.atajo .lb{font-size:11.5px;color:var(--color-text-muted);line-height:1.2}
+.atajo .n{font-size:17px;font-weight:700;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.atajo.foco{border-color:var(--color-primary);background:var(--color-primary-weak)} .atajo.foco .n,.atajo.foco .ic{color:var(--_terra-300)}
+.atajo.venc .n,.atajo.venc .ic{color:var(--color-danger)}
+.atajo.frio .n,.atajo.frio .ic{color:var(--color-warning)}
+.atajo.correo .n,.atajo.correo .ic{color:var(--_blue-400)}
+
+/* ── chips de etapa ── */
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;font-size:13.5px;padding:0 15px;border-radius:var(--radius-full);border:1px solid var(--color-border);
+  color:var(--color-text-muted);min-height:44px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.chip[data-e="frio"] .dot{background:var(--_ink-500)} .chip[data-e="tibio"] .dot{background:var(--_amber-400)}
+.chip[data-e="caliente"] .dot{background:var(--_terra-400)} .chip[data-e="activo"] .dot{background:var(--_jade-400)}
+.chip[data-e="en_pausa"] .dot{background:var(--_blue-400)} .chip[data-e="perdido"] .dot{background:var(--_ink-600)}
+.chip .n{font-family:var(--font-mono);font-size:11.5px;color:var(--color-text-subtle)}
+.chip.on{background:var(--color-primary-weak);color:var(--_terra-300);border-color:var(--color-primary);font-weight:600}
+.chip.on .n{color:var(--_terra-300)}
+
+/* filtro activo (banner) */
+.filtro-act{display:none;margin:0 16px 10px;padding:8px 12px;border-radius:var(--radius-md);
+  background:var(--color-primary-weak);border:1px solid rgba(213,130,79,.35);font-size:12px;color:var(--_terra-300);
+  align-items:center;gap:8px}
+.filtro-act.on{display:flex}
+.filtro-act b{color:var(--color-text)}
+.filtro-act .x{margin-left:auto;width:26px;height:26px;border-radius:var(--radius-full);display:grid;place-items:center;color:var(--_terra-300)}
+
+/* ── lista de cards ── */
+.lista{padding:0 16px}
+.m-card{width:100%;text-align:left;background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-lg);padding:14px;margin-bottom:10px;display:block;
+  transition:border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out)}
+.m-card:active{transform:scale(.99)} .m-card:hover{border-color:var(--color-border-strong)}
+.m-card .top{display:flex;align-items:center;gap:11px}
+.m-card .logo{width:34px;height:34px;border-radius:10px;background:var(--color-primary);color:#1a1410;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none}
+.m-card .nm{font-weight:600;font-size:15px;line-height:1.2}
+.m-card .id{font-size:11.5px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:1px}
+.m-card .chev{margin-left:auto;color:var(--color-text-subtle);font-size:18px}
+.m-card .bds{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.bg{font-size:11px;border-radius:7px;padding:2px 8px;border:1px solid var(--color-border);color:var(--color-text-muted)}
+.bg.svc{color:var(--_jade-300);border-color:rgba(62,155,130,.4);background:var(--color-accent-weak)}
+.bg.prop{color:var(--_amber-400);border-color:rgba(220,167,94,.4);background:var(--color-warning-weak)}
+.bg.firm{color:var(--_jade-300);border-color:var(--_jade-400);background:var(--color-accent-weak);font-weight:600}
+.bg.foco{color:var(--_terra-300);border-color:var(--color-primary);background:var(--color-primary-weak);font-weight:600}
+.bg.rec{color:var(--_blue-400);border-color:rgba(127,177,255,.4);background:var(--color-info-weak)}
+.m-card .px{font-size:12.5px;margin-top:9px;border-left:2px solid var(--color-primary);padding-left:9px;color:var(--color-text-muted)}
+.m-card .px.sin{border-left-color:var(--color-danger);color:var(--color-danger);font-style:italic}
+.m-card .meta{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:9px;font-size:11.5px;color:var(--color-text-subtle);font-family:var(--font-mono);align-items:center}
+.m-card .meta .venc{color:var(--color-danger);font-weight:600} .m-card .meta .frio-al{color:var(--color-warning);font-weight:600}
+.sret{display:inline-flex;gap:4px;align-items:center;font-size:11px;color:var(--color-text-subtle);font-family:var(--font-ui)}
+.sret .led{width:8px;height:8px;border-radius:50%}
+.led.v{background:var(--_jade-400)} .led.a{background:var(--_amber-400)} .led.r{background:var(--_red-400)}
+.vacia{padding:34px 18px;text-align:center;color:var(--color-text-subtle);font-size:13px}
+.vacia .em{font-size:26px;display:block;margin-bottom:8px;opacity:.6}
+
+/* ── HOY ── */
+.hoy-foco{margin:2px 16px 12px;padding:14px;border-radius:var(--radius-lg);background:var(--color-primary-weak);
+  border:1px solid rgba(213,130,79,.35)}
+.hoy-foco .k{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--_terra-300);font-weight:600}
+.hoy-foco p{font-size:13px;color:var(--color-text-muted);margin-top:6px;line-height:1.5}
+.hoy-foco p b{color:var(--color-text)}
+.hoy-foco.ok{background:var(--color-accent-weak);border-color:rgba(62,155,130,.4)}
+.hoy-foco .cta{margin-top:11px;width:100%;min-height:46px;border-radius:var(--radius-md);background:var(--color-primary);
+  color:#1a1410;font-weight:700;font-size:13.5px}
+.blk{margin:0 16px 8px}
+.blk-h{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-text-subtle);padding:10px 2px 8px;display:flex;align-items:center;gap:8px}
+.blk-h .n{margin-left:auto;font-family:var(--font-mono);color:var(--color-text-subtle)}
+.hoy-tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 16px 14px}
+.tile{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:13px 14px}
+.tile .k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--color-text-subtle)}
+.tile .v{font-size:24px;font-weight:600;margin-top:4px;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.tile .v small{font-size:11px;color:var(--color-text-muted);font-family:var(--font-ui)}
+.tile.rojo .v{color:var(--color-danger)} .tile.jade .v{color:var(--_jade-300)}
+
+/* ── SATO ── */
+.sato{padding:56px 16px 20px}
+.sato-hero{text-align:center;padding:22px 10px 14px}
+.sato-orb{width:88px;height:88px;border-radius:50%;margin:0 auto 14px;
+  background:radial-gradient(circle at 35% 30%, var(--_terra-300), var(--_terra-500) 62%, var(--_ink-800));
+  box-shadow:0 0 40px -6px rgba(213,130,79,.5), inset 0 -8px 18px rgba(0,0,0,.4);display:grid;place-items:center;font-size:32px}
+.sato-hero h3{font-family:var(--font-brand);font-weight:500;font-size:1.35rem}
+.sato-hero p{font-size:12.5px;color:var(--color-text-subtle);margin-top:4px}
+.bubble{max-width:86%;padding:11px 14px;border-radius:var(--radius-lg);font-size:13.5px;line-height:1.5;margin-bottom:9px}
+.bubble.sato{background:var(--glass-bg);border:1px solid var(--glass-border);border-bottom-left-radius:6px}
+.bubble.me{background:var(--color-primary-weak);border:1px solid rgba(213,130,79,.35);color:var(--color-text);
+  margin-left:auto;border-bottom-right-radius:6px}
+.sug-row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px}
+.sug{font-size:12.5px;padding:9px 13px;border-radius:var(--radius-full);border:1px solid var(--color-border);color:var(--color-text-muted);min-height:42px}
+.sug:hover{border-color:var(--color-border-strong);color:var(--color-text)}
+.sato-in{display:flex;gap:8px;align-items:center;margin-top:12px}
+.sato-in .box{flex:1;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.32);border:1px solid var(--color-border);
+  border-radius:var(--radius-full);padding:0 8px 0 15px;min-height:48px}
+.sato-in input{flex:1;background:none;border:none;color:var(--color-text);font-size:14px;min-width:0}
+.sato-in .send{width:38px;height:38px;border-radius:50%;background:var(--color-primary);color:#1a1410;display:grid;place-items:center;font-size:15px;flex:none}
+.sato-in .mic{width:48px;height:48px;flex:none;border-radius:50%;border:1px solid var(--color-primary);color:var(--_terra-300);display:grid;place-items:center;font-size:20px}
+.nota-voz{margin-top:12px;padding:11px 13px;border-radius:var(--radius-md);border:1px dashed var(--color-border-strong);
+  font-size:11.5px;color:var(--color-text-subtle);line-height:1.5}
+.nota-voz b{color:var(--_blue-400)}
+
+/* ── HQ ── */
+.hq{padding:6px 16px 20px}
+.hq-tiles{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px}
+.hq-line{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:13px 14px;margin-bottom:9px}
+.hq-line .top{display:flex;align-items:center;gap:10px}
+.hq-line .logo{width:28px;height:28px;border-radius:8px;background:var(--color-primary);color:#1a1410;display:grid;place-items:center;font-weight:700;font-size:12px}
+.hq-line .nm{font-weight:600;font-size:13.5px}
+.hq-line .amt{margin-left:auto;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--_jade-300)}
+.hq-line .sub{font-size:11px;color:var(--color-text-subtle);margin-top:5px;display:flex;align-items:center;gap:8px}
+
+/* ── tab bar inferior ── */
+.tabbar{position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(18,14,11,.94);backdrop-filter:blur(18px);
+  border-top:1px solid var(--color-border);padding:8px 6px 26px;z-index:35}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--color-text-subtle);min-height:52px}
+.tabbar button.on{color:var(--_terra-300)}
+.tabbar .ic{font-size:20px;line-height:1}
+.tabbar button.on .ic{filter:drop-shadow(0 0 8px rgba(213,130,79,.5))}
+
+/* ── vistas ── */
+.vista{display:none} .vista.on{display:block}
+
+/* ── Ficha 360 · bottom sheet ── */
+.scrim{position:absolute;inset:0;background:rgba(6,4,3,.62);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity var(--dur-state) var(--ease-out);z-index:45}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:92%;background:rgba(20,16,13,.99);
+  border-top-left-radius:var(--radius-xl);border-top-right-radius:var(--radius-xl);box-shadow:var(--shadow-sheet);
+  border:1px solid var(--color-border-strong);border-bottom:none;transform:translateY(102%);transition:transform var(--dur-state) var(--ease-out);
+  z-index:46;display:flex;flex-direction:column}
+.sheet.on{transform:translateY(0)}
+.sheet .handle{width:38px;height:5px;border-radius:var(--radius-full);background:var(--color-border-strong);margin:9px auto 4px;flex:none}
+.sheet-head{display:flex;align-items:center;gap:12px;padding:6px 18px 12px;border-bottom:1px solid var(--color-border);flex:none}
+.sheet-head .logo{width:44px;height:44px;border-radius:12px;background:var(--color-primary);color:#1a1410;display:grid;place-items:center;font-weight:700;font-size:18px}
+.sheet-head h3{font-family:var(--font-brand);font-weight:500;font-size:1.3rem;line-height:1.1}
+.sheet-head .est{font-size:11.5px;color:var(--color-text-muted);margin-top:2px}
+.sheet-head .x{margin-left:auto;width:38px;height:38px;border-radius:var(--radius-full);display:grid;place-items:center;color:var(--color-text-muted);border:1px solid var(--color-border)}
+.sheet-tabs{display:flex;gap:6px;padding:12px 18px;overflow-x:auto;scrollbar-width:none;flex:none;border-bottom:1px solid var(--color-border)}
+.sheet-tabs::-webkit-scrollbar{display:none}
+.sheet-tab{flex:none;padding:8px 15px;border-radius:var(--radius-full);font-size:13px;color:var(--color-text-muted);border:1px solid var(--color-border);min-height:40px;white-space:nowrap}
+.sheet-tab.on{background:var(--color-primary-weak);color:var(--_terra-300);border-color:var(--color-primary);font-weight:600}
+.sheet-body{padding:16px 18px 30px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pbox{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:14px;margin-bottom:12px}
+.pbox h6{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--color-text-subtle);margin-bottom:10px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--color-border);font-size:13px}
+.kv:last-child{border-bottom:none} .kv .k{color:var(--color-text-muted)} .kv .v{text-align:right}
+.encaje{list-style:none} .encaje li{display:flex;gap:10px;align-items:center;padding:9px 0;font-size:13px;border-bottom:1px solid var(--color-border)}
+.encaje li:last-child{border-bottom:none}
+.encaje .led2{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid var(--color-border-strong)}
+.encaje .si{background:var(--_jade-400);border-color:var(--_jade-400)} .encaje .no{background:var(--_red-400);border-color:var(--_red-400)}
+.encaje small{color:var(--color-text-subtle);margin-left:auto;font-size:11px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;border-radius:var(--radius-md);
+  border:1px solid var(--color-border-strong);font-size:14px;color:var(--color-text);min-height:48px;margin-top:9px;
+  transition:all var(--dur-fast) var(--ease-out)}
+.btn:hover{background:rgba(255,255,255,.05)}
+.btn.pri{background:var(--color-primary);color:#1a1410;border-color:var(--color-primary);font-weight:700}
+.btn.pri:hover{background:var(--color-primary-hover)}
+.btn.jade{background:var(--_jade-400);color:#1a1410;border-color:var(--_jade-400);font-weight:700}
+.btn:disabled{opacity:.45;cursor:default}
+.editrow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.editrow input{flex:1;min-width:130px;background:rgba(0,0,0,.3);border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  color:var(--color-text);padding:11px 12px;font-size:13.5px;min-height:46px}
+.editrow input.f{flex:0 0 118px}
+.oplist{list-style:none} .oplist li{display:flex;gap:8px;align-items:center;padding:10px 11px;border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);margin-bottom:7px;font-size:12.5px;background:rgba(0,0,0,.2)}
+.oplist .s{flex:1} .oplist .imp{font-family:var(--font-mono)} .oplist li.p{opacity:.72}
+.oplist .st{font-size:10.5px;padding:2px 8px;border-radius:6px} .oplist .st.g{background:var(--color-accent-weak);color:var(--_jade-300)} .oplist .st.p{background:var(--color-warning-weak);color:var(--_amber-400)}
+.nota-back{font-size:11.5px;color:var(--color-text-subtle);border-left:2px solid var(--color-border-strong);padding-left:11px;margin-top:11px;line-height:1.55}
+
+/* ── modal motivo pérdida ── */
+.modal{position:absolute;inset:0;display:none;place-items:center;background:rgba(6,4,3,.7);z-index:48;padding:20px}
+.modal.on{display:grid}
+.modal .caja{width:100%;max-width:340px;background:rgba(24,19,15,.99);border:1px solid var(--color-border-strong);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-lg)}
+.modal h4{font-family:var(--font-brand);font-weight:500;margin-bottom:6px}
+.modal p{font-size:12.5px;color:var(--color-text-muted);margin-bottom:12px;line-height:1.5}
+.modal input{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);padding:12px;font-size:14px;margin-bottom:12px;min-height:48px}
+
+/* ── staging correo (hoja) ── */
+.stg{display:flex;gap:11px;padding:13px;border:1px solid var(--glass-border);border-radius:var(--radius-md);margin-bottom:10px;background:var(--glass-bg)}
+.stg .ic{flex:none;width:36px;height:36px;border-radius:10px;background:var(--color-info-weak);color:var(--_blue-400);display:grid;place-items:center;font-size:16px}
+.stg .s{flex:1;min-width:0}
+.stg .asunto{font-weight:600;font-size:13.5px;line-height:1.3}
+.stg .quien{font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono);margin-top:2px}
+.stg .sug2{font-size:11.5px;color:var(--color-text-muted);margin-top:6px} .stg .sug2 b{color:var(--_terra-300)}
+.stg .rowb{display:flex;gap:8px;margin-top:10px}
+.stg.done{opacity:.5}
+
+/* ── toast ── */
+.toast{position:absolute;bottom:96px;left:50%;transform:translateX(-50%) translateY(8px);background:rgba(28,22,17,.99);
+  border:1px solid var(--color-border-strong);border-radius:var(--radius-md);padding:11px 16px;font-size:12.5px;
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:all var(--dur-state) var(--ease-out);z-index:50;max-width:88%;text-align:center;line-height:1.4}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── convivencia con escritorio (modo explicativo) ── */
+.conv{max-width:860px;margin:0 auto;padding:30px 20px 80px}
+.conv h2{font-family:var(--font-brand);font-weight:500;font-size:1.5rem;margin-bottom:6px}
+.conv .lead{color:var(--color-text-muted);font-size:14px;line-height:1.6;margin-bottom:22px}
+.bp{display:flex;gap:14px;margin:18px 0;flex-wrap:wrap}
+.bp .col{flex:1;min-width:250px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-lg);padding:16px}
+.bp .col.movil{border-color:var(--color-primary)}
+.bp .col h4{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-subtle);margin-bottom:4px}
+.bp .col .rng{font-family:var(--font-mono);font-size:13px;color:var(--_terra-300);margin-bottom:10px}
+.bp .col.esc .rng{color:var(--_jade-300)}
+.bp .col ul{list-style:none} .bp .col li{padding:6px 0;font-size:13px;color:var(--color-text-muted);border-bottom:1px solid var(--color-border);line-height:1.5}
+.bp .col li:last-child{border-bottom:none}
+.codeblk{background:#0b0906;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:16px;overflow-x:auto;
+  font-family:var(--font-mono);font-size:12.5px;line-height:1.7;color:var(--color-text-muted);margin:16px 0}
+.codeblk .c{color:var(--color-text-subtle)} .codeblk .k{color:var(--_terra-300)} .codeblk .j{color:var(--_jade-300)}
+.reglas{list-style:none;margin-top:8px}
+.reglas li{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-border);font-size:13.5px;line-height:1.55;color:var(--color-text-muted)}
+.reglas li:last-child{border-bottom:none}
+.reglas .no{color:var(--_jade-400);flex:none;font-weight:700;font-family:var(--font-mono)}
+.reglas b{color:var(--color-text)}
+.conf{margin-top:22px;padding:14px 16px;border-radius:var(--radius-md);background:var(--color-accent-weak);border:1px solid rgba(62,155,130,.35);font-size:13px;color:var(--color-text-muted);line-height:1.55}
+.conf b{color:var(--_jade-300)}
+
+/* si Luciano abre la maqueta EN su iPhone: el marco se vuelve pantalla completa */
+@media (max-width:480px){
+  .mq-bar{padding:10px 14px} .mq-seg{margin-left:0;width:100%}
+  .stage{padding:0}
+  .iphone{width:100%;border:0;border-radius:0;padding:0;box-shadow:none}
+  .pantalla{height:100vh;height:100dvh;border-radius:0}
+  .isla{width:110px}
+  .conv{padding:22px 16px 60px}
+}
+</style>
+</head>
+<body>
+
+<header class="mq-bar">
+  <span class="tag">Maqueta móvil · CRM PRO</span>
+  <h1>iPhone — Satori OS</h1>
+  <div class="mq-seg">
+    <button class="on" data-modo="iphone">📱 iPhone</button>
+    <button data-modo="conv">📐 Convivencia con escritorio</button>
+  </div>
+  <p class="mq-note">Re-adaptación <b>integral</b> del CRM Pro para iPhone · tokens reales del OS · vanilla GAS-compatible · estado en memoria. Datos cartera v2 real (único monto real: Vehemence USD 250) · correos SIMULADOS <span class="ej">[EJEMPLO]</span> · nada escribe en el MAESTRO. <b>Tocá todo: tabbar, buscar, atajos, chips, y una card para abrir la Ficha.</b></p>
+</header>
+
+<!-- ═══════════ MODO iPhone ═══════════ -->
+<section class="modo on" id="modoIphone">
+<div class="stage">
+  <div class="iphone"><div class="pantalla" id="pantalla">
+    <div class="isla"></div>
+    <div class="statusbar"><span>9:41</span><span class="r">◦◦◦ · Sato · ▮▮▮</span></div>
+
+    <div class="scroll" id="scroll">
+
+      <!-- ░░ CARTERA ░░ -->
+      <div class="vista on" id="vCartera">
+        <div class="appbar">
+          <div class="hi">Buenas, <b>Luciano</b> · mié 26 ago</div>
+          <div class="row"><h2>Cartera</h2><div class="count" id="cSub">—</div></div>
+        </div>
+        <div class="funcbar">
+          <div class="search"><span>⌕</span><input id="q" type="search" placeholder="Buscar cliente o CLI-0…" aria-label="Buscar cliente" autocomplete="off"></div>
+          <button class="fbtn pri" id="bNuevo" aria-label="Nuevo candidato">＋</button>
+        </div>
+        <div class="atajos" id="atajos"></div>
+        <div class="chips" id="chips"></div>
+        <div class="filtro-act" id="filtroAct"></div>
+        <div class="lista" id="lista"></div>
+      </div>
+
+      <!-- ░░ HOY ░░ -->
+      <div class="vista" id="vHoy">
+        <div class="appbar"><div class="hi">Miércoles 26 de agosto</div><div class="row"><h2>Mi día</h2></div></div>
+        <div class="hoy-foco" id="hoyFoco">
+          <div class="k">◎ Foco de la semana · F3</div>
+          <p><b>MesaQuince</b> (vencía 20-ago · destrabar SGIC) y <b>SIP Coffee</b> (vencía 22-ago · agendar reunión). El OS propone con motivo; <b>vos decidís</b>.</p>
+          <button class="cta" id="focoOk">Aceptar el foco de la semana</button>
+        </div>
+        <div class="hoy-tiles" id="hoyTiles"></div>
+        <div class="blk"><div class="blk-h">Para hoy · lo más urgente <span class="n" id="hoyN">—</span></div></div>
+        <div class="lista" id="hoyLista"></div>
+      </div>
+
+      <!-- ░░ SATO ░░ -->
+      <div class="vista" id="vSato">
+        <div class="sato">
+          <div class="sato-hero">
+            <div class="sato-orb">🜂</div>
+            <h3>Sato</h3>
+            <p>Tu dirección administrativa, en el bolsillo</p>
+          </div>
+          <div class="bubble sato">Hola Luciano. Tenés <b>2 vencidas</b> y <b>MesaQuince</b> lleva 14 días sin avanzar. ¿Arrancamos por el foco o querés el brief del día?</div>
+          <div class="bubble me" id="satoMe" style="display:none"></div>
+          <div class="bubble sato" id="satoResp" style="display:none"></div>
+          <div class="sug-row">
+            <button class="sug" data-s="brief">☀ Dame el brief de hoy</button>
+            <button class="sug" data-s="vehemence">◉ ¿Cómo viene Vehemence?</button>
+            <button class="sug" data-s="vencidas">⚠ ¿Qué está vencido?</button>
+          </div>
+          <div class="sato-in">
+            <div class="box"><input id="satoInput" placeholder="Escribile a Sato…" aria-label="Mensaje a Sato"><button class="send" id="satoSend" aria-label="Enviar">➤</button></div>
+            <button class="mic" id="satoMic" aria-label="Hablar con Sato">🎙</button>
+          </div>
+          <div class="nota-voz">La voz <b>full-duplex</b> (hablar y que te responda hablando) vive en el botón 📞 sobre la PWA — dentro del iframe de Google el micrófono queda bloqueado. Acá el chat de texto y el brief funcionan embebidos; el 🎙 abre la ruta de voz real.</div>
+        </div>
+      </div>
+
+      <!-- ░░ HQ ░░ -->
+      <div class="vista" id="vHq">
+        <div class="appbar"><div class="hi">Cuartel general</div><div class="row"><h2>HQ</h2></div></div>
+        <div class="hq">
+          <div class="hq-tiles" id="hqTiles"></div>
+          <div class="blk-h">Retenciones activas · camino del mes</div>
+          <div id="hqLineas"></div>
+          <div class="nota-back" style="margin:14px 2px 0">Números con procedencia: cada cifra declara de qué hoja y fecha sale (regla de aislamiento). Monedas reales pendientes de cargar (CLI-002/003/004) — acá van como <span class="ej">[ej.]</span>.</div>
+        </div>
+      </div>
+
+    </div><!-- /scroll -->
+
+    <!-- Ficha 360 (bottom sheet) -->
+    <div class="scrim" id="scrim"></div>
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Ficha de cliente">
+      <div class="handle"></div>
+      <div class="sheet-head">
+        <div class="logo" id="shLogo">—</div>
+        <div><h3 id="shNombre">—</h3><div class="est" id="shEst">—</div></div>
+        <button class="x" id="shX" aria-label="Cerrar ficha">✕</button>
+      </div>
+      <div class="sheet-tabs" id="shTabs"></div>
+      <div class="sheet-body" id="shBody"></div>
+    </div>
+
+    <!-- Modal motivo pérdida -->
+    <div class="modal" id="mPerdido">
+      <div class="caja">
+        <h4>Motivo de pérdida</h4>
+        <p>Regla S5: nada pasa a <b>perdido</b> sin una línea de por qué — a 20 candidatos, cada pérdida es aprendizaje que vale oro.</p>
+        <input id="mpMotivo" placeholder="precio · timing · eligió otra opción · sin respuesta">
+        <button class="btn" id="mpRec">Perder + recontacto en 90 días</button>
+        <button class="btn pri" id="mpOk">Registrar pérdida</button>
+        <button class="btn" id="mpCancel" style="border:none">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- Sheet staging correo -->
+    <div class="scrim" id="scrimC"></div>
+    <div class="sheet" id="sheetC" role="dialog" aria-modal="true" aria-label="Correo a CRM">
+      <div class="handle"></div>
+      <div class="sheet-head">
+        <div class="logo" style="background:var(--color-info-weak);color:var(--_blue-400)">✉</div>
+        <div><h3>Correo → CRM</h3><div class="est">correo_on · gmail.readonly · 0 escritura</div></div>
+        <button class="x" id="cX" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="sheet-body">
+        <p class="nota-back" style="margin:0 0 14px">Threads de contactos del roster traídos a <b>staging</b>. Nada se asocia solo: <b>confirmás o descartás</b>. Confirmado → entra a la timeline de la Ficha + sella último contacto (M1+M2).</p>
+        <div id="stgWrap"></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <!-- tab bar -->
+    <nav class="tabbar" id="tabbar">
+      <button data-t="Hoy"><span class="ic">☀</span>Hoy</button>
+      <button class="on" data-t="Cartera"><span class="ic">◉</span>Cartera</button>
+      <button data-t="Sato"><span class="ic">🜂</span>Sato</button>
+      <button data-t="Hq"><span class="ic">⌂</span>HQ</button>
+    </nav>
+
+  </div></div>
+</div>
+</section>
+
+<!-- ═══════════ MODO Convivencia con escritorio ═══════════ -->
+<section class="modo" id="modoConv">
+<div class="conv">
+  <h2>Sí — sin tocar el escritorio</h2>
+  <p class="lead">Todo lo que ves en el teléfono vive dentro de un único bloque <code>@media (max-width:640px)</code> del mismo <code>src/index.html</code>. El escritorio (≥641px) <b>nunca lee esas reglas</b>: renderiza exactamente el mismo HTML con el CSS de hoy. No es una app aparte ni un branch: es la misma pantalla respondiendo al ancho.</p>
+
+  <div class="bp">
+    <div class="col movil"><h4>📱 iPhone</h4><div class="rng">ancho ≤ 640px</div>
+      <ul>
+        <li>Tab bar inferior de 4 (Hoy · Cartera · Sato · HQ)</li>
+        <li>Barra de funciones (buscar + nuevo) + atajos</li>
+        <li>Cartera en lista vertical, ordenada por urgencia</li>
+        <li>Ficha 360 como hoja que sube desde abajo</li>
+      </ul>
+    </div>
+    <div class="col esc"><h4>🖥 Escritorio</h4><div class="rng">ancho ≥ 641px</div>
+      <ul>
+        <li>Centro de Mando con orbe y Akasha — intacto</li>
+        <li>Cartera en kanban horizontal (la v2 que aprobaste)</li>
+        <li>Ficha 360 como modal centrado</li>
+        <li>Cero cambios: mismas reglas CSS de hoy</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="codeblk">
+<span class="c">/* base: la comparten los dos, no se toca */</span><br>
+.cartera-cols<span class="k">{</span> display:flex; overflow-x:auto; <span class="k">}</span> <span class="c">/* kanban escritorio */</span><br><br>
+<span class="c">/* SOLO el teléfono lee esto — el escritorio ni se entera */</span><br>
+<span class="j">@media (max-width:640px)</span> <span class="k">{</span><br>
+&nbsp;&nbsp;.cartera-cols<span class="k">{</span> display:block; <span class="k">}</span> <span class="c">/* pasa a lista vertical */</span><br>
+&nbsp;&nbsp;.tabbar<span class="k">{</span> display:flex; <span class="k">}</span> <span class="c">/* aparece la tab bar */</span><br>
+&nbsp;&nbsp;.f360<span class="k">{</span> bottom:0; top:auto; <span class="k">}</span> <span class="c">/* la Ficha sube desde abajo */</span><br>
+<span class="k">}</span>
+  </div>
+
+  <div class="blk-h" style="color:var(--color-text-subtle);margin-top:8px">Las 3 reglas que garantizan que el escritorio no se mueve</div>
+  <ul class="reglas">
+    <li><span class="no">1</span><span><b>Todo lo móvil dentro del <code>@media</code>.</b> Ni una regla mobile toca las clases base. Si algo tiene que verse distinto en el teléfono, se sobreescribe adentro del media query, jamás afuera.</span></li>
+    <li><span class="no">2</span><span><b>Mismo DOM, no se borra nada.</b> El teléfono esconde/reordena con CSS (<code>display</code>, <code>order</code>, <code>position</code>), nunca quita nodos. El escritorio sigue teniendo todas sus piezas.</span></li>
+    <li><span class="no">3</span><span><b>Mejora progresiva.</b> La tab bar y la hoja existen solo bajo el breakpoint; el orbe, la Akasha y el kanban existen solo por encima. Cada mundo ignora al otro.</span></li>
+  </ul>
+
+  <div class="conf"><b>Confianza 9/10.</b> El único modo de romper el escritorio es tocar reglas base compartidas o el DOM — precisamente lo que estas 3 reglas prohíben. El 10º punto queda para el eyeball real en <code>/exec</code> tras construir: el CM no es auto-screenshoteable (iframe cross-origin), así que la verificación final del render de escritorio la hacés vos, como siempre. La prod ya reordena la lista por urgencia en &lt;640px; esto lo completa hasta el shell iOS entero.</div>
+</div>
+</section>
+
+<script>
+/* ═══ DATOS · cartera v2 real · montos [EJEMPLO] salvo Vehemence ═══ */
+var HOY='2026-08-26';
+var C=[
+ {id:'CLI-002',n:'Vehemence',etapa:'activo',svc:'S2 + S4 · e-comm',px:'Cerrar propuesta USD 250',pxf:'2026-08-27',desde:'2026-08-11',uc:'2026-08-22',resp:'Micaela',enc:['si','si','si','si'],ops:[{s:'Piloto SGIC',st:'g',imp:'—'},{s:'S2 Dirección Admin',st:'p',imp:'USD 250'}],ret:{datos:true,reunion:true,comp:false}},
+ {id:'CLI-003',n:'LC Travel',etapa:'activo',svc:'S2 · SGIC completo',px:'Formalizar retención de facto',pxf:'',desde:'2026-08-11',uc:'2026-08-18',resp:'Lucas',enc:['si','si','ns','si'],ops:[{s:'SGIC + cierre mensual',st:'g',imp:'—'}],ret:{datos:false,reunion:false,comp:true}},
+ {id:'CLI-004',n:'DAM Barbers',etapa:'activo',svc:'S1 → S2 · Fresha',px:'',pxf:'',desde:'2026-08-11',uc:'2026-08-05',resp:'Alex',enc:['si','si','si','ns'],ops:[{s:'SGIC Fresha',st:'g',imp:'—'}],ret:{datos:true,reunion:false,comp:true}},
+ {id:'CLI-007',n:'EJF + Figueras',etapa:'activo',svc:'S1/S3 · atípico',px:'Definir encaje',pxf:'',desde:'2026-08-11',uc:'2026-08-20',resp:'Elías',enc:['ns','ns','ns','si'],ops:[],ret:{datos:true,reunion:true,comp:true}},
+ {id:'CLI-001',n:'MesaQuince',etapa:'tibio',svc:'SGIC solo',px:'Esperando respuesta por SGIC',pxf:'2026-08-20',desde:'2026-08-11',uc:'2026-08-12',foco:true,enc:['si','si','si','ns'],ops:[]},
+ {id:'CLI-005',n:'SIP Coffee',etapa:'tibio',svc:'SGIC + consultoría',px:'Agendar reunión pendiente',pxf:'2026-08-22',desde:'2026-08-11',uc:'2026-07-30',foco:true,enc:['si','si','ns','si'],ops:[]},
+ {id:'CLI-008',n:'Pipol Coffee',etapa:'tibio',svc:'SGIC + consult. + Web',px:'Buscar Conversación de Exploración',pxf:'2026-08-29',desde:'2026-08-11',uc:'2026-08-16',resp:'Tato y Guille',enc:['si','ns','ns','si'],ops:[]},
+ {id:'CLI-009',n:'Nook Coffee',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-010',n:'Pol Train',etapa:'tibio',svc:'App + Web',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','si'],ops:[]},
+ {id:'CLI-011',n:'A. Bono Seguros',etapa:'tibio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','si','ns','ns'],ops:[]},
+ {id:'CLI-012',n:'Crocante',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',uc:'2026-07-15',resp:'Daniel',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-013',n:'Raro Coffee',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-014',n:'Café Sando',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-015',n:'Couleur Café',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',uc:'',resp:'Mohamed',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-016',n:'Oxaca Badalona',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]},
+ {id:'CLI-017',n:'Tech Log',etapa:'frio',svc:'Consultoría',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-018',n:'Galgo',etapa:'frio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-019',n:'Maravillas P&M',etapa:'frio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-020',n:'Activarte BCN',etapa:'frio',svc:'App + SGIC',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['ns','ns','ns','ns'],ops:[]},
+ {id:'CLI-021',n:'C. Tullio CBA',etapa:'frio',svc:'SGIC + Web · AR',px:'',pxf:'',desde:'2026-08-11',uc:'',enc:['si','ns','ns','ns'],ops:[]}
+];
+var ETAPAS=['activo','caliente','tibio','en_pausa','frio','perdido'];
+var ETIQ={frio:'Frío',tibio:'Tibio',caliente:'Caliente',activo:'Activo',en_pausa:'En pausa',perdido:'Perdido'};
+var ENC_CRIT=['≥2 años de antigüedad','Ventas estabilizadas','Punto de equilibrio sostenido','Intención real de mejora'];
+var STAGING=[
+ {id:'t1',cli:'CLI-005',asunto:'[EJEMPLO] Re: propuesta reunión café',quien:'sip.coffee@… · hace 2 días',estado:'pend'},
+ {id:'t2',cli:'CLI-002',asunto:'[EJEMPLO] Números de agosto + dudas Xubio',quien:'micaela@… · hace 3 días',estado:'pend'},
+ {id:'t3',cli:'CLI-008',asunto:'[EJEMPLO] Consulta por la carta de precios',quien:'pipol.bcn@… · hace 5 días',estado:'pend'}
+];
+var THREADS={};
+var MET={ret:3, rec:'—'};
+var focoAceptado=false;
+
+/* ═══ estado UI ═══ */
+var vistaActual='Cartera';
+var filtroEtapa='';         // '' = todas en juego (no perdidas)
+var filtroAtajo='';         // '', 'foco','venc','frio'
+var query='';
+var fichaActual=null;
+var shTabActual='Resumen';
+
+/* ═══ helpers ═══ */
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function dias(a,b){if(!a)return null;var pa=a.split('-'),pb=b.split('-');return Math.round((Date.UTC(+pb[0],+pb[1]-1,+pb[2])-Date.UTC(+pa[0],+pa[1]-1,+pa[2]))/864e5)}
+function byId(id){for(var i=0;i<C.length;i++)if(C[i].id===id)return C[i];return null}
+function sellar(c){c.uc=HOY}
+function esVencida(c){return c.pxf&&c.pxf<HOY&&c.etapa!=='perdido'}
+function esFrio(c){return c.etapa!=='perdido'&&c.uc&&dias(c.uc,HOY)>30}
+function toast(t){var o=document.getElementById('toast');o.textContent=t;o.classList.add('on');clearTimeout(o._t);o._t=setTimeout(function(){o.classList.remove('on')},3000)}
+
+/* ═══ modo maqueta (iPhone / convivencia) ═══ */
+var segs=document.querySelectorAll('.mq-seg button');
+for(var i=0;i<segs.length;i++)(function(b){
+  b.addEventListener('click',function(){
+    for(var j=0;j<segs.length;j++)segs[j].classList.remove('on');
+    b.classList.add('on');
+    document.getElementById('modoIphone').classList.toggle('on',b.dataset.modo==='iphone');
+    document.getElementById('modoConv').classList.toggle('on',b.dataset.modo==='conv');
+  });
+})(segs[i]);
+
+/* ═══ tab bar ═══ */
+var tabBtns=document.querySelectorAll('#tabbar button');
+for(var i=0;i<tabBtns.length;i++)(function(b){
+  b.addEventListener('click',function(){irA(b.dataset.t)});
+})(tabBtns[i]);
+function irA(t){
+  vistaActual=t;
+  for(var j=0;j<tabBtns.length;j++)tabBtns[j].classList.toggle('on',tabBtns[j].dataset.t===t);
+  document.getElementById('vCartera').classList.toggle('on',t==='Cartera');
+  document.getElementById('vHoy').classList.toggle('on',t==='Hoy');
+  document.getElementById('vSato').classList.toggle('on',t==='Sato');
+  document.getElementById('vHq').classList.toggle('on',t==='Hq');
+  document.getElementById('scroll').scrollTop=0;
+  if(t==='Hoy')renderHoy(); if(t==='Hq')renderHq();
+}
+
+/* ═══ métricas ═══ */
+function mets(){
+  var venc=0,frio=0,sinpx=0,act=0,tib=0,fri=0;
+  for(var i=0;i<C.length;i++){var c=C[i];
+    if(esVencida(c))venc++;
+    if(esFrio(c))frio++;
+    if(!c.px&&c.etapa!=='perdido'&&c.etapa!=='activo')sinpx++;
+    if(c.etapa==='activo')act++; else if(c.etapa==='tibio')tib++; else if(c.etapa==='frio')fri++;
+  }
+  return {venc:venc,frio:frio,sinpx:sinpx,act:act,tib:tib,fri:fri,
+    enjuego:C.filter(function(c){return c.etapa!=='perdido'}).length,
+    perdidos:C.filter(function(c){return c.etapa==='perdido'}).length};
+}
+
+/* ═══ semáforo retención ═══ */
+function sretEl(r){
+  var s=el('span','sret');
+  var rojo=[r.datos,r.reunion,r.comp].filter(function(x){return !x}).length;
+  var cls=rojo===0?'v':(rojo===1?'a':'r');
+  s.appendChild(el('span','led '+cls));
+  s.appendChild(document.createTextNode(rojo===0?'al día':(rojo===1?'1 pendiente':'en riesgo')));
+  return s;
+}
+
+/* ═══ atajos ═══ */
+function renderAtajos(){
+  var m=mets();var a=document.getElementById('atajos');a.innerHTML='';
+  var foco=C.filter(function(c){return c.foco}).length;
+  var defs=[
+    ['foco','◎','Foco',foco,'foco'],
+    ['venc','⚠','Vencidas',m.venc,'venc'],
+    ['frio','❄','Fríos +30d',m.frio,'frio'],
+    ['correo','✉','Correo→CRM',STAGING.filter(function(t){return t.estado==='pend'}).length,'correo']
+  ];
+  defs.forEach(function(d){
+    var b=el('button','atajo '+d[4]+(filtroAtajo===d[0]?' on':''));
+    b.appendChild(el('span','ic',d[1]));
+    var bot=el('div');bot.style.display='flex';bot.style.justifyContent='space-between';bot.style.alignItems='flex-end';
+    bot.appendChild(el('span','lb',d[2]));bot.appendChild(el('span','n',String(d[3])));
+    b.appendChild(bot);
+    b.addEventListener('click',function(){
+      if(d[0]==='correo'){abrirCorreo();return;}
+      filtroAtajo=(filtroAtajo===d[0])?'':d[0];
+      if(filtroAtajo){filtroEtapa='';}
+      renderCartera();
+    });
+    a.appendChild(b);
+  });
+}
+
+/* ═══ chips etapa ═══ */
+function renderChips(){
+  var ch=document.getElementById('chips');ch.innerHTML='';
+  var todas=el('button','chip'+(filtroEtapa===''&&filtroAtajo===''?' on':''));
+  todas.appendChild(document.createTextNode('En juego'));
+  todas.appendChild(el('span','n',String(mets().enjuego)));
+  todas.addEventListener('click',function(){filtroEtapa='';filtroAtajo='';renderCartera()});
+  ch.appendChild(todas);
+  ETAPAS.forEach(function(e){
+    var n=C.filter(function(c){return c.etapa===e}).length;
+    if(!n)return;
+    var b=el('button','chip'+(filtroEtapa===e?' on':''));b.dataset.e=e;
+    b.appendChild(el('span','dot'));b.appendChild(document.createTextNode(ETIQ[e]));b.appendChild(el('span','n',String(n)));
+    b.addEventListener('click',function(){filtroEtapa=(filtroEtapa===e)?'':e;filtroAtajo='';renderCartera()});
+    ch.appendChild(b);
+  });
+}
+
+/* ═══ card ═══ */
+function cardEl(c){
+  var d=el('button','m-card');
+  var top=el('div','top');
+  top.appendChild(el('div','logo',c.n.charAt(0)));
+  var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id+(c.svc?' · '+c.svc:'')));top.appendChild(nm);
+  top.appendChild(el('div','chev','›'));
+  d.appendChild(top);
+  /* badges (presupuesto de señal: máx 2) */
+  var bs=el('div','bds');
+  if(c.foco&&!focoAceptado)bs.appendChild(el('span','bg foco','◎ foco'));
+  var propViva=(c.ops||[]).filter(function(o){return o.st==='p'})[0];
+  var firmadas=(c.ops||[]).filter(function(o){return o.st==='g'&&o.imp!=='—'});
+  if(propViva)bs.appendChild(el('span','bg prop',propViva.imp+' · propuesta'));
+  else if(firmadas.length)bs.appendChild(el('span','bg firm','✓ '+firmadas[0].imp+'/mes'));
+  else if(c.svc)bs.appendChild(el('span','bg svc',c.svc));
+  if(c.recontacto)bs.appendChild(el('span','bg rec','recontacto '+c.recontacto));
+  if(bs.childNodes.length)d.appendChild(bs);
+  if(c.px)d.appendChild(el('div','px','→ '+c.px));
+  else if(c.etapa!=='activo'&&c.etapa!=='perdido')d.appendChild(el('div','px sin','sin próxima acción — la regla pide una'));
+  var meta=el('div','meta');
+  var duc=c.uc?dias(c.uc,HOY):null;
+  if(esVencida(c))meta.appendChild(el('span','venc','⚠ vencía '+c.pxf));
+  else if(esFrio(c))meta.appendChild(el('span','frio-al','❄ '+duc+'d sin contacto'));
+  else if(duc!=null)meta.appendChild(el('span',null,'contacto hace '+duc+'d'));
+  else meta.appendChild(el('span',null,'sin contacto registrado'));
+  if(c.etapa==='activo'&&c.ret)meta.appendChild(sretEl(c.ret));
+  d.appendChild(meta);
+  d.addEventListener('click',function(){fichaAbrir(c)});
+  return d;
+}
+
+/* ═══ filtro + orden ═══ */
+function ordenUrgencia(a,b){
+  var ua=esVencida(a)?0:(esFrio(a)?1:2), ub=esVencida(b)?0:(esFrio(b)?1:2);
+  if(ua!==ub)return ua-ub;
+  return (b.uc?dias(b.uc,HOY):999)-(a.uc?dias(a.uc,HOY):999);
+}
+function carteraFiltrada(){
+  var arr=C.filter(function(c){
+    if(query){
+      var q=query.toLowerCase();
+      if(c.n.toLowerCase().indexOf(q)<0 && c.id.toLowerCase().indexOf(q)<0)return false;
+    }
+    if(filtroAtajo==='foco')return c.foco;
+    if(filtroAtajo==='venc')return esVencida(c);
+    if(filtroAtajo==='frio')return esFrio(c);
+    if(filtroEtapa)return c.etapa===filtroEtapa;
+    return c.etapa!=='perdido';
+  });
+  arr.sort(ordenUrgencia);
+  return arr;
+}
+
+/* ═══ render Cartera ═══ */
+function renderCartera(){
+  var m=mets();
+  document.getElementById('cSub').innerHTML='<b>'+m.enjuego+'</b> en juego<br>'+m.venc+' vencidas · '+m.frio+' fríos';
+  renderAtajos();renderChips();
+  var fa=document.getElementById('filtroAct');
+  var etq={foco:'◎ Foco de la semana',venc:'⚠ Vencidas',frio:'❄ +30 días sin contacto'};
+  if(filtroAtajo||filtroEtapa){
+    fa.classList.add('on');fa.innerHTML='';
+    fa.appendChild(document.createTextNode('Filtro: '));
+    fa.appendChild(el('b',null,filtroAtajo?etq[filtroAtajo]:ETIQ[filtroEtapa]));
+    var x=el('button','x','✕');x.addEventListener('click',function(){filtroAtajo='';filtroEtapa='';renderCartera()});
+    fa.appendChild(x);
+  } else fa.classList.remove('on');
+  var ls=document.getElementById('lista');ls.innerHTML='';
+  var arr=carteraFiltrada();
+  if(!arr.length){
+    var v=el('div','vacia');v.appendChild(el('span','em','◎'));
+    v.appendChild(document.createTextNode(query?'Ningún cliente coincide con «'+query+'».':'Nada en este filtro — probá otro atajo o etapa.'));
+    ls.appendChild(v);return;
+  }
+  arr.forEach(function(c){ls.appendChild(cardEl(c))});
+}
+
+/* ═══ búsqueda ═══ */
+document.getElementById('q').addEventListener('input',function(e){query=e.target.value.trim();renderCartera()});
+document.getElementById('bNuevo').addEventListener('click',function(){toast('＋ Nuevo candidato → alta en la cartera (CLI-0…) con encaje KAIROS a relevar')});
+
+/* ═══ foco ═══ */
+document.getElementById('focoOk').addEventListener('click',function(){
+  focoAceptado=true;
+  var f=document.getElementById('hoyFoco');f.classList.add('ok');
+  f.innerHTML='<div class="k" style="color:var(--_jade-300)">✓ Foco aceptado</div><p>MesaQuince y SIP quedan como tareas [F3] de la semana en el CM. Te las voy a recordar hasta cerrarlas.</p>';
+  toast('Foco aceptado — 2 tareas F3 creadas');
+  renderCartera();
+});
+
+/* ═══ Hoy ═══ */
+function renderHoy(){
+  var m=mets();
+  var t=document.getElementById('hoyTiles');t.innerHTML='';
+  [['Vencidas',m.venc,m.venc?'rojo':''],['Fríos +30d',m.frio,m.frio?'rojo':''],
+   ['Retenciones',MET.ret+' <small>ej.</small>','jade'],['Sin próx. paso',m.sinpx,m.sinpx?'rojo':'']
+  ].forEach(function(x){
+    var d=el('div','tile '+x[2]);d.appendChild(el('div','k',x[0]));
+    var v=el('div','v');v.innerHTML=String(x[1]);d.appendChild(v);t.appendChild(d);
+  });
+  var urg=C.filter(function(c){return esVencida(c)||esFrio(c)}).sort(ordenUrgencia);
+  document.getElementById('hoyN').textContent=urg.length;
+  var ls=document.getElementById('hoyLista');ls.innerHTML='';
+  if(!urg.length){var v=el('div','vacia');v.appendChild(el('span','em','✓'));v.appendChild(document.createTextNode('Nada urgente hoy. Buen momento para ofrecer a un tibio.'));ls.appendChild(v);return;}
+  urg.forEach(function(c){ls.appendChild(cardEl(c))});
+}
+
+/* ═══ HQ ═══ */
+function renderHq(){
+  var m=mets();
+  var t=document.getElementById('hqTiles');t.innerHTML='';
+  [['Retenciones activas',MET.ret+' <small>ej.</small>','jade'],['Recurrente / mes',MET.rec+' <small>por moneda</small>',MET.rec==='—'?'':'jade'],
+   ['Vencidas',m.venc,m.venc?'rojo':''],['En juego',m.enjuego,'']
+  ].forEach(function(x){
+    var d=el('div','tile '+x[2]);d.appendChild(el('div','k',x[0]));
+    var v=el('div','v');v.innerHTML=String(x[1]);d.appendChild(v);t.appendChild(d);
+  });
+  var lin=document.getElementById('hqLineas');lin.innerHTML='';
+  C.filter(function(c){return c.etapa==='activo'}).forEach(function(c){
+    var d=el('div','hq-line');
+    var top=el('div','top');top.appendChild(el('div','logo',c.n.charAt(0)));
+    top.appendChild(el('div','nm',c.n));
+    var firm=(c.ops||[]).filter(function(o){return o.st==='g'&&o.imp!=='—'})[0];
+    top.appendChild(el('div','amt',firm?firm.imp+'/mes':'de facto'));
+    d.appendChild(top);
+    var sub=el('div','sub');
+    if(c.ret)sub.appendChild(sretEl(c.ret));
+    sub.appendChild(el('span',null,'· '+(c.svc||'')));
+    d.appendChild(sub);
+    lin.appendChild(d);
+  });
+}
+
+/* ═══ Sato (chat maqueta) ═══ */
+var RESP={
+  brief:'Brief de hoy: 2 vencidas (MesaQuince, SIP), 3 retenciones activas al día salvo LC Travel (faltan datos del mes). Recomiendo destrabar el SGIC de MesaQuince antes del mediodía. Fuente: cartera + vigilancia, 26-ago.',
+  vehemence:'Vehemence (CLI-002 · activo): propuesta S2 por USD 250 abierta, vence mañana 27-ago. Micaela entregó datos y reunión hecha; falta cerrar compromisos del mes. Último contacto hace 4 días. Fuente: fichaCliente CLI-002.',
+  vencidas:'Vencidas hoy: MesaQuince (vencía 20-ago, destrabar SGIC) y SIP Coffee (vencía 22-ago, agendar reunión). Ambas son tu foco F3 de la semana.'
+};
+function satoResponder(txt,key){
+  var me=document.getElementById('satoMe'),rp=document.getElementById('satoResp');
+  me.style.display='block';me.textContent=txt;
+  rp.style.display='block';rp.textContent=RESP[key]||'En prod, esto lo contesta Sato leyendo la fuente viva del cliente — jamás inventa un número: si falta el dato, lo dice.';
+  document.getElementById('scroll').scrollTop=document.getElementById('scroll').scrollHeight;
+}
+var sugs=document.querySelectorAll('#vSato .sug');
+for(var i=0;i<sugs.length;i++)(function(b){
+  b.addEventListener('click',function(){satoResponder(b.textContent,b.dataset.s)});
+})(sugs[i]);
+document.getElementById('satoSend').addEventListener('click',function(){
+  var v=document.getElementById('satoInput').value.trim();if(!v)return;
+  satoResponder(v,'_libre');document.getElementById('satoInput').value='';
+});
+document.getElementById('satoMic').addEventListener('click',function(){toast('🎙 Abre la ruta de voz (📞 PWA) — el iframe de Google bloquea el micrófono embebido')});
+
+/* ═══ FICHA 360 (bottom sheet) ═══ */
+var SH_TABS=['Resumen','Números','Pasos','Comercial'];
+function fichaAbrir(c){
+  fichaActual=c;shTabActual='Resumen';
+  document.getElementById('shLogo').textContent=c.n.charAt(0);
+  document.getElementById('shNombre').textContent=c.n;
+  document.getElementById('shEst').textContent=c.id+' · '+ETIQ[c.etapa]+(c.resp?' · '+c.resp:'')+(c.motivo?' · perdido: «'+c.motivo+'»':'');
+  renderShTabs();fichaRender();
+  document.getElementById('scrim').classList.add('on');
+  document.getElementById('sheet').classList.add('on');
+}
+function fichaCerrar(){document.getElementById('scrim').classList.remove('on');document.getElementById('sheet').classList.remove('on')}
+document.getElementById('shX').addEventListener('click',fichaCerrar);
+document.getElementById('scrim').addEventListener('click',fichaCerrar);
+function renderShTabs(){
+  var t=document.getElementById('shTabs');t.innerHTML='';
+  SH_TABS.forEach(function(x){
+    var b=el('button','sheet-tab'+(x===shTabActual?' on':''),x);
+    b.addEventListener('click',function(){shTabActual=x;renderShTabs();fichaRender()});
+    t.appendChild(b);
+  });
+}
+function pbox(t){var p=el('div','pbox');if(t)p.appendChild(el('h6',null,t));return p}
+function kv(k,v){var r=el('div','kv');r.appendChild(el('span','k',k));r.appendChild(el('span','v num',v));return r}
+function fichaRender(){
+  var c=fichaActual,b=document.getElementById('shBody');b.innerHTML='';
+  var duc=c.uc?dias(c.uc,HOY):null;
+  if(shTabActual==='Resumen'){
+    var p1=pbox('Datos');
+    p1.appendChild(kv('Servicio',c.svc||'—'));
+    p1.appendChild(kv('Días en etapa',dias(c.desde,HOY)+' d'));
+    p1.appendChild(kv('Último contacto',c.uc?(c.uc+' · hace '+duc+'d'):'sin registro'));
+    p1.appendChild(kv('Etapa KAIROS',(c.ops||[]).some(function(o){return o.st==='p'})?'4 · Propuesta':'1-2'));
+    b.appendChild(p1);
+    var p2=pbox('Encaje target KAIROS · tocá para tildar');
+    var ul=el('ul','encaje');
+    ENC_CRIT.forEach(function(cr,idx){
+      var li=el('li');
+      li.appendChild(el('span','led2 '+(c.enc[idx]==='ns'?'':c.enc[idx])));
+      li.appendChild(el('span',null,cr));
+      li.appendChild(el('small',null,c.enc[idx]==='ns'?'sin dato':(c.enc[idx]==='si'?'✓':'no')));
+      li.addEventListener('click',function(){
+        c.enc[idx]=c.enc[idx]==='ns'?'si':(c.enc[idx]==='si'?'no':'ns');
+        toast('Encaje → encaje_kairos_4b: '+c.enc.map(function(x){return x==='si'?'s':(x==='no'?'n':'-')}).join(''));
+        fichaRender();
+      });
+      ul.appendChild(li);
+    });
+    p2.appendChild(ul);b.appendChild(p2);
+  }
+  else if(shTabActual==='Números'){
+    var pn=pbox('Números del cliente (fuente viva · con procedencia)');
+    pn.appendChild(kv('Propuesta abierta',(c.ops||[]).filter(function(o){return o.st==='p'}).map(function(o){return o.imp}).join(', ')||'—'));
+    pn.appendChild(kv('Retención firmada',(c.ops||[]).filter(function(o){return o.st==='g'&&o.imp!=='—'}).map(function(o){return o.imp+'/mes'})[0]||'—'));
+    pn.appendChild(kv('Estado retención',c.etapa==='activo'&&c.ret?([c.ret.datos,c.ret.reunion,c.ret.comp].filter(function(x){return !x}).length===0?'al día':'con pendientes'):'n/a'));
+    pn.appendChild(el('p','nota-back','Los importes salen del conector/SGIC del cliente, jamás inventados. Único monto real acá: Vehemence USD 250; el resto es [ej.].'));
+    b.appendChild(pn);
+  }
+  else if(shTabActual==='Pasos'){
+    var p3=pbox('Próxima acción (siempre existe)');
+    p3.appendChild(el('div',null,c.px||'(sin próxima acción — la regla pide una)'));
+    var er=el('div','editrow');
+    var inp=el('input');inp.value=c.px||'';inp.setAttribute('aria-label','Próxima acción');inp.placeholder='¿Qué sigue?';
+    var inf=el('input','f');inf.value=c.pxf||'';inf.placeholder='aaaa-mm-dd';inf.setAttribute('aria-label','Fecha');
+    er.appendChild(inp);er.appendChild(inf);p3.appendChild(er);
+    var ok=el('button','btn pri','Guardar próxima acción');
+    ok.addEventListener('click',function(){c.px=inp.value;c.pxf=inf.value;toast('Guardada → carteraProxAccion() con lock + log');fichaRender();renderCartera()});
+    p3.appendChild(ok);
+    var bc=el('button','btn jade','📞 Registrar contacto (hoy)');
+    bc.addEventListener('click',function(){sellar(c);toast('Contacto sellado '+HOY+' → ultimo_contacto + línea en Actividad (M1)');fichaRender();renderCartera()});
+    p3.appendChild(bc);
+    b.appendChild(p3);
+    if(c.etapa!=='perdido'){
+      var pp=pbox('Mover de etapa');
+      var bl=el('button','btn','Marcar como perdido (pide motivo · S5)');
+      bl.addEventListener('click',function(){abrirPerder(c)});
+      pp.appendChild(bl);b.appendChild(pp);
+    }
+  }
+  else if(shTabActual==='Comercial'){
+    var po=pbox('Oportunidades (S4 · recurrentes_propios)');
+    var ol=el('ul','oplist');
+    if((c.ops||[]).length){
+      c.ops.forEach(function(o){
+        var li=el('li',o.st==='p'?'p':null);
+        li.appendChild(el('span','s',o.s));li.appendChild(el('span','imp num',o.imp));
+        li.appendChild(el('span','st '+o.st,o.st==='g'?'activo':'propuesta'));
+        ol.appendChild(li);
+      });
+    } else ol.appendChild(el('li',null,'— sin oportunidades registradas'));
+    po.appendChild(ol);
+    var bReg=el('button','btn','→ Registrar propuesta S4 · 300 €/mes');
+    bReg.addEventListener('click',function(){
+      c.ops.push({s:'S4 Estrategia Fiscal',st:'p',imp:'300 €'});
+      toast('propuestaRegistrar() → estado=propuesta en recurrentes_propios · [EJEMPLO]');
+      fichaRender();renderCartera();
+    });
+    po.appendChild(bReg);
+    var prop=(c.ops||[]).filter(function(o){return o.st==='p'})[0];
+    var bFir=el('button','btn jade','✓ Marcar propuesta firmada');
+    if(!prop)bFir.disabled=true;
+    bFir.addEventListener('click',function(){
+      if(!prop)return;prop.st='g';MET.ret+=1;
+      MET.rec=(prop.imp.indexOf('USD')>=0)?'USD 250':'300 € [ej]';
+      sellar(c);
+      toast('propuestaFirmar() → activo · retenciones +1 · ciclo en Actividad · HQ lo suma');
+      fichaRender();renderCartera();
+    });
+    po.appendChild(bFir);b.appendChild(po);
+    var pa=pbox('Acciones · el dossier junta todo (C7)');
+    [['📄 Armar dossier de reunión','Dossier: brief + números del conector + últimos contactos (M1) + threads (M2) + oportunidades (S4)'],
+     ['🜂 Preguntarle a Sato por este cliente','Sato lee la fuente viva de '+c.id+' — con último contacto y oportunidades'],
+     ['⚑ Encargar a Cowork','capturar() → Bandeja etiquetada con '+c.id]].forEach(function(a){
+      var bt=el('button','btn',a[0]);bt.addEventListener('click',function(){toast(a[1])});pa.appendChild(bt);
+    });
+    pa.appendChild(el('p','nota-back','Aislamiento (regla dura): todo anclado a '+c.id+' con sello tenant_datos.'));
+    b.appendChild(pa);
+  }
+}
+
+/* ═══ perder (S5/S6) ═══ */
+var pendPerder=null;
+function abrirPerder(c){pendPerder=c;document.getElementById('mpMotivo').value='';document.getElementById('mPerdido').classList.add('on')}
+document.getElementById('mpCancel').addEventListener('click',function(){document.getElementById('mPerdido').classList.remove('on');pendPerder=null});
+function perder(conRec){
+  var m=document.getElementById('mpMotivo').value.trim();
+  if(!m){toast('El motivo es obligatorio (S5) — una línea alcanza');return;}
+  var c=pendPerder;c.etapa='perdido';c.motivo=m;c.px='';c.pxf='';
+  if(conRec){var rec='2026-11-24';c.recontacto=rec;c.px='Recontactar — se perdió por: '+m;c.pxf=rec;toast('Perdido («'+m+'») + recontacto '+rec+' — el brief lo revive solo (S6)');}
+  else toast('Perdido — motivo: «'+m+'». La cola fría no es un cementerio.');
+  document.getElementById('mPerdido').classList.remove('on');pendPerder=null;
+  fichaCerrar();renderCartera();
+}
+document.getElementById('mpOk').addEventListener('click',function(){perder(false)});
+document.getElementById('mpRec').addEventListener('click',function(){perder(true)});
+
+/* ═══ correo staging (sheet) ═══ */
+function abrirCorreo(){renderStg();document.getElementById('scrimC').classList.add('on');document.getElementById('sheetC').classList.add('on')}
+function cerrarCorreo(){document.getElementById('scrimC').classList.remove('on');document.getElementById('sheetC').classList.remove('on')}
+document.getElementById('cX').addEventListener('click',cerrarCorreo);
+document.getElementById('scrimC').addEventListener('click',cerrarCorreo);
+function renderStg(){
+  var w=document.getElementById('stgWrap');w.innerHTML='';
+  var pend=STAGING.filter(function(t){return t.estado==='pend'});
+  if(!pend.length){var v=el('div','vacia');v.appendChild(el('span','em','✓'));v.appendChild(document.createTextNode('Staging vacío — todo confirmado o descartado.'));w.appendChild(v);}
+  STAGING.forEach(function(t){
+    var c=byId(t.cli);
+    var s=el('div','stg'+(t.estado!=='pend'?' done':''));
+    s.appendChild(el('span','ic','✉'));
+    var mid=el('div','s');
+    mid.appendChild(el('div','asunto',t.asunto));
+    mid.appendChild(el('div','quien',t.quien));
+    var sug=el('div','sug2');sug.innerHTML='Sugerido: <b>'+c.n+' ('+t.cli+')</b> — coincide remitente del roster';
+    mid.appendChild(sug);
+    if(t.estado==='pend'){
+      var rb=el('div','rowb');
+      var okb=el('button','btn jade','Confirmar');okb.style.marginTop='0';
+      okb.addEventListener('click',function(){
+        t.estado='ok';if(!THREADS[t.cli])THREADS[t.cli]=[];THREADS[t.cli].push(t);sellar(c);
+        toast('Thread → timeline de '+c.n+' + último contacto sellado (M1+M2)');
+        renderStg();renderCartera();renderAtajos();
+      });
+      var nob=el('button','btn','Descartar');nob.style.marginTop='0';
+      nob.addEventListener('click',function(){t.estado='no';toast('Descartado — no vuelve (Correo_visto)');renderStg();renderAtajos()});
+      rb.appendChild(okb);rb.appendChild(nob);mid.appendChild(rb);
+    } else mid.appendChild(el('div','sug2',t.estado==='ok'?'✓ confirmado':'descartado'));
+    s.appendChild(mid);w.appendChild(s);
+  });
+}
+
+/* ═══ init ═══ */
+renderCartera();
+</script>
+</body>
+</html>

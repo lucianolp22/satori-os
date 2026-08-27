@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SATORI HQ — Ficha 360 · Luciano (maqueta v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ══ Tokens — primitivas reales del CM (src/index.html) · NO inventar fuera de acá ══ */
+:root{
+  --ink-950:#14110D; --ink-900:#1E1B18; --ink-850:#262119; --ink-800:#2F2A20;
+  --ink-700:#3D362A; --ink-600:#514838; --ink-500:#6E6450; --ink-400:#938872;
+  --ink-300:#B8AD96; --ink-200:#D8CFBA; --ink-100:#ECE4D3; --ink-50:#F4EEE2;
+  --terra-300:#E6A87E; --terra-400:#D5824F; --terra-500:#C2683D; --terra-600:#A0502B;
+  --jade-300:#6FC2A8; --jade-400:#3E9B82; --jade-500:#1F6F5C;
+  --font-brand:'Fraunces','Georgia',serif;
+  --font-ui:'Hanken Grotesk',-apple-system,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --r-s:6px; --r-m:10px; --r-l:16px;
+  --sombra:0 1px 2px rgba(0,0,0,.35),0 8px 24px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scrollbar-color:var(--ink-700) var(--ink-950)}
+body{background:radial-gradient(1200px 700px at 70% -10%, #201B14 0%, var(--ink-950) 55%);color:var(--ink-100);font-family:var(--font-ui);font-size:14px;line-height:1.5;min-height:100vh;padding:20px}
+.wrap{max-width:1080px;margin:0 auto}
+
+/* ══ Cabecera ══ */
+.hq-head{display:flex;align-items:center;gap:16px;padding:14px 18px;background:linear-gradient(180deg,rgba(47,42,32,.55),rgba(30,27,24,.35));border:1px solid var(--ink-800);border-radius:var(--r-l);box-shadow:var(--sombra)}
+.enso{width:46px;height:46px;flex:0 0 auto}
+.hq-tit h1{font-family:var(--font-brand);font-weight:600;font-size:21px;color:var(--ink-50);letter-spacing:.2px}
+.hq-tit p{color:var(--ink-400);font-size:12.5px}
+.hq-ns{margin-left:auto;text-align:right}
+.hq-ns .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-400)}
+.hq-ns .val{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:19px;color:var(--terra-300)}
+.hq-ns .sub{font-size:11.5px;color:var(--ink-300)}
+
+/* ══ Solapas ══ */
+.tabs{display:flex;gap:6px;margin:18px 0 14px;flex-wrap:wrap}
+.tab{appearance:none;border:1px solid var(--ink-800);background:rgba(38,33,25,.5);color:var(--ink-300);font:inherit;font-weight:600;font-size:13px;padding:8px 16px;border-radius:999px;cursor:pointer;min-height:32px;transition:background .15s ease,color .15s ease,border-color .15s ease}
+.tab:hover{color:var(--ink-100);border-color:var(--ink-600)}
+.tab:focus-visible{outline:2px solid var(--terra-400);outline-offset:2px}
+.tab[aria-selected="true"]{background:var(--terra-600);border-color:var(--terra-500);color:var(--ink-50)}
+.panel{display:none}
+.panel.on{display:block;animation:entra .22s ease}
+@keyframes entra{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.panel.on{animation:none}}
+
+/* ══ Piezas comunes ══ */
+.card{background:rgba(30,27,24,.72);border:1px solid var(--ink-800);border-radius:var(--r-l);padding:16px 18px;box-shadow:var(--sombra)}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+h2{font-family:var(--font-brand);font-weight:500;font-size:15.5px;color:var(--ink-100);margin-bottom:10px}
+h2 .mut{color:var(--ink-400);font-family:var(--font-ui);font-size:12px;font-weight:400}
+.bluf{border-left:3px solid var(--terra-400);padding:10px 14px;background:rgba(213,130,79,.08);border-radius:0 var(--r-m) var(--r-m) 0;color:var(--ink-50);font-weight:600;margin-bottom:14px}
+.fila{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid var(--ink-850)}
+.fila:last-child{border-bottom:0}
+.tagA{flex:0 0 auto;font-family:var(--font-mono);font-size:10.5px;color:var(--terra-300);border:1px solid var(--terra-600);border-radius:4px;padding:1px 6px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-200);background:var(--ink-850);border:1px solid var(--ink-800);border-radius:999px;padding:4px 11px;min-height:24px}
+.chip .n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--terra-300)}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.mut{color:var(--ink-400)} .peq{font-size:12px}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+
+/* ══ HOY ══ */
+.aviso-tira{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* ══ CHECKLIST ══ */
+.chk label{display:flex;gap:10px;align-items:flex-start;padding:7px 6px;border-radius:var(--r-s);cursor:pointer}
+.chk label:hover{background:rgba(61,54,42,.35)}
+.chk input{appearance:none;width:17px;height:17px;flex:0 0 auto;margin-top:2px;border:1.5px solid var(--ink-500);border-radius:5px;cursor:pointer;position:relative}
+.chk input:focus-visible{outline:2px solid var(--terra-400);outline-offset:2px}
+.chk input:checked{background:var(--jade-500);border-color:var(--jade-400)}
+.chk input:checked::after{content:"✓";position:absolute;inset:0;display:grid;place-items:center;font-size:11px;color:var(--ink-50)}
+.chk input:checked + span{color:var(--ink-400);text-decoration:line-through}
+.capa{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-400);margin:12px 0 4px}
+.captura{display:flex;gap:8px;margin-top:14px}
+.captura input{flex:1;background:var(--ink-900);border:1px solid var(--ink-700);border-radius:var(--r-m);color:var(--ink-100);font:inherit;padding:9px 12px;min-height:36px}
+.captura input::placeholder{color:var(--ink-500)}
+.captura input:focus-visible{outline:2px solid var(--terra-400);outline-offset:1px}
+.btn{appearance:none;border:1px solid var(--terra-500);background:var(--terra-600);color:var(--ink-50);font:inherit;font-weight:600;padding:8px 15px;border-radius:var(--r-m);cursor:pointer;min-height:36px}
+.btn:hover{background:var(--terra-500)}
+.btn:focus-visible{outline:2px solid var(--terra-300);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ══ OBJETIVOS ══ */
+.obj-col h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-300);margin-bottom:8px;display:flex;justify-content:space-between}
+.obj{background:rgba(38,33,25,.6);border:1px solid var(--ink-800);border-radius:var(--r-m);padding:11px 13px;margin-bottom:10px}
+.obj .top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.obj .nom{font-weight:600;color:var(--ink-100);font-size:13.5px}
+.flow{height:6px;background:var(--ink-850);border-radius:999px;overflow:hidden;margin:7px 0 5px}
+.flow i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--terra-600),var(--terra-400))}
+.flow.ok i{background:linear-gradient(90deg,var(--jade-500),var(--jade-400))}
+.obj .meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-400)}
+.obj .sgic{margin-top:7px;font-size:12px;color:var(--terra-300);border-top:1px dashed var(--ink-800);padding-top:6px}
+.obj .sgic b{color:var(--terra-300);font-weight:600}
+.eje-prof{background:var(--terra-400)} .eje-vida{background:var(--jade-400)} .eje-fin{background:#C9A227} .eje-op{background:#7FB1FF}
+.leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--ink-300)}
+.leyenda span{display:inline-flex;align-items:center;gap:6px}
+
+/* ══ NÚMEROS ══ */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-400);text-align:left;padding:6px 8px;border-bottom:1px solid var(--ink-700);position:sticky;top:0;background:var(--ink-900)}
+th.num,td.num{text-align:right}
+td{padding:7px 8px;border-bottom:1px solid var(--ink-850);color:var(--ink-200)}
+tr:last-child td{border-bottom:0}
+.tot td{color:var(--ink-100);font-weight:600;border-top:1px solid var(--ink-700)}
+.nota-f4a{margin-top:10px;font-size:12px;color:var(--ink-400);border:1px dashed var(--ink-700);border-radius:var(--r-m);padding:9px 12px}
+
+/* ══ CARTERA ══ */
+.pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.pcol{background:rgba(30,27,24,.6);border:1px solid var(--ink-800);border-radius:var(--r-m);padding:10px}
+.pcol h3{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-300);display:flex;justify-content:space-between;margin-bottom:8px}
+.pcol h3 .n{font-family:var(--font-mono);color:var(--terra-300)}
+.pcard{display:flex;gap:9px;align-items:center;background:var(--ink-850);border:1px solid var(--ink-800);border-radius:var(--r-s);padding:7px 9px;margin-bottom:7px}
+.pcard:hover{border-color:var(--ink-600)}
+.logo{width:26px;height:26px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:12px;color:var(--ink-950);background:var(--ink-300)}
+.pcard .inf{min-width:0}
+.pcard .nom{font-size:12.5px;font-weight:600;color:var(--ink-100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcard .svc{font-size:10.5px;color:var(--ink-400);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pie{margin-top:26px;text-align:center;color:var(--ink-500);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hq-head">
+    <svg class="enso" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4a20 20 0 1 0 14.3 6" fill="none" stroke="#D5824F" stroke-width="3.4" stroke-linecap="round"/><circle cx="41" cy="7.5" r="2.1" fill="#D5824F"/></svg>
+    <div class="hq-tit">
+      <h1>SATORI HQ</h1>
+      <p>Ficha 360 · Luciano · martes 11/08/2026 · <span style="color:var(--jade-300)">Salud del sistema: OK</span></p>
+    </div>
+    <div class="hq-ns">
+      <div class="lbl">North Star</div>
+      <div class="val">5 / 6</div>
+      <div class="sub">clientes pagos en paralelo · horizonte dic-2026</div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Secciones de la ficha">
+    <button class="tab" role="tab" aria-selected="true" data-p="hoy">Hoy</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="chk">Checklist</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="obj">Objetivos</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="num">Números</button>
+    <button class="tab" role="tab" aria-selected="false" data-p="car">Cartera</button>
+  </nav>
+
+  <!-- ══════════ HOY ══════════ -->
+  <section class="panel on" id="p-hoy" role="tabpanel">
+    <div class="bluf">2 tareas vencidas pidiendo cierre — la más vieja es residuo de test ya barrido; la real: REPORTE SEMANAL M15.</div>
+    <div class="grid g2">
+      <div class="card">
+        <h2>Próximas 3 <span class="mut">— lo que movería hoy</span></h2>
+        <div class="fila"><span class="tagA">A</span><span>ARMAR REUNIONES LC TRAVEL</span></div>
+        <div class="fila"><span class="tagA">A</span><span>Registrar Patinete en Hacienda web</span></div>
+        <div class="fila"><span class="tagA">B</span><span>Propuesta de retención Vehemence — ponerle fecha al piloto</span></div>
+        <div class="aviso-tira">
+          <span class="chip"><span class="n">3</span> aprobaciones</span>
+          <span class="chip"><span class="n">15</span> escalados de Bandeja</span>
+          <span class="chip"><span class="n">23</span> avisos activos</span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Guardián foco / paz</h2>
+        <p class="peq" style="color:var(--ink-200)">Hoy no hay eventos en agenda — día libre para lo importante. Carga razonable; <b style="color:var(--terra-300)">una cosa a soltar:</b> los 15 escalados de Bandeja llevan días esperando destino. Resolvelos en una pasada de 10 min, no de a uno.</p>
+        <p class="peq mut" style="margin-top:8px">Ciclo natural: mañana = crear · tarde = decidir · viernes = cerrar semana · domingo = descanso (el sistema no te trae nada salvo urgencia real).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ CHECKLIST ══════════ -->
+  <section class="panel" id="p-chk" role="tabpanel">
+    <div class="grid g2">
+      <div class="card chk">
+        <h2>Rutinas <span class="mut">— reemplaza Notas del iPhone</span></h2>
+        <p class="capa">Diaria · mañana</p>
+        <label><input type="checkbox" checked><span>Meditación / respiración (10 min)</span></label>
+        <label><input type="checkbox" checked><span>Leer el brief del OS y elegir LA prioridad</span></label>
+        <label><input type="checkbox"><span>Revisar aprobaciones pendientes (3)</span></label>
+        <p class="capa">Diaria · cierre</p>
+        <label><input type="checkbox"><span>Registrar lo trabajado por cliente (cierre de sesión Sato)</span></label>
+        <label><input type="checkbox"><span>Capturar pendientes sueltos a la Bandeja</span></label>
+        <p class="capa">Semanal</p>
+        <label><input type="checkbox"><span>Revisión de objetivos (viernes) — mover flows</span></label>
+        <label><input type="checkbox"><span>2 contactos comerciales de la cartera tibia</span></label>
+      </div>
+      <div class="card">
+        <h2>Captura rápida <span class="mut">→ Bandeja + clasificador</span></h2>
+        <p class="peq mut">Todo entra por acá (texto o voz). El clasificador lo rutea a tarea / idea / cliente / lead con confianza; si duda, te escala.</p>
+        <div class="captura">
+          <input type="text" placeholder="p. ej.: !a llamar a Tato de Pipol #comercial @pipol viernes" aria-label="Captura rápida">
+          <button class="btn" type="button">Capturar</button>
+        </div>
+        <p class="capa" style="margin-top:16px">Capas del asistente</p>
+        <p class="peq" style="color:var(--ink-200)">🜂 <b>Funcional:</b> rutinas + captura sincronizadas con Tareas y Bandeja reales.<br>🜂 <b>Inteligente:</b> el Director sugiere qué soltar y qué priorizar.<br>🜂 <b>Consciente:</b> el guardián foco/paz mira tu carga, no tu producción.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ OBJETIVOS ══════════ -->
+  <section class="panel" id="p-obj" role="tabpanel">
+    <div class="leyenda">
+      <span><span class="dot eje-prof"></span>Profesional</span>
+      <span><span class="dot eje-vida"></span>Calidad de vida</span>
+      <span><span class="dot eje-fin"></span>Finanzas</span>
+      <span><span class="dot eje-op"></span>Oportunidades</span>
+    </div>
+    <div class="grid g3">
+      <div class="obj-col">
+        <h3>Corto plazo <span class="mut">90 días</span></h3>
+        <div class="obj"><div class="top"><span class="dot eje-prof"></span><span class="nom">6 clientes pagos en paralelo</span></div>
+          <div class="flow ok"><i style="width:83%"></i></div>
+          <div class="meta"><span>5/6 · North Star</span><span>18 tareas ligadas</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> la #6 no es un desconocido — formalizá Vehemence (piloto desde junio, sin fecha).</div></div>
+        <div class="obj"><div class="top"><span class="dot eje-fin"></span><span class="nom">Ingresos recurrentes &gt; €2.000/mes</span></div>
+          <div class="flow"><i style="width:62%"></i></div>
+          <div class="meta"><span>~€1.322 hoy</span><span>métrica NS_serie</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> 1 retención Nivel 1 (300–500 €) de la cartera tibia cierra el gap.</div></div>
+      </div>
+      <div class="obj-col">
+        <h3>Mediano plazo <span class="mut">12 meses</span></h3>
+        <div class="obj"><div class="top"><span class="dot eje-prof"></span><span class="nom">SGIC como producto replicable</span></div>
+          <div class="flow"><i style="width:55%"></i></div>
+          <div class="meta"><span>4 instalados · 12 en oferta</span><span>pipeline Cartera</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> el patrón portal-token ya se reusó 3×: empaquetalo como oferta estándar.</div></div>
+        <div class="obj"><div class="top"><span class="dot eje-vida"></span><span class="nom">Semana sostenible (paz &gt; sprint)</span></div>
+          <div class="flow ok"><i style="width:70%"></i></div>
+          <div class="meta"><span>guardián activo</span><span>1 aviso foco/día máx.</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> esta semana el techo es 2 contactos fríos — no lo subas por ansiedad.</div></div>
+      </div>
+      <div class="obj-col">
+        <h3>Largo plazo <span class="mut">36 meses</span></h3>
+        <div class="obj"><div class="top"><span class="dot eje-fin"></span><span class="nom">Empresa y vida más libres y alineadas</span></div>
+          <div class="flow"><i style="width:35%"></i></div>
+          <div class="meta"><span>tesis Satori</span><span>revisión trimestral</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> el fin no es facturar más: medí también paz, salud y propósito acá.</div></div>
+        <div class="obj"><div class="top"><span class="dot eje-op"></span><span class="nom">Radar de oportunidades vivo</span></div>
+          <div class="flow"><i style="width:40%"></i></div>
+          <div class="meta"><span>OV + monitor IG</span><span>misión contactos E7</span></div>
+          <div class="sgic"><b>SGIC sugiere:</b> los 15 escalados de Bandeja pueden esconder leads — triage antes de descartar.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ NÚMEROS ══════════ -->
+  <section class="panel" id="p-num" role="tabpanel">
+    <div class="grid g2">
+      <div class="card">
+        <h2>Ingresos recurrentes <span class="mut">— por moneda, sin total global</span></h2>
+        <table>
+          <thead><tr><th>Cliente</th><th>Servicio</th><th class="num">Importe / mes</th></tr></thead>
+          <tbody>
+            <tr><td>EJF + Figueras Music</td><td>Asesoramiento + SGIC</td><td class="num">€ 400</td></tr>
+            <tr><td>DAM Barbers</td><td>Asesoramiento + SGIC</td><td class="num">€ 600 +IVA</td></tr>
+            <tr class="tot"><td colspan="2">Subtotal EUR</td><td class="num">€ 1.000 +IVA</td></tr>
+            <tr><td>LC Travel</td><td>Asesoramiento + SGIC</td><td class="num">USD 350</td></tr>
+            <tr><td style="color:var(--ink-400)">Vehemence</td><td style="color:var(--ink-400)">propuesta en curso</td><td class="num" style="color:var(--ink-400)">USD 250</td></tr>
+          </tbody>
+        </table>
+        <div class="nota-f4a">⚠ F4a: sin facturación 2026 cargada — el motor de administración está, los datos no. Cargar las facturas activa resumen fiscal por jurisdicción y calendario con el gestor.</div>
+      </div>
+      <div class="card">
+        <h2>Operación del OS <span class="mut">— agosto 2026</span></h2>
+        <table>
+          <thead><tr><th>Métrica</th><th class="num">Valor</th></tr></thead>
+          <tbody>
+            <tr><td>Gasto API del mes</td><td class="num">$ 0,29 / $ 25</td></tr>
+            <tr><td>Llamadas · tokens</td><td class="num">64 · 148.441</td></tr>
+            <tr><td>Errores</td><td class="num" style="color:var(--jade-300)">0</td></tr>
+            <tr><td>Integridad (Salud)</td><td class="num" style="color:var(--jade-300)">100 %</td></tr>
+            <tr><td>Backup semanal</td><td class="num" style="color:var(--jade-300)">09-ago · 8 archivos</td></tr>
+            <tr><td>Producción /exec</td><td class="num">@41 · 11-ago</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ CARTERA ══════════ -->
+  <section class="panel" id="p-car" role="tabpanel">
+    <div class="pipe" id="pipe"></div>
+    <p class="peq mut" style="margin-top:10px">Mover un cliente de etapa escribe en el roster + `Cartera_log` (append-only). Los logos reales entran por `logo_url`; sin logo, inicial.</p>
+  </section>
+
+  <p class="pie">Maqueta v1 · SATORI HQ · datos reales del 11/08/2026 · satori-design (registro híbrido) · para observación de Luciano — nada de esto escribe en el sistema.</p>
+</div>
+
+<script>
+/* Solapas accesibles */
+var tabs=document.querySelectorAll('.tab');
+tabs.forEach(function(t){t.addEventListener('click',function(){
+  tabs.forEach(function(x){x.setAttribute('aria-selected','false');});
+  t.setAttribute('aria-selected','true');
+  document.querySelectorAll('.panel').forEach(function(p){p.classList.remove('on');});
+  document.getElementById('p-'+t.dataset.p).classList.add('on');
+});});
+
+/* Pipeline — cartera v2 (11-ago) */
+var CARTERA={
+ 'Caliente · activos':[
+   ['EJF + Figueras Music','Asesoramiento + SGIC','#C9A227'],
+   ['Vehemence','Asesoramiento + SGIC','#8A5A3B'],
+   ['LC Travel','Asesoramiento + SGIC','#3E9B82'],
+   ['DAM Barbers','Asesoramiento + SGIC','#B8AD96']],
+ 'Tibio · en vista':[
+   ['MesaQuince','SGIC solo — esperando rta.',''],
+   ['SIP','SGIC + consultoría básica',''],
+   ['Pol Train','App + Web',''],
+   ['Pipol Coffee','SGIC + básica + Web',''],
+   ['Nook Coffee','SGIC + Web',''],
+   ['Alejandro Bono Seguros','SGIC + Web',''],
+   ['Tech Log','Consultoría básica ± SGIC',''],
+   ['Galgo','SGIC',''],
+   ['Maravillas P. y Minerales','SGIC + Web',''],
+   ['Activarte Barcelona','App + SGIC',''],
+   ['Crocante','SGIC + Web',''],
+   ['Constructora Tullio CBA','SGIC + Web',''],
+   ['Raro Coffee','SGIC',''],
+   ['Café Sando','SGIC',''],
+   ['Couleur Café','SGIC',''],
+   ['Oxaca (Badalona)','SGIC','']],
+ 'Frío · por generar':[
+   ['Misión contactos 1er grado','Equipo Agentes Pro · gate Bastión','']]
+};
+var pipe=document.getElementById('pipe');
+Object.keys(CARTERA).forEach(function(col){
+  var d=document.createElement('div');d.className='pcol';
+  var h=document.createElement('h3');h.textContent=col+' ';
+  var n=document.createElement('span');n.className='n';n.textContent=CARTERA[col].length;h.appendChild(n);d.appendChild(h);
+  CARTERA[col].forEach(function(c){
+    var card=document.createElement('div');card.className='pcard';
+    var lg=document.createElement('div');lg.className='logo';lg.textContent=c[0].charAt(0);
+    if(c[2])lg.style.background=c[2];
+    var inf=document.createElement('div');inf.className='inf';
+    var nom=document.createElement('div');nom.className='nom';nom.textContent=c[0];
+    var svc=document.createElement('div');svc.className='svc';svc.textContent=c[1];
+    inf.appendChild(nom);inf.appendChild(svc);card.appendChild(lg);card.appendChild(inf);d.appendChild(card);
+  });
+  pipe.appendChild(d);
+});
+</script>
+</body>
+</html>

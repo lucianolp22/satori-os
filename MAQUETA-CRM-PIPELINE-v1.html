@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAQUETA v1 · CRM Pipeline — Satori OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<!--
+  MAQUETA CRM/PIPELINE v1 — 24-ago-2026 · Cowork
+  Registro: OPERATIVO (A) · TOKENS REALES del OS: extraídos de src/index.html (bloque
+  .cartera/.f360-sato líneas 184-204 y 1024-1078, prod @46) — ink cálido + terra primario +
+  jade acento + glass cards + Hanken Grotesk / Fraunces / JetBrains Mono.
+  GAS-compatible: vanilla, sin frameworks, sin localStorage. Datos: cartera v2 real;
+  único monto real = Vehemence USD 250; todo otro número = [EJEMPLO].
+  NUEVO v1 (mejoras que pasan el gate anti-rollup):
+   · Regla «el siguiente paso siempre existe» (cards sin próx. acción, señaladas)
+   · Foco de la semana (cadencia F3: 2 contactos/semana propuestos, vos decidís)
+   · Encaje target KAIROS (4 criterios del Manual como semáforo, no ML)
+   · Sato comercial en la solapa (fuente `cartera` ya existe en SATO_FUENTES)
+   · Ciclo medido piloto→pago en el flujo
+-->
+<style>
+/* ══ TOKENS — copiados del index.html del OS (bloque tema oscuro .cartera) ══ */
+:root{
+  --_ink-950:#14110D; --_ink-900:#1E1B18; --_ink-850:#262119; --_ink-800:#2F2A20; --_ink-700:#3D362A;
+  --_ink-600:#514838; --_ink-500:#6E6450; --_ink-400:#938872; --_ink-300:#B8AD96; --_ink-200:#D8CFBA; --_ink-100:#ECE4D3; --_ink-50:#F4EEE2;
+  --_terra-300:#E6A87E; --_terra-400:#D5824F; --_terra-500:#C2683D; --_terra-600:#A0502B;
+  --_jade-300:#6FC2A8; --_jade-400:#3E9B82; --_jade-500:#1F6F5C;
+  --_red-400:#E0795F; --_amber-400:#DCA75E; --_blue-400:#7FB1FF;
+  --color-text:#F4EEE2; --color-text-muted:#B8AD96; --color-text-subtle:#938872;
+  --color-border:rgba(244,238,226,.14); --color-border-strong:rgba(244,238,226,.24);
+  --glass-border:rgba(244,238,226,.12); --glass-bg:rgba(22,18,15,.92);
+  --color-primary:#D5824F; --color-primary-hover:#E0975F; --color-primary-weak:rgba(213,130,79,.16);
+  --color-accent:#3E9B82; --color-accent-weak:rgba(62,155,130,.16);
+  --color-danger:#E0795F; --color-danger-weak:rgba(224,121,95,.16);
+  --color-warning:#DCA75E; --color-warning-weak:rgba(220,167,94,.16);
+  --color-info:#7FB1FF; --color-info-weak:rgba(127,177,255,.14);
+  --font-ui:'Hanken Grotesk',-apple-system,sans-serif;
+  --font-brand:'Fraunces','Georgia',serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  --text-xs:.75rem; --text-sm:.8125rem; --text-base:.9375rem; --text-md:1.0625rem; --text-lg:1.25rem; --text-xl:1.6rem;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:18px; --radius-full:9999px;
+  --ease-out:cubic-bezier(.25,1,.5,1); --dur-fast:140ms; --dur-state:240ms;
+  --shadow-md:0 8px 28px rgba(0,0,0,.5); --shadow-lg:0 24px 60px -20px rgba(0,0,0,.85);
+  --ring:0 0 0 2px rgba(0,0,0,.6), 0 0 0 4px var(--_terra-400);
+  --fondo:#100D0A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--fondo);color:var(--color-text);font-family:var(--font-ui);font-size:16px;line-height:1.5}
+body{background:
+  radial-gradient(1200px 600px at 75% -10%, rgba(213,130,79,.07), transparent 60%),
+  radial-gradient(900px 500px at 10% 110%, rgba(62,155,130,.05), transparent 60%),
+  var(--fondo)}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:none;box-shadow:var(--ring);border-radius:var(--radius-sm)}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.92em}
+code{font-family:var(--font-mono);font-size:.85em;color:var(--color-info)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ══ Barra de la maqueta ══ */
+.mq-bar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);
+  background:var(--glass-bg);border-bottom:1px solid var(--color-border);position:sticky;top:0;z-index:50;backdrop-filter:blur(16px)}
+.mq-bar .tag{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-warning);
+  border:1px solid var(--color-warning);border-radius:var(--radius-full);padding:3px 10px}
+.mq-bar h1{font-family:var(--font-brand);font-weight:500;font-size:var(--text-md);letter-spacing:.01em}
+.mq-tabs{display:flex;gap:var(--space-2);margin-left:auto}
+.mq-tab{padding:var(--space-2) var(--space-4);border-radius:var(--radius-full);font-size:var(--text-sm);
+  color:var(--color-text-muted);border:1px solid transparent;min-height:36px;transition:all var(--dur-fast) var(--ease-out)}
+.mq-tab:hover{background:rgba(255,255,255,.05)}
+.mq-tab.on{background:var(--color-primary-weak);color:var(--_terra-300);border-color:var(--color-primary)}
+.mq-note{font-size:var(--text-xs);color:var(--color-text-subtle);width:100%}
+.ej{color:var(--color-warning);font-size:var(--text-xs)}
+.vista{display:none;padding:var(--space-5)}
+.vista.on{display:block}
+
+/* ══ VISTA 1 — el panel Cartera del OS (réplica del .cartera real, z-index 310) ══ */
+.cartera{max-width:1500px;margin:0 auto;background:rgba(18,14,11,.985);border:1px solid var(--color-border);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column}
+.cartera-h{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--color-border);flex-wrap:wrap}
+.cartera-h b{font-size:15px;letter-spacing:.02em}
+.cartera-h .st{color:var(--color-text-subtle);font-size:12px}
+.cartera-h .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+.hbtn{font-size:12px;color:var(--color-text-muted);border:1px solid var(--color-border);border-radius:var(--radius-md);
+  padding:5px 11px;min-height:30px;transition:all var(--dur-fast) var(--ease-out)}
+.hbtn:hover{border-color:var(--color-border-strong);color:var(--color-text)}
+.hbtn.terra{color:var(--_terra-300);border-color:var(--color-primary)}
+/* métricas del embudo — mismas stat-tiles del CM */
+.mrow{display:flex;gap:10px;padding:12px 18px;border-bottom:1px solid var(--color-border);flex-wrap:wrap}
+.mtile{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);
+  padding:8px 14px;min-width:160px}
+.mtile .k{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--color-text-subtle)}
+.mtile .v{font-size:18px;font-weight:600}
+.mtile .v small{font-size:11px;font-weight:400;color:var(--color-text-muted)}
+.mtile.rojo .v{color:var(--color-danger)}
+/* FOCO DE LA SEMANA — nuevo v1 */
+.foco{display:flex;gap:12px;align-items:center;margin:12px 18px 0;padding:10px 14px;
+  background:var(--color-primary-weak);border:1px solid rgba(213,130,79,.35);border-radius:var(--radius-md);flex-wrap:wrap}
+.foco .ic{font-size:16px}
+.foco b{font-size:12.5px}
+.foco .t{font-size:12px;color:var(--color-text-muted);flex:1;min-width:260px}
+.foco .t strong{color:var(--color-text)}
+.cartera-cols{display:flex;gap:12px;padding:14px 18px 18px;overflow-x:auto;align-items:flex-start}
+.cartera-col{flex:0 0 236px;display:flex;flex-direction:column;gap:8px}
+.cartera-col > h6{margin:0;padding:4px 0 8px;font-size:11px;letter-spacing:.10em;text-transform:uppercase;
+  color:var(--color-text-muted);display:flex;align-items:center;gap:6px}
+.cartera-col > h6 .n{color:var(--color-text-subtle);font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.cartera-col > h6 .dot{width:7px;height:7px;border-radius:50%}
+[data-etapa="frio"] .dot{background:var(--_ink-500)}
+[data-etapa="tibio"] .dot{background:var(--_amber-400)}
+[data-etapa="caliente"] .dot{background:var(--_terra-400)}
+[data-etapa="activo"] .dot{background:var(--_jade-400)}
+[data-etapa="en_pausa"] .dot{background:var(--_blue-400)}
+[data-etapa="perdido"] .dot{background:var(--_ink-600)}
+.cartera-vacia{color:var(--color-text-subtle);font-size:12px;padding:6px 2px}
+/* card — réplica de .cartera-card real + agregados v1 */
+.cartera-card{width:100%;text-align:left;background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);padding:10px;display:flex;flex-direction:column;gap:7px;
+  transition:border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out)}
+.cartera-card:hover{border-color:var(--color-border-strong);transform:translateY(-1px)}
+.cartera-card .top{display:flex;align-items:center;gap:8px}
+.cartera-card .logo{width:26px;height:26px;border-radius:7px;flex:0 0 auto;background:var(--color-primary);
+  color:#1a1410;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.cartera-card .nm{font-weight:600;font-size:13px;line-height:1.25}
+.cartera-card .id{font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.cartera-card .px{font-size:12px;color:var(--color-text);line-height:1.35;border-left:2px solid var(--color-primary);padding-left:7px}
+.cartera-card .px.sin{border-left-color:var(--color-danger);color:var(--color-danger);font-style:italic}
+.cartera-card .meta{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.cartera-card .meta .venc{color:var(--color-danger);font-weight:600}
+.cartera-card .meta .falta{color:var(--color-warning)}
+.bds{display:flex;flex-wrap:wrap;gap:4px}
+.bg{font-size:10.5px;border-radius:6px;padding:1px 7px;border:1px solid var(--color-border);color:var(--color-text-muted)}
+.bg.svc{color:var(--_jade-300);border-color:rgba(62,155,130,.4);background:var(--color-accent-weak)}
+.bg.prop{color:var(--_amber-400);border-color:rgba(220,167,94,.4);background:var(--color-warning-weak)}
+.bg.firm{color:var(--_jade-300);border-color:var(--_jade-400);background:var(--color-accent-weak);font-weight:600}
+.bg.foco{color:var(--_terra-300);border-color:var(--color-primary);background:var(--color-primary-weak);font-weight:600}
+
+/* ══ Ficha 360 (overlay glass, patrón kboard del OS) ══ */
+.scrim{position:fixed;inset:0;background:rgba(10,8,6,.6);backdrop-filter:blur(3px);display:none;z-index:90}
+.scrim.on{display:block}
+.f360{position:fixed;top:3vh;left:50%;transform:translateX(-50%);width:min(920px,95vw);max-height:94vh;
+  overflow:auto;background:rgba(18,14,11,.985);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);display:none;z-index:100}
+.f360.on{display:block}
+.f360-head{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--color-border);
+  position:sticky;top:0;background:rgba(18,14,11,.985);z-index:2}
+.f360-head .logo{width:42px;height:42px;border-radius:10px;background:var(--color-primary);color:#1a1410;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px}
+.f360-head h3{font-family:var(--font-brand);font-weight:500;font-size:var(--text-lg)}
+.f360-head .est{font-size:11.5px;color:var(--color-text-muted)}
+.f360-x{margin-left:auto;width:34px;height:34px;border-radius:var(--radius-md);display:grid;place-items:center;color:var(--color-text-muted)}
+.f360-x:hover{background:rgba(255,255,255,.06)}
+.f360-tabs{display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--color-border);overflow-x:auto}
+.f360-tab{padding:11px 14px;font-size:12.5px;color:var(--color-text-muted);border-bottom:2px solid transparent;
+  min-height:42px;white-space:nowrap}
+.f360-tab.on{color:var(--_terra-300);border-bottom-color:var(--color-primary);font-weight:600}
+.f360-tab .nueva{font-size:9px;color:var(--color-warning);vertical-align:super}
+.f360-body{padding:20px}
+.sec{margin-bottom:20px}
+.sec>h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-subtle);margin-bottom:10px}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fila3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media (max-width:820px){.fila2,.fila3{grid-template-columns:1fr}}
+.panelbox{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:14px}
+.panelbox h6{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-subtle);margin-bottom:8px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--color-border);font-size:12.5px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--color-text-muted)}
+/* encaje KAIROS — semáforo 4 criterios */
+.encaje{list-style:none}
+.encaje li{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:12.5px}
+.encaje .led{width:9px;height:9px;border-radius:50%;flex:none}
+.encaje .si{background:var(--_jade-400)}
+.encaje .no{background:var(--_red-400)}
+.encaje .ns{background:var(--_ink-500)}
+.encaje small{color:var(--color-text-subtle);margin-left:auto;font-size:10.5px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:var(--radius-md);
+  border:1px solid var(--color-border-strong);font-size:12.5px;color:var(--color-text);min-height:38px;
+  transition:all var(--dur-fast) var(--ease-out)}
+.btn:hover{background:rgba(255,255,255,.05)}
+.btn.pri{background:var(--color-primary);color:#1a1410;border-color:var(--color-primary);font-weight:600}
+.btn.pri:hover{background:var(--color-primary-hover)}
+.acc{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.hist{list-style:none}
+.hist li{display:flex;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--color-border)}
+.hist li:last-child{border-bottom:none}
+.hist .f{color:var(--color-text-subtle);flex:none;width:78px;font-family:var(--font-mono);font-size:11px}
+.editrow{display:flex;gap:8px;margin-top:8px}
+.editrow input{flex:1;background:rgba(0,0,0,.28);border:1px solid var(--color-border);border-radius:var(--radius-sm);
+  color:var(--color-text);padding:7px 10px;font-size:12.5px;min-height:38px;font-family:var(--font-ui)}
+.nota-back{font-size:11px;color:var(--color-text-subtle);border-left:2px solid var(--color-border-strong);
+  padding-left:10px;margin-top:10px;line-height:1.5}
+/* Sato dock en la solapa Comercial (burbujas reales del OS) */
+.sato-dock{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:12px}
+.sato-dock h6{display:flex;align-items:center;gap:6px}
+.burb{max-width:92%;padding:8px 11px;border-radius:12px;font-size:12.5px;line-height:1.45;margin-top:8px}
+.burb.user{margin-left:auto;background:rgba(213,130,79,.26);border:1px solid rgba(213,130,79,.4);border-bottom-right-radius:4px;width:fit-content}
+.burb.sato{background:rgba(255,255,255,.06);border:1px solid var(--glass-border);border-bottom-left-radius:4px;width:fit-content}
+
+/* ══ VISTA 2 — iPhone / PWA ══ */
+.mov-wrap{display:flex;flex-wrap:wrap;gap:var(--space-6);justify-content:center;align-items:flex-start}
+.iphone{width:393px;flex:none;background:#000;border-radius:54px;padding:12px;box-shadow:var(--shadow-lg);border:1px solid var(--color-border-strong)}
+.iphone .pantalla{background:var(--fondo);border-radius:44px;overflow:hidden;height:800px;display:flex;flex-direction:column;position:relative}
+.isla{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#000;border-radius:var(--radius-full);z-index:5}
+.m-head{padding:56px 16px 10px;background:rgba(18,14,11,.985);border-bottom:1px solid var(--color-border)}
+.m-head h3{font-family:var(--font-brand);font-weight:500;font-size:var(--text-lg)}
+.m-head .sub{font-size:11px;color:var(--color-text-subtle)}
+.m-foco{margin:10px 16px 0;padding:9px 12px;background:var(--color-primary-weak);border:1px solid rgba(213,130,79,.35);
+  border-radius:var(--radius-md);font-size:12px}
+.m-foco b{color:var(--_terra-300)}
+.m-chips{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;scrollbar-width:none}
+.m-chips::-webkit-scrollbar{display:none}
+.m-chip{flex:none;font-size:13px;padding:0 16px;border-radius:var(--radius-full);border:1px solid var(--color-border);
+  color:var(--color-text-muted);min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.m-chip.on{background:var(--color-primary-weak);color:var(--_terra-300);border-color:var(--color-primary);font-weight:600}
+.m-chip .n{font-size:11px;opacity:.8;font-family:var(--font-mono)}
+.m-lista{flex:1;overflow-y:auto;padding:0 16px 92px}
+.m-card{width:100%;text-align:left;background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-lg);padding:14px;margin-bottom:10px}
+.m-card .top{display:flex;align-items:center;gap:10px}
+.m-card .logo{width:30px;height:30px;border-radius:8px;background:var(--color-primary);color:#1a1410;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}
+.m-card .nm{font-weight:600;font-size:14px}
+.m-card .id{font-size:11px;color:var(--color-text-subtle);font-family:var(--font-mono)}
+.m-card .px{font-size:12.5px;color:var(--color-text);margin-top:8px;border-left:2px solid var(--color-primary);padding-left:8px}
+.m-card .px.sin{border-left-color:var(--color-danger);color:var(--color-danger);font-style:italic}
+.m-card .meta{display:flex;gap:8px;margin-top:8px;font-size:11px;color:var(--color-text-subtle);flex-wrap:wrap;font-family:var(--font-mono)}
+.m-tabbar{position:absolute;bottom:0;left:0;right:0;display:flex;background:rgba(18,14,11,.96);backdrop-filter:blur(16px);
+  border-top:1px solid var(--color-border);padding:8px 8px 22px}
+.m-tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;
+  color:var(--color-text-subtle);min-height:48px;border-radius:var(--radius-md)}
+.m-tabbar button.on{color:var(--_terra-300)}
+.m-tabbar .ic{font-size:19px;line-height:1}
+.m-sheet{position:absolute;left:0;right:0;bottom:0;background:rgba(24,19,15,.99);border-top:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:14px 16px 30px;transform:translateY(105%);
+  transition:transform var(--dur-state) var(--ease-out);z-index:10;box-shadow:var(--shadow-lg)}
+.m-sheet.on{transform:translateY(0)}
+.m-sheet .asa{width:40px;height:4px;border-radius:var(--radius-full);background:var(--color-border-strong);margin:0 auto 12px}
+.m-sheet h4{font-weight:600;margin-bottom:2px;font-size:15px}
+.m-sheet .sub{font-size:11.5px;color:var(--color-text-subtle);margin-bottom:12px}
+.m-sheet .btn{width:100%;justify-content:flex-start;margin-bottom:8px;min-height:48px;font-size:13.5px}
+.m-side{max-width:420px;color:var(--color-text-muted);font-size:var(--text-sm)}
+.m-side h3{font-family:var(--font-brand);font-weight:500;color:var(--color-text);font-size:var(--text-lg);margin-bottom:12px}
+.m-side ul{list-style:none}
+.m-side li{padding:8px 0;border-bottom:1px solid var(--color-border);display:flex;gap:10px;line-height:1.5}
+.m-side li:last-child{border-bottom:none}
+.m-side .pt{color:var(--_terra-400);flex:none}
+
+/* ══ VISTA 3 — flujo ══ */
+.flujo{max-width:1140px;margin:0 auto}
+.stepper{display:flex;align-items:center;gap:8px;margin-bottom:var(--space-5);flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--radius-full);
+  border:1px solid var(--color-border);color:var(--color-text-muted);font-size:12.5px;min-height:44px}
+.step .n{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.07);display:grid;place-items:center;font-size:11px;font-family:var(--font-mono)}
+.step.on{border-color:var(--color-primary);color:var(--_terra-300);background:var(--color-primary-weak);font-weight:600}
+.step.on .n{background:var(--color-primary);color:#1a1410}
+.step.done{color:var(--_jade-300);border-color:var(--_jade-400)}
+.step.done .n{background:var(--_jade-400);color:#1a1410}
+.flecha{color:var(--color-text-subtle)}
+.fgrid{display:grid;grid-template-columns:300px 1fr 300px;gap:14px}
+@media (max-width:1000px){.fgrid{grid-template-columns:1fr}}
+.fcol h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--color-text-subtle);margin-bottom:10px}
+.dispara{list-style:none}
+.dispara li{display:flex;gap:10px;padding:11px;border:1px solid var(--glass-border);border-radius:var(--radius-md);
+  margin-bottom:8px;font-size:12.5px;background:var(--glass-bg);line-height:1.5}
+.dispara .ic{flex:none;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px}
+.dispara .ic.auto{background:var(--color-accent-weak);color:var(--_jade-300)}
+.dispara .ic.luci{background:var(--color-primary-weak);color:var(--_terra-300)}
+.dispara .quien{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-subtle)}
+.sheetrow{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;
+  background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);
+  padding:10px 12px;font-size:12px;margin-top:8px;font-family:var(--font-mono)}
+.sheetrow.prop{opacity:.55}
+.sheetrow .st{font-size:10.5px;padding:2px 8px;border-radius:6px;font-family:var(--font-ui)}
+.sheetrow .st.p{background:var(--color-warning-weak);color:var(--_amber-400)}
+.sheetrow .st.a{background:var(--color-accent-weak);color:var(--_jade-300)}
+.ciclo{margin-top:14px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-md);padding:12px;font-size:12px;color:var(--color-text-muted)}
+.ciclo b{color:var(--color-text)}
+.ciclo .barra{display:flex;height:8px;border-radius:var(--radius-full);overflow:hidden;margin-top:8px;background:rgba(255,255,255,.06)}
+.ciclo .b1{background:var(--_amber-400)}
+.ciclo .b2{background:var(--_terra-400)}
+.ciclo .b3{background:var(--_jade-400)}
+.fnav{display:flex;gap:12px;justify-content:center;margin-top:var(--space-6)}
+.mtile.big .v{font-size:22px}
+.delta{font-size:11px;color:var(--_jade-300);font-weight:600}
+.toast{position:fixed;bottom:var(--space-5);left:50%;transform:translateX(-50%);background:rgba(24,19,15,.98);
+  border:1px solid var(--color-border-strong);border-radius:var(--radius-md);padding:10px 18px;
+  font-size:12.5px;box-shadow:var(--shadow-lg);display:none;z-index:120;max-width:90vw}
+.toast.on{display:block}
+</style>
+</head>
+<body>
+
+<header class="mq-bar">
+  <span class="tag">Maqueta v1 · datos de ejemplo</span>
+  <h1>Cartera · CRM — Satori OS</h1>
+  <nav class="mq-tabs" aria-label="Vistas de la maqueta">
+    <button class="mq-tab on" data-v="v1">① Cartera en el OS</button>
+    <button class="mq-tab" data-v="v2">② Móvil · PWA</button>
+    <button class="mq-tab" data-v="v3">③ Piloto → firma</button>
+  </nav>
+  <p class="mq-note">Tokens y anatomía copiados del <code>index.html</code> de prod @46 (panel .cartera real) · cartera v2 en nombres/etapas · único monto real: Vehemence USD 250 · el resto <span class="ej">[EJEMPLO]</span> · nada escribe en el MAESTRO.</p>
+</header>
+
+<!-- ═══════════ VISTA 1 · PANEL CARTERA DEL OS ═══════════ -->
+<section class="vista on" id="v1">
+  <div class="cartera">
+    <div class="cartera-h">
+      <b>◉ Cartera</b>
+      <span class="st" id="v1st">20 cliente(s) en el roster</span>
+      <div class="sp">
+        <button class="hbtn">☀ mi día</button>
+        <button class="hbtn">🜂 Sato</button>
+        <button class="hbtn terra">⌂ HQ</button>
+        <button class="hbtn" aria-label="Cerrar Cartera">✕</button>
+      </div>
+    </div>
+    <div class="mrow">
+      <div class="mtile"><div class="k">Retenciones formalizadas</div><div class="v num">3 <small>de 6 · <span class="ej">ej.</span></small></div></div>
+      <div class="mtile"><div class="k">Ingresos recurrentes/mes</div><div class="v num">— <small>completa recurrentes_propios</small></div></div>
+      <div class="mtile rojo"><div class="k">Próx. acciones vencidas</div><div class="v num">2</div></div>
+      <div class="mtile rojo"><div class="k">Sin próxima acción</div><div class="v num">7 <small>regla: nunca 0 pasos</small></div></div>
+    </div>
+    <div class="foco">
+      <span class="ic">◎</span>
+      <div class="t"><b>Foco de la semana (cadencia F3: 2 contactos):</b> <strong>MesaQuince</strong> (vencía 20-ago — destrabar respuesta SGIC) y <strong>SIP Coffee</strong> (vencía 22-ago — agendar la reunión). El OS propone por prioridad; <strong>vos decidís</strong>.</div>
+      <button class="hbtn terra" id="focoOk">Aceptar foco</button>
+    </div>
+    <div class="cartera-cols" id="kanban" aria-label="Pipeline por etapas"></div>
+  </div>
+</section>
+
+<!-- ═══════════ VISTA 2 · MÓVIL / PWA ═══════════ -->
+<section class="vista" id="v2">
+  <div class="mov-wrap">
+    <div class="iphone" aria-label="Vista en iPhone">
+      <div class="pantalla">
+        <div class="isla"></div>
+        <div class="m-head">
+          <h3>Cartera</h3>
+          <p class="sub">4 activos · 12 tibios · 2 vencidas · 7 sin próximo paso</p>
+        </div>
+        <div class="m-foco">◎ <b>Hoy:</b> destrabar MesaQuince · agendar SIP</div>
+        <div class="m-chips" id="mChips" role="tablist" aria-label="Filtrar por etapa"></div>
+        <div class="m-lista" id="mLista"></div>
+        <div class="m-tabbar" aria-label="Navegación del OS móvil">
+          <button><span class="ic">☀</span>Hoy</button>
+          <button class="on"><span class="ic">◉</span>Cartera</button>
+          <button><span class="ic">🜂</span>Sato</button>
+          <button><span class="ic">⌂</span>HQ</button>
+        </div>
+        <div class="m-sheet" id="mSheet" role="dialog" aria-label="Acciones del cliente">
+          <div class="asa"></div>
+          <h4 id="msNombre">—</h4>
+          <p class="sub" id="msSub">—</p>
+          <button class="btn pri" id="msDossier">📄 Dossier de reunión (datos reales del OS)</button>
+          <button class="btn">✏️ Editar próxima acción</button>
+          <button class="btn">→ Mover de etapa</button>
+          <button class="btn">🜂 Preguntarle a Sato por este cliente</button>
+          <button class="btn" id="msCerrar">Cerrar</button>
+        </div>
+      </div>
+    </div>
+    <aside class="m-side">
+      <h3>Para la calle, con una mano</h3>
+      <ul>
+        <li><span class="pt">◆</span><span><strong>Mismo ADN del OS:</strong> tinta cálida, terra, cards glass — el CRM móvil es la MISMA página <code>index.html</code> (ya tiene 30 media queries) o la PWA existente. Cero plataforma nueva.</span></li>
+        <li><span class="pt">◆</span><span><strong>Foco del día arriba:</strong> el mismo foco semanal del panel desktop, reducido a «hoy». Abrís y sabés a quién tocar sin pensar.</span></li>
+        <li><span class="pt">◆</span><span><strong>Lista por etapa, vencidas primero</strong> — en 393px el kanban es scroll ciego; los chips filtran y lo rojo sube.</span></li>
+        <li><span class="pt">◆</span><span><strong>Tap → hoja de acciones</strong> (targets ≥48px): dossier primero — «estoy por entrar a ver a Tato y Guille, ¿qué les ofrezco y qué hablamos la última vez?».</span></li>
+        <li><span class="pt">◆</span><span><strong>Sato en la hoja:</strong> la fuente <code>cartera</code> ya existe en SATO_FUENTES — preguntarle por el candidato camino a la reunión no requiere código nuevo de datos.</span></li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+<!-- ═══════════ VISTA 3 · FLUJO ═══════════ -->
+<section class="vista" id="v3">
+  <div class="flujo">
+    <div class="stepper" id="stepper">
+      <button class="step on" data-s="0"><span class="n">1</span> Piloto</button>
+      <span class="flecha">→</span>
+      <button class="step" data-s="1"><span class="n">2</span> Propuesta presentada</button>
+      <span class="flecha">→</span>
+      <button class="step" data-s="2"><span class="n">3</span> Acuerdo firmado</button>
+    </div>
+    <div class="fgrid">
+      <div class="fcol">
+        <h5>La card en la Cartera</h5>
+        <div id="fCard"></div>
+        <h5 style="margin-top:24px">Hoja <code>recurrentes_propios</code> (HQ · certificada @46)</h5>
+        <div id="fSheet"></div>
+        <div class="ciclo" id="fCiclo"></div>
+      </div>
+      <div class="fcol">
+        <h5>Qué pasa en el OS en este salto</h5>
+        <ul class="dispara" id="fDispara"></ul>
+        <p class="nota-back" id="fNota"></p>
+      </div>
+      <div class="fcol">
+        <h5>Métricas North Star</h5>
+        <div class="mtile big" style="margin-bottom:10px">
+          <div class="k">retenciones_formalizadas</div>
+          <div class="v num" id="fMet1">—</div>
+          <div class="delta" id="fDelta1"></div>
+        </div>
+        <div class="mtile big">
+          <div class="k">ingresos_recurrentes_mes</div>
+          <div class="v num" id="fMet2">—</div>
+          <div class="delta" id="fDelta2"></div>
+        </div>
+        <p class="nota-back" style="margin-top:14px">Las métricas viven en Config (<code>ns_satori_metricas</code>) y el HQ ya suma <code>recurrentes_propios</code> por moneda sin total global. El CRM <b>alimenta lo que ya existe</b> — cero hojas nuevas.</p>
+      </div>
+    </div>
+    <div class="fnav">
+      <button class="btn" id="fPrev">‹ Anterior</button>
+      <button class="btn pri" id="fNext">Siguiente ›</button>
+    </div>
+  </div>
+</section>
+
+<!-- Ficha 360 overlay -->
+<div class="scrim" id="scrim"></div>
+<div class="f360" id="f360" role="dialog" aria-modal="true" aria-label="Ficha 360">
+  <div class="f360-head">
+    <div class="logo" id="fhLogo">V</div>
+    <div>
+      <h3 id="fhNombre">—</h3>
+      <p class="est" id="fhEst">—</p>
+    </div>
+    <button class="f360-x" id="f360x" aria-label="Cerrar ficha">✕</button>
+  </div>
+  <div class="f360-tabs">
+    <button class="f360-tab">Resumen</button>
+    <button class="f360-tab">Números</button>
+    <button class="f360-tab">Próximos pasos</button>
+    <button class="f360-tab">Hilo</button>
+    <button class="f360-tab on">Comercial <span class="nueva">● NUEVA</span></button>
+  </div>
+  <div class="f360-body" id="f360body"></div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ── DATOS — cartera v2 real · montos [EJEMPLO] salvo Vehemence USD 250 ── */
+var HOY='2026-08-24';
+var CARTERA=[
+ {id:'CLI-002',n:'Vehemence',etapa:'activo',svc:'S2 + S4 · e-comm',px:'Cerrar propuesta USD 250',pxf:'2026-08-27',desde:'2026-08-11',sheet:true,prop:{txt:'USD 250/mes · propuesta',cls:'prop'},resp:'Micaela',enc:['si','si','si','si']},
+ {id:'CLI-003',n:'LC Travel',etapa:'activo',svc:'S2 · SGIC completo',px:'Formalizar retención (ya es de facto)',pxf:'',desde:'2026-08-11',sheet:true,resp:'Lucas',enc:['si','si','ns','si']},
+ {id:'CLI-004',n:'DAM Barbers',etapa:'activo',svc:'S1 → S2 · Fresha',px:'',pxf:'',desde:'2026-08-11',sheet:true,resp:'Alex',enc:['si','si','si','ns']},
+ {id:'CLI-007',n:'EJF + Figueras Music',etapa:'activo',svc:'S1/S3 · caso atípico',px:'Definir encaje',pxf:'',desde:'2026-08-11',sheet:true,resp:'Elías',enc:['ns','ns','ns','si']},
+ {id:'CLI-001',n:'MesaQuince',etapa:'tibio',svc:'SGIC solo',px:'Esperando respuesta por SGIC',pxf:'2026-08-20',desde:'2026-08-11',sheet:true,foco:true,enc:['si','si','si','ns']},
+ {id:'CLI-005',n:'SIP Coffee',etapa:'tibio',svc:'SGIC + consultoría',px:'Agendar reunión pendiente',pxf:'2026-08-22',desde:'2026-08-11',sheet:true,foco:true,enc:['si','si','ns','si']},
+ {id:'CLI-008',n:'Pipol Coffee',etapa:'tibio',svc:'SGIC + consultoría + Web',px:'Contacto inicial — buscar la Conversación de Exploración',pxf:'2026-08-29',desde:'2026-08-11',sheet:false,resp:'Tato y Guille',enc:['si','ns','ns','si']},
+ {id:'CLI-009',n:'Nook Coffee',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false,enc:['si','ns','ns','ns']},
+ {id:'CLI-010',n:'Pol Train',etapa:'tibio',svc:'App + Web',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['ns','ns','ns','si']},
+ {id:'CLI-011',n:'Alejandro Bono Seguros',etapa:'tibio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['si','si','ns','ns']},
+ {id:'CLI-012',n:'Crocante',etapa:'tibio',svc:'SGIC + Web',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false,resp:'Daniel',enc:['si','ns','ns','ns']},
+ {id:'CLI-013',n:'Raro Coffee',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['si','ns','ns','ns']},
+ {id:'CLI-014',n:'Café Sando',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['si','ns','ns','ns']},
+ {id:'CLI-015',n:'Couleur Café',etapa:'tibio',svc:'SGIC',px:'Ofrecer',pxf:'',desde:'2026-08-11',sheet:false,resp:'Mohamed',enc:['si','ns','ns','ns']},
+ {id:'CLI-016',n:'Oxaca Badalona',etapa:'tibio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['si','ns','ns','ns']},
+ {id:'CLI-017',n:'Tech Log',etapa:'frio',svc:'Consultoría (± SGIC)',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['ns','ns','ns','ns']},
+ {id:'CLI-018',n:'Galgo',etapa:'frio',svc:'SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['ns','ns','ns','ns']},
+ {id:'CLI-019',n:'Maravillas P. y Minerales',etapa:'frio',svc:'SGIC + Web',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['ns','ns','ns','ns']},
+ {id:'CLI-020',n:'Activarte Barcelona',etapa:'frio',svc:'App + SGIC',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['ns','ns','ns','ns']},
+ {id:'CLI-021',n:'Constructora Tullio CBA',etapa:'frio',svc:'SGIC + Web · AR ⚠ moneda',px:'',pxf:'',desde:'2026-08-11',sheet:false,enc:['si','ns','ns','ns']}
+];
+var ETAPAS=['frio','tibio','caliente','activo','en_pausa','perdido'];
+var ETIQ={frio:'Frío',tibio:'Tibio',caliente:'Caliente',activo:'Activo',en_pausa:'En pausa',perdido:'Perdido'};
+var ENC_CRIT=['≥2 años de antigüedad','Ventas estabilizadas','Punto de equilibrio sostenido','Intención real de mejora'];
+var ENC_SRC={si:'exploración',no:'exploración',ns:'sin dato — se llena en la Etapa 2'};
+
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function dias(a,b){var pa=a.split('-'),pb=b.split('-');return Math.round((Date.UTC(+pb[0],+pb[1]-1,+pb[2])-Date.UTC(+pa[0],+pa[1]-1,+pa[2]))/864e5)}
+function toast(t){var o=document.getElementById('toast');o.textContent=t;o.classList.add('on');clearTimeout(o._t);o._t=setTimeout(function(){o.classList.remove('on')},3000)}
+
+document.querySelectorAll('.mq-tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.mq-tab').forEach(function(x){x.classList.remove('on')});
+    document.querySelectorAll('.vista').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');document.getElementById(b.dataset.v).classList.add('on');
+  });
+});
+document.getElementById('focoOk').addEventListener('click',function(){toast('Foco aceptado → las 2 quedan como tareas [F3] de la semana en el CM. Rechazar o cambiar también es un tap: vos decidís, el OS propone.')});
+
+/* ── VISTA 1 · kanban (anatomía .cartera-card real + agregados v1) ── */
+function cardEl(c){
+  var d=el('button','cartera-card');
+  d.setAttribute('aria-label','Abrir Ficha 360 de '+c.n);
+  var top=el('div','top');
+  top.appendChild(el('div','logo',c.n.charAt(0)));
+  var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id));top.appendChild(nm);
+  d.appendChild(top);
+  var bs=el('div','bds');
+  if(c.foco)bs.appendChild(el('span','bg foco','◎ foco semana'));
+  if(c.svc)bs.appendChild(el('span','bg svc',c.svc));
+  if(c.prop)bs.appendChild(el('span','bg '+c.prop.cls,c.prop.txt));
+  d.appendChild(bs);
+  if(c.px)d.appendChild(el('div','px','→ '+c.px));
+  else d.appendChild(el('div','px sin','sin próxima acción — la regla pide una'));
+  var meta=el('div','meta');
+  if(c.pxf){var v=c.pxf<HOY;meta.appendChild(el('span',v?'venc':null,(v?'⚠ vencía ':'para el ')+c.pxf))}
+  meta.appendChild(el('span',null,dias(c.desde,HOY)+'d en '+ETIQ[c.etapa].toLowerCase()));
+  if(!c.sheet&&(c.etapa==='caliente'||c.etapa==='activo'))meta.appendChild(el('span','falta','sin Sheet'));
+  d.appendChild(meta);
+  d.addEventListener('click',function(){fichaAbrir(c)});
+  return d;
+}
+(function(){
+  var k=document.getElementById('kanban');
+  ETAPAS.forEach(function(e){
+    var col=el('div','cartera-col');col.dataset.etapa=e;
+    var cs=CARTERA.filter(function(c){return c.etapa===e});
+    var h=el('h6');h.appendChild(el('span','dot'));h.appendChild(document.createTextNode(ETIQ[e]+' '));h.appendChild(el('span','n',String(cs.length)));
+    col.appendChild(h);
+    if(!cs.length)col.appendChild(el('div','cartera-vacia','—'));
+    cs.forEach(function(c){col.appendChild(cardEl(c))});
+    k.appendChild(col);
+  });
+})();
+
+/* ── Ficha 360 · solapa Comercial ── */
+function fichaAbrir(c){
+  document.getElementById('fhLogo').textContent=c.n.charAt(0);
+  document.getElementById('fhNombre').textContent=c.n;
+  document.getElementById('fhEst').textContent=c.id+' · estado: '+(c.etapa==='activo'?'activo':'potencial')+' · etapa: '+ETIQ[c.etapa]+(c.resp?' · '+c.resp:'');
+  var b=document.getElementById('f360body');b.innerHTML='';
+
+  var s1=el('div','sec');s1.appendChild(el('h5',null,'Oportunidad'));
+  var f3=el('div','fila3');
+  var p1=el('div','panelbox');p1.appendChild(el('h6',null,'Datos'));
+  [['Servicio a ofrecer',c.svc||'—'],
+   ['Etapa KAIROS','Recepción · '+(c.prop?'Etapa 4 Propuesta':'Etapa 1-2')],
+   ['Propuesta viva',c.prop?c.prop.txt:'ninguna'],
+   ['Días en etapa',dias(c.desde,HOY)+' días']
+  ].forEach(function(kv){var r=el('div','kv');r.appendChild(el('span','k',kv[0]));r.appendChild(el('span','num',kv[1]));p1.appendChild(r)});
+  var p2=el('div','panelbox');p2.appendChild(el('h6',null,'Encaje target KAIROS'));
+  var ul=el('ul','encaje');
+  ENC_CRIT.forEach(function(cr,i){
+    var li=el('li');li.appendChild(el('span','led '+c.enc[i]));li.appendChild(el('span',null,cr));
+    li.appendChild(el('small',null,c.enc[i]==='ns'?'sin dato':'✓ relevado'));ul.appendChild(li);
+  });
+  p2.appendChild(ul);
+  p2.appendChild(el('p','nota-back','No es un score de ML: son los 4 criterios del Manual, tildados a mano en la Conversación de Exploración. Rojo o 2+ sin dato = todavía no es propuesta.'));
+  var p3=el('div','panelbox');p3.appendChild(el('h6',null,'Próxima acción'));
+  p3.appendChild(el('div',null,c.px||'(sin próxima acción — la regla pide una)'));
+  var er=el('div','editrow');
+  var inp=el('input');inp.value=c.px||'';inp.setAttribute('aria-label','Editar próxima acción');
+  var ok=el('button','btn pri','Guardar');
+  ok.addEventListener('click',function(){c.px=inp.value;toast('Guardada → carteraProxAccion() escribe la celda del roster, con lock y log a Actividad')});
+  er.appendChild(inp);er.appendChild(ok);p3.appendChild(er);
+  if(c.pxf)p3.appendChild(el('p','nota-back','Fecha: '+c.pxf+(c.pxf<HOY?' — VENCIDA (ya sale en el brief)':'')));
+  f3.appendChild(p1);f3.appendChild(p2);f3.appendChild(p3);s1.appendChild(f3);b.appendChild(s1);
+
+  var s2=el('div','sec');s2.appendChild(el('h5',null,'Historial comercial · Sato'));
+  var f2=el('div','fila2');
+  var ph=el('div','panelbox');ph.appendChild(el('h6',null,'Movimientos (hoja Actividad, ya existe)'));
+  var hl=el('ul','hist');
+  [['11-ago','Seed cartera v2 → '+ETIQ[c.etapa].toLowerCase()+' · próx. acción sembrada'],
+   ['—','(cada moverEtapaComercial deja su línea: de → a, fecha, y quién)']
+  ].forEach(function(h){var li=el('li');li.appendChild(el('span','f',h[0]));li.appendChild(el('span',null,h[1]));hl.appendChild(li)});
+  ph.appendChild(hl);f2.appendChild(ph);
+  var pd=el('div','sato-dock');
+  var h6=el('h6',null,'🜂 Sato · foco comercial ');
+  pd.appendChild(h6);
+  var b1=el('div','burb user','¿Qué le ofrezco a '+c.n.split(' ')[0]+' y por qué ahora?');
+  var b2=el('div','burb sato','Según el roster: '+(c.svc||'sin servicio definido')+'. '+(c.pxf&&c.pxf<HOY?'La próxima acción venció el '+c.pxf+' — retomarla es lo urgente.':'Encaje target: '+c.enc.filter(function(x){return x==='si'}).length+'/4 relevado.')+' (fuente: cartera — dato del sistema, no invento)');
+  pd.appendChild(b1);pd.appendChild(b2);
+  pd.appendChild(el('p','nota-back','La fuente `cartera` YA está en SATO_FUENTES (T1.6). Esta dock es la misma charla de la ficha con el foco puesto en lo comercial — cero write paths nuevos.'));
+  f2.appendChild(pd);s2.appendChild(f2);b.appendChild(s2);
+
+  var s3=el('div','sec');s3.appendChild(el('h5',null,'Acciones'));
+  var ac=el('div','acc');
+  [['📄 Dossier de reunión','pri'],['→ Registrar propuesta',''],['✓ Marcar firmada',''],['⚑ Encargar a Cowork','']].forEach(function(a){
+    var bt=el('button','btn '+a[1],a[0]);
+    bt.addEventListener('click',function(){toast(a[0]+' — build real: endpoint con _soloOwner_ + alta en ENDPOINTS_UI en el mismo commit')});
+    ac.appendChild(bt);
+  });
+  s3.appendChild(ac);
+  s3.appendChild(el('p','nota-back','Aislamiento (regla dura): todo lo de esta solapa está anclado a '+c.id+'. Nada de otro cliente entra a esta vista; el id lo pone el sistema, no el modelo.'));
+  b.appendChild(s3);
+
+  document.getElementById('scrim').classList.add('on');
+  document.getElementById('f360').classList.add('on');
+}
+function fichaCerrar(){document.getElementById('scrim').classList.remove('on');document.getElementById('f360').classList.remove('on')}
+document.getElementById('f360x').addEventListener('click',fichaCerrar);
+document.getElementById('scrim').addEventListener('click',fichaCerrar);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')fichaCerrar()});
+
+/* ── VISTA 2 · móvil ── */
+var mEtapa='tibio';
+function mRender(){
+  var ch=document.getElementById('mChips');ch.innerHTML='';
+  ETAPAS.filter(function(e){return CARTERA.some(function(c){return c.etapa===e})}).forEach(function(e){
+    var n=CARTERA.filter(function(c){return c.etapa===e}).length;
+    var b=el('button','m-chip'+(e===mEtapa?' on':''));b.setAttribute('role','tab');
+    b.appendChild(document.createTextNode(ETIQ[e]));b.appendChild(el('span','n','('+n+')'));
+    b.addEventListener('click',function(){mEtapa=e;mRender()});
+    ch.appendChild(b);
+  });
+  var ls=document.getElementById('mLista');ls.innerHTML='';
+  CARTERA.filter(function(c){return c.etapa===mEtapa})
+    .sort(function(a,b){return (a.pxf||'9999')<(b.pxf||'9999')?-1:1})
+    .forEach(function(c){
+      var d=el('button','m-card');
+      var top=el('div','top');top.appendChild(el('div','logo',c.n.charAt(0)));
+      var nm=el('div');nm.appendChild(el('div','nm',c.n));nm.appendChild(el('div','id',c.id+(c.svc?' · '+c.svc:'')));top.appendChild(nm);
+      d.appendChild(top);
+      if(c.px)d.appendChild(el('div','px','→ '+c.px));
+      else d.appendChild(el('div','px sin','sin próxima acción'));
+      var meta=el('div','meta');
+      if(c.pxf){var v=c.pxf<HOY;var s=el('span',null,(v?'⚠ vencía ':'para el ')+c.pxf);if(v){s.style.color='var(--color-danger)';s.style.fontWeight='600'}meta.appendChild(s)}
+      meta.appendChild(el('span',null,dias(c.desde,HOY)+'d en etapa'));
+      d.appendChild(meta);
+      d.addEventListener('click',function(){
+        document.getElementById('msNombre').textContent=c.n;
+        document.getElementById('msSub').textContent=c.id+' · '+ETIQ[c.etapa]+(c.svc?' · '+c.svc:'');
+        document.getElementById('mSheet').classList.add('on');
+      });
+      ls.appendChild(d);
+    });
+}
+document.getElementById('msCerrar').addEventListener('click',function(){document.getElementById('mSheet').classList.remove('on')});
+document.getElementById('msDossier').addEventListener('click',function(){toast('Dossier: brief del cliente + números del conector + Hilo + propuesta viva — datos reales del OS, jamás inventados')});
+mRender();
+
+/* ── VISTA 3 · flujo Vehemence ── */
+var PASOS=[
+ {card:{badge:{txt:'piloto desde junio',cls:'prop'},px:'Presentar propuesta de retención',pxf:'2026-08-27'},
+  sheet:null,met:['3 de 6','—'],delta:['',''],
+  ciclo:{t:'<b>Ciclo medido:</b> 75 días en piloto <span class="ej">[EJEMPLO]</span> — el pre-mortem F3 lo llama «piloto eterno»: piloto sin fecha de conversión es dependencia regalada.',b:[70,0,0]},
+  dispara:[
+   ['luci','Luciano','Presenta la propuesta en la reunión (Etapa 4 KAIROS: reflejo + costo de no hacer nada + opciones + fecha). El precio siempre lo aprobás vos.'],
+   ['auto','El OS','El dossier sale de la Ficha 360: ventas del conector de Vehemence + Hilo + historial del piloto. Datos reales, cero inventados.'],
+   ['auto','El OS','La card ya muestra los días de piloto acumulados: el dato que empuja a ponerle fecha.']
+  ],
+  nota:'Estado real HOY: Vehemence activo-piloto desde junio, propuesta USD 250 en curso (memoria 11-ago).'},
+ {card:{badge:{txt:'USD 250/mes · propuesta',cls:'prop'},px:'Seguimiento — respuesta de Micaela',pxf:'2026-09-03'},
+  sheet:{st:'p',stTxt:'propuesta',imp:'USD 250'},met:['3 de 6','—'],delta:['','propuesta NO suma (atenuada en HQ)'],
+  ciclo:{t:'<b>Ciclo:</b> 75d piloto + propuesta en la mesa. El reloj de respuesta corre: si pasa de 7 días sin contestación, el brief lo canta.',b:[70,20,0]},
+  dispara:[
+   ['luci','Luciano','Un tap en la card: «Registrar propuesta» → S2, importe 250, moneda USD.'],
+   ['auto','El OS','propuestaRegistrar() crea la fila en recurrentes_propios con estado=propuesta. La hoja YA existe (E3 HQ, certificada @46) — cero hojas nuevas.'],
+   ['auto','El OS','El HQ la muestra ATENUADA: una propuesta no es un ingreso (regla E3). El movimiento queda en Actividad con fecha.'],
+   ['auto','El OS','La próxima acción rota de «presentar» a «seguir», con fecha — la card nunca queda sin siguiente paso.']
+  ],
+  nota:'Reglas de honestidad heredadas, no re-implementadas: dos monedas no se suman; una propuesta no es un ingreso.'},
+ {card:{badge:{txt:'✓ retención firmada · USD 250/mes',cls:'firm'},px:'Sesión de arranque (≤7 días — Etapa 5 KAIROS)',pxf:'2026-09-10'},
+  sheet:{st:'a',stTxt:'activo',imp:'USD 250'},met:['4 de 6','USD 250/mes'],delta:['+1 retención formalizada','entra al subtotal USD del HQ'],
+  ciclo:{t:'<b>Ciclo cerrado: 89 días piloto→firma</b> <span class="ej">[EJEMPLO]</span>. Queda medido en Actividad: la próxima vez que prometas fechas a un candidato, tenés TU número real, no una expresión de deseo.',b:[70,20,10]},
+  dispara:[
+   ['luci','Luciano','Micaela firma. Un tap: «Marcar firmada» + fecha.'],
+   ['auto','El OS','propuestaFirmar() pasa la fila a estado=activo → hqNumeros la suma al subtotal USD. retenciones_formalizadas +1.'],
+   ['auto','El OS','Actividad registra la conversión con fecha; el brief de mañana abre con la noticia.'],
+   ['auto','El OS','Gate KAIROS Etapa 5: propone la tarea «sesión de arranque ≤7 días» en el CM.'],
+   ['luci','Luciano','Nada se automatiza de más: mover, registrar y firmar son SIEMPRE decisiones tuyas. El OS muestra, vos movés (doctrina E1).']
+  ],
+  nota:'El lazo North Star completo: una conversación → una fila que cambia de estado → las DOS métricas se mueven, medidas en el OS.'}
+];
+var pIx=0;
+function fRender(){
+  document.querySelectorAll('#stepper .step').forEach(function(s,i){
+    s.classList.toggle('on',i===pIx);s.classList.toggle('done',i<pIx);
+  });
+  var p=PASOS[pIx];
+  var fc=document.getElementById('fCard');fc.innerHTML='';
+  var c={id:'CLI-002',n:'Vehemence',etapa:'activo',svc:'S2 + S4 · e-comm',px:p.card.px,pxf:p.card.pxf,desde:'2026-08-11',sheet:true,prop:p.card.badge,resp:'Micaela',enc:['si','si','si','si']};
+  fc.appendChild(cardEl(c));
+  var fs=document.getElementById('fSheet');fs.innerHTML='';
+  if(p.sheet){
+    var r=el('div','sheetrow'+(p.sheet.st==='p'?' prop':''));
+    r.appendChild(el('span',null,'CLI-002'));
+    r.appendChild(el('span',null,'S2 Dirección Admin'));
+    r.appendChild(el('span','num',p.sheet.imp));
+    r.appendChild(el('span','st '+p.sheet.st,p.sheet.stTxt));
+    fs.appendChild(r);
+  } else fs.appendChild(el('div','cartera-vacia','(sin fila todavía — la propuesta no se registró)'));
+  var ci=document.getElementById('fCiclo');
+  ci.innerHTML=p.ciclo.t;
+  var bar=el('div','barra');
+  ['b1','b2','b3'].forEach(function(cl,i){var seg=el('div',cl);seg.style.width=p.ciclo.b[i]+'%';bar.appendChild(seg)});
+  ci.appendChild(bar);
+  var ul=document.getElementById('fDispara');ul.innerHTML='';
+  p.dispara.forEach(function(d){
+    var li=el('li');
+    li.appendChild(el('span','ic '+d[0],d[0]==='auto'?'⚙':'👤'));
+    var tx=el('div');tx.appendChild(el('div','quien',d[1]));
+    var body=el('div');body.innerHTML=d[2].replace(/(propuestaRegistrar\(\)|propuestaFirmar\(\)|recurrentes_propios|hqNumeros|estado=propuesta|estado=activo|retenciones_formalizadas|Actividad)/g,'<code>$1</code>');
+    tx.appendChild(body);li.appendChild(tx);ul.appendChild(li);
+  });
+  document.getElementById('fNota').textContent=p.nota;
+  document.getElementById('fMet1').textContent=p.met[0];
+  document.getElementById('fMet2').textContent=p.met[1];
+  document.getElementById('fDelta1').textContent=p.delta[0];
+  document.getElementById('fDelta2').textContent=p.delta[1];
+  document.getElementById('fPrev').disabled=pIx===0;
+  document.getElementById('fNext').textContent=pIx===2?'Fin del flujo':'Siguiente ›';
+}
+document.getElementById('fPrev').addEventListener('click',function(){if(pIx>0){pIx--;fRender()}});
+document.getElementById('fNext').addEventListener('click',function(){if(pIx<2){pIx++;fRender()}});
+document.querySelectorAll('#stepper .step').forEach(function(s){s.addEventListener('click',function(){pIx=+s.dataset.s;fRender()})});
+fRender();
+</script>
+</body>
+</html>
