@@ -1,19 +1,23 @@
-# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1 en prod + E2 en repo)
+# HANDOFF — Satori OS — 2026-08-27 (espejo vivo · CAPACIDADES-SATO E1 en prod + E2 en /dev)
 
-DEPLOY: **prod `/exec` = @56 — E1 EN PRODUCCIÓN, con los dos gates SALTEADOS** (decisión de Luciano 27-ago: pidió el push y el promote antes de certificar). GAS HEAD == repo, verificado byte a byte antes y después del push. **Rollback = @55 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 55`), que sí estaba CERTIFICADO 994/0.
+DEPLOY: **`/dev` (GAS HEAD) = E1 + E2 · prod `/exec` = @56 = E1 solo.** El `clasp push` de E2 salió con endoso de Cowork sobre los 3 desvíos, el fix del `Number('')` y el refactor de la lista-contrato. Guardia corrida antes y después: GAS HEAD == repo byte a byte, y antes del push GAS estaba exactamente en `8ed2150` (nada ajeno que pisar). **NO se promueve hasta que Luciano corra `selfTestTramo6()` + eyeball** — instrucción explícita de Cowork, y además la regla que quedó escrita tras el precedente #55. **Rollback de prod = @55 en `_promote_rollback.txt`** (`clasp deploy -i <DEPLOY_ID> -V 55`), CERTIFICADO 994/0.
+
+E1 sigue en prod con sus dos gates salteados (decisión de Luciano, 27-ago). Eso no cambia con este push: `/exec` no se tocó.
 
 ⚠ **VERDE CON ASTERISCO — qué falta para que esto sea verde de verdad:**
-0. **E2 está en el repo pero NO en GAS**: sin `clasp push`, sin editor y sin promote. `/exec` @56 = E1 solo.
-1. **`selfTestTramo6()` en el editor** — ahora corre **D48 (E1, 15 asserts)** + **D49 (E2, 17 asserts)**. Ninguno de los dos corrió nunca contra Sheets. Un tramo sin correr no es verde: es «sin correr».
-2. **Eyeball de `/exec` @56** (2 min): abrir la app como luciano@ y probar la voz 30 s.
+0. **E2 está en `/dev`, NO en prod.** El promote queda bloqueado a propósito hasta el punto 1.
+1. **`selfTestTramo6()` en el editor — UNA sola pasada cubre las dos deudas**: **D48 (E1, 15 asserts)** + **D49 (E2, 17 asserts)**. Ninguno de los dos corrió nunca contra Sheets. Un tramo sin correr no es verde: es «sin correr». Los triggers corren HEAD, así que E2 ya está delante de `corridaDiaria` — pero inerte (`push_proactivo_on=false`).
+2. **Eyeball en `/dev`** (E1+E2) y en `/exec` @56 (E1): abrir como luciano@ y probar la voz 30 s.
 3. **El riesgo concreto a mirar primero:** `encargosReportar_` ahora escribe la columna `avisado`. Es el camino por el que el runner cierra los encargos — si ahí hay un fallo, el encargo queda colgado en `en_ejecucion`. Se ve corriendo un encargo de punta a punta, o mirando la hoja `Encargos` después de que el runner reporte.
-4. **La voz TODAVÍA no enuncia nada**: `agent.py` NO lo despliega `clasp` (corre en el proceso LiveKit). El saludo con el lazo recién existe cuando se **reinicia el agente**. Lo que sí está vivo en @56 es el push al teléfono y la tool en el backend.
-5. **`NTFY_TOKEN` sin cargar** (dependencia humana, E0.2 del RUNBOOK): el canal de push está cableado y **mudo** hasta que exista la credencial. `probarPushTelefono()` devuelve `que_falta`. Con E2 esto pesa más: el push de las 07:00 depende del mismo canal.
-6. **`push_proactivo_on` sigue en `false`**, a propósito: E2 se despliega inerte y lo enciende un humano después de mirarlo, igual que `correo_on`.
+4. **`push_proactivo_on` sigue en `false`**, a propósito: E2 se despliega inerte y lo enciende un humano después de mirarlo, igual que `correo_on`. Hasta entonces `pushProactivoDiario_` devuelve `{enviado:false, motivo:'push_proactivo_on=false'}` en cada corrida.
 
-PRÓXIMO PASO: los 6 puntos de arriba, en ese orden — el 1 cubre E1 y E2 en una sola corrida del tramo 6. Después: **E3** (leer correo por voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E2 y libera E3.
+**Cabos que Cowork reporta CERRADOS (27-ago) — no verificados por Code, se anotan con su fuente:**
+- **`NTFY_TOKEN` cargado** en Script Properties ⇒ la rama ntfy de E1-bis manda `Authorization: Bearer`. La comprobación real es `probarPushTelefono()` en el editor (devuelve la PRESENCIA de cada credencial); no se puede correr headless.
+- **`agent.py` reiniciado** ⇒ el saludo con `encargos_listos` (E1) está vivo. OJO: **este reload NO trae E2.d** — `brief_hoy.py` y el saludo en paralelo entraron DESPUÉS. Hace falta **otro reload del agente** para que la voz enuncie el bloque HOY.
 
-> **E2 (Ola 1.2 · proactividad) — construido y verde offline, SIN pushear ni promover.** `node _harness.js` **899/0** (869 → +30). Entró: (a) sello `conector_<id>_ult_sync` al cerrar bien cada sync + chequeo **`conectores_sync`** en `correrSalud` (8º chequeo, con capa humana) sobre el juicio PURO `_staleEstado_`; (b) **`pushProactivoDiario_`** al cierre de `corridaDiaria` — opt-in `push_proactivo_on` (default OFF), silencioso sin señales, PII-free (solo cantidades), dedupe diario que **solo marca si el envío salió**; (c) **anti-brief-estático**: bloque `## HOY hay que mirar (N señales)` insertado entre el BLUF y el contrato v1 —el contrato no se toca—; (d) el saludo de voz lee ese bloque y **se calla con 0 señales**; (e) Config `push_proactivo_on` + `conector_max_dias`. Asserts: **D49a-f** (tramo 6) + 30 en el arnés, incluido el parser Python REAL ejercitado desde el arnés vía `voz/agent/brief_hoy.py`.
+PRÓXIMO PASO: los 5 puntos de arriba, en ese orden — el 1 cubre E1 y E2 en una sola corrida del tramo 6. Después: **E3** (leer correo por voz), según `RUNBOOK-CAPACIDADES-SATO-2026-08-27.md`. Cowork verifica el reporte de E2 y libera E3.
+
+> **E2 (Ola 1.2 · proactividad) — en `/dev`, verde offline, sin promover.** `node _harness.js` **899/0** (869 → +30). Entró: (a) sello `conector_<id>_ult_sync` al cerrar bien cada sync + chequeo **`conectores_sync`** en `correrSalud` (8º chequeo, con capa humana) sobre el juicio PURO `_staleEstado_`; (b) **`pushProactivoDiario_`** al cierre de `corridaDiaria` — opt-in `push_proactivo_on` (default OFF), silencioso sin señales, PII-free (solo cantidades), dedupe diario que **solo marca si el envío salió**; (c) **anti-brief-estático**: bloque `## HOY hay que mirar (N señales)` insertado entre el BLUF y el contrato v1 —el contrato no se toca—; (d) el saludo de voz lee ese bloque y **se calla con 0 señales**; (e) Config `push_proactivo_on` + `conector_max_dias`. Asserts: **D49a-f** (tramo 6) + 30 en el arnés, incluido el parser Python REAL ejercitado desde el arnés vía `voz/agent/brief_hoy.py`.
 >
 > **Un bug real que cazó el arnés antes de prod:** `_staleEstado_('')` daba `ok` (`Number('')` es 0, no NaN) — una celda de sello en blanco se leía como «sincronizó hace 0 días». Corregido: ausencia de dato ⇒ `warn`.
 >
